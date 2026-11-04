@@ -24,3 +24,21 @@ Audit health: Accessibility 3, Performance 3, Theming 3, Responsive 3, Implement
 | 15 | P3 | Next.js dev indicator overlaps the sidebar in dev builds only | Not an app issue; absent in production builds |
 
 Positive findings: tokens and Tailwind names are used everywhere (no raw palette classes), reduced motion is read in JS and CSS, safe areas and tap highlight and input zoom are handled, status never relies on colour alone (icons and words), definitions are visible without hover, the globe falls back to the flat map.
+
+# Final pass (ticket #57, phase 5)
+
+Method: `impeccable` polish and the detector over `frontend/src`, then every key screen (MSL, Director, Admin, chat, design system, plus the first-run card) looked at in all six style x mode looks at all 14 sizes in the matrix, through the committed baselines in `frontend/e2e/__visual__/`. `appearance-matrix.spec.ts` (layout, overflow, 44pt touch targets, WCAG AA contrast, focus rings) ran green at all 14 sizes: 448 of 448.
+
+| # | Sev | Finding | Status |
+|---|---|---|---|
+| 16 | P1 | `appearance-matrix.spec.ts` ran at only the two iPad Air 11 sizes: the project `testMatch` did not match its file name, although the docs said every size | Fixed: it now runs at all 14 sizes (`playwright.config.ts`) |
+| 17 | P2 | The page-header backdrop (glow, dots, orbs) was clipped to the header box, so every landing showed a hard line beside the title | Fixed: the backdrop stage reaches into the page gutter and fades out at every edge (`.parallax-stage`) |
+| 18 | P2 | The chat composer was a bordered card around a bordered textarea | Fixed: one top rule and one box, the input. A borderless input inside the card was tried and failed the non-text contrast check, so the input keeps its border |
+| 19 | P2 | Native selects in six admin, executive and Director forms were hard-coded to 44px, so on desktop they sat taller than the 36px inputs beside them | Fixed: they use `--control-h` (36px compact, 44px comfortable) |
+| 20 | P3 | "1 need review" on the admin reconciliation card | Fixed: "1 needs review" |
+| 21 | P3 | Two `h1`s on `/admin` (finding 11) | Fixed: Data quality is an `h2` |
+| 22 | P3 | The first-run orientation card sat above every page in a fresh browser, so the screenshots of each screen showed the card instead of the screen | Fixed in the harness: baselines mark it seen, and `msl-landing-first-run` keeps the card itself covered |
+| 23 | P3 | Detector: `bounce-easing` on `.spring-in` | Kept on purpose: the captain asked for springy cards. It is a damped spring (about 10% overshoot, 550ms), runs once on entry, is interruptible, and is off under reduced motion |
+| 24 | P3 | Native `<select>` browser chrome on the filter bar and forms (finding 12) | Listed: now themed and sized by tokens; replacing it with the shared `Select` touches every filter and its e2e, a follow-up of its own |
+
+Positive findings: no horizontal scroll, overlap, clipped content, small iPad touch target, chart or 3D-view misfit at any size in any look; all six looks pass WCAG AA on the key screens; reduced motion respected; 0 findings from the detector other than finding 23.

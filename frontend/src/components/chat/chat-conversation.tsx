@@ -110,7 +110,8 @@ export function ChatConversation({ context, starters, layout, inputRef }: ChatCo
       <form
         className={cn(
           "safe-pb flex items-end gap-2 border-t bg-background/90 py-3 backdrop-blur-md",
-          panel ? "px-4" : "sticky bottom-0 -mx-4 px-4 sm:mx-0 sm:rounded-2xl sm:border",
+          // A bar with one top rule: the input carries the only box, so there is no card around a card.
+          panel ? "px-4" : "sticky bottom-0 -mx-4 px-4 sm:mx-0 sm:px-0",
         )}
         onSubmit={(e) => {
           e.preventDefault()

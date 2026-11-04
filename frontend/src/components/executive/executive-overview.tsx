@@ -70,7 +70,7 @@ export function ExecutiveOverview() {
         </div>
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           Rank by
-          <select data-testid="rank-by" value={rankBy} onChange={(e) => setRankBy(e.target.value as ExecutiveRankBy)} className="h-11 rounded-lg border bg-background px-3 text-sm text-foreground">
+          <select data-testid="rank-by" value={rankBy} onChange={(e) => setRankBy(e.target.value as ExecutiveRankBy)} className="h-(--control-h) rounded-lg border bg-background px-3 text-sm text-foreground">
             {EXECUTIVE_RANK_BY.map((r) => (
               <option key={r} value={r}>{RANK_LABEL[r]}</option>
             ))}

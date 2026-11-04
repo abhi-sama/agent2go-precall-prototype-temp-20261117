@@ -284,9 +284,9 @@ export function AdminDataQuality() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           Data quality
-        </h1>
+        </h2>
         <p className="max-w-2xl text-muted-foreground">
           Monitor ingestion health and validate identity, source grain, and
           question dependencies.

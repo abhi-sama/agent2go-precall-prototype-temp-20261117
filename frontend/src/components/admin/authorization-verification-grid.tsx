@@ -45,7 +45,7 @@ export function AuthorizationVerificationGrid() {
       <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-sm font-medium">Scope condition</p><p className="mt-1 text-sm text-muted-foreground">{rows[0]?.expectation}</p></div>
         <label className="grid min-w-52 gap-1 text-sm font-medium">Show condition
-          <select name="scopeScenario" value={scenario} onChange={(event) => setScenario(event.target.value as typeof scenario)} className="min-h-11 rounded-lg border border-input bg-background px-3 text-base font-normal outline-none focus-visible:ring-3 focus-visible:ring-ring/50" aria-label="Authorization grid scope condition">
+          <select name="scopeScenario" value={scenario} onChange={(event) => setScenario(event.target.value as typeof scenario)} className="min-h-(--control-h) rounded-lg border border-input bg-background px-3 text-base font-normal outline-none focus-visible:ring-3 focus-visible:ring-ring/50" aria-label="Authorization grid scope condition">
             {SCENARIOS.map(([id, title]) => <option key={id} value={id}>{title}</option>)}
           </select>
         </label>

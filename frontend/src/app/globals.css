@@ -513,6 +513,11 @@
   /* Parallax layers: the scene sets --px / --py (-1 to 1); each layer moves by its own depth. Springs back on leave. */
   .parallax-layer { transition: transform var(--duration-spring) var(--ease-spring); will-change: transform; }
   .parallax-layer[data-active="true"] { transition: transform var(--duration-base) var(--ease-out); }
+  /* The backdrop fades to nothing at its edges: clipped glow would otherwise end in a visible line beside the title. */
+  .parallax-stage {
+    mask-image: linear-gradient(to right, transparent, black 7%, black 93%, transparent), linear-gradient(to bottom, transparent, black 14%, black 86%, transparent);
+    mask-composite: intersect;
+  }
 
   .safe-pt { padding-top: env(safe-area-inset-top); }
   .safe-pb { padding-bottom: env(safe-area-inset-bottom); }

@@ -44,7 +44,7 @@ function DrillView({ target, months }: { target: DrillTarget; months: ExecutiveM
         <SheetTitle className="text-xl font-semibold">Records · {target.label}</SheetTitle>
         <SheetDescription>The calls or responses counted for this month. Opened because your account holds record-level permission.</SheetDescription>
         <div className="flex flex-wrap items-center gap-2">
-          <select aria-label="Month" data-testid="drill-month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-11 rounded-lg border bg-background px-3 text-sm">
+          <select aria-label="Month" data-testid="drill-month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-(--control-h) rounded-lg border bg-background px-3 text-sm">
             {months.map((m) => (
               <option key={m.month} value={m.month}>{formatMonth(m.month)}{m.isPartial ? " (partial)" : ""}</option>
             ))}

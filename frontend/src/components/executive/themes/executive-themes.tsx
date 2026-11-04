@@ -128,7 +128,7 @@ export function ExecutiveThemesWorkspace() {
             facet !== "PORTFOLIO" && values.length > 0 ? (
               <label className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                 {FACET_LABEL[facet]}
-                <select data-testid="matrix-facet-value" value={facetValue ?? ""} onChange={(e) => setPicked(e.target.value)} className="h-11 rounded-lg border bg-background px-3 text-sm capitalize text-foreground">
+                <select data-testid="matrix-facet-value" value={facetValue ?? ""} onChange={(e) => setPicked(e.target.value)} className="h-(--control-h) rounded-lg border bg-background px-3 text-sm capitalize text-foreground">
                   {values.map((v) => <option key={v} value={v}>{v}</option>)}
                 </select>
               </label>

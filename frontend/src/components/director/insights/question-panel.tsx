@@ -75,7 +75,7 @@ export function QuestionPanel({ range, filters }: { range: DateRange; filters: I
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="question-type" className="text-xs">Answer type</Label>
-              <select id="question-type" data-testid="question-type" value={type} onChange={(e) => setType(e.target.value)} className="h-11 rounded-lg border border-input bg-background px-3 text-sm">
+              <select id="question-type" data-testid="question-type" value={type} onChange={(e) => setType(e.target.value)} className="h-(--control-h) rounded-lg border border-input bg-background px-3 text-sm">
                 <option value="">All types</option>
                 {types.map((t) => <option key={t} value={t}>{typeLabel(t)}</option>)}
               </select>

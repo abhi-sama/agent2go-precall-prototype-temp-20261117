@@ -10,6 +10,7 @@ Everything about how the interface looks and moves lives here. Read this before 
 | `motion-plan.md` | Motion tokens, where motion helps and where it must not, the audit and open plans |
 | `audit.md` | The phase 1 audit of the merged screens, each finding fixed or listed with a reason |
 | `report/index.html` | The before and after design report for the captain (open in a browser) |
+| `../../frontend/e2e/__visual__/<viewport>/` | Visual regression baselines: key screens in all six style x mode looks at every size in the matrix (`pnpm test:visual`) |
 | `screenshots/<viewport>/` | Key screens at every size in the matrix (MSL, Director, Admin, chat, design system, two appearance variants) |
 | `../adr/0009-ui-library-choices.md` | Libraries for virtualization, the command menu, drag and drop, toasts |
 
@@ -53,6 +54,7 @@ Nothing may overflow, overlap or need horizontal scrolling at any of these. Touc
 The list is `frontend/e2e/support/viewports.ts` and the screens are `frontend/e2e/support/screens.ts` (the shared responsive matrix from ticket #46; Playwright builds one project per viewport). `pnpm test:e2e` runs every screen at every size and fails on sideways scrolling, clipped or overlapping content, touch targets under 44pt on iPad sizes, and charts or 3D views that do not fit.
 A full-page screenshot per screen and size lands in `frontend/test-results/screenshots/<viewport>/<screen>.png`. Add your screen to `SCREENS` when you add a route.
 `frontend/e2e/appearance.spec.ts` covers style, mode and density (persona defaults, persistence, no flash); extend it when you add a token that changes with them.
+`pnpm test:visual` compares the key screens (MSL, Director, Admin, chat, design system, and the first-run card) in all six looks at every viewport against the committed screenshots in `frontend/e2e/__visual__/<viewport>/` (above the fold, reduced motion, WebGL canvases masked). It is opt-in because pixels depend on the machine: the baselines are macOS + the bundled Chromium. After an intended look change run `pnpm test:visual:update` (it also recompresses the PNGs losslessly), review the image diff in the PR and commit. Add a screen to `KEY_SCREENS` in `e2e/visual-regression.spec.ts` when it introduces a new look.
 `frontend/e2e/appearance-matrix.spec.ts` runs the key screens in all six style x mode looks at every viewport and fails on layout problems and on WCAG AA contrast (`e2e/support/contrast.ts`). Add a screen to `KEY_SCREENS` when it introduces new colour combinations.
 
 ### Before you open the PR

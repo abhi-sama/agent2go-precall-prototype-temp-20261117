@@ -76,8 +76,8 @@ export function ParallaxScene({
 
   return (
     <Tag ref={root as React.Ref<HTMLDivElement>} className={cn("relative isolate", className)} {...rest} onPointerMove={onPointerMove} onPointerLeave={settle} onPointerCancel={settle}>
-      {/* The layers deliberately bleed past their own box and are clipped by the stage. */}
-      <div ref={stage} aria-hidden data-layout-ok="clip overlap" data-testid="parallax-stage" className={cn("parallax-layer pointer-events-none absolute inset-0 -z-10 overflow-hidden", stageClassName)}>
+      {/* The stage reaches into the page gutter and fades out at every edge (`.parallax-stage`), so the glow never ends in a hard line next to the title. */}
+      <div ref={stage} aria-hidden data-layout-ok="clip overlap" data-testid="parallax-stage" className={cn("parallax-layer parallax-stage pointer-events-none absolute -inset-x-4 -inset-y-3 -z-10 overflow-hidden", stageClassName)}>
         {layers}
       </div>
       {children}
