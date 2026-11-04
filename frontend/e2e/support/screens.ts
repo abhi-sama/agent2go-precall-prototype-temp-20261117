@@ -61,6 +61,20 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   {
+    name: "sidebar-navigation",
+    path: "/msl",
+    ready: async (page) => {
+      await heading("My territory")(page)
+    },
+    prepare: async (page) => {
+      const menu = page.getByTestId("sidebar-menu")
+      if (await menu.isVisible()) {
+        await menu.click()
+        await expect(page.getByTestId("sidebar-sheet")).toBeVisible()
+      }
+    },
+  },
+  {
     name: "msl-landing-hcp-profile",
     path: "/msl",
     ready: testId("hcp-search-input"),
