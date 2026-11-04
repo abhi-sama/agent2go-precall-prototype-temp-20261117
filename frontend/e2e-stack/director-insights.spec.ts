@@ -49,3 +49,32 @@ test("the AI territory summary is generated through the agent, labelled AI, with
   await expect(result).toBeVisible({ timeout: 120_000 })
   await expect(result).toContainText("AI")
 })
+
+test("the 3D topics-by-territory view draws the Director's real, scoped heatmap and picks the same cell as the table", async ({ page }) => {
+  await page.goto("/login")
+  await page.getByTestId("login-email").fill(email("director-region-01"))
+  await page.getByTestId("login-password").fill(a2g.local_password)
+  await page.getByTestId("login-submit").click()
+  await expect(page).toHaveURL(/\/director$/)
+  await page.goto("/director/insights")
+  await expect(page.getByTestId("topic-heatmap")).toBeVisible({ timeout: 45_000 })
+
+  // The table lists every cell the API returned for this persona's scope; the 3D view must have exactly one bar each.
+  await page.getByTestId("heatmap-view-table").click()
+  const cells = await page.locator('[data-testid="heatmap-cell"]').count()
+  expect(cells).toBeGreaterThan(0)
+  await page.getByTestId("heatmap-view-3d").click()
+  const field = page.getByTestId("bar-field")
+  await expect(field).toHaveAttribute("data-intro", "done", { timeout: 30_000 })
+  await expect(field).toHaveAttribute("data-bar-count", String(cells))
+
+  // Tap the bar for the first row of the front row of territories: the same cell is selected in the table twin.
+  const rows = cells / 6
+  const spot = await field.evaluate((el, index) => (JSON.parse(el.getAttribute("data-bars") ?? "[]") as [number, number][])[index], (rows - 1) * 6)
+  await field.click({ position: { x: spot[0], y: spot[1] + 8 } })
+  await expect(page.getByTestId("cell-detail")).toBeVisible()
+  const [topic, territory] = (await field.getAttribute("data-selected"))!.split("|")
+  expect(["T01-01", "T01-02", "T01-03", "T01-04", "T01-05", "T01-06"]).toContain(territory)
+  await page.getByTestId("heatmap-view-table").click()
+  await expect(page.locator(`[data-testid="heatmap-cell"][data-topic="${topic}"][data-territory="${territory}"]`)).toHaveAttribute("aria-pressed", "true")
+})

@@ -25,6 +25,7 @@ Reduced motion keeps fades and colour changes and drops movement (see the `prefe
 | 4 | Distribution bars and chart draw-in (`charts/`) | Preventing a jarring change: bars appear anchored at zero | Occasional | 450ms `--ease-out` grow from the baseline. Recharts and ECharts defaults were 1000 to 1500ms. **Applied.** |
 | 5 | Button press (`ui/button.tsx`) | Feedback: the tap was heard | Tens per day | `scale(0.98)` on `:active`, 150ms `ease-out`. **Applied.** |
 | 6 | KPI figures (`hooks/use-count-up.ts`) | State indication on first appearance only | Occasional | Count up once in 400ms (was 700ms and replayed on every filter change). Later changes snap. **Applied.** |
+| 7 | 3D bar field (`charts/bar-field/`) | Preventing a jarring change: bars appear anchored at the floor; camera steps keep the viewer oriented | Occasional | 450ms `--ease-out` rise on first show only (no stagger); 200ms `--ease-in-out` camera step on zoom, reset and arrow keys; post-flick glide (damping). All off under reduced motion, and the scene draws only when something changes. **Applied (ticket #22).** |
 
 ## Where motion must not be added
 

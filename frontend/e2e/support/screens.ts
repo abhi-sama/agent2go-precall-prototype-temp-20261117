@@ -161,6 +161,39 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   {
+    name: "director-insights-3d",
+    path: "/director/insights",
+    userId: "u-dir-ne",
+    ready: testId("topic-heatmap"),
+    prepare: async (page) => {
+      await page.getByTestId("heatmap-view-3d").click()
+      await expect(page.getByTestId("bar-field")).toHaveAttribute("data-intro", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("bar-field-col-label").first()).toBeVisible()
+      await page.getByTestId("bar-field").scrollIntoViewIfNeeded()
+    },
+  },
+  {
+    name: "director-insights-3d-selected-black-warm",
+    path: "/director/insights",
+    userId: "u-dir-ne",
+    ready: testId("topic-heatmap"),
+    prepare: async (page) => {
+      await page.evaluate(() => {
+        const root = document.documentElement
+        root.classList.add("dark")
+        root.dataset.mode = "black"
+        root.dataset.style = "warm"
+      })
+      await page.getByTestId("heatmap-view-3d").click()
+      await expect(page.getByTestId("bar-field")).toHaveAttribute("data-intro", "done", { timeout: 20_000 })
+      // Select the front-left bar by tapping where the local-build probe says its top is.
+      const spot = await page.getByTestId("bar-field").evaluate((el) => (JSON.parse(el.getAttribute("data-bars") ?? "[]") as [number, number][])[13 * 6])
+      await page.getByTestId("bar-field").click({ position: { x: spot[0], y: spot[1] + 8 } })
+      await expect(page.getByTestId("cell-detail")).toBeVisible()
+      await page.getByTestId("bar-field").scrollIntoViewIfNeeded()
+    },
+  },
+  {
     name: "director-insights-ai-summary",
     path: "/director/insights",
     userId: "u-dir-ne",

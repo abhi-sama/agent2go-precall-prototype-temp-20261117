@@ -1,7 +1,7 @@
 "use client"
 
 import type { EChartsOption } from "echarts"
-import { MessageSquareText, Rows3, Table2 } from "lucide-react"
+import { Box, MessageSquareText, Rows3, Table2 } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { EChart } from "@/components/charts/echart"
@@ -14,9 +14,11 @@ import { useDataAdapter } from "@/lib/data/data-provider"
 import type { HeatmapCell, ThemeCard, ThemeFacet, TopicHeatmap } from "@/lib/data/director-insights"
 import type { DateRange, InsightFilters } from "@/lib/data/types"
 import { useQuery } from "@/lib/data/use-query"
+import { detectWebGL } from "@/lib/webgl"
 import { resolveCssColor } from "@/lib/css-color"
 import { useSession } from "@/lib/session/session-provider"
 import { cn } from "@/lib/utils"
+import { Heatmap3D } from "./heatmap-3d"
 import { DerivedBadge, EvidenceChip, InsightSection, num, PanelLoading, PanelMeta, pctText } from "./shared"
 
 const FACETS: { id: ThemeFacet; label: string }[] = [
@@ -26,6 +28,14 @@ const FACETS: { id: ThemeFacet; label: string }[] = [
   { id: "STUDY", label: "Study" },
   { id: "SURVEY", label: "Survey" },
 ]
+
+type HeatmapView = "chart" | "table" | "3d"
+
+const FALLBACK_NOTICE = {
+  webgl: "The 3D view needs WebGL, which this browser does not offer. Showing the 2D chart instead.",
+  lost: "The graphics context for the 3D view was lost. Showing the 2D chart instead.",
+  error: "The 3D view could not start. Showing the 2D chart instead.",
+} as const
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string)
 const shortTopic = (topic: string) => topic.replace(" (emerging)", " ↑")
@@ -39,7 +49,22 @@ export function HeatmapPanel({ range, filters }: { range: DateRange; filters: In
   const adapter = useDataAdapter()
   const { userId, ready } = useSession()
   const [facet, setFacet] = React.useState<ThemeFacet>("NONE")
-  const [view, setView] = React.useState<"chart" | "table">("chart")
+  const [view, setView] = React.useState<HeatmapView>("chart")
+  // Why the 3D view is not showing, when the person asked for it: the 2D chart stands in and says so.
+  const [fallback, setFallback] = React.useState<keyof typeof FALLBACK_NOTICE | null>(null)
+  const chooseView = (next: HeatmapView) => {
+    if (next === "3d" && !detectWebGL()) {
+      setFallback("webgl")
+      setView("chart")
+      return
+    }
+    setFallback(null)
+    setView(next)
+  }
+  const fallBackTo2D = React.useCallback((reason: keyof typeof FALLBACK_NOTICE) => {
+    setFallback(reason)
+    setView((v) => (v === "3d" ? "chart" : v))
+  }, [])
   const [selected, setSelected] = React.useState<{ territoryId: string; topic: string } | null>(null)
   const query = useQuery("topicHeatmap", `${userId}:${range.from}:${range.to}:${facet}:${JSON.stringify(filters)}`, (ctx) => adapter.topicHeatmap(ctx, { range, filters, facet }), ready)
   // Keep the last map while a facet reloads, so the page does not jump.
@@ -78,16 +103,20 @@ export function HeatmapPanel({ range, filters }: { range: DateRange; filters: In
               ))}
             </div>
             <div role="group" aria-label="Heatmap view" className="flex gap-1 rounded-xl border bg-card p-1">
-              {([["chart", "Chart", Rows3], ["table", "Table", Table2]] as const).map(([id, label, Icon]) => (
-                <button key={id} type="button" aria-pressed={view === id} data-testid={`heatmap-view-${id}`} onClick={() => setView(id)} className={cn("inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium", view === id ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>
+              {([["chart", "Chart", Rows3], ["3d", "3D", Box], ["table", "Table", Table2]] as const).map(([id, label, Icon]) => (
+                <button key={id} type="button" aria-pressed={view === id} data-testid={`heatmap-view-${id}`} onClick={() => chooseView(id)} className={cn("inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium", view === id ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>
                   <Icon className="size-4" aria-hidden /> {label}
                 </button>
               ))}
             </div>
           </div>
 
+          {fallback && (
+            <p role="status" data-testid="heatmap-3d-notice" className="rounded-xl border border-dashed bg-card p-3 text-sm text-muted-foreground">{FALLBACK_NOTICE[fallback]}</p>
+          )}
+
           <div data-testid="topic-heatmap" data-view={view} className="min-w-0 rounded-2xl border bg-card p-3 sm:p-4">
-            {view === "chart" ? <HeatmapChart data={data} selected={selected} onSelect={setSelected} /> : <HeatmapTable data={data} selected={selected} onSelect={setSelected} />}
+            {view === "chart" ? <HeatmapChart data={data} selected={selected} onSelect={setSelected} /> : view === "3d" ? <Heatmap3D data={data} selected={selected} onSelect={setSelected} onUnavailable={fallBackTo2D} /> : <HeatmapTable data={data} selected={selected} onSelect={setSelected} />}
             <Legend max={Math.max(...data.cells.map((c) => c.share))} />
           </div>
 

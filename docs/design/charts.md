@@ -12,6 +12,7 @@ One set of shared components in `frontend/src/components/charts/`, one palette, 
 | `Heatmap` (row by period, hatched zero cells) | `heatmap.tsx` | Director team activity |
 | `Timeline` (events with icon, word and colour for status) | `timeline.tsx` | Admin data-quality load timeline |
 | `TrendAreaChart` (Recharts) and `EChart` (ECharts wrapper) | `trend-area-chart.tsx`, `echart.tsx` | Trends, geo, anything Recharts lacks |
+| `BarField` (3D bars for a rows-by-columns measure; react-three-fiber) | `bar-field/` | Director topics by territory, the **3D** view |
 | `assignSeries`, `seriesColor`, `sequentialFill`, `useChartMotion` | `palette.ts`, `use-chart-motion.ts` | Every chart |
 
 Monthly bar and stacked charts (`activity/activity-charts.tsx`, `director/mix-section.tsx`) stay on the shadcn `ChartContainer` and take colours and motion from the shared helpers.
@@ -48,3 +49,14 @@ Sequential magnitude is one hue, the accent, mixed over the card (`sequentialFil
 - **Motion.** 450ms `ease-out` draw-in, off under reduced motion. Data that updates because a filter changed redraws once, not repeatedly.
 - **Accessibility.** Charts have a text equivalent (`aria-label`, `role="meter"` on distribution bars, a `caption` on heatmaps); status never rests on colour alone.
 - **Size.** Charts resize with their container (`ResizeObserver` in `EChart`, `ChartContainer` for Recharts); verify at every size in the viewport matrix.
+
+## 3D bar field (ticket #22)
+
+`BarField` is a third view of a heatmap, never the only one (ADR 0012). Rules for using it elsewhere:
+
+- Use it only for a rows-by-columns magnitude where turning the field reveals something (a tall bar behind another). A trend or a ranking stays 2D.
+- Opt-in: the 2D chart is the default, the 3D chunk loads on demand, and a table twin exists. The caller handles `onUnavailable` (no WebGL, context lost, error) by showing the 2D chart and saying why.
+- Colour is one hue (the accent) from low to high, as in the 2D heatmap; a zero cell is a flat grey tile, never a missing bar; the selected bar gets an ink outline.
+- Touch targets: the 3D view controls are 44px buttons; a tap picks the nearest bar within 24px. Axis names are DOM labels that thin out rather than overlap.
+- Motion: bars rise over 450ms `--ease-out` once on first show (not on later data changes); camera button steps are 200ms `--ease-in-out`; reduced motion drops both and the post-flick glide.
+- Budget: one instanced draw call, pixel ratio at most 2, `frameloop="demand"`. The e2e spec asserts draw calls, triangles and that a still scene draws nothing.

@@ -8,6 +8,7 @@ import { useDocumentTheme } from "@/hooks/use-document-theme"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import type { GeoActivity, GeoCountry, GeoTerritory, Persona } from "@/lib/data/types"
 import { formatRange } from "@/lib/dates"
+import { detectWebGL } from "@/lib/webgl"
 import { loadUsStates, loadWorld, boxOfFeatures, framing, nearPoints, unionBox } from "@/lib/geo/shapes"
 import { log } from "@/lib/log/logger"
 import { cn } from "@/lib/utils"
@@ -35,18 +36,6 @@ type Shapes = Awaited<ReturnType<typeof loadWorld>>
 
 /** How long the camera takes to fly in to a country before the flat map replaces the globe. */
 const FLY_IN_MS = 900
-
-let webglCache: boolean | undefined
-function detectWebGL(): boolean {
-  if (webglCache !== undefined) return webglCache
-  try {
-    const canvas = document.createElement("canvas")
-    webglCache = Boolean(canvas.getContext("webgl2") ?? canvas.getContext("webgl"))
-  } catch {
-    webglCache = false
-  }
-  return webglCache
-}
 
 class GlobeBoundary extends React.Component<{ onError: () => void; children: React.ReactNode }, { failed: boolean }> {
   state = { failed: false }
