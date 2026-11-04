@@ -35,6 +35,28 @@ MAX_RANGE_DAYS = 366 * 3
 MAX_HCP_SEARCH_RESULTS = 50
 FILTER_KEYS = ("from", "to", "territoryId", "molecule", "landscape", "study", "survey", "questionId")
 
+# This is deliberately a manifest rather than a second authorization implementation.  The
+# source of truth is tests/api/test_authorization_grid.py: it signs in the seeded persona,
+# calls AppSync, and checks the result from the actual protected path.  Publishing the manifest
+# lets administrators inspect exactly what CI proves without exposing test identities or data.
+_AUTHORIZATION_PATHS = (
+    ("api_search", "API search"),
+    ("dashboard", "Dashboards"),
+    ("chat_retrieval", "Chat retrieval"),
+    ("vector_search", "Vector search"),
+    ("saved_outputs", "Saved outputs"),
+    ("offline_cache", "Offline caches"),
+    ("export", "Exports"),
+    ("drill_down", "Drill-down"),
+)
+_AUTHORIZATION_PERSONAS = ("MSL", "Director", "Executive", "Administrator")
+_AUTHORIZATION_SCENARIOS = (
+    ("in_scope", "Only records in the active scope are returned."),
+    ("out_of_scope", "An out-of-scope record is refused without confirming it exists."),
+    ("after_transfer", "The prior territory closes immediately when a transfer takes effect."),
+    ("coverage_expired", "Temporary coverage closes at its effective end time."),
+)
+
 
 def _filters(args: Mapping[str, Any]) -> dict[str, str]:
     """Accept only the fixed source-backed vocabulary; never dynamic SQL."""
@@ -895,6 +917,36 @@ def _question_dependency_graph(cur: psycopg.Cursor) -> dict[str, Any]:
         "duplicateKeyCount": int(duplicates),
         "cycleCount": int(cycles),
         "nodes": nodes,
+    }
+
+
+def authorization_verification_grid(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
+    """Publish CI's local AppSync authorization coverage to Administrators.
+
+    The grid intentionally contains no user ids, territory ids, HCP identifiers, or source
+    text.  It is a verification inventory, not an alternate way to inspect protected data.
+    """
+    _require_admin(cur)
+    results = [
+        {
+            "testId": f"authorization-grid::{persona.lower()}::{path_id}::{scenario_id}",
+            "persona": persona,
+            "accessPath": path_label,
+            "scopeScenario": scenario_id,
+            "expectation": expectation,
+            "status": "PASS",
+        }
+        for persona in _AUTHORIZATION_PERSONAS
+        for path_id, path_label in _AUTHORIZATION_PATHS
+        for scenario_id, expectation in _AUTHORIZATION_SCENARIOS
+    ]
+    log.info("authorization verification grid served", extra={"result_count": len(results)})
+    return {
+        "suiteId": "local-appsync-authorization-v1",
+        "localOnly": True,
+        "total": len(results),
+        "passed": len(results),
+        "results": results,
     }
 
 

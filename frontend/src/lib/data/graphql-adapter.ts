@@ -9,6 +9,7 @@ import {
   ADMIN_ACCESS_OVERVIEW_QUERY,
   APPROVE_IDENTITY_MAPPING_MUTATION,
   ADMIN_DATA_QUALITY_QUERY,
+  AUTHORIZATION_VERIFICATION_GRID_QUERY,
   CREATE_SCOPE_ASSIGNMENT_MUTATION,
   GENERATE_BRIEF_MUTATION,
   EXPORT_BRIEF_MUTATION,
@@ -55,6 +56,7 @@ import {
   type AccessAuditFilter,
   type AdminAccessOverview,
   type AdminDataQuality,
+  type AuthorizationVerificationGrid,
   type DateRange,
   type DirectorOverview,
   type TerritoryComparison,
@@ -319,6 +321,10 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     async adminDataQuality(ctx) {
       const data = await run<{ adminDataQuality: AdminDataQuality }>(transport, ADMIN_DATA_QUALITY_QUERY, undefined, ctx)
       return data.adminDataQuality
+    },
+    async authorizationVerificationGrid(ctx) {
+      const data = await run<{ authorizationVerificationGrid: AuthorizationVerificationGrid }>(transport, AUTHORIZATION_VERIFICATION_GRID_QUERY, undefined, ctx)
+      return data.authorizationVerificationGrid
     },
   }
 }

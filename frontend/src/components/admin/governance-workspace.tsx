@@ -3,6 +3,7 @@
 import { AccessTimelineView } from "@/components/admin/access-timeline"
 import { HierarchyView } from "@/components/admin/hierarchy-view"
 import { VisibilityMatrices } from "@/components/admin/visibility-matrices"
+import { AuthorizationVerificationGrid } from "@/components/admin/authorization-verification-grid"
 import { DefinitionCatalog, IssueAssistant, LifecycleQueue, MetadataReconciliation } from "@/components/admin/governance-catalog"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -25,6 +26,7 @@ export function GovernanceWorkspace() {
           <TabsTrigger value="hierarchy" className={TRIGGER}>Hierarchy</TabsTrigger>
           <TabsTrigger value="timeline" className={TRIGGER}>Access timeline</TabsTrigger>
           <TabsTrigger value="visibility" className={TRIGGER}>Catalog and responses</TabsTrigger>
+          <TabsTrigger value="verification" className={TRIGGER}>Authorization checks</TabsTrigger>
           <TabsTrigger value="metadata" className={TRIGGER}>Metadata reconciliation</TabsTrigger>
           <TabsTrigger value="definitions" className={TRIGGER}>Definitions</TabsTrigger>
           <TabsTrigger value="lifecycle" className={TRIGGER}>Lifecycle queue</TabsTrigger>
@@ -33,6 +35,7 @@ export function GovernanceWorkspace() {
         <TabsContent value="hierarchy" className="pt-4"><HierarchyView /></TabsContent>
         <TabsContent value="timeline" className="pt-4"><AccessTimelineView /></TabsContent>
         <TabsContent value="visibility" className="pt-4"><VisibilityMatrices /></TabsContent>
+          <TabsContent value="verification" className="pt-4"><AuthorizationVerificationGrid /></TabsContent>
           <TabsContent value="metadata" className="pt-4"><MetadataReconciliation /></TabsContent>
           <TabsContent value="definitions" className="pt-4"><DefinitionCatalog /></TabsContent>
           <TabsContent value="lifecycle" className="pt-4"><LifecycleQueue /></TabsContent>

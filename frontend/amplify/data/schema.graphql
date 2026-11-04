@@ -801,6 +801,10 @@ type QuestionDependencyGraph { missingParentCount: Int! duplicateKeyCount: Int! 
 type IdentityQuality { matched: Int! unmatched: Int! }
 type RecordGrainQuality { callProductRows: Int! distinctCalls: Int! }
 type AdminDataQuality { ingestionRuns: [IngestionRun!]! identities: IdentityQuality! duplicateKeyCount: Int! recordGrain: RecordGrainQuality! issues: [DataQualityIssue!]! questionGraph: QuestionDependencyGraph! }
+"""One assertion from the local API-as-persona authorization verification suite."""
+type AuthorizationVerificationResult { testId: ID!, persona: String!, accessPath: String!, scopeScenario: String!, expectation: String!, status: String! }
+"""The published contract of the local authorization verification suite. Results are Administrator-only."""
+type AuthorizationVerificationGrid { suiteId: ID!, localOnly: Boolean!, total: Int!, passed: Int!, results: [AuthorizationVerificationResult!]! }
 "One source value with its original source-row provenance; values are never overwritten during comparison."
 type MetadataValue { value: String! sourceTable: String! sourceRecordId: ID! observedAt: AWSDateTime }
 type MetadataComparison { questionId: ID! field: String! catalogValues: [MetadataValue!]! responseValues: [MetadataValue!]! isConsistent: Boolean! }
@@ -1327,6 +1331,8 @@ type Query {
   "Recorded responses to one question. Needs response access and scope; catalog visibility is irrelevant."
   questionResponses(questionId: ID!, limit: Int): QuestionResponses!
   adminDataQuality: AdminDataQuality!
+  """Authorization checks exercised in CI through AppSync as seeded personas. Administrators only."""
+  authorizationVerificationGrid: AuthorizationVerificationGrid!
   "Side-by-side status values and provenance from the catalog and recorded responses. Administrators only."
   adminMetadataReconciliation: [MetadataComparison!]!
   "Version history for governed metric and question definitions. Administrators only."

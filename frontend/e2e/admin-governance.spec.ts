@@ -70,6 +70,14 @@ test("administrator validates the hierarchy, approves coverage, and keeps catalo
   await expect(responseGroup.getByRole("radio", { name: "Aggregate only" })).toBeChecked()
   await expect(responseGroup.getByRole("radio", { name: "Records" })).not.toBeChecked()
 
+  // The authorization evidence is a local AppSync-as-persona matrix, including access changes.
+  await tab(page, "Authorization checks").click()
+  const verification = page.getByTestId("authorization-verification-grid")
+  await expect(verification).toContainText("128 / 128 passed")
+  await expect(verification).toContainText("Offline caches")
+  await verification.getByLabel("Authorization grid scope condition").selectOption("coverage_expired")
+  await expect(verification).toContainText("Coverage ended")
+
   // The ticket 17 governance controls preserve provenance, versions, audit history and a
   // read-only assistant boundary.
   await tab(page, "Metadata reconciliation").click()
@@ -98,7 +106,7 @@ test.describe("viewport matrix", () => {
       test.skip(testInfo.project.name !== "ipad-landscape", "the matrix sets its own viewports; run it once")
       await page.setViewportSize({ width: viewport.width, height: viewport.height })
       await page.goto("/admin/governance")
-      for (const name of ["Hierarchy", "Access timeline", "Catalog and responses", "Metadata reconciliation", "Definitions", "Lifecycle queue", "Issue assistant"]) {
+      for (const name of ["Hierarchy", "Access timeline", "Catalog and responses", "Authorization checks", "Metadata reconciliation", "Definitions", "Lifecycle queue", "Issue assistant"]) {
         await tab(page, name).click()
         await expect(page.getByRole("tabpanel", { name })).toBeVisible()
         await expect(tab(page, name)).toHaveAttribute("aria-selected", "true")

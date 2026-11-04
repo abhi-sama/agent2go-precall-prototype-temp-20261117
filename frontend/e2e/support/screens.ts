@@ -325,7 +325,7 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   { name: "admin-governance", path: "/admin/governance", userId: "u-admin-sec", ready: heading("Data governance workspace") },
-  ...["Access timeline", "Catalog and responses"].map((tab): ScreenSpec => ({
+  ...["Access timeline", "Catalog and responses", "Authorization checks"].map((tab): ScreenSpec => ({
     name: `admin-governance-${tab.toLowerCase().replace(/\s+/g, "-")}`,
     path: "/admin/governance",
     userId: "u-admin-sec",
@@ -333,6 +333,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByRole("tab", { name: tab }).click()
       await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true")
+      if (tab === "Authorization checks") await testId("authorization-verification-grid")(page)
     },
   })),
   {

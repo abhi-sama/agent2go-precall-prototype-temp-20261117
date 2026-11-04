@@ -137,6 +137,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "catalogQuestions": hierarchy.catalog_questions,
         "questionResponses": hierarchy.question_responses,
         "adminDataQuality": resolvers.admin_data_quality,
+        "authorizationVerificationGrid": resolvers.authorization_verification_grid,
         "adminMetadataReconciliation": resolvers.admin_metadata_reconciliation,
         "adminDefinitions": resolvers.admin_definitions,
         "governanceRequestQueue": resolvers.governance_request_queue,

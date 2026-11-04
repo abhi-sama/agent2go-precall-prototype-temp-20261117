@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { createGraphQLAdapter, type GraphQLTransport } from "./graphql-adapter"
-import { HCP_PROFILE_QUERY, HCP_TIMELINE_QUERY, LANDING_KPIS_QUERY, SEARCH_HCPS_QUERY } from "./operations"
+import { AUTHORIZATION_VERIFICATION_GRID_QUERY, HCP_PROFILE_QUERY, HCP_TIMELINE_QUERY, LANDING_KPIS_QUERY, SEARCH_HCPS_QUERY } from "./operations"
 
 const ctx = { correlationId: "corr-9" }
 
@@ -55,5 +55,13 @@ describe("graphql adapter", () => {
     })
     await expect(adapter.hcpTimeline(ctx, "HCP-0001")).resolves.toMatchObject({ hcpId: "HCP-0001" })
     expect(seen).toEqual([{ query: HCP_TIMELINE_QUERY, variables: { hcpId: "HCP-0001" } }])
+  })
+
+  it("reads the Administrator authorization verification result through the contract", async () => {
+    const adapter = createGraphQLAdapter(async (req) => {
+      expect(req.query).toBe(AUTHORIZATION_VERIFICATION_GRID_QUERY)
+      return { data: { authorizationVerificationGrid: { suiteId: "local-appsync-authorization-v1", localOnly: true, total: 128, passed: 128, results: [] } } as never }
+    })
+    await expect(adapter.authorizationVerificationGrid(ctx)).resolves.toMatchObject({ total: 128, passed: 128, localOnly: true })
   })
 })

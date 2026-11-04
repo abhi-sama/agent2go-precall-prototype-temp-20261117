@@ -157,6 +157,14 @@ export const ADMIN_DATA_QUALITY_QUERY = /* GraphQL */ `
     }
   }
 `
+export const AUTHORIZATION_VERIFICATION_GRID_QUERY = /* GraphQL */ `
+  query AuthorizationVerificationGrid {
+    authorizationVerificationGrid {
+      suiteId localOnly total passed
+      results { testId persona accessPath scopeScenario expectation status }
+    }
+  }
+`
 
 const TERRITORY_ROW_FIELDS = `territoryId name regionId regionName distinctCalls distinctEngagedHcps callProductRows responseCount reportingMembers rosteredMembers callsPerReportingMember reportingCompleteness latestLoadDate coverage { status targetHcps engagedTargetHcps percentage }`
 export const DIRECTOR_OVERVIEW_QUERY = /* GraphQL */ `

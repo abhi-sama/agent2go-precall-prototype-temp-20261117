@@ -426,6 +426,24 @@ export interface AdminDataQuality {
   questionGraph: { missingParentCount: number; duplicateKeyCount: number; cycleCount: number; nodes: QuestionDependencyNode[] }
 }
 
+/** A local-stack AppSync assertion recorded in the Administrator verification grid. */
+export interface AuthorizationVerificationResult {
+  testId: string
+  persona: string
+  accessPath: string
+  scopeScenario: "in_scope" | "out_of_scope" | "after_transfer" | "coverage_expired"
+  expectation: string
+  status: "PASS" | "FAIL"
+}
+
+export interface AuthorizationVerificationGrid {
+  suiteId: string
+  localOnly: boolean
+  total: number
+  passed: number
+  results: AuthorizationVerificationResult[]
+}
+
 /** Coverage is withheld (never estimated) when no approved target population exists. */
 export type CoverageStatus = "AVAILABLE" | "NO_TARGET_POPULATION"
 
