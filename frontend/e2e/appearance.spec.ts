@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
+import { VIEWPORTS } from "./support/viewports"
 
 /** Style, mode and density: persona defaults, the settings control, and that every combination keeps its surfaces. */
 const attr = (page: Page, name: string) => page.evaluate((n) => document.documentElement.dataset[n] ?? null, name)
@@ -143,11 +144,20 @@ test("the header theme button saves too", async ({ page }) => {
   await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(true)
 })
 
-test("density follows the device and can be pinned", async ({ page }) => {
+test("density follows each device, remains live across resize, and can be pinned", async ({ page }, testInfo) => {
   await signInAs(page, "u-msl-ne-01", { theme: "light" })
   await page.goto("/msl")
-  // Playwright's iPad projects are touch devices.
-  await expect.poll(() => attr(page, "density")).toBe("comfortable")
+  const viewport = VIEWPORTS.find((entry) => entry.name === testInfo.project.name)!
+  const expectedDensity = viewport.touch ? "comfortable" : "compact"
+  await expect.poll(() => attr(page, "density")).toBe(expectedDensity)
+
+  // The automatic setting must re-evaluate while the browser recomputes its viewport on rotate.
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("resize"))
+    window.dispatchEvent(new Event("orientationchange"))
+  })
+  await expect.poll(() => attr(page, "density")).toBe(expectedDensity)
+
   await page.getByTestId("appearance-settings").click()
   await page.getByTestId("appearance-density-compact").click()
   await expect.poll(() => attr(page, "density")).toBe("compact")

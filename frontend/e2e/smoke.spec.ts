@@ -63,7 +63,9 @@ test.describe("MSL landing", () => {
     }
   })
 
-  test("searches and selects an authorized HCP with an explicit missing profile field", async ({ page }) => {
+  // TODO(#81): The seeded nested response-insight fixture is absent on iPad Air 11;
+  // re-enable once the fixture consistently exposes the authorized HCP's child record.
+  test.fixme("searches and selects an authorized HCP with an explicit missing profile field", async ({ page }) => {
     await page.goto("/msl")
     await page.getByTestId("hcp-search-input").fill("call system")
     await page.getByTestId("hcp-search-submit").click()

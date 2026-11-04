@@ -13,10 +13,11 @@ const PORT = Number(process.env.E2E_PORT ?? 3147)
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
-  // The globe renders in software WebGL; too many parallel pages starve it and taps time out. Override with --workers.
-  workers: process.env.CI ? 2 : 4,
+  // The globe renders in software WebGL; keep parallel renders at the stable two-worker ceiling. Override with --workers.
+  workers: 2,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // Rendering a full page with software WebGL can lose one CDP screenshot under local resource pressure; CI already retries once.
+  retries: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
@@ -25,7 +26,9 @@ export default defineConfig({
   },
   projects: VIEWPORTS.map((v) => ({
     name: v.name,
-    testMatch: FUNCTIONAL_PROJECTS.includes(v.name) ? /.*\.spec\.ts$/ : /(responsive|motion-matrix|appearance-matrix)\.spec\.ts$/,
+    // The responsive matrix always covers every screen; appearance and density assertions run
+    // at every matrix size alongside motion checks, while route-level interaction specs stay on the two baseline iPads.
+    testMatch: FUNCTIONAL_PROJECTS.includes(v.name) ? /.*\.spec\.ts$/ : /(responsive|appearance|motion-matrix)\.spec\.ts$/,
     use: {
       ...devices["Desktop Chrome"],
       viewport: { width: v.width, height: v.height },

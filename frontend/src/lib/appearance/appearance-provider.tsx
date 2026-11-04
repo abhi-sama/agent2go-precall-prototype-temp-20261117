@@ -119,10 +119,21 @@ function writeCache(next: Cached) {
 }
 
 const COARSE = "(pointer: coarse)"
-function subscribeCoarse(onChange: () => void) {
+/**
+ * Pointer capability is the density source of truth, but iPad Safari can recalculate media
+ * capabilities while a viewport rotates. Subscribe to those viewport events as well as the
+ * media-query event so an automatic preference is always re-resolved without a reload.
+ */
+function subscribeDensity(onChange: () => void) {
   const mql = window.matchMedia(COARSE)
   mql.addEventListener("change", onChange)
-  return () => mql.removeEventListener("change", onChange)
+  window.addEventListener("resize", onChange)
+  window.addEventListener("orientationchange", onChange)
+  return () => {
+    mql.removeEventListener("change", onChange)
+    window.removeEventListener("resize", onChange)
+    window.removeEventListener("orientationchange", onChange)
+  }
 }
 
 const themeFor = (mode: ModePref) => (mode === "light" ? "light" : mode === "device" ? "system" : "dark")
@@ -148,7 +159,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   const adapter = useDataAdapter()
   const { theme, setTheme } = useTheme()
   const cached = React.useSyncExternalStore(subscribe, snapshot, () => EMPTY)
-  const coarse = React.useSyncExternalStore(subscribeCoarse, () => window.matchMedia(COARSE).matches, () => false)
+  const coarse = React.useSyncExternalStore(subscribeDensity, () => window.matchMedia(COARSE).matches, () => false)
 
   // The cache belongs to one person. Anyone else (or nobody yet) starts from the defaults.
   const mine = cached.uid === userId || (cached.uid === null && cached !== EMPTY)

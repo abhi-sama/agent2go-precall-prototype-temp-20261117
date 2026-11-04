@@ -47,7 +47,7 @@ async function setStateAppearance(page: Page, appearance: (typeof STATE_APPEARAN
 async function globeSettled(page: Page) {
   const read = () => page.evaluate(() => [...document.querySelectorAll("[data-testid^=globe-marker-]")].map((el) => { const r = el.getBoundingClientRect(); return `${el.textContent}:${Math.round(r.left)},${Math.round(r.top)}` }).join("|"))
   let previous = ""
-  await expect.poll(async () => { const now = await read(); const stable = now !== "" && now === previous; previous = now; return stable }, { intervals: [300], timeout: 15_000 }).toBe(true)
+  await expect.poll(async () => { const now = await read(); const stable = now !== "" && now === previous; previous = now; return stable }, { intervals: [300], timeout: 30_000 }).toBe(true)
 }
 
 export const SCREENS: ScreenSpec[] = [

@@ -114,7 +114,9 @@ test.describe("personal activity trends", () => {
 
   test("navigation reaches the page from the MSL workspace", async ({ page }) => {
     await page.goto("/msl")
-    await page.getByRole("link", { name: "My activity" }).first().click()
+    // iPad uses the navigation sheet, while the desktop rail is intentionally hidden.
+    await page.getByTestId("sidebar-menu").click()
+    await page.getByTestId("sidebar-sheet").getByRole("link", { name: "My activity" }).click()
     await expect(page).toHaveURL(/\/msl\/activity$/)
   })
 })

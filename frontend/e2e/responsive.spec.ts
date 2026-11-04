@@ -5,6 +5,11 @@ import { collectLayoutReport } from "./support/layout-checks"
 import { SCREENS } from "./support/screens"
 import { VIEWPORTS } from "./support/viewports"
 
+// Full-page captures include the software-rendered globe; its pixels can finish after the default
+// 30-second budget even though the route, layout checks, and markers have already settled.
+// Give the readiness poll and the capture enough room when four software-rendered WebGL pages run together.
+test.setTimeout(90_000)
+
 /**
  * The responsive matrix: every screen in `support/screens.ts` at every viewport in `support/viewports.ts` (one
  * Playwright project each). Fails on horizontal overflow, clipped or overlapping content, tablet touch targets under
