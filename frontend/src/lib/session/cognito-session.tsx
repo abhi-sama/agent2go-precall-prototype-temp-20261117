@@ -11,6 +11,7 @@ import { createGraphQLAdapter } from "@/lib/data/graphql-adapter"
 import type { Persona } from "@/lib/data/types"
 import { IS_LOCAL_BUILD } from "@/lib/env"
 import { log, newCorrelationId } from "@/lib/log/logger"
+import { clearOfflineDataForOwner } from "@/lib/offline/cache"
 import { SessionContext, type SessionUser, type SessionValue } from "./context"
 
 /** Cognito group -> persona. Exactly one is expected; the BE enforces the same rule. */
@@ -140,6 +141,7 @@ export function CognitoSessionProvider({ children }: { children: React.ReactNode
   )
 
   const doSignOut = React.useCallback(async () => {
+    await clearOfflineDataForOwner(userRef.current.userId)
     await signOut()
     setState({ status: "signedOut" })
   }, [])

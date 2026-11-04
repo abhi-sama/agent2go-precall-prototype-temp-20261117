@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { DataProvider } from "@/lib/data/data-provider"
 import { SessionProvider } from "@/lib/session/session-provider"
+import { OfflineProvider } from "@/lib/offline/offline-provider"
 import "./globals.css"
 
 /** Inter (variable, latin) served from our own bundle with an adjusted fallback, so text does not jump when it loads. */
@@ -50,9 +51,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <TooltipProvider>
             <SessionProvider>
-              <DataProvider>
-                <AppearanceProvider>{children}</AppearanceProvider>
-              </DataProvider>
+              <OfflineProvider>
+                <DataProvider>
+                  <AppearanceProvider>{children}</AppearanceProvider>
+                </DataProvider>
+              </OfflineProvider>
             </SessionProvider>
           </TooltipProvider>
           <Toaster />

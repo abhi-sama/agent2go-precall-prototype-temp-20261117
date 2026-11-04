@@ -9,6 +9,7 @@ import { PERSONA_CONFIG, type NavItem } from "@/components/shell/persona-config"
 import { AppearanceSettings } from "@/components/shell/appearance-settings"
 import { FirstRunOrientation } from "@/components/state/first-run-orientation"
 import { ThemeToggle } from "@/components/shell/theme-toggle"
+import { OfflineStatus } from "@/components/shell/offline-status"
 import { SharedFilterProvider } from "@/components/filters/filter-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -175,6 +176,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <PersonaSwitcher />
               <AppearanceSettings />
               <ThemeToggle />
+              <OfflineStatus />
               {signOut && (
                 <Button
                   variant="outline"

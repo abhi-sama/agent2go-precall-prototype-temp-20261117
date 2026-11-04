@@ -4,6 +4,7 @@ import * as React from "react"
 import { DEFAULT_USER_ID, findUser, USERS, type FixtureUser } from "@/lib/data/fixtures"
 import { DATA_ADAPTER, IS_LOCAL_BUILD } from "@/lib/env"
 import { log } from "@/lib/log/logger"
+import { clearOfflineDataForOwner } from "@/lib/offline/cache"
 import { CognitoSessionProvider } from "./cognito-session"
 import { SessionContext, type SessionValue } from "./context"
 
@@ -72,9 +73,10 @@ function FixtureSessionProvider({ children }: { children: React.ReactNode }) {
   const switchUser = React.useCallback((next: string) => {
     if (!IS_LOCAL_BUILD) return
     const target = findUser(next)
+    void clearOfflineDataForOwner(userId)
     writeUserId(target.userId)
     log.info("persona switched", { persona: target.persona, user_id: target.userId })
-  }, [])
+  }, [userId])
 
   const value = React.useMemo<SessionValue>(
     () => ({

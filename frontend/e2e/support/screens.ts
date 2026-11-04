@@ -497,6 +497,14 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   {
+    name: "precall-brief-offline-shell",
+    path: "/msl/briefs?brief=br-20261103090000-aaaaaaaa",
+    ready: async (page) => {
+      await testId("brief")(page)
+      await expect(page.getByTestId("brief-objective")).toBeVisible()
+    },
+  },
+  {
     name: "precall-brief-denied",
     path: "/msl/briefs?brief=br-20261102090000-bbbbbbbb",
     ready: testId("brief-denied"),
