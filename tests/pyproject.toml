@@ -1,0 +1,19 @@
+[project]
+name = "a2g-api-tests"
+version = "0.1.0"
+description = "API-as-persona tests: seeded personas sign in to Cognito and call AppSync on the local floci stack"
+requires-python = ">=3.12"
+dependencies = [
+  "boto3>=1.35",
+  "pycognito>=2024.5",
+  "psycopg[binary]>=3.2",
+  "pyjwt[crypto]>=2.9",
+  "pytest>=8",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["api"]
+addopts = "-ra"

@@ -25,19 +25,24 @@ pnpm test:e2e       # Playwright smoke tests at iPad landscape + portrait (build
 
 ## Data layer (the swap point)
 
-UI code only talks to `DataAdapter` (`src/lib/data/adapter.ts`), which mirrors the foundation GraphQL contract
-(`me`, `landingKpis`).
+UI code only talks to `DataAdapter` (`src/lib/data/adapter.ts`), which mirrors the GraphQL contract in
+`amplify/data/schema.graphql` (`me`, `landingKpis`, `territoryActivity`). `NEXT_PUBLIC_DATA_ADAPTER` picks the adapter:
 
-- `mock-adapter.ts`: deterministic fixtures. Local builds accept `?scenario=empty|error|forbidden|slow|stale`.
-- `graphql-adapter.ts`: the real adapter against the contract documents in `operations.ts`. The wiring worker supplies
-  only a `GraphQLTransport` (Amplify `client.graphql` plus the Cognito token and an `x-correlation-id` header), then
-  changes the one branch in `createDefaultAdapter()` in `src/lib/data/index.ts`.
-- `territoryActivity` is a shell-local extension (not in the contract) feeding the 3D map; adapters may omit it.
+- `appsync`: `graphql-adapter.ts` over `appsync-transport.ts` (Cognito ID token, IdP name/email and `x-correlation-id`
+  headers) against the FE AppSync API. Sign-in is Cognito through Amplify (`src/lib/session/cognito-session.tsx`,
+  `/login`). `backend/infra/scripts/up.sh` writes the `.env.local` that selects it for the local floci stack.
+- `mock`: deterministic fixtures. Local builds accept `?scenario=empty|error|forbidden|slow|stale`.
+
+The local floci stack answers no CORS preflights, so local builds reach it through the same-origin rewrite `/_floci/*`
+in `next.config.ts`.
 
 ## Local-only features
 
-`NEXT_PUBLIC_APP_ENV=local` (set in `.env.development`) enables the persona quick-switch and scenario forcing. In any
-other build the switcher is not rendered and a stored identity is ignored (the code still ships; it is inert).
+`NEXT_PUBLIC_APP_ENV=local` (set in `.env.development`) enables the persona quick-switch, the seeded-user sign-in list
+and scenario forcing. Other builds drop them: `pnpm check:local-only` builds a deployed-style bundle and fails if any
+quick-switch UI, seeded identity or local password is in it.
+
+Against the local stack, `pnpm test:e2e:stack` signs in as seeded users for real (Cognito -> AppSync -> RLS Postgres).
 
 ## Logging
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { Stethoscope } from "lucide-react"
+import { LogOut, Stethoscope } from "lucide-react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -8,6 +8,7 @@ import type * as React from "react"
 import { PERSONA_CONFIG, type NavItem } from "@/components/shell/persona-config"
 import { ThemeToggle } from "@/components/shell/theme-toggle"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { IS_LOCAL_BUILD } from "@/lib/env"
 import { useSession } from "@/lib/session/session-provider"
 import { cn } from "@/lib/utils"
@@ -57,7 +58,7 @@ function NavLink({ item, active, rail }: { item: NavItem; active: boolean; rail:
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { user } = useSession()
+  const { user, signOut } = useSession()
   const config = PERSONA_CONFIG[user.persona]
 
   return (
@@ -87,6 +88,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
               <PersonaSwitcher />
               <ThemeToggle />
+              {signOut && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  data-testid="sign-out"
+                  aria-label="Sign out"
+                  onClick={() => void signOut()}
+                >
+                  <LogOut aria-hidden />
+                </Button>
+              )}
             </div>
           </div>
           {/* Swipeable section tabs for iPad portrait and phones */}

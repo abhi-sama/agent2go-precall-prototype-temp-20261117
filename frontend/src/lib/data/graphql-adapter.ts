@@ -1,6 +1,6 @@
 import type { DataAdapter } from "./adapter"
-import { LANDING_KPIS_QUERY, ME_QUERY } from "./operations"
-import { DataError, type DateRange, type LandingKpis, type Me, type RequestContext } from "./types"
+import { LANDING_KPIS_QUERY, ME_QUERY, TERRITORY_ACTIVITY_QUERY } from "./operations"
+import { DataError, type DateRange, type LandingKpis, type Me, type RequestContext, type TerritoryActivity } from "./types"
 
 export interface GraphQLResponse<T> {
   data?: T | null
@@ -65,6 +65,15 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
         ctx,
       )
       return data.landingKpis
+    },
+    async territoryActivity(ctx, range?: Partial<DateRange>) {
+      const data = await run<{ territoryActivity: TerritoryActivity[] }>(
+        transport,
+        TERRITORY_ACTIVITY_QUERY,
+        { from: range?.from ?? null, to: range?.to ?? null },
+        ctx,
+      )
+      return data.territoryActivity
     },
   }
 }

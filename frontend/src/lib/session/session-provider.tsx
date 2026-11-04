@@ -2,8 +2,12 @@
 
 import * as React from "react"
 import { DEFAULT_USER_ID, findUser, USERS, type FixtureUser } from "@/lib/data/fixtures"
-import { IS_LOCAL_BUILD } from "@/lib/env"
+import { DATA_ADAPTER, IS_LOCAL_BUILD } from "@/lib/env"
 import { log } from "@/lib/log/logger"
+import { CognitoSessionProvider } from "./cognito-session"
+import { SessionContext, type SessionValue } from "./context"
+
+export type { SessionUser, SessionValue } from "./context"
 
 const STORAGE_KEY = "a2g.local.userId"
 
@@ -48,22 +52,16 @@ function writeUserId(userId: string) {
   listeners.forEach((cb) => cb())
 }
 
-interface SessionValue {
-  /** Selected fixture identity. In deployed builds the wiring worker replaces this with Cognito claims. */
-  user: FixtureUser
-  userId: string
-  /** Stable accessor for adapters that must read the current identity at call time. */
-  getUserId: () => string
-  /** Local builds only; a no-op elsewhere. */
-  switchUser: (userId: string) => void
-  canSwitch: boolean
-  /** False during server render and hydration, so pages do not fetch for the wrong user. */
-  ready: boolean
+/**
+ * `appsync` builds sign in through Cognito (Amplify); `mock` builds use the fixture identities.
+ * Both expose the same `useSession()` value.
+ */
+export function SessionProvider({ children }: { children: React.ReactNode }) {
+  if (DATA_ADAPTER === "appsync") return <CognitoSessionProvider>{children}</CognitoSessionProvider>
+  return <FixtureSessionProvider>{children}</FixtureSessionProvider>
 }
 
-const SessionContext = React.createContext<SessionValue | null>(null)
-
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+function FixtureSessionProvider({ children }: { children: React.ReactNode }) {
   const userId = React.useSyncExternalStore(subscribe, currentUserId, () => DEFAULT_USER_ID)
   const ready = React.useSyncExternalStore(
     () => () => {},
@@ -79,7 +77,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const value = React.useMemo<SessionValue>(
-    () => ({ user: findUser(userId), userId, getUserId: currentUserId, switchUser, canSwitch: IS_LOCAL_BUILD, ready }),
+    () => ({
+      kind: "fixture",
+      user: findUser(userId),
+      userId,
+      getUserId: currentUserId,
+      switchUser,
+      canSwitch: IS_LOCAL_BUILD,
+      switchableUsers: USERS as FixtureUser[],
+      ready,
+      signOut: null,
+      refresh: async () => {},
+    }),
     [userId, switchUser, ready],
   )
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

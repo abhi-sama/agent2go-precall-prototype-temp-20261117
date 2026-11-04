@@ -6,7 +6,7 @@ CREATE SCHEMA IF NOT EXISTS app;
 CREATE TABLE call_activity (
   source_row_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   atnde_type text, addr text, call_chnl text, call_dt date, crm_call_id text,
-  clm_flag boolean, call_type text, call_dur bigint, exs_snac_call_flag boolean,
+  clm_flag boolean, call_type text, call_dur bigint, exs_inac_call_flag boolean,
   exs_jnt_msl_sls_call_flag boolean, jnt_smad_vist boolean, exs_lb_flag bigint,
   exs_lgcy_call_atnde_id text, exs_lgcy_call_id text, exs_mtg_type text,
   exs_non_npi_cust_id text, exs_snacks boolean, exs_type_of_vist text,
@@ -30,7 +30,7 @@ CREATE TABLE hcp_raw_insights (
   parent_territory_id text, parent_territory_name text, team_nm text,
   cust_mdm_id text, cust_nm text, hcp_speciality text, hcp_institution text,
   hcp_discipline text, hcp_type text, internal_meeting_attendees text,
-  insight_name text, insight_clinical_trial_site text, site_nm text,
+  insight_name text, insight_clinicaltrial_site text, site_nm text,
   insight_intrctn_rspns_sfdc_id text, qstn_txt text, rspns_txt text,
   qstn_ext_id text, qstn_tag_strt_dt timestamp, qstn_tag_end_dt timestamp,
   qstn_tag_status text, tag_nm text, pid text, priority_tag text, qstn_pid text,

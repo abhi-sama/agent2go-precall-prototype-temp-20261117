@@ -45,9 +45,9 @@ export interface RequestContext {
 }
 
 /**
- * Shell-local extension, NOT in the foundation contract (contract gap, listed in the PR):
- * per-territory activity for the 3D territory visual. Adapters that cannot serve it omit the
- * method and the UI falls back to the scope label alone.
+ * Per-territory activity for the 3D territory visual (`territoryActivity` query, added to the
+ * contract during integration). The AppSync API returns only in-scope territories; the mock may
+ * also return locked out-of-scope tiles.
  */
 export interface TerritoryActivity {
   territoryId: string

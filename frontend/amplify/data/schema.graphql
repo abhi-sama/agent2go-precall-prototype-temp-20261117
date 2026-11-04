@@ -1,0 +1,45 @@
+# Shared GraphQL contract (foundation-contract.md). Used verbatim by the Amplify
+# Gen2 backend (real AWS) and by the local floci provisioner.
+# The default auth mode is the Cognito user pool, so no per-type auth directives.
+type LandingKpis {
+  distinctCalls: Int!
+  distinctEngagedHcps: Int!
+  responseCount: Int!
+  from: AWSDate!
+  to: AWSDate!
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+}
+
+type Me {
+  userId: ID!
+  fullName: String!
+  email: String!
+  persona: String!
+  scopeLabel: String!
+}
+
+"""
+Per-territory activity for the landing-page territory visual. Only territories in the
+caller's effective scope are returned (no locked tiles: out-of-scope territory metadata
+is itself access-controlled). col/row place tiles on a schematic grid, not geography.
+"""
+type TerritoryActivity {
+  territoryId: ID!
+  name: String!
+  regionId: String!
+  regionName: String!
+  col: Int!
+  row: Int!
+  inScope: Boolean!
+  isOwn: Boolean!
+  distinctCalls: Int!
+  distinctEngagedHcps: Int!
+  responseCount: Int!
+}
+
+type Query {
+  me: Me!
+  landingKpis(from: AWSDate, to: AWSDate): LandingKpis!
+  territoryActivity(from: AWSDate, to: AWSDate): [TerritoryActivity!]!
+}

@@ -1,0 +1,26 @@
+[project]
+name = "a2g-api-lambda"
+version = "0.1.0"
+description = "BE account API Lambda: AppSync field resolvers over RLS-scoped Postgres"
+requires-python = ">=3.12"
+dependencies = [
+  "a2g-logging",
+  "psycopg[binary]>=3.2",
+  "pyjwt[crypto]>=2.9",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv.sources]
+a2g-logging = { path = "../../libs/a2g_logging", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/a2g_api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,19 @@
+[project]
+name = "a2g-logging"
+version = "0.1.0"
+description = "Structured JSON logging with allowlist redaction for agent2go backend services"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/a2g_logging"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

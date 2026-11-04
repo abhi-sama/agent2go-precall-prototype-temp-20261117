@@ -1,0 +1,28 @@
+# Local AWS emulation for both agent2go accounts (docs/adr/0004-floci-local-stack.md).
+# FE account 111111111111 is floci's default account, so unsigned browser-facing calls
+# (Cognito sign-in, AppSync with a Bearer token) land in it. BE account 222222222222
+# is reached by signing with that account id as the access key id.
+name: agent2go
+
+services:
+  floci:
+    image: floci/floci:2.4.0
+    container_name: floci
+    ports:
+      - "127.0.0.1:4566:4566"
+      # RDS proxy ports (BE Postgres). Only the first few are needed locally.
+      - "127.0.0.1:7001-7010:7001-7010"
+    volumes:
+      # Lambda, RDS and the AppSync resolver runtimes run as sibling containers.
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      FLOCI_DEFAULT_ACCOUNT_ID: "111111111111"
+      # Lambda containers join this compose network and reach floci by this name.
+      FLOCI_HOSTNAME: floci
+      QUARKUS_HTTP_HOST: 0.0.0.0
+      FLOCI_SERVICES_RDS_DEFAULT_POSTGRES_IMAGE: pgvector/pgvector:pg16
+      FLOCI_SERVICES_RDS_PROXY_MAX_PORT: "7010"
+      FLOCI_STORAGE_MODE: memory
+      # Label every sibling container floci starts, so down.sh removes only this stack's.
+      FLOCI_DOCKER_EXTRA_LABELS_0__KEY: io.agent2go.stack
+      FLOCI_DOCKER_EXTRA_LABELS_0__VALUE: local

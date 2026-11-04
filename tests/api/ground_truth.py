@@ -1,0 +1,40 @@
+"""Expected KPI values, computed with the owner role (no RLS) for explicit territories.
+
+These mirror the governed metric definitions (docs/adr/0003) independently of the
+Lambda's SQL, so a scoping bug in the API cannot also hide in the expectation.
+"""
+
+from __future__ import annotations
+
+import psycopg
+
+
+def kpis(db: psycopg.Connection, territories: list[str], frm: str, to: str) -> dict[str, int]:
+    calls, hcps = db.execute(
+        """SELECT count(DISTINCT crm_call_id), count(DISTINCT cust_mdm_id) FROM call_activity
+           WHERE territory_id = ANY(%s) AND call_dt BETWEEN %s AND %s""",
+        (territories, frm, to),
+    ).fetchone()
+    (responses,) = db.execute(
+        """SELECT count(DISTINCT uniq_rspns_id) FROM hcp_raw_insights
+           WHERE territory_id = ANY(%s) AND date_of_interaction BETWEEN %s AND %s
+             AND excluded_rspns_flag IS NOT TRUE""",
+        (territories, frm, to),
+    ).fetchone()
+    return {"distinctCalls": calls, "distinctEngagedHcps": hcps, "responseCount": responses}
+
+
+def raw_call_rows(db: psycopg.Connection, territories: list[str], frm: str, to: str) -> int:
+    (n,) = db.execute(
+        "SELECT count(*) FROM call_activity WHERE territory_id = ANY(%s) AND call_dt BETWEEN %s AND %s",
+        (territories, frm, to),
+    ).fetchone()
+    return n
+
+
+def region_territories(db: psycopg.Connection, region: str) -> list[str]:
+    rows = db.execute(
+        "SELECT DISTINCT child_territory_id FROM territory_scope_relationships WHERE parent_territory_id = %s",
+        (region,),
+    ).fetchall()
+    return sorted(r[0] for r in rows)
