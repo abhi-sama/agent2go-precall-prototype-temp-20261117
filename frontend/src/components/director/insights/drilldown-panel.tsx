@@ -15,6 +15,8 @@ import { useSession } from "@/lib/session/session-provider"
 import { cn } from "@/lib/utils"
 import { InsightSection, num, PanelLoading, PanelMeta } from "./shared"
 
+const LEVEL_RANK: Record<DrilldownLevel, number> = { ROOT: 0, REGION: 1, TERRITORY: 2 }
+
 interface Node {
   level: DrilldownLevel
   id: string
@@ -34,6 +36,9 @@ export function DrilldownPanel({ range }: { range: DateRange }) {
   const [kept, setKept] = React.useState<{ userId: string; data: DirectorDrilldown } | null>(null)
   if (query.status === "success" && kept?.data !== query.data) setKept({ userId, data: query.data })
   const data = query.status === "success" ? query.data : kept?.userId === userId ? kept.data : null
+  // Which way the last level change went, so the new rows grow in (drill down) or settle back (drill up).
+  const [shown, setShown] = React.useState<{ level: DrilldownLevel; dir: "in" | "out" }>({ level: "ROOT", dir: "in" })
+  if (data && shown.level !== data.level) setShown({ level: data.level, dir: LEVEL_RANK[data.level] < LEVEL_RANK[shown.level] ? "out" : "in" })
 
   const go = (next: Node) => {
     setHcp(null)
@@ -61,7 +66,7 @@ export function DrilldownPanel({ range }: { range: DateRange }) {
         ) : !data ? (
           <PanelLoading testId="drilldown-loading" height="h-64" />
         ) : (
-          <div className="flex flex-col gap-4" aria-busy={query.status === "loading"}>
+          <div key={`${data.level}:${data.id}`} data-dir={shown.dir} className="drill-in flex flex-col gap-4" aria-busy={query.status === "loading"}>
             <nav aria-label="Drill-down path" data-testid="drill-breadcrumb">
               <ol className="flex flex-wrap items-center gap-1 text-sm">
                 {data.breadcrumb.map((crumb, i) => {
@@ -128,7 +133,7 @@ export function DrilldownPanel({ range }: { range: DateRange }) {
             )}
 
             {hcp && (
-              <section data-testid="drill-hcp" aria-label={`Interactions for ${hcp.id}`} className="rounded-2xl border bg-card p-4">
+              <section key={hcp.id} data-testid="drill-hcp" aria-label={`Interactions for ${hcp.id}`} className="drill-in rounded-2xl border bg-card p-4">
                 <header className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-base font-semibold">Interactions and responses for {hcp.id}</h3>
                   <Button variant="ghost" size="sm" onClick={() => setHcp(null)}>Close</Button>

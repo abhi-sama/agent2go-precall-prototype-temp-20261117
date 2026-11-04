@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { AlertTriangle, ChevronRight, CircleAlert, GitBranch, Network } from "lucide-react"
+import { Expand } from "@/components/motion/expand"
 import { BlockSkeleton, ErrorState } from "@/components/state/states"
 import { Badge } from "@/components/ui/badge"
 import { useDataAdapter } from "@/lib/data/data-provider"
@@ -85,7 +86,7 @@ function TreeRow({
           onClick={() => toggle(key)}
           className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
         >
-          <ChevronRight className={cn("size-4 transition-transform", expanded && "rotate-90")} aria-hidden />
+          <ChevronRight className={cn("size-4 transition-transform duration-(--duration-base) ease-(--ease-out)", expanded && "rotate-90")} aria-hidden />
         </button>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
           <span className="break-all font-medium">{node.territoryId}</span>
@@ -96,7 +97,9 @@ function TreeRow({
           ))}
         </div>
       </div>
-      {expanded && <div style={{ paddingLeft: `${Math.min(depth, 6) * 14 + 44}px` }}><Holders node={node} /></div>}
+      <Expand open={expanded}>
+        <div style={{ paddingLeft: `${Math.min(depth, 6) * 14 + 44}px` }}><Holders node={node} /></div>
+      </Expand>
       {children.length > 0 && (
         <ul>
           {children.map((child) => (

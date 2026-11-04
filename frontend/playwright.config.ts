@@ -6,7 +6,7 @@ const PORT = Number(process.env.E2E_PORT ?? 3147)
 /**
  * One project per viewport in the responsive matrix (e2e/support/viewports.ts): desktop from a 13-inch MacBook up,
  * and iPad Air and larger in portrait and landscape. Every project runs e2e/responsive.spec.ts over the screen
- * registry (e2e/support/screens.ts). The two iPad Air 11 projects also run the functional specs. Tests run against a
+ * registry (e2e/support/screens.ts) and e2e/motion-matrix.spec.ts (landing screens in both styles and all modes). The two iPad Air 11 projects also run the functional specs. Tests run against a
  * production build in local mode (mock adapter, persona quick-switch on); Chromium emulates the viewport, and
  * touch input on the tablet sizes, and swiftshader gives it WebGL.
  */
@@ -25,7 +25,7 @@ export default defineConfig({
   },
   projects: VIEWPORTS.map((v) => ({
     name: v.name,
-    testMatch: FUNCTIONAL_PROJECTS.includes(v.name) ? /.*\.spec\.ts$/ : /responsive\.spec\.ts$/,
+    testMatch: FUNCTIONAL_PROJECTS.includes(v.name) ? /.*\.spec\.ts$/ : /(responsive|motion-matrix)\.spec\.ts$/,
     use: {
       ...devices["Desktop Chrome"],
       viewport: { width: v.width, height: v.height },

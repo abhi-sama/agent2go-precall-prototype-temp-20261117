@@ -5,6 +5,7 @@ import * as React from "react"
 import { KpiCard } from "@/components/landing/kpi-card"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useEnter } from "@/hooks/use-enter"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { DateRange, DirectorOverview as Overview } from "@/lib/data/types"
 import { useQuery } from "@/lib/data/use-query"
@@ -62,6 +63,7 @@ export function DirectorOverview({ range }: { range: DateRange }) {
       <div data-testid="overview-kpis" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           id="members"
+          index={0}
           label="Reporting team members"
           value={data.kpis.reportingMembers}
           definition="Team members with at least one recorded call in this period."
@@ -70,6 +72,7 @@ export function DirectorOverview({ range }: { range: DateRange }) {
         />
         <KpiCard
           id="territories"
+          index={1}
           label="Territories reporting"
           value={data.kpis.territoriesWithActivity}
           definition={`Of ${data.kpis.territoriesInScope} territories in your approved scope.`}
@@ -78,6 +81,7 @@ export function DirectorOverview({ range }: { range: DateRange }) {
         />
         <StatCard
           id="completeness"
+          index={2}
           label="Reporting completeness"
           value={pct(data.kpis.reportingCompleteness)}
           definition="Months with a recorded call over months the data has reached. It describes reporting, not performance."
@@ -85,6 +89,7 @@ export function DirectorOverview({ range }: { range: DateRange }) {
         />
         <KpiCard
           id="rows"
+          index={3}
           label="Call-product rows"
           value={data.kpis.callProductRows}
           definition={`Source rows, one per product discussed. Not calls: the ${num(data.kpis.distinctCalls)} distinct calls above are the call count.`}
@@ -181,9 +186,10 @@ function Section({ id, title, note, children }: { id: string; title: string; not
   )
 }
 
-function StatCard({ id, label, value, definition, icon: Icon }: { id: string; label: string; value: string; definition: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }> }) {
+function StatCard({ id, label, value, definition, icon: Icon, index = 0 }: { id: string; label: string; value: string; definition: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; index?: number }) {
+  const enter = useEnter(`kpi-${id}`, index)
   return (
-    <article data-testid={`kpi-${id}`} className={cn("relative overflow-hidden rounded-2xl border bg-card p-5 shadow-card")}>
+    <article data-testid={`kpi-${id}`} style={enter.style} className={cn("relative overflow-hidden rounded-2xl border bg-card p-5 shadow-card", enter.className)}>
       <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-warning" />
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-sm font-semibold text-muted-foreground">{label}</h3>

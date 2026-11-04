@@ -23,9 +23,11 @@ for (const screen of SCREENS) {
     await page.goto(screen.path)
     await screen.ready(page)
     if (screen.prepare) await screen.prepare(page)
-    // Let charts, the map and sheets finish their entrance and resize passes.
+    // Let charts, the map, sheets and the landing entrances (spring 550ms plus stagger) finish.
     await page.evaluate(() => document.fonts.ready)
     await page.waitForTimeout(600)
+    // Landing entrances (spring 550ms plus stagger) can still be running; wait for the CSS animations themselves, not longer.
+    await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => Number.isFinite(a.effect?.getComputedTiming().endTime as number)).map((a) => a.finished.catch(() => undefined))))
 
     // Measure first: a full-page screenshot resizes the emulated viewport and perturbs layout.
     const report = await collectLayoutReport(page, { touch: viewport.touch })

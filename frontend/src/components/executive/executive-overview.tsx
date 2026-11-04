@@ -5,6 +5,7 @@ import * as React from "react"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useEnter } from "@/hooks/use-enter"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { EXECUTIVE_RANK_BY, type ExecutiveOverview as Overview, type ExecutiveRankBy, type ExecutiveUnit } from "@/lib/data/types"
 import { useQuery } from "@/lib/data/use-query"
@@ -86,18 +87,10 @@ export function ExecutiveOverview() {
       ) : (
         <>
           <div data-testid="exec-kpis" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi id="calls" label="Distinct calls" icon={Stethoscope} count={data.kpis.calls} min={min} note="Each call counted once, however many products it covers." />
-            <Kpi id="hcps" label="Engaged HCPs" icon={Users} count={data.kpis.engagedHcps} min={min} note={data.engagement.callsPerEngagedHcp !== null ? `${data.engagement.callsPerEngagedHcp.toFixed(2)} calls per engaged HCP` : "HCPs reached at least once, counted once."} />
-            <Kpi id="responses" label="Responses" icon={MessagesSquare} count={data.kpis.responses} min={min} note="Insight responses recorded in the period." />
-            <article data-testid="exec-kpi-completeness" className="relative overflow-hidden rounded-2xl border bg-card p-5 shadow-card">
-              <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-warning" />
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="text-sm font-semibold text-muted-foreground">Reporting completeness</h3>
-                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning/15"><CalendarCheck className="size-5" aria-hidden /></span>
-              </div>
-              <p data-testid="exec-kpi-completeness-value" className="mt-3 text-5xl font-semibold tracking-tight tabular-nums">{percent(data.kpis.reportingCompleteness)}</p>
-              <p className="mt-3 text-sm text-muted-foreground">Territory-months with a recorded call. It describes reporting, not performance.</p>
-            </article>
+            <Kpi id="calls" index={0} label="Distinct calls" icon={Stethoscope} count={data.kpis.calls} min={min} note="Each call counted once, however many products it covers." />
+            <Kpi id="hcps" index={1} label="Engaged HCPs" icon={Users} count={data.kpis.engagedHcps} min={min} note={data.engagement.callsPerEngagedHcp !== null ? `${data.engagement.callsPerEngagedHcp.toFixed(2)} calls per engaged HCP` : "HCPs reached at least once, counted once."} />
+            <Kpi id="responses" index={2} label="Responses" icon={MessagesSquare} count={data.kpis.responses} min={min} note="Insight responses recorded in the period." />
+            <CompletenessCard value={data.kpis.reportingCompleteness} />
           </div>
 
           <Section id="trends" title="Monthly trends" note="Distinct calls, responses and engaged HCPs per month across your authorized regions.">
@@ -231,16 +224,32 @@ function Engagement({ data }: { data: Overview }) {
   )
 }
 
-function Kpi({ id, label, icon: Icon, count, min, note }: { id: string; label: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; count: Overview["kpis"]["calls"]; min: number; note: string }) {
+function Kpi({ id, label, icon: Icon, count, min, note, index = 0 }: { id: string; label: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; count: Overview["kpis"]["calls"]; min: number; note: string; index?: number }) {
+  const enter = useEnter(`exec-kpi-${id}`, index)
   return (
-    <article data-testid={`exec-kpi-${id}`} className="relative overflow-hidden rounded-2xl border bg-card p-5 shadow-card">
+    <article data-testid={`exec-kpi-${id}`} style={enter.style} className={cn("relative overflow-hidden rounded-2xl border bg-card p-5 shadow-card", enter.className)}>
       <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-primary" />
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-sm font-semibold text-muted-foreground">{label}</h3>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-accent-text"><Icon className="size-5" aria-hidden /></span>
       </div>
-      <p className="mt-3 text-5xl font-semibold tracking-tight"><CountValue testId={`exec-kpi-${id}-value`} count={count} minCell={min} /></p>
+      <p className="mt-3 text-5xl font-semibold tracking-tight"><CountValue testId={`exec-kpi-${id}-value`} count={count} minCell={min} countUp={`exec-${id}`} /></p>
       <p className="mt-3 text-sm text-muted-foreground">{note}</p>
+    </article>
+  )
+}
+
+function CompletenessCard({ value }: { value: number | null }) {
+  const enter = useEnter("exec-kpi-completeness", 3)
+  return (
+    <article data-testid="exec-kpi-completeness" style={enter.style} className={cn("relative overflow-hidden rounded-2xl border bg-card p-5 shadow-card", enter.className)}>
+      <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-warning" />
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm font-semibold text-muted-foreground">Reporting completeness</h3>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning/15"><CalendarCheck className="size-5" aria-hidden /></span>
+      </div>
+      <p data-testid="exec-kpi-completeness-value" className="mt-3 text-5xl font-semibold tracking-tight tabular-nums">{percent(value)}</p>
+      <p className="mt-3 text-sm text-muted-foreground">Territory-months with a recorded call. It describes reporting, not performance.</p>
     </article>
   )
 }

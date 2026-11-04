@@ -4,6 +4,7 @@ import type { Feature, Polygon, MultiPolygon } from "geojson"
 import * as React from "react"
 import Globe, { type GlobeMethods } from "react-globe.gl"
 import { MeshPhongMaterial } from "three"
+import { tokenMs } from "@/lib/motion"
 import { angleBetween, declutter } from "./declutter"
 import type { MapColors } from "./map-colors"
 
@@ -30,6 +31,8 @@ export interface GlobeViewProps {
   /** Zoom the camera onto this country (the drill-down transition). */
   focus: { lat: number; lng: number; nonce: number } | null
   onSelectCountry: (code: string) => void
+  /** The person touched the globe while the camera was flying: stop where it is and give control back. */
+  onInterrupt?: () => void
   onReady?: () => void
 }
 
@@ -38,7 +41,7 @@ export interface GlobeViewProps {
  * texture or tile download. Drag to rotate (mouse or touch). Each country with activity gets a
  * tappable marker, and its outline is tappable too.
  */
-export default function GlobeView({ shapes, countries, colors, focus, onSelectCountry, onReady }: GlobeViewProps) {
+export default function GlobeView({ shapes, countries, colors, focus, onSelectCountry, onInterrupt, onReady }: GlobeViewProps) {
   const wrap = React.useRef<HTMLDivElement>(null)
   const globe = React.useRef<GlobeMethods | undefined>(undefined)
   const [size, setSize] = React.useState({ width: 0, height: 0 })
@@ -94,10 +97,24 @@ export default function GlobeView({ shapes, countries, colors, focus, onSelectCo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.width > 0])
 
+  // The drill-down fly-in. Interruptible: when `focus` is cleared before the camera lands (a breadcrumb, a drag, another
+  // country), the camera stops where it is. three-globe completes a running tween when it is replaced, so the
+  // current view is read first and put straight back.
+  const flying = React.useRef(false)
   React.useEffect(() => {
     const g = globe.current
-    if (!g || !focus) return
-    g.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 0.7 }, 900)
+    if (!g) return
+    if (focus) {
+      // A second country tapped mid-flight redirects from where the camera is, not from the first target.
+      if (flying.current) g.pointOfView(g.pointOfView(), 0)
+      flying.current = true
+      g.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 0.7 }, tokenMs("--duration-fly", 560))
+      return
+    }
+    if (flying.current) {
+      flying.current = false
+      g.pointOfView(g.pointOfView(), 0)
+    }
   }, [focus])
 
   // The ocean: a plain coloured sphere, so no texture is ever downloaded.
@@ -113,7 +130,7 @@ export default function GlobeView({ shapes, countries, colors, focus, onSelectCo
       el.setAttribute("aria-label", c.aria)
       el.textContent = c.code
       el.className =
-        "pointer-events-auto flex size-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-2 border-background bg-primary text-xs font-bold text-primary-foreground shadow-lift outline-offset-2 focus-visible:outline-2"
+        "pointer-events-auto flex size-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-2 border-background bg-primary text-xs font-bold text-primary-foreground shadow-lift outline-offset-2 transition-[scale] duration-(--duration-fast) ease-(--ease-out) focus-visible:outline-2 active:scale-95"
       el.onclick = () => select.current(c.code)
       return el
     },
@@ -121,7 +138,7 @@ export default function GlobeView({ shapes, countries, colors, focus, onSelectCo
   )
 
   return (
-    <div ref={wrap} className="size-full">
+    <div ref={wrap} className="size-full" onPointerDownCapture={() => focus && onInterrupt?.()}>
       {size.width > 0 && (
         <Globe
           ref={globe}

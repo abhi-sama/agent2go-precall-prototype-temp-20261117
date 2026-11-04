@@ -180,6 +180,15 @@
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --duration-slow: 450ms;
+  /* Purposeful base tier (ticket #56): 150 to 250ms, so nothing that moves because you tapped feels slow. */
+  --duration-drill: 220ms; /* drill-down content swaps, map level reveal, route change */
+  --duration-drawer: 250ms; /* sheets and drawers coming in; they leave in --duration-base */
+  --duration-fly: 560ms; /* the globe camera flying in to a country, then the flat map takes over */
+  --duration-stagger: 50ms; /* gap between siblings entering together */
+  /* Light 3D parallax on landing scenes (decorative layers only, never on data). */
+  --parallax-tilt: 2.5deg;
+  --parallax-depth: 10px;
+  --parallax-perspective: 900px;
   /* Spring for the expressive tier (cards, counters, parallax): a damped spring sampled as an easing. */
   --ease-spring: linear(0, 0.2178 2.1%, 0.7565 7.6%, 1.0124 11.5%, 1.0768 13.5%, 1.0996 15.5%, 1.0976 17.7%, 1.0724 20.3%, 1.0203 25.2%, 0.9984 29%, 0.9934 33.5%, 0.9989 41%, 1);
   --duration-spring: 550ms;
@@ -477,8 +486,24 @@
   @media (hover: hover) and (pointer: fine) {
     .hover-lift:hover { transform: translateY(-2px); }
   }
-  .spring-in { animation: spring-in var(--duration-spring) var(--ease-spring) both; }
-  .fade-up { animation: fade-up var(--duration-slow) var(--ease-out) both; }
+  .spring-in { animation: spring-in var(--duration-spring) var(--ease-spring) backwards; animation-delay: calc(var(--i, 0) * var(--duration-stagger)); }
+  .fade-up { animation: fade-up var(--duration-slow) var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * var(--duration-stagger)); }
+  /* Drill-down: the new level grows out of the one you tapped (in) or settles back from it (out). data-dir picks which. */
+  .drill-in { animation: drill-in var(--duration-drill) var(--ease-out) backwards; }
+  .drill-in[data-dir="out"] { animation-name: drill-out; }
+  /* Page change (tens of times a day, so near-imperceptible: 120ms): the incoming screen fades up four pixels; the outgoing one is simply replaced. `backwards` fill, so no
+     transform is left on the page afterwards (a lingering one would trap fixed-position children). */
+  .page-in { animation: page-in var(--duration-fast) var(--ease-out) backwards; }
+  /* Expand: grid rows go 0fr to 1fr, so a row opens to its real height without measuring. Content sits in one child. */
+  .expand { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--duration-base) var(--ease-out), opacity var(--duration-base) var(--ease-out); }
+  .expand[data-open="false"] { grid-template-rows: 0fr; opacity: 0; }
+  .expand > * { min-height: 0; overflow: hidden; }
+  @starting-style {
+    .expand[data-open="true"] { grid-template-rows: 0fr; opacity: 0; }
+  }
+  /* Parallax layers: the scene sets --px / --py (-1 to 1); each layer moves by its own depth. Springs back on leave. */
+  .parallax-layer { transition: transform var(--duration-spring) var(--ease-spring); will-change: transform; }
+  .parallax-layer[data-active="true"] { transition: transform var(--duration-base) var(--ease-out); }
 
   .safe-pt { padding-top: env(safe-area-inset-top); }
   .safe-pb { padding-bottom: env(safe-area-inset-bottom); }
@@ -596,6 +621,23 @@
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes drill-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes drill-out {
+  from { opacity: 0; transform: scale(1.03); }
+  to { opacity: 1; transform: none; }
+}
+/* The reduced-motion stand-in for every entrance above: the fade survives, the movement does not. */
+@keyframes reveal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 @keyframes bar-grow {
   /* Revealed from the baseline with a clip, so the rounded data end is never squashed. */
   from { clip-path: inset(0 100% 0 0); }
@@ -613,6 +655,24 @@
     transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow !important;
     scroll-behavior: auto !important;
   }
+  /* Entrances keep a plain fade (state change) and lose all movement. Tailwind's animate-in reads these variables. */
+  .spring-in, .fade-up, .drill-in, .page-in, .viz-rise, .viz-pop, .viz-grow-x, .viz-grow-y {
+    animation-name: reveal-fade !important;
+    animation-duration: var(--duration-base) !important;
+    animation-delay: 0ms !important;
+  }
+  [class*="animate-in"] {
+    --tw-enter-scale: 1;
+    --tw-enter-rotate: 0;
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    animation-duration: var(--duration-base) !important;
+  }
+  /* A pressed or hovered control must not scale or lift either: no transform of any kind. */
+  .press:active, .hover-lift:hover { transform: none !important; }
+  :where(button, a, [role="button"], [class*="active:"]):active { scale: none !important; }
+  .parallax-layer { transform: none !important; }
+  .expand { transition-property: opacity !important; }
 }
 
 /* Chat visuals: subtle entrances (card rise, bars growing from their baseline, markers popping in). Reduced motion is
@@ -624,11 +684,11 @@
 @keyframes viz-pop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: none; } }
 @keyframes viz-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @layer utilities {
-  .viz-rise { animation: viz-rise 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-  .viz-grow-x { transform-origin: left center; animation: viz-grow-x 320ms cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: var(--viz-delay, 0ms); }
-  .viz-grow-y { transform-origin: center bottom; animation: viz-grow-y 320ms cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: var(--viz-delay, 0ms); }
+  .viz-rise { animation: viz-rise 220ms var(--ease-out) both; }
+  .viz-grow-x { transform-origin: left center; animation: viz-grow-x 320ms var(--ease-out) both; animation-delay: var(--viz-delay, 0ms); }
+  .viz-grow-y { transform-origin: center bottom; animation: viz-grow-y 320ms var(--ease-out) both; animation-delay: var(--viz-delay, 0ms); }
   .viz-fade { animation: viz-fade 380ms ease-out both; animation-delay: var(--viz-delay, 120ms); }
-  .viz-pop { transform-box: fill-box; transform-origin: center; animation: viz-pop 260ms cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: var(--viz-delay, 0ms); }
+  .viz-pop { transform-box: fill-box; transform-origin: center; animation: viz-pop 260ms var(--ease-out) both; animation-delay: var(--viz-delay, 0ms); }
   .viz-shimmer { background-image: linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--foreground) 7%, transparent) 50%, transparent 100%); background-size: 200% 100%; animation: viz-shimmer 1.4s linear infinite; }
 }
 

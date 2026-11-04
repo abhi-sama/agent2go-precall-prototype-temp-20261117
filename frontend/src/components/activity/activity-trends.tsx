@@ -79,6 +79,7 @@ export function ActivityTrendsSection() {
                 />
                 <KpiCard
                   id="hcps"
+                  index={1}
                   label="Distinct HCPs, 12 months"
                   value={data.totalDistinctEngagedHcps}
                   definition="Each HCP counted once across the window, so months do not add up to this."

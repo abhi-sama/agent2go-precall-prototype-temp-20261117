@@ -25,7 +25,9 @@ A boot script in the root layout applies saved choices before first paint.
 | Scene | `--scene-bg`, `--scene-tile`, `--scene-tile-locked` (map and globe) |
 | Shape and depth | `--radius` and the `rounded-*` scale derived from it, `--elev-card`, `--elev-lift` |
 | Density | `--control-h`, `--card-pad`, `--page-gap` |
-| Motion | `--ease-out`, `--ease-in-out`, `--ease-drawer`, `--ease-spring`, `--duration-fast`, `--duration-base`, `--duration-slow`, `--duration-spring` |
+| Motion | `--ease-out`, `--ease-in-out`, `--ease-drawer`, `--ease-spring`, `--duration-fast`, `--duration-base`, `--duration-slow`, `--duration-spring`, and from ticket #56 `--duration-drill`, `--duration-drawer`, `--duration-fly`, `--duration-stagger`, `--parallax-tilt`, `--parallax-depth`, `--parallax-perspective` |
+
+JS-driven motion (the globe camera, the expand unmount timer) reads these through `lib/motion.ts` `tokenMs()`; it never carries its own numbers.
 
 ## Consolidation done in ticket #45
 

@@ -68,7 +68,7 @@ function DrillView({ target, months }: { target: DrillTarget; months: ExecutiveM
         )}
         {result.status === "error" && <ErrorState error={result.error} onRetry={result.refetch} />}
         {result.status === "success" && (
-          <>
+          <div key={`${month}:${kind}`} className="drill-in flex flex-col gap-4">
             <DataThroughBadge dataThrough={result.data.dataThrough} />
             <p data-testid="drill-count" className="text-sm text-muted-foreground">
               {result.data.truncated ? `Showing ${result.data.records.length} of ${num(result.data.total)}` : num(result.data.total)} {kind === "CALLS" ? "distinct calls" : "responses"} in {formatMonth(result.data.month)}.
@@ -99,7 +99,7 @@ function DrillView({ target, months }: { target: DrillTarget; months: ExecutiveM
                 </table>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </>

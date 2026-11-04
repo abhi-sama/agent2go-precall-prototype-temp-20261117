@@ -49,7 +49,7 @@ function ComparisonBody({ data }: { data: TerritoryComparison }) {
   const reduced = useReducedMotion()
   const withCoverage = data.territories.every((t) => t.coverage.status === "AVAILABLE")
   return (
-    <div data-testid="comparison" className="flex flex-col gap-5">
+    <div data-testid="comparison" className="drill-in flex flex-col gap-5">
       <p data-testid="compare-basis" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
         <Scale className="size-4" aria-hidden />
         <span>

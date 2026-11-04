@@ -58,7 +58,7 @@ Two tiers, one rule: it must always feel fast and never distract.
 - **Expressive delight (springy, up to 550ms):** springy cards (`spring-in`, `--ease-spring`), animated counters, 3D parallax on landing scenes. May be fairly heavy on landing and empty states; never on data being read, never on keyboard-driven actions.
 - Reduced motion keeps fades and colour changes and drops movement. Details and the audit are in `motion-plan.md`.
 
-Primitives in `globals.css`: `--ease-out`, `--ease-in-out`, `--ease-drawer`, `--ease-spring`, `--duration-*`, `.press`, `.hover-lift`, `.spring-in`, `.fade-up`.
+Primitives in `globals.css`: `--ease-out`, `--ease-in-out`, `--ease-drawer`, `--ease-spring`, `--duration-*`, `.press`, `.hover-lift`, `.spring-in`, `.fade-up`, and from ticket #56 `.drill-in`, `.page-in`, `.expand` and `.parallax-layer` (with `ParallaxScene` and `Expand` in `components/motion/`). Where each is applied is in `motion-plan.md`.
 
 ## AI content
 

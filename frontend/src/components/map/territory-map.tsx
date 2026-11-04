@@ -11,6 +11,7 @@ import { formatRange } from "@/lib/dates"
 import { detectWebGL } from "@/lib/webgl"
 import { loadUsStates, loadWorld, boxOfFeatures, framing, nearPoints, unionBox } from "@/lib/geo/shapes"
 import { log } from "@/lib/log/logger"
+import { tokenMs } from "@/lib/motion"
 import { cn } from "@/lib/utils"
 import { FlatMap, type FlatMarker, type FlatRegion } from "./flat-map"
 import { readMapColors, type MapColors } from "./map-colors"
@@ -34,8 +35,8 @@ const GlobeView = dynamic(() => import("./globe-view"), {
 
 type Shapes = Awaited<ReturnType<typeof loadWorld>>
 
-/** How long the camera takes to fly in to a country before the flat map replaces the globe. */
-const FLY_IN_MS = 900
+/** Rank of each map level, so a move to a lower rank is a zoom out (the new map settles back) and a higher one a zoom in. */
+const LEVEL_RANK = { world: 0, country: 1, territory: 2 } as const
 
 class GlobeBoundary extends React.Component<{ onError: () => void; children: React.ReactNode }, { failed: boolean }> {
   state = { failed: false }
@@ -108,6 +109,11 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
   const [chosen, setChosen] = React.useState<MapView | null>(null)
   const view = React.useMemo(() => validView(chosen ?? initialView(activity, entry), activity), [chosen, activity, entry])
   const [flyTo, setFlyTo] = React.useState<{ code: string; lat: number; lng: number; nonce: number } | null>(null)
+  // After the camera lands, the globe stays mounted just long enough to fade out under the incoming flat map.
+  const [handoff, setHandoff] = React.useState(false)
+  // Which way the last level change went, so the incoming map grows in (drill down) or settles back (drill up).
+  const [levelMove, setLevelMove] = React.useState<{ level: MapView["level"]; dir: "in" | "out" }>({ level: view.level, dir: "in" })
+  if (levelMove.level !== view.level) setLevelMove({ level: view.level, dir: LEVEL_RANK[view.level] < LEVEL_RANK[levelMove.level] ? "out" : "in" })
 
   const country = view.level === "world" ? null : (activity.countries.find((c) => c.countryCode === view.countryCode) ?? null)
   const territory = view.level === "territory" ? (activity.territories.find((t) => t.territoryId === view.territoryId) ?? null) : null
@@ -119,19 +125,26 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [webgl, renderer])
 
-  // The fly-in finishes, then the flat map takes over.
+  // The fly-in finishes, then the flat map takes over while the globe fades out beneath it.
   React.useEffect(() => {
     if (!flyTo) return
     const timer = setTimeout(() => {
       setChosen({ level: "country", countryCode: flyTo.code })
       setFlyTo(null)
-    }, FLY_IN_MS)
+      setHandoff(true)
+    }, tokenMs("--duration-fly", 560))
     return () => clearTimeout(timer)
   }, [flyTo])
+  React.useEffect(() => {
+    if (!handoff) return
+    const timer = setTimeout(() => setHandoff(false), tokenMs("--duration-drill", 220))
+    return () => clearTimeout(timer)
+  }, [handoff])
 
   const go = React.useCallback((next: MapView) => {
     log.info("territory map view", { view: next.level })
     setFlyTo(null)
+    setHandoff(false)
     setChosen(next)
   }, [])
 
@@ -177,6 +190,7 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
     [activity, colors, extent],
   )
   const showGlobe = renderer === "globe" && view.level === "world"
+  const globeMounted = showGlobe || (renderer === "globe" && handoff)
 
   const onRegionClick = (name: string) => {
     if (view.level === "world") {
@@ -242,12 +256,18 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
 
       <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="relative h-[22rem] bg-hero-glow sm:h-[30rem]">
-          {showGlobe ? (
+          {globeMounted && (
             <div
               data-testid="globe"
+              data-handoff={handoff ? "true" : undefined}
               role="application"
               aria-label="Interactive 3D globe. Drag to rotate. Each country with activity has a button; the same countries are listed beside the globe."
-              className="size-full touch-none motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300 motion-safe:ease-out"
+              aria-hidden={handoff ? true : undefined}
+              className={cn(
+                "size-full touch-none motion-safe:animate-in motion-safe:fade-in motion-safe:duration-(--duration-drill) motion-safe:ease-(--ease-out)",
+                // Landed: the globe stays under the incoming flat map for one drill beat, fading out and no longer taking taps.
+                handoff && "pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-(--duration-drill) ease-(--ease-out)",
+              )}
             >
               <GlobeBoundary
                 onError={() => {
@@ -261,41 +281,46 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
                   colors={colors}
                   focus={flyTo}
                   onSelectCountry={openCountry}
+                  onInterrupt={() => setFlyTo(null)}
                 />
               </GlobeBoundary>
             </div>
-          ) : webgl === null || !flat ? (
-            <BlockSkeleton className="size-full rounded-none" />
-          ) : (
-            <div key={flat.mapKey} data-testid="flat-map" className="size-full motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300 motion-safe:ease-out">
-              <FlatMap
-                mapKey={flat.mapKey}
-                shapes={flat.shapes}
-                regions={flat.regions}
-                markers={flat.markers}
-                frame={flat.frame}
-                colors={colors}
-                animate={!reducedMotion}
-                ariaLabel={flat.ariaLabel}
-                onRegionClick={onRegionClick}
-                onMarkerClick={(id) => {
-                  const t = activity.territories.find((x) => x.territoryId === id)
-                  if (t) openTerritory(t)
-                }}
-              />
-            </div>
           )}
+          {!showGlobe &&
+            (webgl === null || !flat ? (
+              !handoff && <BlockSkeleton className="size-full rounded-none" />
+            ) : (
+              <div key={flat.mapKey} data-testid="flat-map" data-dir={levelMove.dir} className="drill-in relative z-10 size-full">
+                <FlatMap
+                  mapKey={flat.mapKey}
+                  shapes={flat.shapes}
+                  regions={flat.regions}
+                  markers={flat.markers}
+                  frame={flat.frame}
+                  colors={colors}
+                  animate={!reducedMotion}
+                  ariaLabel={flat.ariaLabel}
+                  onRegionClick={onRegionClick}
+                  onMarkerClick={(id) => {
+                    const t = activity.territories.find((x) => x.territoryId === id)
+                    if (t) openTerritory(t)
+                  }}
+                />
+              </div>
+            ))}
         </div>
 
         <aside className="flex flex-col gap-4 border-t p-4 lg:border-t-0 lg:border-l" data-testid="map-panel" aria-live="polite">
-          <PanelContent
-            activity={activity}
-            view={view}
-            country={country}
-            territory={territory}
-            onCountry={openCountry}
-            onTerritory={openTerritory}
-          />
+          <div key={`${view.level}:${country?.countryCode ?? ""}:${territory?.territoryId ?? ""}`} data-dir={levelMove.dir} className="drill-in flex flex-col gap-4">
+            <PanelContent
+              activity={activity}
+              view={view}
+              country={country}
+              territory={territory}
+              onCountry={openCountry}
+              onTerritory={openTerritory}
+            />
+          </div>
           <div className="mt-auto flex flex-col gap-2 border-t pt-3 text-xs text-muted-foreground">
             <Legend extent={extent} colors={colors} />
             {anySuppressed && (

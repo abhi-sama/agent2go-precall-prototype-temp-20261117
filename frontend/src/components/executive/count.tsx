@@ -1,4 +1,8 @@
+"use client"
+
 import { EyeOff } from "lucide-react"
+import { usePathname } from "next/navigation"
+import { useCountUp } from "@/hooks/use-count-up"
 import type { SuppressedCount } from "@/lib/data/types"
 import { cn } from "@/lib/utils"
 
@@ -11,7 +15,7 @@ export const percent = (value: number | null | undefined) => (value === null || 
  * A count the BE may have withheld. A withheld count is a labelled placeholder, never a zero and never an
  * estimate: the reader is told why the number is not there (small group), so they do not read it as "no activity".
  */
-export function CountValue({ count, minCell, className, testId }: { count: SuppressedCount; minCell: number; className?: string; testId?: string }) {
+export function CountValue({ count, minCell, className, testId, countUp }: { count: SuppressedCount; minCell: number; className?: string; testId?: string; countUp?: string }) {
   if (count.suppressed || count.value === null) {
     return (
       <span
@@ -28,7 +32,13 @@ export function CountValue({ count, minCell, className, testId }: { count: Suppr
   }
   return (
     <span data-testid={testId} data-value={count.value} className={cn("tabular-nums", className)}>
-      {num(count.value)}
+      {countUp ? <Counted value={count.value} id={countUp} /> : num(count.value)}
     </span>
   )
+}
+
+/** A headline figure that counts up once per screen per page load, then snaps (see `useCountUp`). */
+function Counted({ value, id }: { value: number; id: string }) {
+  const screen = usePathname()
+  return <>{num(useCountUp(value, undefined, `count:${screen}:${id}`))}</>
 }

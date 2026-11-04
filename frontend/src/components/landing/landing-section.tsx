@@ -6,6 +6,7 @@ import { AnalyticsFilterBar, QuestionDiscovery, ResponseDistributions } from "@/
 import { QualitativeInsights } from "@/components/insights/qualitative-insights"
 import { useSharedFilters } from "@/components/filters/filter-context"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
+import { ParallaxScene, SceneLayers } from "@/components/motion/parallax-scene"
 import { KpiCard } from "@/components/landing/kpi-card"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
@@ -56,7 +57,7 @@ export function LandingSection({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-3">
+      <ParallaxScene as="header" layers={<SceneLayers />} className="flex flex-col gap-3">
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
@@ -71,7 +72,7 @@ export function LandingSection({
             {formatRange(range)}
           </span>
         </div>
-      </header>
+      </ParallaxScene>
 
       <AnalyticsFilterBar discovery={discovery.status === "success" ? discovery.data : undefined} loading={loading || discovery.status === "loading"} />
 
@@ -109,6 +110,7 @@ export function LandingSection({
             <>
               <KpiCard
                 id="calls"
+                index={0}
                 label="Distinct calls"
                 value={kpis.data.distinctCalls}
                 definition="Each call counted once, however many rows it has."
@@ -117,6 +119,7 @@ export function LandingSection({
               />
               <KpiCard
                 id="hcps"
+                index={1}
                 label="Distinct engaged HCPs"
                 value={kpis.data.distinctEngagedHcps}
                 definition="Healthcare professionals reached at least once."
@@ -126,6 +129,7 @@ export function LandingSection({
               />
               <KpiCard
                 id="responses"
+                index={2}
                 label="Responses"
                 value={kpis.data.responseCount}
                 definition="Insight responses captured from those calls."
