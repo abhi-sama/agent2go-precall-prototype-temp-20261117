@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import resolvers
+from . import activity, flags, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .identity import JwksCache, resolve_identity
@@ -42,11 +42,28 @@ def _config() -> tuple[Settings, JwksCache]:
     return _settings, _jwks
 
 
+_store: flags.FlagStore | None = None
+
+
+def _flag_store(settings: Settings) -> flags.FlagStore:
+    global _store
+    if _store is None:
+        if not (settings.flags_table and settings.flags_role_arn):
+            raise Unavailable("flags_unconfigured")
+        _store = flags.DynamoFlagStore(settings.flags_table, settings.flags_role_arn)
+    return _store
+
+
 def _resolvers(settings: Settings) -> dict[str, Callable[..., Any]]:
     return {
         "me": resolvers.me,
         "landingKpis": partial(resolvers.landing_kpis, default_range_days=settings.default_range_days),
         "territoryActivity": partial(resolvers.territory_activity, default_range_days=settings.default_range_days),
+        "activityTrends": activity.activity_trends,
+        "activityEvidence": activity.activity_evidence,
+        # Resolved lazily: an unconfigured flag store must not break the other fields.
+        "flagIssue": lambda *a: flags.flag_issue(*a, store=_flag_store(settings)),
+        "myFlags": lambda *a: flags.my_flags(*a, store=_flag_store(settings)),
     }
 
 

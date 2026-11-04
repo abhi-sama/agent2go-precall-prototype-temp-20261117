@@ -14,6 +14,10 @@ export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'me' },
   { typeName: 'Query', fieldName: 'landingKpis' },
   { typeName: 'Query', fieldName: 'territoryActivity' },
+  { typeName: 'Query', fieldName: 'activityTrends' },
+  { typeName: 'Query', fieldName: 'activityEvidence' },
+  { typeName: 'Query', fieldName: 'myFlags' },
+  { typeName: 'Mutation', fieldName: 'flagIssue' },
 ] as const;
 
 /**

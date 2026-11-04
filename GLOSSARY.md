@@ -138,6 +138,18 @@ _Avoid_: recommendation (clinical recommendations are forbidden)
 The source records an output cites, open to drill-down.
 _Avoid_: references
 
+**Interaction date**:
+When an exchange happened (`call_dt`, `date_of_interaction`). Shown beside, and never confused with, the load date.
+_Avoid_: call time, activity date
+
+**Load date**:
+When a record reached this system (`sys_inserted_datetime`). It is usually after the interaction date.
+_Avoid_: updated date, refresh date
+
+**Flag**:
+A user's report that a summary, an identifier or a territory assignment is wrong, with a review status of open, in review, resolved or dismissed.
+_Avoid_: feedback, ticket, complaint
+
 **Data through**:
 The latest load time all in-scope sources are loaded through; a load date, not an interaction date.
 _Avoid_: last updated, as-of date

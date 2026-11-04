@@ -12,7 +12,9 @@ Requires the local stack: ``backend/infra/scripts/up.sh``.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -101,17 +103,20 @@ def graphql(query: str, variables: dict | None = None, token: str | None = None,
     # floci's GraphQL executor fails on explicit null variables; omitting an optional
     # variable means the same thing in GraphQL. The frontend transport does the same.
     variables = {k: v for k, v in (variables or {}).items() if v is not None}
-    req = urllib.request.Request(
-        state()["fe"]["graphql_url_host"],
-        data=json.dumps({"query": query, "variables": variables}).encode(),
-        headers=h,
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            body, status = json.load(resp), resp.status
-    except urllib.error.HTTPError as exc:
-        body, status = json.loads(exc.read() or b"{}"), exc.code
+    payload = json.dumps({"query": query, "variables": variables}).encode()
+    # floci runs AppSync's GraphQL executor as a sidecar container that can be recreated or still
+    # warming up; that infrastructure error (never an application error) is retried.
+    for attempt in range(4):
+        req = urllib.request.Request(state()["fe"]["graphql_url_host"], data=payload, headers=h, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                body, status = json.load(resp), resp.status
+        except urllib.error.HTTPError as exc:
+            body, status = json.loads(exc.read() or b"{}"), exc.code
+        sidecar_down = any("sidecar" in str(e.get("message", "")) for e in body.get("errors") or [])
+        if not sidecar_down or attempt == 3:
+            break
+        time.sleep(3)
     return GraphQLResult(status, body.get("data"), body.get("errors") or [])
 
 
@@ -157,6 +162,7 @@ def owner_db() -> psycopg.Connection:
 
 def be_lambda_logs(since: str = "10m") -> str:
     """Everything the BE Lambda wrote to stdout, as floci captured it."""
-    out = subprocess.run(["docker", "logs", "--since", since, "floci"], capture_output=True, text=True, check=True)
+    container = os.environ.get("A2G_FLOCI_CONTAINER", "floci")
+    out = subprocess.run(["docker", "logs", "--since", since, container], capture_output=True, text=True, check=True)
     lines = (out.stdout + out.stderr).splitlines()
     return "\n".join(line for line in lines if "[lambda:a2g-be-api" in line)

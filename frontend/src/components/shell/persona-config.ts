@@ -1,4 +1,4 @@
-import { BarChart3, ClipboardList, FileSearch, LayoutDashboard, Map, MessagesSquare, ShieldCheck, Users } from "lucide-react"
+import { Activity, BarChart3, ClipboardList, FileSearch, LayoutDashboard, Map, MessagesSquare, ShieldCheck, Users } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { Persona } from "@/lib/data/types"
 
@@ -25,6 +25,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
     tagline: "Field workspace",
     nav: [
       { label: "My territory", href: "/msl", icon: Map },
+      { label: "My activity", href: "/msl/activity", icon: Activity },
       { label: "Pre-call brief", href: null, icon: ClipboardList },
       { label: "Insights", href: null, icon: BarChart3 },
       { label: "Ask the agent", href: null, icon: MessagesSquare },

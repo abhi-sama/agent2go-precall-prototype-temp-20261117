@@ -9,7 +9,7 @@ import time
 import zipfile
 from pathlib import Path
 
-from .config import API_FUNCTION, BE_ACCOUNT, BUILD_DIR, FE_ACCOUNT, REPO, be
+from .config import API_FUNCTION, BE_ACCOUNT, BUILD_DIR, FE_ACCOUNT, FLAGS_ROLE_ARN, FLAGS_TABLE, REPO, be
 
 SRC_API = REPO / "backend" / "lambdas" / "api" / "src" / "a2g_api"
 SRC_LOG = REPO / "backend" / "libs" / "a2g_logging" / "src" / "a2g_logging"
@@ -59,6 +59,9 @@ def deploy(fe: dict, db: dict) -> str:
             # floci's AppSync drops request headers; see docs/adr/0002.
             "A2G_TRUST_APPSYNC_IDENTITY": "1",
             "A2G_DB_DSN": db["app_dsn_internal"],
+            # FE DynamoDB flags, reached by assuming a narrow FE-account role (docs/adr/0006).
+            "A2G_FLAGS_TABLE": FLAGS_TABLE,
+            "A2G_FLAGS_ROLE_ARN": FLAGS_ROLE_ARN,
         }
     }
     try:

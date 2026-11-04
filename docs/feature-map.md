@@ -49,3 +49,9 @@ Then, as their blockers land:
 5. Prove it through the API as a persona with `tests/api/harness.py`: allowed scope, denied scope, and an effective-dated change where it matters.
 6. Log ids, counts and enums only, through `a2g_logging` (BE) or `@/lib/log/logger` (FE).
 7. Run `backend/infra/scripts/up.sh` (it redeploys the schema and Lambda), then `backend/infra/scripts/test.sh`.
+
+## Fields added by slices
+
+| Ticket | Fields | Notes |
+|---|---|---|
+| 09 (#10) | `activityTrends`, `activityEvidence`, `myFlags`, `flagIssue` | Flags are stored in FE DynamoDB and written by the BE Lambda (ADR 0006). |

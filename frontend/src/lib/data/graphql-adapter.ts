@@ -1,6 +1,24 @@
 import type { DataAdapter } from "./adapter"
-import { LANDING_KPIS_QUERY, ME_QUERY, TERRITORY_ACTIVITY_QUERY } from "./operations"
-import { DataError, type DateRange, type LandingKpis, type Me, type RequestContext, type TerritoryActivity } from "./types"
+import {
+  ACTIVITY_EVIDENCE_QUERY,
+  ACTIVITY_TRENDS_QUERY,
+  FLAG_ISSUE_MUTATION,
+  LANDING_KPIS_QUERY,
+  ME_QUERY,
+  MY_FLAGS_QUERY,
+  TERRITORY_ACTIVITY_QUERY,
+} from "./operations"
+import {
+  DataError,
+  type ActivityEvidence,
+  type ActivityTrends,
+  type DateRange,
+  type Flag,
+  type LandingKpis,
+  type Me,
+  type RequestContext,
+  type TerritoryActivity,
+} from "./types"
 
 export interface GraphQLResponse<T> {
   data?: T | null
@@ -23,6 +41,9 @@ function classify(errors: NonNullable<GraphQLResponse<unknown>["errors"]>, corre
   }
   if (text.includes("forbidden") || text.includes("access")) {
     return new DataError("FORBIDDEN", "You do not have access to this data.", correlationId)
+  }
+  if (text.includes("badrequest") || text.includes("bad_request")) {
+    return new DataError("BAD_REQUEST", "That request was not accepted.", correlationId)
   }
   if (text.includes("no_scope") || text.includes("noscope")) {
     return new DataError("NO_SCOPE", "No territory is assigned to your account.", correlationId)
@@ -74,6 +95,33 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
         ctx,
       )
       return data.territoryActivity
+    },
+    async activityTrends(ctx, months) {
+      const data = await run<{ activityTrends: ActivityTrends }>(transport, ACTIVITY_TRENDS_QUERY, { months: months ?? null }, ctx)
+      return data.activityTrends
+    },
+    async activityEvidence(ctx, query) {
+      const data = await run<{ activityEvidence: ActivityEvidence }>(
+        transport,
+        ACTIVITY_EVIDENCE_QUERY,
+        { metric: query.metric, month: query.month, channel: query.channel ?? null, limit: query.limit ?? null },
+        ctx,
+      )
+      return data.activityEvidence
+    },
+    async myFlags(ctx) {
+      const data = await run<{ myFlags: Flag[] }>(transport, MY_FLAGS_QUERY, undefined, ctx)
+      return data.myFlags
+    },
+    async flagIssue(ctx, input) {
+      const data = await run<{ flagIssue: Flag }>(
+        transport,
+        FLAG_ISSUE_MUTATION,
+        // Optional fields are omitted, not null: floci's GraphQL executor rejects explicit nulls.
+        { input: { kind: input.kind, targetType: input.targetType, targetId: input.targetId, ...(input.note ? { note: input.note } : {}) } },
+        ctx,
+      )
+      return data.flagIssue
     },
   }
 }

@@ -36,6 +36,11 @@ APP_DB_PASSWORD = "app_user"
 API_FUNCTION = "a2g-be-api"
 API_FUNCTION_ARN = f"arn:aws:lambda:{REGION}:{BE_ACCOUNT}:function:{API_FUNCTION}"
 
+#: FE DynamoDB flags table and the narrow FE-account role the BE Lambda assumes
+#: (frontend/amplify/storage/resource.ts defines both; docs/adr/0006).
+FLAGS_TABLE = "a2g-feedback-flags"
+FLAGS_ROLE_ARN = f"arn:aws:iam::{FE_ACCOUNT}:role/a2g-be-flags"
+
 AMPLIFY_STACK = "amplify-agent2go-local-sandbox"
 CDK_QUALIFIER = "hnb659fds"
 

@@ -1,6 +1,7 @@
 import { defineBackend } from '@aws-amplify/backend';
 import { auth } from './auth/resource';
 import { defineBeApi } from './api/resource';
+import { defineFlagsStore } from './storage/resource';
 
 const backend = defineBackend({ auth });
 
@@ -14,6 +15,12 @@ const api = defineBeApi(apiStack, backend.auth.resources.userPool, {
   beApiLambdaArn,
   localEmulator: process.env.A2G_DEPLOY_TARGET === 'floci',
 });
+
+const localEmulator = process.env.A2G_DEPLOY_TARGET === 'floci';
+// Fail closed: a real deployment must name the BE account that may assume the flags role.
+const beAccountId = process.env.A2G_BE_ACCOUNT_ID ?? (localEmulator ? '222222222222' : undefined);
+if (!beAccountId) throw new Error('A2G_BE_ACCOUNT_ID is required outside the local emulator');
+defineFlagsStore(apiStack, { beAccountId, localEmulator });
 
 backend.addOutput({
   data: {

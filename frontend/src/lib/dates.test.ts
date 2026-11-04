@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest"
-import { addDays, daysInRange, formatRange, isIsoDate, matchPreset, presetRange, weekdaysInRange } from "./dates"
+import {
+  addDays,
+  addMonths,
+  daysInRange,
+  formatInstant,
+  formatMonth,
+  formatMonthShort,
+  formatRange,
+  isIsoDate,
+  matchPreset,
+  presetRange,
+  weekdaysInRange,
+} from "./dates"
 
 describe("dates", () => {
   it("validates ISO dates strictly", () => {
@@ -22,5 +34,19 @@ describe("dates", () => {
   it("adds days across month ends and formats ranges", () => {
     expect(addDays("2026-10-31", 1)).toBe("2026-11-01")
     expect(formatRange({ from: "2026-10-05", to: "2026-11-03" })).toBe("Oct 5 – Nov 3, 2026")
+  })
+})
+
+describe("month helpers", () => {
+  it("formats months and steps across year boundaries", () => {
+    expect(formatMonth("2026-10-01")).toBe("Oct 2026")
+    expect(formatMonthShort("2026-10-01")).toBe("Oct")
+    expect(addMonths("2026-01-01", -1)).toBe("2025-12-01")
+    expect(addMonths("2026-11-17", 2)).toBe("2027-01-01")
+  })
+
+  it("formats a load time in UTC so it never reads as the interaction day", () => {
+    expect(formatInstant("2026-11-03T23:30:00Z")).toContain("Nov 3, 2026")
+    expect(formatInstant("2026-11-03T23:30:00Z")).toContain("UTC")
   })
 })

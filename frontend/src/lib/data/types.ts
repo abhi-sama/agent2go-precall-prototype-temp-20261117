@@ -65,9 +65,94 @@ export interface TerritoryActivity {
   responseCount: number
 }
 
+/** One calendar month of the caller's activity. Counts only: there is no target, rank or score. */
+export interface ActivityMonth {
+  /** First day of the month, `YYYY-MM-01`. */
+  month: IsoDate
+  distinctCalls: number
+  /** Distinct within the month: months do not add up to the window total. */
+  distinctEngagedHcps: number
+  /** True while data-through has not yet covered the whole month. */
+  isPartial: boolean
+  channels: ChannelCount[]
+}
+
+export interface ChannelCount {
+  channel: string
+  distinctCalls: number
+}
+
+export interface ActivityTrends {
+  from: IsoDate
+  to: IsoDate
+  months: ActivityMonth[]
+  /** Every channel seen in the window, for a stable legend. */
+  channels: string[]
+  totalDistinctCalls: number
+  totalDistinctEngagedHcps: number
+  dataThrough: IsoDateTime | null
+  scopeLabel: string
+}
+
+export type ActivityMetric = "CALLS" | "HCPS"
+
+/** A record behind a chart point. The interaction date and the load date are different things. */
+export interface EvidenceRecord {
+  recordId: string
+  kind: "CALL" | "HCP"
+  hcpId: string | null
+  hcpName: string | null
+  territoryId: string | null
+  channel: string | null
+  callCount: number
+  /** When the exchange happened. */
+  interactionDate: IsoDate
+  /** When the record reached this system. */
+  loadedAt: IsoDateTime | null
+}
+
+export interface ActivityEvidence {
+  metric: ActivityMetric
+  month: IsoDate
+  channel: string | null
+  total: number
+  truncated: boolean
+  latestInteractionDate: IsoDate | null
+  latestLoadedAt: IsoDateTime | null
+  dataThrough: IsoDateTime | null
+  scopeLabel: string
+  records: EvidenceRecord[]
+}
+
+export const FLAG_KINDS = ["IDENTIFIER", "TERRITORY_ASSIGNMENT", "SUMMARY"] as const
+export type FlagKind = (typeof FLAG_KINDS)[number]
+export type FlagTargetType = "SUMMARY" | "CALL" | "HCP" | "TERRITORY"
+export type FlagStatus = "OPEN" | "IN_REVIEW" | "RESOLVED" | "DISMISSED"
+
+export interface Flag {
+  flagId: string
+  kind: FlagKind
+  targetType: FlagTargetType
+  targetId: string
+  note: string | null
+  status: FlagStatus
+  createdAt: IsoDateTime
+  updatedAt: IsoDateTime
+  scopeLabel?: string | null
+  dataThrough?: IsoDateTime | null
+}
+
+export interface FlagInput {
+  kind: FlagKind
+  targetType: FlagTargetType
+  targetId: string
+  note?: string | null
+}
+
 export type DataErrorCode =
   | "UNAUTHENTICATED"
   | "FORBIDDEN"
+  | "BAD_REQUEST"
   | "NO_SCOPE"
   | "UNAVAILABLE"
   | "TIMEOUT"

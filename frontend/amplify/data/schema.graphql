@@ -38,8 +38,124 @@ type TerritoryActivity {
   responseCount: Int!
 }
 
+"""
+One calendar month of the caller's activity. Counts only: no target, rank or score.
+distinctEngagedHcps is distinct within the month, so months do not add up to the window total.
+isPartial marks a month that data-through has not yet covered in full.
+"""
+type ActivityMonth {
+  month: AWSDate!
+  distinctCalls: Int!
+  distinctEngagedHcps: Int!
+  isPartial: Boolean!
+  channels: [ChannelCount!]!
+}
+
+"Distinct calls recorded under one channel. A call under several channels counts once in each."
+type ChannelCount {
+  channel: String!
+  distinctCalls: Int!
+}
+
+type ActivityTrends {
+  from: AWSDate!
+  to: AWSDate!
+  months: [ActivityMonth!]!
+  channels: [String!]!
+  totalDistinctCalls: Int!
+  totalDistinctEngagedHcps: Int!
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+}
+
+enum ActivityMetric {
+  CALLS
+  HCPS
+}
+
+"""
+A record behind a chart point. interactionDate is when the exchange happened; loadedAt is
+when the record reached this system. They are different things and both are shown.
+"""
+type EvidenceRecord {
+  recordId: ID!
+  kind: String!
+  hcpId: String
+  hcpName: String
+  territoryId: String
+  channel: String
+  callCount: Int!
+  interactionDate: AWSDate!
+  loadedAt: AWSDateTime
+}
+
+type ActivityEvidence {
+  metric: ActivityMetric!
+  month: AWSDate!
+  channel: String
+  total: Int!
+  truncated: Boolean!
+  latestInteractionDate: AWSDate
+  latestLoadedAt: AWSDateTime
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+  records: [EvidenceRecord!]!
+}
+
+enum FlagKind {
+  SUMMARY
+  IDENTIFIER
+  TERRITORY_ASSIGNMENT
+}
+
+enum FlagTargetType {
+  SUMMARY
+  CALL
+  HCP
+  TERRITORY
+}
+
+enum FlagStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+"A user's report that a summary, an identifier or a territory assignment is wrong, with its review status."
+type Flag {
+  flagId: ID!
+  kind: FlagKind!
+  targetType: FlagTargetType!
+  targetId: String!
+  note: String
+  status: FlagStatus!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+  scopeLabel: String
+  dataThrough: AWSDateTime
+}
+
+input FlagInput {
+  kind: FlagKind!
+  targetType: FlagTargetType!
+  targetId: String!
+  note: String
+}
+
 type Query {
   me: Me!
   landingKpis(from: AWSDate, to: AWSDate): LandingKpis!
   territoryActivity(from: AWSDate, to: AWSDate): [TerritoryActivity!]!
+  "Monthly distinct calls, distinct engaged HCPs and channel mix for the last `months` months (default 12)."
+  activityTrends(months: Int): ActivityTrends!
+  "The distinct calls or HCPs behind one chart point (a month, optionally one channel)."
+  activityEvidence(metric: ActivityMetric!, month: AWSDate!, channel: String, limit: Int): ActivityEvidence!
+  "The caller's own flags, newest first."
+  myFlags: [Flag!]!
+}
+
+type Mutation {
+  "Raise a flag. Raising the same open flag again returns the existing one."
+  flagIssue(input: FlagInput!): Flag!
 }

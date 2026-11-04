@@ -15,6 +15,8 @@ class Settings:
     trust_appsync_identity: bool
     db_dsn: str
     default_range_days: int
+    flags_table: str | None = None
+    flags_role_arn: str | None = None
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> Settings:
@@ -33,4 +35,6 @@ class Settings:
             trust_appsync_identity=trust,
             db_dsn=e["A2G_DB_DSN"],
             default_range_days=int(e.get("A2G_DEFAULT_RANGE_DAYS", "90")),
+            flags_table=e.get("A2G_FLAGS_TABLE") or None,
+            flags_role_arn=e.get("A2G_FLAGS_ROLE_ARN") or None,
         )

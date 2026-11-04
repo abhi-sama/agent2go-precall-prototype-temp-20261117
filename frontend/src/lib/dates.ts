@@ -91,3 +91,38 @@ export function formatRange(range: DateRange): string {
   const sameYear = range.from.slice(0, 4) === range.to.slice(0, 4)
   return `${formatDay(range.from, !sameYear)} – ${formatDay(range.to, true)}`
 }
+
+const fmtMonth = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" })
+const fmtMonthShort = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" })
+
+/** `2026-10-01` -> `Oct 2026`. */
+export function formatMonth(iso: IsoDate): string {
+  return fmtMonth.format(parse(iso))
+}
+
+/** `2026-10-01` -> `Oct`, for chart axes. */
+export function formatMonthShort(iso: IsoDate): string {
+  return fmtMonthShort.format(parse(iso))
+}
+
+/** First day of the month `delta` months from `iso`'s month. */
+export function addMonths(iso: IsoDate, delta: number): IsoDate {
+  const [y, m] = iso.split("-").map(Number)
+  const index = y * 12 + (m - 1) + delta
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}-01`
+}
+
+const fmtDateTime = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: "UTC",
+  timeZoneName: "short",
+})
+
+/** An instant as `Nov 3, 2026, 12:00 PM UTC`. Load times are always shown in UTC. */
+export function formatInstant(iso: string): string {
+  return fmtDateTime.format(new Date(iso))
+}

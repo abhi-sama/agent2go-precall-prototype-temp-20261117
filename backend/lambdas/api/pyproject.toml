@@ -10,7 +10,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "boto3>=1.43.123",
+    "pytest>=8",
+]
 
 [tool.uv.sources]
 a2g-logging = { path = "../../libs/a2g_logging", editable = true }
