@@ -12,3 +12,5 @@ backend/infra/build/
 frontend/amplify/cdk.out/
 frontend/amplify/node_modules/
 frontend/amplify_outputs.json
+backend/cdk/node_modules/
+backend/cdk/cdk.out/

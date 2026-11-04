@@ -217,6 +217,10 @@ input ChatMessageInput { role: String!, content: String! }
 type SourceField { label: String!, value: String! }
 type SourceRecord { dataset: String!, recordId: ID!, title: String!, fields: [SourceField!]!, dataThrough: AWSDateTime }
 
+"One BE-published event for the AWS AppSync subscription path."
+type LiveChatEvent { runId: ID!, seq: Int!, data: String! }
+input PublishChatEventInput { runId: ID!, seq: Int!, data: String! }
+
 enum HcpFieldState { PRESENT MISSING }
 type HcpField { value: String state: HcpFieldState! }
 type HcpSearchResult { hcpId: ID! name: HcpField! institution: HcpField! territory: HcpField! }
@@ -332,4 +336,11 @@ type Mutation {
   createScopeAssignment(input: ScopeAssignmentInput!): ScopeAssignment!
   startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!]): ChatRun!
   saveView(input: SaveViewInput!): SavedView!
+  "Server-to-server only: the BE chat worker publishes an event after persisting it under RLS."
+  publishChatEvent(input: PublishChatEventInput!): LiveChatEvent! @aws_iam
+}
+
+"AWS delivery path for chat events; floci uses the chatEvents polling stand-in."
+type Subscription {
+  onChatEvent(runId: ID!): LiveChatEvent @aws_subscribe(mutations: ["publishChatEvent"])
 }

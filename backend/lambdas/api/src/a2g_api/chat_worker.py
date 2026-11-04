@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import time
+import urllib.request
 from collections.abc import Mapping
 from typing import Any
 
@@ -23,6 +24,9 @@ configure(service="a2g-be-chat")
 log = get_logger(__name__)
 
 TERMINAL = {"RUN_FINISHED": "finished", "RUN_ERROR": "failed"}
+_PUBLISH_MUTATION = """mutation PublishChatEvent($input: PublishChatEventInput!) {
+  publishChatEvent(input: $input) { runId seq data }
+}"""
 
 
 def _append(settings: Settings, event: Mapping[str, Any], payload: Mapping[str, Any], seq: int) -> None:
@@ -36,6 +40,43 @@ def _append(settings: Settings, event: Mapping[str, Any], payload: Mapping[str, 
             cur.execute(
                 "UPDATE chat_runs SET status = %s, finished_at = now() WHERE run_id = %s", (status, payload["run_id"])
             )
+
+
+def _publish_live_event(settings: Settings, event: Mapping[str, Any], payload: Mapping[str, Any], seq: int) -> None:
+    """Publish the already-persisted event to the AWS-only AppSync subscription.
+
+    floci has no subscriptions, so this intentionally does nothing without the deployed endpoint.
+    The worker's IAM policy permits exactly this mutation field; no event body is logged.
+    """
+    if not settings.fe_appsync_url:
+        return
+    import boto3
+    from botocore.auth import SigV4Auth
+    from botocore.awsrequest import AWSRequest
+
+    body = json.dumps(
+        {
+            "query": _PUBLISH_MUTATION,
+            "variables": {
+                "input": {"runId": payload["run_id"], "seq": seq, "data": json.dumps(event)},
+            },
+        }
+    ).encode()
+    request = AWSRequest(
+        method="POST",
+        url=settings.fe_appsync_url,
+        data=body,
+        headers={"content-type": "application/json"},
+    )
+    credentials = boto3.Session().get_credentials()
+    if credentials is None:
+        raise RuntimeError("missing_aws_credentials")
+    SigV4Auth(credentials.get_frozen_credentials(), "appsync", boto3.Session().region_name or "us-east-1").add_auth(request)
+    with urllib.request.urlopen(urllib.request.Request(  # noqa: S310 - configured internal AppSync endpoint
+        settings.fe_appsync_url, data=body, headers=dict(request.headers.items()), method="POST"
+    ), timeout=5) as response:
+        if response.status != 200:
+            raise RuntimeError("appsync_publish_failed")
 
 
 def run_chat(payload: Mapping[str, Any], settings: Settings, runtime: AgentRuntime | None = None) -> str:
@@ -59,6 +100,11 @@ def run_chat(payload: Mapping[str, Any], settings: Settings, runtime: AgentRunti
         for event in (runtime or runtime_for(settings)).invoke(request):
             seq += 1
             _append(settings, event, payload, seq)
+            try:
+                _publish_live_event(settings, event, payload, seq)
+            except Exception as exc:
+                # Polling remains authoritative; a live-delivery miss must not replay or lose the run.
+                log.error("live chat publish failed", run_id=payload["run_id"], error_type=type(exc).__name__)
             if event.get("type") in TERMINAL:
                 outcome = TERMINAL[event["type"]]
                 break
@@ -73,6 +119,10 @@ def run_chat(payload: Mapping[str, Any], settings: Settings, runtime: AgentRunti
             seq + 1,
         )
         seq += 1
+        try:
+            _publish_live_event(settings, {"type": "RUN_ERROR", "message": "The agent is unavailable.", "code": "AGENT_UNAVAILABLE"}, payload, seq)
+        except Exception as publish_exc:
+            log.error("live chat publish failed", run_id=payload["run_id"], error_type=type(publish_exc).__name__)
     log.info(
         "chat run relayed",
         run_id=payload["run_id"],

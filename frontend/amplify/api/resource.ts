@@ -53,6 +53,9 @@ export function defineBeApi(stack: Stack, userPool: cognito.IUserPool, options: 
         authorizationType: appsync.AuthorizationType.USER_POOL,
         userPoolConfig: { userPool },
       },
+      // The chat worker uses SigV4 for the one server-to-server publish mutation.
+      // Browser reads and all user mutations remain Cognito-authenticated.
+      additionalAuthorizationModes: [{ authorizationType: appsync.AuthorizationType.IAM }],
     },
     // ERROR level never writes request/response bodies (no tokens, names, or HCP text).
     // logConfig adds a CDK LogRetention custom resource whose bundled SDK ignores
@@ -84,5 +87,18 @@ export function defineBeApi(stack: Stack, userPool: cognito.IUserPool, options: 
       code,
     });
   }
+
+  // In AWS, the BE chat worker publishes an already-persisted event with its narrow IAM role.
+  // floci has no subscriptions, so local clients continue polling chatEvents (ADR 0007).
+  const chatPublisher = api.addNoneDataSource('ChatEventPublisher');
+  chatPublisher.createResolver('PublishChatEventResolver', {
+    typeName: 'Mutation',
+    fieldName: 'publishChatEvent',
+    runtime: appsync.FunctionRuntime.JS_1_0_0,
+    code: appsync.Code.fromInline(`
+      export function request(ctx) { return { payload: ctx.args.input }; }
+      export function response(ctx) { return ctx.result; }
+    `),
+  });
   return api;
 }
