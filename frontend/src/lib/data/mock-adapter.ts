@@ -2,6 +2,7 @@ import { addDays, addMonths, daysInRange, todayIso, weekdaysInRange } from "@/li
 import { log } from "@/lib/log/logger"
 import type { DataAdapter } from "./adapter"
 import { createMockGovernance } from "./governance"
+import { buildComparison, buildOverview, tooLong } from "./mock-director"
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
 import { mockCitation, readRun, scriptRun } from "./mock-chat"
 import {
@@ -13,6 +14,8 @@ import {
   type ActivityTrends,
   type ChatEventPage, type ChatRun, type SourceRecord,
   type DateRange,
+  type DirectorOverview,
+  type TerritoryComparison,
   type EvidenceRecord,
   type Flag,
   type IsoDate,
@@ -30,9 +33,10 @@ import {
   type SavedView,
 } from "./types"
 
-export type MockScenario = "ok" | "empty" | "error" | "forbidden" | "slow" | "stale"
+/** `targets` is `ok` plus an approved target population for two territories, so coverage can be shown. */
+export type MockScenario = "ok" | "empty" | "error" | "forbidden" | "slow" | "stale" | "targets"
 
-const SCENARIOS: readonly MockScenario[] = ["ok", "empty", "error", "forbidden", "slow", "stale"]
+const SCENARIOS: readonly MockScenario[] = ["ok", "empty", "error", "forbidden", "slow", "stale", "targets"]
 
 /** `?scenario=` is honoured only in local builds, so tests and demos can force each UI state. */
 export function readScenario(search: string | undefined): MockScenario {
@@ -112,6 +116,27 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     const daysBack = s === "stale" ? 9 : 1
     const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() - daysBack, 5, 30))
     return d.toISOString()
+  }
+
+  function directorInput(ctx: RequestContext, s: MockScenario, range?: Partial<DateRange>) {
+    const user = findUser(options.getUserId())
+    if (s === "forbidden" || (user.persona !== "director" && user.persona !== "admin")) {
+      throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+    }
+    if (user.territoryIds.length === 0) throw new DataError("NO_SCOPE", "No territory is assigned to your account.", ctx.correlationId)
+    const resolved = resolveRange(range ?? { from: addDays(todayIso(now()), -89) })
+    if (tooLong(resolved)) throw new DataError("BAD_REQUEST", "That request was not accepted.", ctx.correlationId)
+    const through = dataThrough(s)
+    return {
+      territories: TERRITORIES.filter((x) => user.territoryIds.includes(x.id)),
+      range: resolved,
+      throughDay: through.slice(0, 10),
+      dataThrough: through,
+      scopeLabel: user.scopeLabel,
+      metricsFor,
+      empty: s === "empty",
+      withTargets: s === "targets",
+    }
   }
 
   const saved: SavedView[] = []
@@ -274,6 +299,23 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
         dataThrough: through,
         scopeLabel: user.scopeLabel,
       }
+    },
+
+    async directorOverview(ctx, range): Promise<DirectorOverview> {
+      const s = await gate(ctx, "directorOverview")
+      return buildOverview(directorInput(ctx, s, range))
+    },
+
+    async territoryComparison(ctx, territoryIds, range): Promise<TerritoryComparison> {
+      const s = await gate(ctx, "territoryComparison")
+      const input = directorInput(ctx, s, range)
+      const ids = [...new Set(territoryIds)]
+      if (ids.length < 2 || ids.length > 6) throw new DataError("BAD_REQUEST", "That request was not accepted.", ctx.correlationId)
+      // One refusal for "outside your scope" and "does not exist", as the BE gives.
+      if (ids.some((id) => !input.territories.some((t) => t.id === id))) {
+        throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      }
+      return buildComparison(input, ids)
     },
 
     async activityEvidence(ctx, query): Promise<ActivityEvidence> {

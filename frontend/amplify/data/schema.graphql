@@ -126,6 +126,160 @@ type ActivityEvidence {
   records: [EvidenceRecord!]!
 }
 
+enum CoverageStatus {
+  AVAILABLE
+  NO_TARGET_POPULATION
+}
+
+"""
+Coverage is engaged target HCPs over the approved target population. When no approved target
+population exists the status is NO_TARGET_POPULATION and every number is null: it is withheld,
+never estimated.
+"""
+type TerritoryCoverage {
+  status: CoverageStatus!
+  targetHcps: Int
+  engagedTargetHcps: Int
+  percentage: Float
+}
+
+type ScopeCoverage {
+  status: CoverageStatus!
+  targetHcps: Int
+  engagedTargetHcps: Int
+  percentage: Float
+  territoriesWithTargets: Int!
+  territoriesInScope: Int!
+  asOf: AWSDate!
+}
+
+type OverviewDefinition {
+  key: String!
+  label: String!
+  text: String!
+}
+
+"A deterministic statement about the data, never generated. Counts only."
+type Disclosure {
+  code: String!
+  message: String!
+}
+
+"""
+Team-level headline counts. distinctCalls and callProductRows are different numbers on purpose:
+the source repeats a call once per product discussed. reportingCompleteness is null when there is
+nobody to measure.
+"""
+type DirectorKpis {
+  distinctCalls: Int!
+  distinctEngagedHcps: Int!
+  callProductRows: Int!
+  responseCount: Int!
+  reportingMembers: Int!
+  territoriesInScope: Int!
+  territoriesWithActivity: Int!
+  unattributedCalls: Int!
+  reportingCompleteness: Float
+}
+
+type TeamMonth {
+  month: AWSDate!
+  isPartial: Boolean!
+  distinctCalls: Int!
+  distinctEngagedHcps: Int!
+}
+
+type MonthCount {
+  month: AWSDate!
+  distinctCalls: Int!
+}
+
+"One territory under one window and one set of definitions. Used by the overview table and by comparisons."
+type TerritoryRow {
+  territoryId: ID!
+  name: String!
+  regionId: String!
+  regionName: String!
+  distinctCalls: Int!
+  distinctEngagedHcps: Int!
+  callProductRows: Int!
+  responseCount: Int!
+  reportingMembers: Int!
+  rosteredMembers: Int!
+  callsPerReportingMember: Float
+  reportingCompleteness: Float
+  latestLoadDate: AWSDate
+  coverage: TerritoryCoverage!
+}
+
+type TeamMember {
+  memberId: ID!
+  name: String!
+  linkedToRoster: Boolean!
+  territoryIds: [String!]!
+  distinctCalls: Int!
+  activeMonths: Int!
+  expectedMonths: Int!
+  reportingCompleteness: Float!
+  months: [MonthCount!]!
+}
+
+enum MixDimensionKind {
+  CHANNEL
+  TOPIC
+  DISEASE_STATE
+  PRODUCT
+}
+
+type MixValue {
+  value: String!
+  distinctCalls: Int!
+  callProductRows: Int!
+  months: [MonthCount!]!
+}
+
+"""
+Distinct calls per value. valueTotal is the sum over all values, which exceeds totalDistinctCalls
+when a call is recorded under several values; the two are never merged.
+"""
+type MixDimension {
+  dimension: MixDimensionKind!
+  label: String!
+  totalDistinctCalls: Int!
+  valueTotal: Int!
+  valuesOverlap: Boolean!
+  values: [MixValue!]!
+}
+
+type DirectorOverview {
+  from: AWSDate!
+  to: AWSDate!
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+  definitionVersion: String!
+  definitions: [OverviewDefinition!]!
+  kpis: DirectorKpis!
+  months: [TeamMonth!]!
+  territories: [TerritoryRow!]!
+  members: [TeamMember!]!
+  mix: [MixDimension!]!
+  coverage: ScopeCoverage!
+  notes: [Disclosure!]!
+}
+
+"Territories side by side over one identical window and one set of definitions."
+type TerritoryComparison {
+  from: AWSDate!
+  to: AWSDate!
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+  definitionVersion: String!
+  definitions: [OverviewDefinition!]!
+  territories: [TerritoryRow!]!
+  populationsUnequal: Boolean!
+  disclosures: [Disclosure!]!
+}
+
 enum FlagKind {
   SUMMARY
   IDENTIFIER
@@ -439,6 +593,10 @@ type Query {
   activityTrends(months: Int): ActivityTrends!
   "The distinct calls or HCPs behind one chart point (a month, optionally one channel)."
   activityEvidence(metric: ActivityMetric!, month: AWSDate!, channel: String, limit: Int): ActivityEvidence!
+  "Team and territory overview for a Director: only approved descendant territories, one window."
+  directorOverview(from: AWSDate, to: AWSDate): DirectorOverview!
+  "2 to 6 in-scope territories compared over one identical window and one set of definitions."
+  territoryComparison(territoryIds: [ID!]!, from: AWSDate, to: AWSDate): TerritoryComparison!
   "The caller's own flags, newest first."
   myFlags: [Flag!]!
   adminAccessOverview: AdminAccessOverview!

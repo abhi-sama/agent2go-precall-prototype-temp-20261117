@@ -8,6 +8,8 @@ import {
   APPROVE_IDENTITY_MAPPING_MUTATION,
   ADMIN_DATA_QUALITY_QUERY,
   CREATE_SCOPE_ASSIGNMENT_MUTATION,
+  DIRECTOR_OVERVIEW_QUERY,
+  TERRITORY_COMPARISON_QUERY,
   FLAG_ISSUE_MUTATION,
   GEO_ACTIVITY_QUERY,
   LANDING_KPIS_QUERY,
@@ -32,6 +34,8 @@ import {
   type AdminAccessOverview,
   type AdminDataQuality,
   type DateRange,
+  type DirectorOverview,
+  type TerritoryComparison,
   type IdentityMatch,
   type Flag,
   type GeoActivity,
@@ -138,6 +142,24 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
         ctx,
       )
       return data.activityEvidence
+    },
+    async directorOverview(ctx, range?: Partial<DateRange>) {
+      const data = await run<{ directorOverview: DirectorOverview }>(
+        transport,
+        DIRECTOR_OVERVIEW_QUERY,
+        { from: range?.from ?? null, to: range?.to ?? null },
+        ctx,
+      )
+      return data.directorOverview
+    },
+    async territoryComparison(ctx, territoryIds, range?: Partial<DateRange>) {
+      const data = await run<{ territoryComparison: TerritoryComparison }>(
+        transport,
+        TERRITORY_COMPARISON_QUERY,
+        { territoryIds, from: range?.from ?? null, to: range?.to ?? null },
+        ctx,
+      )
+      return data.territoryComparison
     },
     async myFlags(ctx) {
       const data = await run<{ myFlags: Flag[] }>(transport, MY_FLAGS_QUERY, undefined, ctx)

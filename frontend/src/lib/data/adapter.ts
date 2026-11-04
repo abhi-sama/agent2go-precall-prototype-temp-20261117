@@ -11,6 +11,7 @@ import type {
   AdminAccessOverview,
   AdminDataQuality,
   DateRange,
+  DirectorOverview,
   Flag,
   FlagInput,
   GeoActivity,
@@ -28,6 +29,7 @@ import type {
   ScopeAssignmentInput,
   SourceRecord,
   SavedView,
+  TerritoryComparison,
 } from "./types"
 
 /**
@@ -49,6 +51,10 @@ export interface DataAdapter extends GovernanceAdapter {
     ctx: RequestContext,
     query: { metric: ActivityMetric; month: IsoDate; channel?: string | null; limit?: number },
   ): Promise<ActivityEvidence>
+  /** Team and territory overview for a Director: approved descendant territories only, one window. */
+  directorOverview(ctx: RequestContext, range?: Partial<DateRange>): Promise<DirectorOverview>
+  /** 2 to 6 in-scope territories over one identical window and one set of definitions. */
+  territoryComparison(ctx: RequestContext, territoryIds: string[], range?: Partial<DateRange>): Promise<TerritoryComparison>
   /** The caller's own flags, newest first. */
   myFlags(ctx: RequestContext): Promise<Flag[]>
   /** Raise a flag. Flagging the same open item again returns the existing flag. */

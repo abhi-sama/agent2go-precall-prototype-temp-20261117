@@ -28,6 +28,14 @@ expect "$(query_as msl-t01-01 MSL "count(*) FROM call_activity WHERE territory_i
 expect "$(query_as msl-t01-01 MSL "count(*) FROM question_tag")" "400" "MSL can read catalog"
 expect "$(query_as executive-region-01 Executive "count(*) FROM call_activity")" "0" "executive aggregate-only role cannot read source rows"
 expect "$(query_as executive-region-01 Executive "app.can_read_aggregate()")" "t" "executive has aggregate permission"
+# Target populations (coverage denominator) follow the same scope as the calls they are measured against.
+psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -c "INSERT INTO target_assignments(entity_id, scope_id, status, approved_by, effective_from) VALUES ('HCP-RLS-1','T01-01','approved','admin-region-01','2024-01-01'),('HCP-RLS-2','T02-01','approved','admin-region-01','2024-01-01')"
+expect "$(query_as msl-t01-01 MSL "count(*) FROM target_assignments")" "1" "MSL sees only its own territory's targets"
+expect "$(query_as director-region-01 Director "count(*) FROM target_assignments")" "1" "Director sees only descendant territories' targets"
+expect "$(query_as executive-region-01 Executive "count(*) FROM target_assignments")" "0" "aggregate-only role cannot read target rows"
+expect "$(query_as director-region-01 Director "app.has_permission('team.overview.read')")" "t" "Director holds the team overview permission"
+expect "$(query_as msl-t01-01 MSL "app.has_permission('team.overview.read')")" "f" "MSL does not hold the team overview permission"
+psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -c "DELETE FROM target_assignments WHERE entity_id LIKE 'HCP-RLS-%'"
 APP_DSN=$(printf '%s' "$DATABASE_URL" | sed -E 's#//[^@]+@#//app_user:app_user@#')
 direct_login=$(psql "$APP_DSN" -X -qAt -v ON_ERROR_STOP=1 <<'SQL' | tail -n 1
 BEGIN;

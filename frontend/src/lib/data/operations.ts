@@ -142,3 +142,32 @@ export const ADMIN_DATA_QUALITY_QUERY = /* GraphQL */ `
     }
   }
 `
+
+const TERRITORY_ROW_FIELDS = `territoryId name regionId regionName distinctCalls distinctEngagedHcps callProductRows responseCount reportingMembers rosteredMembers callsPerReportingMember reportingCompleteness latestLoadDate coverage { status targetHcps engagedTargetHcps percentage }`
+export const DIRECTOR_OVERVIEW_QUERY = /* GraphQL */ `
+  query DirectorOverview($from: AWSDate, $to: AWSDate) {
+    directorOverview(from: $from, to: $to) {
+      from to dataThrough scopeLabel definitionVersion
+      definitions { key label text }
+      kpis { distinctCalls distinctEngagedHcps callProductRows responseCount reportingMembers territoriesInScope territoriesWithActivity unattributedCalls reportingCompleteness }
+      months { month isPartial distinctCalls distinctEngagedHcps }
+      territories { ${TERRITORY_ROW_FIELDS} }
+      members { memberId name linkedToRoster territoryIds distinctCalls activeMonths expectedMonths reportingCompleteness months { month distinctCalls } }
+      mix { dimension label totalDistinctCalls valueTotal valuesOverlap values { value distinctCalls callProductRows months { month distinctCalls } } }
+      coverage { status targetHcps engagedTargetHcps percentage territoriesWithTargets territoriesInScope asOf }
+      notes { code message }
+    }
+  }
+`
+
+export const TERRITORY_COMPARISON_QUERY = /* GraphQL */ `
+  query TerritoryComparison($territoryIds: [ID!]!, $from: AWSDate, $to: AWSDate) {
+    territoryComparison(territoryIds: $territoryIds, from: $from, to: $to) {
+      from to dataThrough scopeLabel definitionVersion
+      definitions { key label text }
+      territories { ${TERRITORY_ROW_FIELDS} }
+      populationsUnequal
+      disclosures { code message }
+    }
+  }
+`

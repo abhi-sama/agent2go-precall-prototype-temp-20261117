@@ -63,10 +63,10 @@ def users() -> list[dict[str, str]]:
     return result
 
 def seed_entitlements(seed_users: list[dict[str, str]]) -> None:
-    sql("TRUNCATE hcp_identifier_crosswalk, hcp_entities, artifact_evidence, generated_artifacts, embeddings, audit_events, data_quality_issues, ingestion_runs, data_sources, metric_definitions, user_scope_assignments, user_role_assignments, role_permissions, permissions, roles, users, territory_scope_relationships, territory_geography, call_activity, hcp_raw_insights, question_tag, territory_rd_access, medical_roster RESTART IDENTITY CASCADE")
+    sql("TRUNCATE target_assignments, hcp_identifier_crosswalk, hcp_entities, artifact_evidence, generated_artifacts, embeddings, audit_events, data_quality_issues, ingestion_runs, data_sources, metric_definitions, user_scope_assignments, user_role_assignments, role_permissions, permissions, roles, users, territory_scope_relationships, territory_geography, call_activity, hcp_raw_insights, question_tag, territory_rd_access, medical_roster RESTART IDENTITY CASCADE")
     sql("INSERT INTO roles VALUES ('msl','MSL field role'),('director','Director role'),('executive','Executive aggregate-only role'),('administrator','Data security administrator')")
-    sql("INSERT INTO permissions VALUES ('source.records.read','Read source records'),('catalog.read','Read question catalog'),('aggregate.read','Read scoped aggregate values'),('admin.manage','Manage governance data')")
-    sql("INSERT INTO role_permissions VALUES ('msl','source.records.read'),('msl','catalog.read'),('msl','aggregate.read'),('director','source.records.read'),('director','catalog.read'),('director','aggregate.read'),('executive','aggregate.read'),('administrator','admin.manage'),('administrator','source.records.read'),('administrator','catalog.read'),('administrator','aggregate.read')")
+    sql("INSERT INTO permissions VALUES ('source.records.read','Read source records'),('catalog.read','Read question catalog'),('aggregate.read','Read scoped aggregate values'),('admin.manage','Manage governance data'),('team.overview.read','Read the team and territory overview')")
+    sql("INSERT INTO role_permissions VALUES ('msl','source.records.read'),('msl','catalog.read'),('msl','aggregate.read'),('director','source.records.read'),('director','catalog.read'),('director','aggregate.read'),('executive','aggregate.read'),('administrator','admin.manage'),('administrator','source.records.read'),('administrator','catalog.read'),('administrator','aggregate.read'),('director','team.overview.read'),('administrator','team.overview.read')")
     roster = []
     for index in range(60):
         territory = TERRITORIES[index % len(TERRITORIES)]

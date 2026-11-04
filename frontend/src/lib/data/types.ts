@@ -374,6 +374,137 @@ export interface AdminDataQuality {
   questionGraph: { missingParentCount: number; duplicateKeyCount: number; cycleCount: number; nodes: QuestionDependencyNode[] }
 }
 
+/** Coverage is withheld (never estimated) when no approved target population exists. */
+export type CoverageStatus = "AVAILABLE" | "NO_TARGET_POPULATION"
+
+export interface TerritoryCoverage {
+  status: CoverageStatus
+  targetHcps: number | null
+  engagedTargetHcps: number | null
+  /** Null unless status is AVAILABLE. */
+  percentage: number | null
+}
+
+export interface ScopeCoverage extends TerritoryCoverage {
+  territoriesWithTargets: number
+  territoriesInScope: number
+  asOf: IsoDate
+}
+
+export interface OverviewDefinition {
+  key: string
+  label: string
+  text: string
+}
+
+/** A deterministic statement about the data, never generated. */
+export interface Disclosure {
+  code: string
+  message: string
+}
+
+export interface DirectorKpis {
+  distinctCalls: number
+  distinctEngagedHcps: number
+  /** Source rows, one per product discussed. Never a call count. */
+  callProductRows: number
+  responseCount: number
+  reportingMembers: number
+  territoriesInScope: number
+  territoriesWithActivity: number
+  unattributedCalls: number
+  /** 0..1, or null when there is nobody to measure. */
+  reportingCompleteness: number | null
+}
+
+export interface TeamMonth {
+  month: IsoDate
+  isPartial: boolean
+  distinctCalls: number
+  distinctEngagedHcps: number
+}
+
+export interface MonthCount {
+  month: IsoDate
+  distinctCalls: number
+}
+
+export interface TerritoryRow {
+  territoryId: string
+  name: string
+  regionId: string
+  regionName: string
+  distinctCalls: number
+  distinctEngagedHcps: number
+  callProductRows: number
+  responseCount: number
+  reportingMembers: number
+  rosteredMembers: number
+  callsPerReportingMember: number | null
+  reportingCompleteness: number | null
+  latestLoadDate: IsoDate | null
+  coverage: TerritoryCoverage
+}
+
+export interface TeamMember {
+  memberId: string
+  name: string
+  linkedToRoster: boolean
+  territoryIds: string[]
+  distinctCalls: number
+  activeMonths: number
+  expectedMonths: number
+  reportingCompleteness: number
+  months: MonthCount[]
+}
+
+export type MixDimensionKind = "CHANNEL" | "TOPIC" | "DISEASE_STATE" | "PRODUCT"
+
+export interface MixValue {
+  value: string
+  distinctCalls: number
+  callProductRows: number
+  months: MonthCount[]
+}
+
+export interface MixDimension {
+  dimension: MixDimensionKind
+  label: string
+  totalDistinctCalls: number
+  /** Sum over all values; larger than totalDistinctCalls when a call carries several values. */
+  valueTotal: number
+  valuesOverlap: boolean
+  values: MixValue[]
+}
+
+export interface DirectorOverview {
+  from: IsoDate
+  to: IsoDate
+  dataThrough: IsoDateTime | null
+  scopeLabel: string
+  definitionVersion: string
+  definitions: OverviewDefinition[]
+  kpis: DirectorKpis
+  months: TeamMonth[]
+  territories: TerritoryRow[]
+  members: TeamMember[]
+  mix: MixDimension[]
+  coverage: ScopeCoverage
+  notes: Disclosure[]
+}
+
+export interface TerritoryComparison {
+  from: IsoDate
+  to: IsoDate
+  dataThrough: IsoDateTime | null
+  scopeLabel: string
+  definitionVersion: string
+  definitions: OverviewDefinition[]
+  territories: TerritoryRow[]
+  populationsUnequal: boolean
+  disclosures: Disclosure[]
+}
+
 export type DataErrorCode =
   | "UNAUTHENTICATED"
   | "FORBIDDEN"

@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, chat, flags, hierarchy, resolvers
+from . import activity, chat, director, flags, hierarchy, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .identity import JwksCache, resolve_identity
@@ -75,6 +75,8 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "geoActivity": partial(resolvers.geo_activity, default_range_days=settings.default_range_days),
         "activityTrends": activity.activity_trends,
         "activityEvidence": activity.activity_evidence,
+        "directorOverview": director.director_overview,
+        "territoryComparison": director.territory_comparison,
         # Resolved lazily: an unconfigured flag store must not break the other fields.
         "flagIssue": lambda *a: flags.flag_issue(*a, store=_flag_store(settings)),
         "myFlags": lambda *a: flags.my_flags(*a, store=_flag_store(settings)),

@@ -55,3 +55,4 @@ Then, as their blockers land:
 | Ticket | Fields | Notes |
 |---|---|---|
 | 09 (#10) | `activityTrends`, `activityEvidence`, `myFlags`, `flagIssue` | Flags are stored in FE DynamoDB and written by the BE Lambda (ADR 0006). |
+| 10 (#11) | `directorOverview`, `territoryComparison` | Gated by the `team.overview.read` permission; coverage reads the new `target_assignments` table (ADR 0008). |

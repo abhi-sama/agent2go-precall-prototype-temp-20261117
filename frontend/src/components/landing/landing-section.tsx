@@ -19,7 +19,18 @@ import { useSession } from "@/lib/session/session-provider"
 const DEFAULT_PRESET = "30d" as const
 
 /** Heading, scope, freshness, filters, KPI cards and (optionally) the territory map for one persona. */
-export function LandingSection({ title, description, showMap = true }: { title: string; description: string; showMap?: boolean }) {
+export function LandingSection({
+  title,
+  description,
+  showMap = true,
+  children,
+}: {
+  title: string
+  description: string
+  showMap?: boolean
+  /** Persona-specific sections rendered after the headline KPIs, given the active date range. */
+  children?: (context: { range: DateRange }) => React.ReactNode
+}) {
   const adapter = useDataAdapter()
   const { userId, ready, user } = useSession()
   const { filters, setFilters } = useSharedFilters()
@@ -131,6 +142,8 @@ export function LandingSection({ title, description, showMap = true }: { title: 
           )}
         </div>
       )}
+
+      {children?.({ range })}
 
       {discovery.status === "error" ? <ErrorState error={discovery.error} onRetry={discovery.refetch} /> : discovery.status === "success" && (
         <div className="flex flex-col gap-10">

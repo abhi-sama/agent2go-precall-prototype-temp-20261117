@@ -175,6 +175,14 @@ _Avoid_: feedback, ticket, complaint
 A pointer from an answer to one source record (a call or a recorded response) that the viewer can open; it opens only if the viewer's scope covers the record.
 _Avoid_: reference, footnote
 
+**Coverage**:
+Engaged target HCPs divided by the approved target population of a scope; withheld when no approved target population exists.
+_Avoid_: reach, penetration, scope (scope means the territories a user may see)
+
+**Reporting completeness**:
+Months with at least one recorded call divided by the months in the period that data has reached, for a team member or a territory. It describes whether reporting happened, not how well anyone performed.
+_Avoid_: compliance, attainment, score
+
 **Data through**:
 The latest load time all in-scope sources are loaded through; a load date, not an interaction date.
 _Avoid_: last updated, as-of date
