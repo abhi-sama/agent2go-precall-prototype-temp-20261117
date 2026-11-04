@@ -144,6 +144,14 @@ The scientific facets a question or response is tagged with (`molecule_type`, `t
 A source-linked summary an MSL generates before a call: prior engagement, recorded perspectives and possible follow-ups, with cited discussion prompts.
 _Avoid_: call plan, profile
 
+**Stale brief**:
+A saved pre-call brief whose source data changed since it was written: the HCP's records differ from the brief's fingerprint, or a newer data load arrived. It still opens, with a "Newer data available - regenerate" badge.
+_Avoid_: expired brief, outdated brief
+
+**Call objective**:
+What the MSL wants from the next call, written by the MSL; the brief and its suggested agenda are generated from it.
+_Avoid_: call plan
+
 **Source fact**:
 A value read directly from a source record and shown with its citation.
 

@@ -247,6 +247,34 @@ export const SCREENS: ScreenSpec[] = [
       })
     },
   },
+  {
+    name: "precall-brief-new",
+    path: "/msl/briefs",
+    ready: testId("my-briefs"),
+  },
+  {
+    name: "precall-brief-saved-stale",
+    path: "/msl/briefs?brief=br-20261103090000-aaaaaaaa&scenario=stale",
+    ready: async (page) => {
+      await testId("brief")(page)
+      await testId("brief-stale")(page)
+    },
+  },
+  {
+    name: "precall-brief-editing",
+    path: "/msl/briefs?brief=br-20261103090000-aaaaaaaa",
+    ready: testId("brief"),
+    prepare: async (page) => {
+      await page.getByRole("button", { name: "Edit prompt 1" }).click()
+      await page.getByLabel("Prompt text").fill("A reworded discussion question?")
+      await expect(page.getByTestId("brief-save-bar")).toBeVisible()
+    },
+  },
+  {
+    name: "precall-brief-denied",
+    path: "/msl/briefs?brief=br-20261102090000-bbbbbbbb",
+    ready: testId("brief-denied"),
+  },
   // Error and empty states share the shell; one MSL state each keeps the matrix quick.
   { name: "msl-landing-empty", path: "/msl?scenario=empty", ready: testId("state-empty") },
   { name: "msl-landing-error", path: "/msl?scenario=error", ready: testId("state-error") },

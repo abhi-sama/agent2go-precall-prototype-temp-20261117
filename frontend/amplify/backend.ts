@@ -2,7 +2,7 @@ import { defineBackend } from '@aws-amplify/backend';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { auth } from './auth/resource';
 import { defineBeApi } from './api/resource';
-import { defineChatStore, defineFlagsStore } from './storage/resource';
+import { defineBriefStore, defineChatStore, defineFlagsStore } from './storage/resource';
 
 const backend = defineBackend({ auth });
 
@@ -32,6 +32,7 @@ const beAccountId = process.env.A2G_BE_ACCOUNT_ID ?? (localEmulator ? '222222222
 if (!beAccountId) throw new Error('A2G_BE_ACCOUNT_ID is required outside the local emulator');
 defineFlagsStore(apiStack, { beAccountId, localEmulator });
 defineChatStore(apiStack, { beAccountId, localEmulator });
+defineBriefStore(apiStack, { beAccountId, localEmulator });
 
 backend.addOutput({
   data: {

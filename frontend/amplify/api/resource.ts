@@ -61,6 +61,10 @@ export const BE_FIELDS = [
   { typeName: 'Mutation', fieldName: 'confirmPostCallDraft' },
   { typeName: 'Mutation', fieldName: 'confirmFollowUpTasks' },
   { typeName: 'Mutation', fieldName: 'createTopicAlertRule' },
+  { typeName: 'Query', fieldName: 'preCallBrief' },
+  { typeName: 'Query', fieldName: 'myBriefs' },
+  { typeName: 'Mutation', fieldName: 'generateBrief' },
+  { typeName: 'Mutation', fieldName: 'saveBriefEdits' },
 ] as const;
 
 /**

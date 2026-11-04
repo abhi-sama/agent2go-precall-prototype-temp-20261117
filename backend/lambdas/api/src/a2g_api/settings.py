@@ -17,6 +17,8 @@ class Settings:
     default_range_days: int
     flags_table: str | None = None
     flags_role_arn: str | None = None
+    briefs_table: str | None = None
+    briefs_role_arn: str | None = None
     chat_worker_function: str | None = None
     agent_url: str | None = None
     agent_runtime_arn: str | None = None
@@ -50,6 +52,8 @@ class Settings:
             default_range_days=int(e.get("A2G_DEFAULT_RANGE_DAYS", "90")),
             flags_table=e.get("A2G_FLAGS_TABLE") or None,
             flags_role_arn=e.get("A2G_FLAGS_ROLE_ARN") or None,
+            briefs_table=e.get("A2G_BRIEFS_TABLE") or None,
+            briefs_role_arn=e.get("A2G_BRIEFS_ROLE_ARN") or None,
             chat_worker_function=e.get("A2G_CHAT_WORKER_FUNCTION") or None,
             # Local: the agent container's HTTP address. AWS: the AgentCore Runtime ARN (ticket #24).
             agent_url=(e.get("A2G_AGENT_URL") or "").rstrip("/") or None,

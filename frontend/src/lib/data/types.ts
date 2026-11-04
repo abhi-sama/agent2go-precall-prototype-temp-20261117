@@ -649,3 +649,63 @@ export interface SourceRecord {
   fields: { label: string; value: string }[]
   dataThrough: IsoDateTime | null
 }
+
+// ---- Pre-call brief (ticket 05, docs/adr/0009) ----------------------------------------------
+
+export type BriefOrigin = "GENERATED" | "USER"
+export type BriefStaleReason = "HCP_DATA_CHANGED" | "NEWER_DATA_LOADED"
+
+/** A value read from source records, shown plainly with the records behind it. */
+export interface BriefFact { label: string; value: string; evidenceIds: string[] }
+/** Generated text. Every statement cites at least one evidence id. */
+export interface BriefStatement { statementId: string; text: string; evidenceIds: string[] }
+/** A generated suggestion (discussion prompt or agenda item) the MSL can edit, remove or extend. */
+export interface BriefItem { itemId: string; text: string; detail: string | null; evidenceIds: string[]; origin: BriefOrigin; edited: boolean }
+export interface BriefMissing { code: string; message: string }
+export interface BriefEvidence { evidenceId: string; dataset: string; recordId: string; label: string; date: IsoDate | null }
+
+export interface PreCallBrief {
+  briefId: string
+  hcpId: string
+  hcpName: HcpField
+  objective: string
+  ownerUserId: string
+  scopeLabel: string
+  scopeTerritoryIds: string[]
+  dataThrough: IsoDateTime | null
+  generatedAt: IsoDateTime
+  updatedAt: IsoDateTime
+  /** `claude`, or `stub` when no model was available (labelled so it is never mistaken for a model's work). */
+  modelMode: string
+  numberCheck: string
+  droppedStatements: number
+  stale: boolean
+  staleReasons: BriefStaleReason[]
+  currentDataThrough: IsoDateTime | null
+  lastInteractionDate: IsoDate | null
+  facts: BriefFact[]
+  engagement: BriefStatement[]
+  perspectives: BriefStatement[]
+  followUps: BriefStatement[]
+  prompts: BriefItem[]
+  agenda: BriefItem[]
+  missing: BriefMissing[]
+  evidence: BriefEvidence[]
+  regeneratesBriefId: string | null
+}
+
+/** One row of the saved-brief list. A brief for an HCP the caller can no longer see shows nothing about it. */
+export interface BriefSummary {
+  briefId: string
+  hcpId: string | null
+  hcpName: HcpField | null
+  objective: string | null
+  generatedAt: IsoDateTime
+  dataThrough: IsoDateTime | null
+  accessible: boolean
+  stale: boolean
+}
+
+export interface BriefItemInput { itemId?: string | null; text: string; detail?: string | null }
+export interface BriefEditInput { briefId: string; objective?: string; prompts?: BriefItemInput[]; agenda?: BriefItemInput[] }
+export interface GenerateBriefInput { hcpId: string; objective: string; regeneratesBriefId?: string | null }

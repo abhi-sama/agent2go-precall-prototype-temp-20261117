@@ -5,6 +5,7 @@ import { createMockGovernance } from "./governance"
 import { buildComparison, buildOverview, tooLong } from "./mock-director"
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
 import { mockCitation, readRun, scriptRun } from "./mock-chat"
+import { createMockBriefs } from "./mock-briefs"
 import {
   type AccessAuditEvent, type AccessAuditFilter, type AdminAccessOverview,
   type AdminDataQuality,
@@ -173,6 +174,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
   return {
     kind: "mock",
     ...createMockGovernance({ getUser: () => findUser(options.getUserId()), gate, now }),
+    ...createMockBriefs({ user: () => findUser(options.getUserId()), scenario, gate, now }),
 
     async me(ctx): Promise<Me> {
       await gate(ctx, "me")

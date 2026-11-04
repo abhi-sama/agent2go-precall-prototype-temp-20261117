@@ -76,6 +76,7 @@ ALLOWED_FIELDS: frozenset[str] = frozenset(
         "flag_id",
         "flag_kind",
         "flag_target_type",
+        "brief_id",
         "request_id",
         "thread_id",
         "run_id",

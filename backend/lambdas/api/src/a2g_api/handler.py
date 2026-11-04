@@ -20,10 +20,11 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, chat, director, flags, hierarchy, post_call, resolvers
+from . import activity, briefs, chat, director, flags, hierarchy, post_call, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .embeddings import provider_from_config
+from .agent_client import runtime_for
 from .identity import JwksCache, resolve_identity
 from .settings import Settings
 from .saved_views import SavedViews
@@ -54,6 +55,18 @@ def _flag_store(settings: Settings) -> flags.FlagStore:
             raise Unavailable("flags_unconfigured")
         _store = flags.DynamoFlagStore(settings.flags_table, settings.flags_role_arn)
     return _store
+
+
+_brief_store_cache: briefs.DynamoBriefStore | None = None
+
+
+def _brief_store(settings: Settings) -> briefs.DynamoBriefStore:
+    global _brief_store_cache
+    if _brief_store_cache is None:
+        if not (settings.briefs_table and settings.briefs_role_arn):
+            raise Unavailable("briefs_unconfigured")
+        _brief_store_cache = briefs.DynamoBriefStore(settings.briefs_table, settings.briefs_role_arn)
+    return _brief_store_cache
 
 
 def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..., Any]]:
@@ -120,6 +133,13 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "createTopicAlertRule": post_call.create_topic_alert_rule,
         "topicAlertRules": post_call.topic_alert_rules,
         "topicAlerts": post_call.topic_alerts,
+        # Briefs resolve their store lazily too: an unconfigured FE table must not break other fields.
+        "generateBrief": lambda cur, identity, user_id, args: briefs.generate_brief(
+            cur, identity, user_id, args, store=_brief_store(settings), runtime=runtime_for(settings), correlation_id=correlation_id
+        ),
+        "preCallBrief": lambda *a: briefs.get_brief(*a, store=_brief_store(settings)),
+        "myBriefs": lambda *a: briefs.my_briefs(*a, store=_brief_store(settings)),
+        "saveBriefEdits": lambda *a: briefs.save_brief_edits(*a, store=_brief_store(settings)),
     }
 
 

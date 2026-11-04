@@ -16,6 +16,8 @@ import urllib.request
 
 from .config import (
     AGENT_HOST_PORT,
+    BRIEF_WRITER_ROLE_ARN,
+    BRIEFS_TABLE,
     COMPOSE_FILE,
     FE_CHAT_TABLE,
     FE_CHAT_WRITER_ROLE_ARN,
@@ -23,7 +25,12 @@ from .config import (
 
 def fe_store() -> dict:
     """The conversation table and write role come from the Amplify backend (frontend/amplify/storage)."""
-    return {"table": FE_CHAT_TABLE, "role_arn": FE_CHAT_WRITER_ROLE_ARN}
+    return {
+        "table": FE_CHAT_TABLE,
+        "role_arn": FE_CHAT_WRITER_ROLE_ARN,
+        "brief_table": BRIEFS_TABLE,
+        "brief_role_arn": BRIEF_WRITER_ROLE_ARN,
+    }
 
 
 def deploy_agent(db: dict, store: dict) -> dict:
@@ -33,6 +40,8 @@ def deploy_agent(db: dict, store: dict) -> dict:
         "A2G_AGENT_DATABASE_URL": db["app_dsn_internal"],
         "A2G_FE_WRITE_ROLE_ARN": store["role_arn"],
         "A2G_FE_CHAT_TABLE": store["table"],
+        "A2G_FE_BRIEF_WRITE_ROLE_ARN": store["brief_role_arn"],
+        "A2G_FE_BRIEF_TABLE": store["brief_table"],
         "COMPOSE_PROFILES": "agent",
     }
     subprocess.run(

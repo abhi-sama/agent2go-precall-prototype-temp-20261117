@@ -132,8 +132,14 @@ export class BackendStack extends Stack {
     const chatWriterRoleArn = Stack.of(this).formatArn({
       service: 'iam', account: feAccountId.valueAsString, region: '', resource: 'role/a2g-agent-chat-writer',
     });
-    apiRole.addToPolicy(new iam.PolicyStatement({ actions: ['sts:AssumeRole'], resources: [flagsRoleArn] }));
-    agentRole.addToPolicy(new iam.PolicyStatement({ actions: ['sts:AssumeRole'], resources: [chatWriterRoleArn] }));
+    const briefsReaderRoleArn = Stack.of(this).formatArn({
+      service: 'iam', account: feAccountId.valueAsString, region: '', resource: 'role/a2g-be-briefs',
+    });
+    const briefWriterRoleArn = Stack.of(this).formatArn({
+      service: 'iam', account: feAccountId.valueAsString, region: '', resource: 'role/a2g-agent-brief-writer',
+    });
+    apiRole.addToPolicy(new iam.PolicyStatement({ actions: ['sts:AssumeRole'], resources: [flagsRoleArn, briefsReaderRoleArn] }));
+    agentRole.addToPolicy(new iam.PolicyStatement({ actions: ['sts:AssumeRole'], resources: [chatWriterRoleArn, briefWriterRoleArn] }));
 
     const apiCode = lambda.Code.fromAsset(backendRoot, {
       exclude: ['**/.venv/**', '**/__pycache__/**', '**/.pytest_cache/**', 'infra/build/**'],
@@ -166,7 +172,14 @@ export class BackendStack extends Stack {
       securityGroups: [lambdaSecurityGroup],
       timeout: Duration.seconds(30),
       memorySize: 512,
-      environment: { ...commonEnvironment, A2G_CHAT_WORKER_FUNCTION: 'a2g-be-chat' },
+      environment: {
+        ...commonEnvironment,
+        A2G_CHAT_WORKER_FUNCTION: 'a2g-be-chat',
+        // Pre-call briefs (docs/adr/0009): the API Lambda calls the agent, then reopens the brief it saved.
+        A2G_AGENT_RUNTIME_ARN: cdk.Fn.getAtt('AgentRuntime', 'AgentRuntimeArn').toString(),
+        A2G_BRIEFS_TABLE: 'a2g-precall-briefs',
+        A2G_BRIEFS_ROLE_ARN: briefsReaderRoleArn,
+      },
     });
     const worker = new lambda.Function(this, 'ChatWorkerFunction', {
       functionName: 'a2g-be-chat',
@@ -215,6 +228,8 @@ export class BackendStack extends Stack {
         DATABASE_URL: applicationDsn,
         A2G_FE_WRITE_ROLE_ARN: chatWriterRoleArn,
         A2G_FE_CHAT_TABLE: 'a2g-chat-turns',
+        A2G_FE_BRIEF_WRITE_ROLE_ARN: briefWriterRoleArn,
+        A2G_FE_BRIEF_TABLE: 'a2g-precall-briefs',
       },
       networkConfiguration: {
         networkMode: 'VPC',
@@ -224,10 +239,12 @@ export class BackendStack extends Stack {
         },
       },
     });
-    workerRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['bedrock-agentcore:InvokeAgentRuntime'],
-      resources: [agentRuntime.attrAgentRuntimeArn],
-    }));
+    for (const role of [workerRole, apiRole]) {
+      role.addToPolicy(new iam.PolicyStatement({
+        actions: ['bedrock-agentcore:InvokeAgentRuntime'],
+        resources: [agentRuntime.attrAgentRuntimeArn],
+      }));
+    }
     new cdk.CfnOutput(this, 'ApiFunctionArn', { value: api.functionArn });
     new cdk.CfnOutput(this, 'ApplicationDatabaseSecretArn', { value: appDatabaseSecret.secretArn });
     new cdk.CfnOutput(this, 'AgentRuntimeArn', { value: agentRuntime.attrAgentRuntimeArn });

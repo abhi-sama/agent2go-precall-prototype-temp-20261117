@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from . import ag_ui
 from .agent import MslAgent
+from .briefs import BriefRunner, BriefWriteTool, DynamoBriefWriter, NullBriefWriter
 from .config import Settings
 from .repository import ScopedReadRepository, repository_for
 from .schemas import Invocation
@@ -26,17 +27,27 @@ def writer_for(settings: Settings) -> ConversationWriteTool:
     return NullConversationWriter()
 
 
+def brief_writer_for(settings: Settings) -> BriefWriteTool:
+    if settings.fe_brief_write_role_arn and settings.fe_brief_table:
+        return DynamoBriefWriter(
+            role_arn=settings.fe_brief_write_role_arn, table=settings.fe_brief_table, region=settings.aws_region
+        )
+    return NullBriefWriter()
+
+
 def create_app(
     settings: Settings | None = None,
     *,
     repository: ScopedReadRepository | None = None,
     writer: ConversationWriteTool | None = None,
     runtime: MslAgent | None = None,
+    briefs: BriefRunner | None = None,
 ) -> FastAPI:
     resolved = settings or Settings.from_environment()
     agent = runtime or MslAgent(
         resolved, repository or repository_for(resolved.database_url), writer or writer_for(resolved)
     )
+    brief_runner = briefs or BriefRunner(resolved, brief_writer_for(resolved))
     app = FastAPI(title="MSL Agent Runtime", version="0.2.0")
 
     @app.get("/ping")
@@ -47,7 +58,9 @@ def create_app(
     async def invoke(invocation: Invocation) -> StreamingResponse:
         async def stream() -> AsyncIterator[bytes]:
             with correlation(invocation.identity.correlation_id):
-                async for event in agent.run(invocation):
+                # One AgentCore contract serves chat and briefs; a task selects the brief path.
+                runner = brief_runner if invocation.task is not None else agent
+                async for event in runner.run(invocation):
                     yield ag_ui.sse(event)
 
         return StreamingResponse(

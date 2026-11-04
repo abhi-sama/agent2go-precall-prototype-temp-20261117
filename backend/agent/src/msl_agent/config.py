@@ -42,6 +42,8 @@ class Settings:
     floci_backend: str
     fe_write_role_arn: str | None = None
     fe_chat_table: str | None = None
+    fe_brief_write_role_arn: str | None = None
+    fe_brief_table: str | None = None
     max_output_tokens: int = 700
 
     @classmethod
@@ -56,4 +58,6 @@ class Settings:
             floci_backend="proxy" if backend == "proxy" else "stub",
             fe_write_role_arn=os.getenv("A2G_FE_WRITE_ROLE_ARN") or None,
             fe_chat_table=os.getenv("A2G_FE_CHAT_TABLE") or None,
+            fe_brief_write_role_arn=os.getenv("A2G_FE_BRIEF_WRITE_ROLE_ARN") or None,
+            fe_brief_table=os.getenv("A2G_FE_BRIEF_TABLE") or None,
         )

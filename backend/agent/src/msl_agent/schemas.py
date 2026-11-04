@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -22,6 +22,30 @@ class Message(BaseModel):
     content: str = Field(min_length=1, max_length=4_000)
 
 
+class BriefTask(BaseModel):
+    """A pre-call brief to write (docs/adr/0009). The BE Lambda gathers the evidence under RLS and hands it over.
+
+    Everything the model may cite is in this payload; the agent reads no other source for a brief.
+    """
+
+    type: Literal["pre_call_brief"]
+    brief_id: str = Field(pattern=r"^br-[0-9]{14}-[0-9a-f]{8}$")
+    hcp_id: str = Field(min_length=1, max_length=128)
+    objective: str = Field(min_length=1, max_length=600)
+    regenerates_brief_id: str | None = Field(default=None, max_length=64)
+    scope_label: str = Field(default="", max_length=400)
+    scope_territory_ids: list[str] = Field(default_factory=list, max_length=200)
+    data_through: str | None = None
+    fingerprint: dict[str, Any] = Field(default_factory=dict)
+    calls: list[dict[str, Any]] = Field(default_factory=list, max_length=20)
+    responses: list[dict[str, Any]] = Field(default_factory=list, max_length=60)
+    follow_ups: list[dict[str, Any]] = Field(default_factory=list, max_length=20)
+    facts: list[dict[str, Any]] = Field(default_factory=list, max_length=12)
+    missing: list[dict[str, str]] = Field(default_factory=list, max_length=20)
+    evidence: list[dict[str, Any]] = Field(default_factory=list, max_length=120)
+    last_interaction_date: str | None = None
+
+
 class Invocation(BaseModel):
     """AgentCore Runtime input (foundation-contract.md) plus the run id the BE streams events under."""
 
@@ -29,6 +53,8 @@ class Invocation(BaseModel):
     thread_id: str = Field(min_length=1, max_length=128)
     run_id: str | None = Field(default=None, max_length=128)
     messages: list[Message] = Field(min_length=1, max_length=40)
+    #: Present for work other than a chat answer; today only the pre-call brief.
+    task: BriefTask | None = None
 
     @field_validator("messages")
     @classmethod

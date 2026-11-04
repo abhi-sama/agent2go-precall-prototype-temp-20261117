@@ -1,10 +1,11 @@
 "use client"
 
-import { Building2, ChevronRight, Search, UserRound } from "lucide-react"
+import { Building2, ChevronRight, ClipboardList, Search, UserRound } from "lucide-react"
+import Link from "next/link"
 import * as React from "react"
 import { ErrorState } from "@/components/state/states"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
@@ -129,6 +130,13 @@ export function HcpSearch() {
                   </div>
                 ))}
               </dl>
+              <Link
+                data-testid="hcp-prepare-brief"
+                href={`/msl/briefs?hcp=${encodeURIComponent(selectedId)}`}
+                className={cn(buttonVariants({ size: "lg" }), "mt-5 w-full")}
+              >
+                <ClipboardList aria-hidden /> Prepare a pre-call brief
+              </Link>
             </div>
           )}
         </div>

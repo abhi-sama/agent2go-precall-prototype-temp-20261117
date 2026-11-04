@@ -14,6 +14,8 @@ from .config import (
     API_FUNCTION,
     BE_ACCOUNT,
     BUILD_DIR,
+    BRIEF_READER_ROLE_ARN,
+    BRIEFS_TABLE,
     CHAT_FUNCTION,
     FE_ACCOUNT,
     FLAGS_ROLE_ARN,
@@ -73,6 +75,9 @@ def deploy(fe: dict, db: dict) -> str:
         # FE DynamoDB flags, reached by assuming a narrow FE-account role (docs/adr/0006).
         "A2G_FLAGS_TABLE": FLAGS_TABLE,
         "A2G_FLAGS_ROLE_ARN": FLAGS_ROLE_ARN,
+        # FE DynamoDB briefs: reopened and edited through a narrow FE-account role (docs/adr/0009).
+        "A2G_BRIEFS_TABLE": BRIEFS_TABLE,
+        "A2G_BRIEFS_ROLE_ARN": BRIEF_READER_ROLE_ARN,
         "A2G_SAVED_VIEWS_TABLE": fe["saved_views_table"],
         "A2G_SAVED_VIEWS_ENDPOINT": "http://floci:4566",
         "A2G_SAVED_VIEWS_ACCESS_KEY": FE_ACCOUNT,
@@ -85,7 +90,8 @@ def deploy(fe: dict, db: dict) -> str:
     )
     arn = _upsert(
         lam, API_FUNCTION, "a2g_api.handler.handler", code, arch,
-        {**shared, "A2G_CHAT_WORKER_FUNCTION": CHAT_FUNCTION}, timeout=30,
+        # The API function also calls the agent to write a brief (AppSync cuts a resolver off at 30 s).
+        {**shared, "A2G_CHAT_WORKER_FUNCTION": CHAT_FUNCTION, "A2G_AGENT_URL": AGENT_INTERNAL_URL}, timeout=30,
     )
     return arn
 

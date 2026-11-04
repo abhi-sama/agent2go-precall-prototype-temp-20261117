@@ -8,6 +8,10 @@ import {
   APPROVE_IDENTITY_MAPPING_MUTATION,
   ADMIN_DATA_QUALITY_QUERY,
   CREATE_SCOPE_ASSIGNMENT_MUTATION,
+  GENERATE_BRIEF_MUTATION,
+  MY_BRIEFS_QUERY,
+  PRE_CALL_BRIEF_QUERY,
+  SAVE_BRIEF_EDITS_MUTATION,
   DIRECTOR_OVERVIEW_QUERY,
   TERRITORY_COMPARISON_QUERY,
   FLAG_ISSUE_MUTATION,
@@ -37,7 +41,9 @@ import {
   type ActivityEvidence,
   type ActivityTrends,
   type ChatEventPage,
+  type BriefSummary,
   type ChatRun,
+  type PreCallBrief,
   type AccessAuditEvent,
   type AccessAuditFilter,
   type AdminAccessOverview,
@@ -176,6 +182,23 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
         ctx,
       )
       return data.territoryComparison
+    },
+    async generateBrief(ctx, input) {
+      // Optional fields are omitted, not null: floci's GraphQL executor rejects explicit nulls.
+      const variables = { hcpId: input.hcpId, objective: input.objective, ...(input.regeneratesBriefId ? { regeneratesBriefId: input.regeneratesBriefId } : {}) }
+      return (await run<{ generateBrief: PreCallBrief }>(transport, GENERATE_BRIEF_MUTATION, variables, ctx)).generateBrief
+    },
+    async preCallBrief(ctx, briefId) {
+      return (await run<{ preCallBrief: PreCallBrief }>(transport, PRE_CALL_BRIEF_QUERY, { briefId }, ctx)).preCallBrief
+    },
+    async myBriefs(ctx) {
+      return (await run<{ myBriefs: BriefSummary[] }>(transport, MY_BRIEFS_QUERY, undefined, ctx)).myBriefs
+    },
+    async saveBriefEdits(ctx, input) {
+      const clean = (items?: { itemId?: string | null; text: string; detail?: string | null }[]) =>
+        items?.map((i) => ({ ...(i.itemId ? { itemId: i.itemId } : {}), text: i.text, ...(i.detail ? { detail: i.detail } : {}) }))
+      const payload = { briefId: input.briefId, ...(input.objective !== undefined ? { objective: input.objective } : {}), ...(input.prompts ? { prompts: clean(input.prompts) } : {}), ...(input.agenda ? { agenda: clean(input.agenda) } : {}) }
+      return (await run<{ saveBriefEdits: PreCallBrief }>(transport, SAVE_BRIEF_EDITS_MUTATION, { input: payload }, ctx)).saveBriefEdits
     },
     async myFlags(ctx) {
       const data = await run<{ myFlags: Flag[] }>(transport, MY_FLAGS_QUERY, undefined, ctx)

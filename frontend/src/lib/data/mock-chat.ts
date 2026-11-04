@@ -78,6 +78,19 @@ export function readRun(runId: string, after: number, now = Date.now()): ChatEve
 
 export function mockCitation(dataset: string, recordId: string, user: FixtureUser): SourceRecord | null {
   if (user.territoryIds.length === 0 || user.persona === "executive") return null
+  if (dataset === "hcp_raw_insights" && /^RESP-[A-Z0-9-]+$/.test(recordId)) {
+    return {
+      dataset,
+      recordId,
+      title: "Recorded HCP response",
+      fields: [
+        { label: "Territory", value: user.territoryIds[0] },
+        { label: "Question", value: "What evidence would be most useful?" },
+        { label: "Recorded response", value: "Long-term outcomes and access considerations are important." },
+      ],
+      dataThrough: new Date(Date.now() - 86_400_000).toISOString(),
+    }
+  }
   if (!/^CALL-\d+$/.test(recordId) || dataset !== "call_activity") return null
   return {
     dataset,

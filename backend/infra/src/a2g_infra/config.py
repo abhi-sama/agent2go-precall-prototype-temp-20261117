@@ -52,6 +52,12 @@ AGENT_INTERNAL_URL = "http://agent:8080"
 FLAGS_TABLE = "a2g-feedback-flags"
 FLAGS_ROLE_ARN = f"arn:aws:iam::{FE_ACCOUNT}:role/a2g-be-flags"
 
+#: FE DynamoDB pre-call briefs: the table, the agent's PutItem-only writer role, and the BE Lambda's
+#: read/edit role (frontend/amplify/storage/resource.ts; docs/adr/0009).
+BRIEFS_TABLE = "a2g-precall-briefs"
+BRIEF_WRITER_ROLE_ARN = f"arn:aws:iam::{FE_ACCOUNT}:role/a2g-agent-brief-writer"
+BRIEF_READER_ROLE_ARN = f"arn:aws:iam::{FE_ACCOUNT}:role/a2g-be-briefs"
+
 AMPLIFY_STACK = "amplify-agent2go-local-sandbox"
 CDK_QUALIFIER = "hnb659fds"
 

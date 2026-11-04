@@ -186,3 +186,26 @@ export const TERRITORY_COMPARISON_QUERY = /* GraphQL */ `
     }
   }
 `
+
+const BRIEF_FIELDS = `
+  briefId hcpId hcpName{value state} objective ownerUserId scopeLabel scopeTerritoryIds dataThrough generatedAt updatedAt
+  modelMode numberCheck droppedStatements stale staleReasons currentDataThrough lastInteractionDate
+  facts{label value evidenceIds}
+  engagement{statementId text evidenceIds} perspectives{statementId text evidenceIds} followUps{statementId text evidenceIds}
+  prompts{itemId text detail evidenceIds origin edited} agenda{itemId text detail evidenceIds origin edited}
+  missing{code message} evidence{evidenceId dataset recordId label date} regeneratesBriefId`
+
+export const GENERATE_BRIEF_MUTATION = /* GraphQL */ `
+  mutation GenerateBrief($hcpId: ID!, $objective: String!, $regeneratesBriefId: ID) {
+    generateBrief(hcpId: $hcpId, objective: $objective, regeneratesBriefId: $regeneratesBriefId) {${BRIEF_FIELDS}}
+  }
+`
+export const PRE_CALL_BRIEF_QUERY = /* GraphQL */ `
+  query PreCallBrief($briefId: ID!) { preCallBrief(briefId: $briefId) {${BRIEF_FIELDS}} }
+`
+export const MY_BRIEFS_QUERY = /* GraphQL */ `
+  query MyBriefs { myBriefs { briefId hcpId hcpName{value state} objective generatedAt dataThrough accessible stale } }
+`
+export const SAVE_BRIEF_EDITS_MUTATION = /* GraphQL */ `
+  mutation SaveBriefEdits($input: BriefEditInput!) { saveBriefEdits(input: $input) {${BRIEF_FIELDS}} }
+`

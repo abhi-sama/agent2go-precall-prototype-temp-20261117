@@ -26,6 +26,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
     nav: [
       { label: "My territory", href: "/msl", icon: Map },
       { label: "My activity", href: "/msl/activity", icon: Activity },
+      { label: "Pre-call brief", href: "/msl/briefs", icon: ClipboardList },
       { label: "Post-call workflow", href: "/msl/follow-up", icon: ClipboardList },
       { label: "Insights", href: "/msl", icon: BarChart3 },
       { label: "Ask the agent", href: "/chat", icon: MessagesSquare },

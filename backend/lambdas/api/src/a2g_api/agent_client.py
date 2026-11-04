@@ -22,7 +22,7 @@ READ_TIMEOUT_SECONDS = 120
 
 
 class AgentRuntime(Protocol):
-    def invoke(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]: ...
+    def invoke(self, payload: dict[str, Any], *, timeout: float | None = None) -> Iterator[dict[str, Any]]: ...
 
 
 def parse_sse(lines: Iterable[bytes]) -> Iterator[dict[str, Any]]:
@@ -45,14 +45,14 @@ class HttpAgentRuntime:
     def __init__(self, base_url: str) -> None:
         self._url = f"{base_url}/invocations"
 
-    def invoke(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    def invoke(self, payload: dict[str, Any], *, timeout: float | None = None) -> Iterator[dict[str, Any]]:
         request = urllib.request.Request(  # noqa: S310 - fixed, configured agent address
             self._url,
             data=json.dumps(payload).encode(),
             headers={"content-type": "application/json", "accept": "text/event-stream"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=READ_TIMEOUT_SECONDS) as response:  # noqa: S310
+        with urllib.request.urlopen(request, timeout=timeout or READ_TIMEOUT_SECONDS) as response:  # noqa: S310
             yield from parse_sse(response)
 
 
@@ -63,7 +63,7 @@ class AgentCoreRuntime:
         self._arn = runtime_arn
         self._client = client
 
-    def invoke(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    def invoke(self, payload: dict[str, Any], *, timeout: float | None = None) -> Iterator[dict[str, Any]]:
         client = self._client
         if client is None:
             import boto3  # present in the Lambda runtime

@@ -656,6 +656,70 @@ input DecideGovernanceRequestInput { requestId: ID! status: GovernanceRequestSta
 "The issue assistant can only explain and suggest. It has no mutation, grant, or fix capability."
 type IssueAssistantResponse { issueId: ID! explanation: String! suggestedSteps: [String!]! capabilities: [String!]! autonomousActions: [String!]! }
 
+enum BriefOrigin { GENERATED USER }
+enum BriefStaleReason { HCP_DATA_CHANGED NEWER_DATA_LOADED }
+
+"""A value the code read from source records, shown plainly with the records behind it."""
+type BriefFact { label: String! value: String! evidenceIds: [ID!]! }
+"""Generated text. Every statement cites at least one evidence id from the brief's evidence list."""
+type BriefStatement { statementId: ID! text: String! evidenceIds: [ID!]! }
+"""A generated suggestion (discussion prompt or agenda item) the MSL can edit, remove or extend."""
+type BriefItem { itemId: ID! text: String! detail: String evidenceIds: [ID!]! origin: BriefOrigin! edited: Boolean! }
+type BriefMissing { code: String! message: String! }
+"""One source record the brief rests on. Open it with chatCitation(dataset, recordId)."""
+type BriefEvidence { evidenceId: ID! dataset: String! recordId: ID! label: String! date: AWSDate }
+
+"""
+A saved pre-call brief. Access is re-checked every time it is returned, so a brief for an HCP the caller can no
+longer see is refused with Forbidden. `stale` is computed on open against the caller's current data.
+"""
+type PreCallBrief {
+  briefId: ID!
+  hcpId: ID!
+  hcpName: HcpField!
+  objective: String!
+  ownerUserId: ID!
+  scopeLabel: String!
+  scopeTerritoryIds: [ID!]!
+  dataThrough: AWSDateTime
+  generatedAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+  "claude, or stub when no model was available (labelled so it is never mistaken for a model's work)."
+  modelMode: String!
+  "verified, filtered (statements with unsupported figures were dropped) or unchecked (stub)."
+  numberCheck: String!
+  "Statements the generator wrote that were removed because they lacked a valid source."
+  droppedStatements: Int!
+  stale: Boolean!
+  staleReasons: [BriefStaleReason!]!
+  currentDataThrough: AWSDateTime
+  lastInteractionDate: AWSDate
+  facts: [BriefFact!]!
+  engagement: [BriefStatement!]!
+  perspectives: [BriefStatement!]!
+  followUps: [BriefStatement!]!
+  prompts: [BriefItem!]!
+  agenda: [BriefItem!]!
+  missing: [BriefMissing!]!
+  evidence: [BriefEvidence!]!
+  regeneratesBriefId: ID
+}
+
+"""One row of the caller's saved briefs. A brief for an HCP the caller can no longer see shows nothing about it."""
+type BriefSummary {
+  briefId: ID!
+  hcpId: ID
+  hcpName: HcpField
+  objective: String
+  generatedAt: AWSDateTime!
+  dataThrough: AWSDateTime
+  accessible: Boolean!
+  stale: Boolean!
+}
+
+input BriefItemInput { itemId: ID text: String! detail: String }
+input BriefEditInput { briefId: ID! objective: String prompts: [BriefItemInput!] agenda: [BriefItemInput!] }
+
 type Query {
   me: Me!
   landingKpis(from: AWSDate, to: AWSDate, filters: InsightFiltersInput): LandingKpis!
@@ -704,9 +768,17 @@ type Query {
   myFollowUpTasks: [FollowUpTask!]!
   topicAlertRules: [TopicAlertRule!]!
   topicAlerts: [TopicAlert!]!
+  "Reopen a saved brief. Re-checks access (Forbidden if the HCP is no longer in scope) and computes staleness."
+  preCallBrief(briefId: ID!): PreCallBrief!
+  "The caller's saved briefs, newest first."
+  myBriefs: [BriefSummary!]!
 }
 
 type Mutation {
+  "Generate and save a source-linked pre-call brief for an authorized HCP and the MSL's call objective."
+  generateBrief(hcpId: ID!, objective: String!, regeneratesBriefId: ID): PreCallBrief!
+  "Save the MSL's edits to the objective, discussion prompts and agenda. Generated items stay marked generated."
+  saveBriefEdits(input: BriefEditInput!): PreCallBrief!
   "Raise a flag. Raising the same open flag again returns the existing one."
   flagIssue(input: FlagInput!): Flag!
   approveIdentityMapping(input: IdentityMappingInput!): IdentityMatch!

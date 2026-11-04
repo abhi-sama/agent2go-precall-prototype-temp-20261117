@@ -30,6 +30,8 @@ the `vector` extension.
 | FE AppSync service | Invoke BE API Lambda | The one FE account and one AppSync API ARN only; the Lambda permission has both `SourceAccount` and `SourceArn`. |
 | BE API Lambda (`a2g-be-api`) | Assume FE flags role | Only `arn:aws:iam::<FE account>:role/a2g-be-flags`; the FE role itself only writes/queries the flags table. |
 | BE AgentCore runtime (`a2g-agent-runtime`) | Assume FE chat writer role | Only `arn:aws:iam::<FE account>:role/a2g-agent-chat-writer`; the FE role can only put/update the chat table. |
+| BE API Lambda (`a2g-be-api`) | Assume FE briefs role; invoke the AgentCore runtime | Only `role/a2g-be-briefs` (GetItem, Query, UpdateItem on the briefs table) and `InvokeAgentRuntime` on the one runtime, so it can generate a brief and reopen or edit the caller's own. |
+| BE AgentCore runtime (`a2g-agent-runtime`) | Assume FE brief writer role | Only `role/a2g-agent-brief-writer`; the FE role can only `PutItem` on the briefs table. |
 | BE chat worker (`a2g-be-chat`) | AppSync GraphQL | Only the `publishChatEvent` mutation field on the one FE API. |
 
 The API and chat worker receive only the non-owner Postgres credential and can reach the private

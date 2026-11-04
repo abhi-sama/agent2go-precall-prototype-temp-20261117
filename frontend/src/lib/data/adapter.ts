@@ -10,6 +10,10 @@ import type {
   AccessAuditFilter,
   AdminAccessOverview,
   AdminDataQuality,
+  BriefEditInput,
+  BriefSummary,
+  GenerateBriefInput,
+  PreCallBrief,
   DateRange,
   DirectorOverview,
   Flag,
@@ -101,4 +105,11 @@ export interface DataAdapter extends GovernanceAdapter {
   topicAlertRules(ctx: RequestContext): Promise<TopicAlertRule[]>
   topicAlerts(ctx: RequestContext): Promise<TopicAlert[]>
   adminDataQuality(ctx: RequestContext): Promise<AdminDataQuality>
+  /** Generate and save a source-linked brief for an authorized HCP. Takes several seconds. */
+  generateBrief(ctx: RequestContext, input: GenerateBriefInput): Promise<PreCallBrief>
+  /** Reopen a saved brief. Access is re-checked (FORBIDDEN if the HCP is no longer in scope) and staleness computed. */
+  preCallBrief(ctx: RequestContext, briefId: string): Promise<PreCallBrief>
+  myBriefs(ctx: RequestContext): Promise<BriefSummary[]>
+  /** Save edits to the objective, prompts and agenda. Generated items stay marked generated. */
+  saveBriefEdits(ctx: RequestContext, input: BriefEditInput): Promise<PreCallBrief>
 }
