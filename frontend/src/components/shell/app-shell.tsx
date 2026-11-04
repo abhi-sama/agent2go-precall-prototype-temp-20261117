@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation"
 import type * as React from "react"
 import { PERSONA_CONFIG, type NavItem } from "@/components/shell/persona-config"
 import { AppearanceSettings } from "@/components/shell/appearance-settings"
+import { FirstRunOrientation } from "@/components/state/first-run-orientation"
 import { ThemeToggle } from "@/components/shell/theme-toggle"
 import { SharedFilterProvider } from "@/components/filters/filter-context"
 import { Badge } from "@/components/ui/badge"
@@ -116,7 +117,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <main id="main" className="safe-px safe-pb flex-1 py-6 lg:py-8">
-          <div className="mx-auto w-full max-w-[84rem]">{children}</div>
+          <div className="mx-auto w-full max-w-[84rem]">
+            <FirstRunOrientation />
+            {children}
+          </div>
         </main>
       </div>
     </div>

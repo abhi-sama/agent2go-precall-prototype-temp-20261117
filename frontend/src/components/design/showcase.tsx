@@ -1,6 +1,7 @@
 "use client"
 
 import { Stethoscope } from "lucide-react"
+import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 import { DistributionBars } from "@/components/charts/distribution-bars"
@@ -13,9 +14,9 @@ import { TrendAreaChart } from "@/components/charts/trend-area-chart"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { AiSummary, CitationChip, SourceFact, Suggestion } from "@/components/provenance/provenance"
 import { ScopeLabel } from "@/components/shell/scope-label"
-import { EmptyState, ErrorState } from "@/components/state/states"
+import { EmptyState, ErrorState, FirstRunState, NoAccessState } from "@/components/state/states"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { DataError } from "@/lib/data/types"
 
 const WEEKS = Array.from({ length: 12 }, (_, i) => ({
@@ -166,9 +167,12 @@ export function DesignSystemShowcase() {
 
       <section aria-labelledby="ds-states" className="flex flex-col gap-3">
         <h2 id="ds-states" className="text-xl font-semibold">States</h2>
-        <div className="grid gap-4 lg:grid-cols-2">
+        <p className="max-w-2xl text-sm text-muted-foreground">One family distinguishes a quiet empty range, an entitlement boundary, a recoverable failure and first-run orientation. The illustrated 2D scene remains available when perspective or motion is not.</p>
+        <div data-testid="state-family-preview" className="grid gap-4 xl:grid-cols-2">
           <EmptyState />
+          <NoAccessState />
           <ErrorState error={new DataError("UNAVAILABLE", "x", "3f2a9c1e-0000")} onRetry={() => {}} />
+          <FirstRunState action={<Link href="/msl" className={buttonVariants({ variant: "default" })}>Open MSL workspace</Link>} />
         </div>
       </section>
     </div>

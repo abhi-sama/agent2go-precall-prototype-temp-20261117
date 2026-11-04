@@ -111,6 +111,22 @@ test.describe("MSL landing", () => {
 })
 
 test.describe("states", () => {
+  test("first-run orientation appears once per user and stays non-blocking", async ({ page }) => {
+    await page.addInitScript(() => {
+      for (const key of Object.keys(window.localStorage)) {
+        if (key.startsWith("a2g.first-run.v1:")) window.localStorage.removeItem(key)
+      }
+    })
+    await page.goto("/msl")
+    await expect(page.getByTestId("state-first-run").first()).toBeVisible()
+    await page.getByRole("link", { name: "Open MSL workspace" }).first().click()
+    await expect(page.getByTestId("first-run-orientation")).toHaveCount(0)
+    const revisit = await page.context().newPage()
+    await revisit.goto("/msl")
+    await expect(revisit.getByTestId("first-run-orientation")).toHaveCount(0)
+    await revisit.close()
+  })
+
   test("empty range shows the empty state", async ({ page }) => {
     await page.goto("/msl?scenario=empty")
     await expect(page.getByTestId("state-empty")).toBeVisible()

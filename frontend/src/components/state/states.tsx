@@ -1,51 +1,68 @@
-import { AlertTriangle, CalendarSearch, Lock, RefreshCw, WifiOff } from "lucide-react"
+import Link from "next/link"
 import type * as React from "react"
-import { Button } from "@/components/ui/button"
+import { ResetFiltersAction, ReloadAction, WorkspaceAction } from "@/components/state/state-actions"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { DataError } from "@/lib/data/types"
 import { cn } from "@/lib/utils"
 
+export type StateVariant = "empty" | "access" | "error" | "first-run"
+
+/**
+ * An illustrated scene is the baseline renderer: it works without WebGL and remains legible when
+ * motion is reduced. CSS adds a little perspective where supported, without making access to the
+ * state depend on a canvas or a GPU.
+ */
+function StateScene({ variant }: { variant: StateVariant }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="state-scene"
+      data-scene-fallback="illustrated-2d"
+      data-state-scene={variant}
+    >
+      <span className="state-scene__halo" />
+      <span className="state-scene__platform" />
+      <span className="state-scene__panel state-scene__panel--back" />
+      <span className="state-scene__panel state-scene__panel--front" />
+      <span className="state-scene__signal" />
+      <span className="state-scene__marker" />
+    </div>
+  )
+}
+
 function StateShell({
-  icon,
+  variant,
   title,
   children,
   actions,
-  tone = "neutral",
   testId,
   className,
 }: {
-  icon: React.ReactNode
+  variant: StateVariant
   title: string
   children?: React.ReactNode
   actions?: React.ReactNode
-  tone?: "neutral" | "danger" | "locked"
   testId: string
   className?: string
 }) {
   return (
-    <div
+    <section
       data-testid={testId}
-      role={tone === "danger" ? "alert" : "status"}
+      data-state-variant={variant}
+      role={variant === "error" ? "alert" : "status"}
       className={cn(
-        "flex flex-col items-center gap-3 rounded-2xl border border-dashed px-6 py-10 text-center",
-        tone === "danger" && "border-destructive/40 bg-destructive/5",
-        tone === "locked" && "border-ink/30 bg-fact-soft",
-        tone === "neutral" && "border-border bg-muted/40",
+        "state-family mx-auto flex w-full max-w-2xl flex-col items-center text-center",
         className,
       )}
     >
-      <span
-        className={cn(
-          "grid size-12 place-items-center rounded-2xl",
-          tone === "danger" ? "bg-destructive/10 text-destructive" : tone === "locked" ? "bg-ink/10 text-fact" : "bg-accent text-accent-text",
-        )}
-      >
-        {icon}
-      </span>
-      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-      {children && <p className="max-w-prose text-sm text-muted-foreground">{children}</p>}
-      {actions && <div className="mt-1 flex flex-wrap justify-center gap-2">{actions}</div>}
-    </div>
+      <StateScene variant={variant} />
+      <div className="state-family__copy">
+        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+        {children && <p className="mt-2 max-w-prose text-sm text-muted-foreground">{children}</p>}
+        {actions && <div className="mt-5 flex flex-wrap justify-center gap-2">{actions}</div>}
+      </div>
+    </section>
   )
 }
 
@@ -59,7 +76,12 @@ export function EmptyState({
   actions?: React.ReactNode
 }) {
   return (
-    <StateShell testId="state-empty" icon={<CalendarSearch className="size-6" aria-hidden />} title={title} actions={actions}>
+    <StateShell
+      variant="empty"
+      testId="state-empty"
+      title={title}
+      actions={actions ?? <ResetFiltersAction />}
+    >
       {children}
     </StateShell>
   )
@@ -79,24 +101,75 @@ const ERROR_COPY: Record<DataError["code"], { title: string; body: string; locke
 export function ErrorState({ error, onRetry }: { error: DataError; onRetry?: () => void }) {
   const copy = ERROR_COPY[error.code]
   const retryable = error.code !== "FORBIDDEN" && error.code !== "NO_SCOPE" && error.code !== "UNAUTHENTICATED"
+  if (copy.locked) {
+    return (
+      <NoAccessState
+        testId="state-error"
+        title={copy.title}
+        actionLabel={error.code === "NO_SCOPE" ? "Go to my workspace" : "Return to my workspace"}
+      >
+        {copy.body}
+      </NoAccessState>
+    )
+  }
   return (
     <StateShell
       testId="state-error"
-      tone={copy.locked ? "locked" : "danger"}
-      icon={copy.locked ? <Lock className="size-6" aria-hidden /> : error.code === "UNAVAILABLE" ? <WifiOff className="size-6" aria-hidden /> : <AlertTriangle className="size-6" aria-hidden />}
+      variant="error"
       title={copy.title}
       actions={
-        onRetry && retryable ? (
-          <Button variant="outline" onClick={onRetry}>
-            <RefreshCw aria-hidden /> Try again
-          </Button>
-        ) : undefined
+        retryable ? <ReloadAction onRetry={onRetry} /> : (
+          <Link href="/login" className={buttonVariants({ variant: "outline" })}>
+            Sign in again
+          </Link>
+        )
       }
     >
       {copy.body}
       {error.correlationId && (
         <span className="mt-2 block font-mono text-xs opacity-70">Reference {error.correlationId.slice(0, 8)}</span>
       )}
+    </StateShell>
+  )
+}
+
+export function NoAccessState({
+  title = "No access to this view",
+  children = "This workspace is limited to the persona and scope assigned to you. Nothing was loaded.",
+  actionLabel = "Return to my workspace",
+  testId = "state-no-access",
+}: {
+  title?: string
+  children?: React.ReactNode
+  actionLabel?: string
+  testId?: string
+}) {
+  return (
+    <StateShell
+      variant="access"
+      testId={testId}
+      title={title}
+      actions={
+        <WorkspaceAction actionLabel={actionLabel} />
+      }
+    >
+      {children}
+    </StateShell>
+  )
+}
+
+export function FirstRunState({
+  title = "Start with the signal in your scope",
+  children = "Your workspace brings together activity, recorded insights and the next question to explore. Begin with the view designed for your assigned scope.",
+  action,
+}: {
+  title?: string
+  children?: React.ReactNode
+  action: React.ReactNode
+}) {
+  return (
+    <StateShell variant="first-run" testId="state-first-run" title={title} actions={action}>
+      {children}
     </StateShell>
   )
 }

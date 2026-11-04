@@ -22,6 +22,25 @@ const heading = (name: string, level = 1) => (page: Page) =>
   expect(page.getByRole("heading", { level, name })).toBeVisible()
 const testId = (id: string) => (page: Page) => expect(page.getByTestId(id).first()).toBeVisible()
 
+const STATE_APPEARANCES = [
+  { name: "warm-light", style: "warm", mode: "light" },
+  { name: "warm-charcoal", style: "warm", mode: "charcoal" },
+  { name: "warm-black", style: "warm", mode: "black" },
+  { name: "clinical-light", style: "clinical", mode: "light" },
+  { name: "clinical-charcoal", style: "clinical", mode: "charcoal" },
+  { name: "clinical-black", style: "clinical", mode: "black" },
+] as const
+
+async function setStateAppearance(page: Page, appearance: (typeof STATE_APPEARANCES)[number]) {
+  await page.evaluate(({ style, mode }) => {
+    const root = document.documentElement
+    root.dataset.style = style
+    root.classList.toggle("dark", mode !== "light")
+    if (mode === "black") root.dataset.mode = "black"
+    else delete root.dataset.mode
+  }, appearance)
+}
+
 /** Waits until the 3D globe's markers stop moving (the camera is placed a frame or two after mount, slower under load). */
 async function globeSettled(page: Page) {
   const read = () => page.evaluate(() => [...document.querySelectorAll("[data-testid^=globe-marker-]")].map((el) => { const r = el.getBoundingClientRect(); return `${el.textContent}:${Math.round(r.left)},${Math.round(r.top)}` }).join("|"))
@@ -472,4 +491,10 @@ export const SCREENS: ScreenSpec[] = [
   { name: "msl-landing-empty", path: "/msl?scenario=empty", ready: testId("state-empty") },
   { name: "msl-landing-error", path: "/msl?scenario=error", ready: testId("state-error") },
   { name: "role-gate", path: "/executive", ready: testId("role-gate") },
+  ...STATE_APPEARANCES.map((appearance): ScreenSpec => ({
+    name: `state-family-${appearance.name}`,
+    path: "/design",
+    ready: testId("state-family-preview"),
+    prepare: (page) => setStateAppearance(page, appearance),
+  })),
 ]
