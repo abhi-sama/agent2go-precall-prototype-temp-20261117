@@ -9,6 +9,7 @@ import { buildExecutiveDrilldown, buildExecutiveOverview, defaultExecutiveRange,
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
 import { mockCitation, readRun, scriptRun } from "./mock-chat"
 import { createMockBriefs } from "./mock-briefs"
+import { createMockExecutiveThemes, type ThemesInput } from "./mock-executive-themes"
 import {
   type AccessAuditEvent, type AccessAuditFilter, type AdminAccessOverview,
   type AdminDataQuality,
@@ -47,10 +48,11 @@ import {
 /**
  * `targets` is `ok` plus an approved target population for two territories, so coverage can be shown.
  * `records` is `ok` plus explicit record-level permission for an Executive, so nothing is withheld and drill-down opens.
+ * `scope-changed` is `ok` except that saved leadership summaries can no longer be opened or exported (the Executive's scope changed).
  */
-export type MockScenario = "ok" | "empty" | "error" | "forbidden" | "slow" | "stale" | "targets" | "records"
+export type MockScenario = "ok" | "empty" | "error" | "forbidden" | "slow" | "stale" | "targets" | "records" | "scope-changed"
 
-const SCENARIOS: readonly MockScenario[] = ["ok", "empty", "error", "forbidden", "slow", "stale", "targets", "records"]
+const SCENARIOS: readonly MockScenario[] = ["ok", "empty", "error", "forbidden", "slow", "stale", "targets", "records", "scope-changed"]
 
 /** `?scenario=` is honoured only in local builds, so tests and demos can force each UI state. */
 export function readScenario(search: string | undefined): MockScenario {
@@ -179,6 +181,26 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     }
   }
 
+  function themesInput(ctx: RequestContext, s: MockScenario, range?: Partial<DateRange>): ThemesInput {
+    const user = findUser(options.getUserId())
+    if (s === "forbidden" || user.persona !== "executive") {
+      throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+    }
+    if (user.territoryIds.length === 0) throw new DataError("NO_SCOPE", "No territory is assigned to your account.", ctx.correlationId)
+    const through = dataThrough(s)
+    const to = range?.to ?? through.slice(0, 10)
+    const resolved: DateRange = { from: range?.from ?? addDays(to, -89), to }
+    if (resolved.from > resolved.to || daysInRange(resolved) > 731) throw new DataError("BAD_REQUEST", "That request was not accepted.", ctx.correlationId)
+    return {
+      territories: TERRITORIES.filter((x) => user.territoryIds.includes(x.id)),
+      range: resolved,
+      dataThrough: through,
+      scopeLabel: user.scopeLabel,
+      records: s === "records",
+      empty: s === "empty",
+    }
+  }
+
   /** `HCP-0001` is the profile-card fixture; the rest are the HCPs the Director drill-down lists, per territory. */
   const hcpInScope = (hcpId: string) => {
     const user = findUser(options.getUserId())
@@ -218,6 +240,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     ...createMockEvals({ getUser: () => findUser(options.getUserId()), gate, now }),
     ...createMockBriefs({ user: () => findUser(options.getUserId()), scenario, gate, now }),
     ...createMockDirectorInsights({ getUser: () => findUser(options.getUserId()), gate, now }),
+    ...createMockExecutiveThemes({ user: () => findUser(options.getUserId()), scenario, gate, input: themesInput, now }),
 
     async me(ctx): Promise<Me> {
       await gate(ctx, "me")
@@ -505,7 +528,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
 
     async chatCitation(ctx, dataset, recordId) {
       await gate(ctx, "chatCitation")
-      const record = mockCitation(dataset, recordId, findUser(options.getUserId()), now())
+      const record = mockCitation(dataset, recordId, findUser(options.getUserId()), now(), scenario() === "records")
       if (!record) throw new DataError("NOT_FOUND", "That record is not available in your scope.", ctx.correlationId)
       return record
     },

@@ -70,9 +70,11 @@ class DynamoBriefStore:
     delete or scan: new briefs are written only by the agent (ADR 0005).
     """
 
-    def __init__(self, table: str, role_arn: str) -> None:
+    def __init__(self, table: str, role_arn: str, *, prefix: str = "BRIEF#") -> None:
         self._table = table
         self._role_arn = role_arn
+        #: Sort-key prefix: leadership summaries share this table and role under ``SUMMARY#`` (docs/adr/0013).
+        self._prefix = prefix
         self._client_cache: tuple[Any, dt.datetime] | None = None
         self._lock = threading.Lock()
 
@@ -105,7 +107,7 @@ class DynamoBriefStore:
     def get(self, user_id: str, brief_id: str) -> dict[str, Any] | None:
         try:
             out = self._client().get_item(
-                TableName=self._table, Key={"pk": {"S": f"USER#{user_id}"}, "sk": {"S": f"BRIEF#{brief_id}"}}
+                TableName=self._table, Key={"pk": {"S": f"USER#{user_id}"}, "sk": {"S": f"{self._prefix}{brief_id}"}}
             )
         except Exception as exc:
             log.error("brief store read failed", error_type=type(exc).__name__)
@@ -117,7 +119,7 @@ class DynamoBriefStore:
             out = self._client().query(
                 TableName=self._table,
                 KeyConditionExpression="pk = :pk AND begins_with(sk, :p)",
-                ExpressionAttributeValues={":pk": {"S": f"USER#{user_id}"}, ":p": {"S": "BRIEF#"}},
+                ExpressionAttributeValues={":pk": {"S": f"USER#{user_id}"}, ":p": {"S": self._prefix}},
                 ScanIndexForward=False,
                 Limit=MAX_LISTED,
             )
@@ -136,7 +138,7 @@ class DynamoBriefStore:
         try:
             self._client().update_item(
                 TableName=self._table,
-                Key={"pk": {"S": f"USER#{user_id}"}, "sk": {"S": f"BRIEF#{brief_id}"}},
+                Key={"pk": {"S": f"USER#{user_id}"}, "sk": {"S": f"{self._prefix}{brief_id}"}},
                 UpdateExpression=expr,
                 ExpressionAttributeNames={**names, "#owner": "ownerUserId"},
                 ExpressionAttributeValues={**values, ":owner": {"S": user_id}},

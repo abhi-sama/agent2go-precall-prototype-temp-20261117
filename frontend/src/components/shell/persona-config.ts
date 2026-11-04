@@ -1,4 +1,4 @@
-import { Activity, BarChart3, ClipboardList, FileSearch, FlaskConical, LayoutDashboard, Map, MessagesSquare, Network, ShieldCheck, Users } from "lucide-react"
+import { Activity, BarChart3, ClipboardList, FileSearch, FlaskConical, LayoutDashboard, Map, MessagesSquare, Network, ShieldCheck, Sparkles, Users } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { Persona } from "@/lib/data/types"
 
@@ -50,6 +50,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
     tagline: "Aggregate view",
     nav: [
       { label: "Overview", href: "/executive", icon: LayoutDashboard },
+      { label: "Themes & summaries", href: "/executive/themes", icon: Sparkles },
       { label: "Trends", href: null, icon: BarChart3 },
       { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],

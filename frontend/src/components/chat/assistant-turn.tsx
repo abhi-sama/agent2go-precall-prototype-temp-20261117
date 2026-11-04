@@ -1,13 +1,13 @@
 "use client"
 
-import { AlertTriangle, BarChart3, FileText, Loader2 } from "lucide-react"
+import { AlertTriangle, BarChart3, FileText, Info, Loader2 } from "lucide-react"
 import * as React from "react"
 import { AnswerFeedback } from "@/components/chat/answer-feedback"
 import { VisualCard } from "@/components/chat/visual-card"
 import { AiSummary, CitationChip, ExportButton, SourceFact, Suggestion, type ProvenanceCitation } from "@/components/provenance/provenance"
 import { Badge } from "@/components/ui/badge"
 import { useCountUp } from "@/hooks/use-count-up"
-import { citationNumber, citationsForFact, type AssistantTurn, type CitationItem, type FactItem } from "@/lib/chat/events"
+import { citationNumber, citationsForFact, isAggregateCitation, type AssistantTurn, type CitationItem, type FactItem } from "@/lib/chat/events"
 import { buildProvenanceExport, downloadText, type ExportBlock } from "@/lib/provenance"
 import { cn } from "@/lib/utils"
 
@@ -107,13 +107,15 @@ export function AssistantTurnView({
 }) {
   const running = turn.status === "running"
   const through = formatThrough(turn.dataThrough)
-  const paragraphs = turn.text.split(/\n{2,}/).filter(Boolean)
+  const limitations = turn.sampleLimitations
+  // The limitations have their own labelled block; the agent also writes them into the answer text, so don't show them twice.
+  const paragraphs = turn.text.split(/\n{2,}/).filter((p) => p && !(limitations.length > 0 && /^sample limitations\b/i.test(p.trim())))
   const activeTools = turn.tools.filter((t) => TOOL_LABELS[t.name])
   const hasAi = Boolean(turn.text) || (running && turn.facts.length === 0 && activeTools.length === 0)
   // Every AI summary carries the records behind it as chips that open them; answers with no prose list them as plain sources.
   const aiCitations: ProvenanceCitation[] = turn.citations.map((c) => ({
     key: `${c.dataset}:${c.recordId}`,
-    label: c.recordId,
+    label: isAggregateCitation(c) ? "Aggregate source" : c.recordId,
     detail: c.label,
     number: citationNumber(turn.citations, c),
     onOpen: () => onOpenCitation(c),
@@ -183,6 +185,15 @@ export function AssistantTurnView({
         </AiSummary>
       )}
 
+      {limitations.length > 0 && (
+        <section data-testid="sample-limitations" aria-label="Sample limitations" className="rounded-xl border border-warning/40 bg-warning/8 p-3 text-sm">
+          <h4 className="flex items-center gap-2 text-sm font-semibold"><Info className="size-4 text-warning" aria-hidden />Sample limitations</h4>
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">
+            {limitations.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </section>
+      )}
+
       {turn.numberCheck?.status === "unverified" && (
         <p data-testid="number-warning" role="alert" className="flex items-start gap-2 rounded-xl border border-warning/50 bg-warning/10 p-3 text-sm">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
@@ -211,7 +222,7 @@ export function AssistantTurnView({
                 <CitationChip data-testid="citation" aria-label={`Open source: ${c.label}`} onOpen={() => onOpenCitation(c)} className="min-h-11 gap-2 rounded-lg px-3 text-left text-sm">
                   <FileText className="size-4 shrink-0 text-fact" aria-hidden />
                   <span className="flex flex-col leading-tight">
-                    <span className="font-mono text-xs">{c.recordId}</span>
+                    <span className="font-mono text-xs">{isAggregateCitation(c) ? "Aggregate source" : c.recordId}</span>
                     <span className="text-xs text-muted-foreground">{c.label}</span>
                   </span>
                 </CitationChip>

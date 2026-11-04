@@ -15,7 +15,7 @@ import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 import psycopg
 
@@ -31,7 +31,7 @@ SNIPPET_CHARS = 240
 _TERRITORY = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 _QUESTION = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 
-Status = Literal["ok", "aggregate_only", "no_scope", "bad_request"]
+Status = Literal["ok", "aggregate_only", "no_scope", "bad_request", "executive_only"]
 
 
 @dataclass(frozen=True)
@@ -153,7 +153,40 @@ class QuestionBreakdownResult:
     detail: str = ""
 
 
+EXECUTIVE_FACETS = ("PORTFOLIO", "MOLECULE", "DISEASE_AREA", "STUDY")
+_FACET_VALUE = re.compile(r"^[^\x00-\x1f]{1,80}$")
+
+
+@dataclass(frozen=True)
+class ExecutiveAnalysisResult:
+    """One Executive aggregate analysis from the shared library (``a2g_exec_analysis``).
+
+    ``data`` has the shape of the GraphQL ExecutiveThemes / ExecutiveTopicMatrix types: camelCase keys, counts as
+    ``{value, suppressed}``, already small-group suppressed. The agent adds nothing to it and removes nothing.
+    """
+
+    status: Status
+    data: dict[str, Any] | None = None
+    record_level: bool = False
+    data_through: dt.datetime | None = None
+    detail: str = ""
+
+
 class ScopedReadRepository(Protocol):
+    def executive_themes(
+        self, identity: Identity, *, period_from: dt.date | None, period_to: dt.date | None, facet: str
+    ) -> ExecutiveAnalysisResult: ...
+
+    def executive_topic_matrix(
+        self,
+        identity: Identity,
+        *,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        facet: str,
+        facet_value: str | None,
+    ) -> ExecutiveAnalysisResult: ...
+
     def chart(
         self,
         identity: Identity,
@@ -719,6 +752,68 @@ class PostgresScopedRepository:
             citations=citations,
         )
 
+    # -- Executive (aggregate-only) analysis ---------------------------------------------------
+    def _executive_analysis(
+        self,
+        identity: Identity,
+        *,
+        kind: str,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        facet: str,
+        facet_value: str | None,
+    ) -> ExecutiveAnalysisResult:
+        if identity.persona != "Executive":
+            return ExecutiveAnalysisResult(status="executive_only")
+        if facet not in EXECUTIVE_FACETS or (facet_value is not None and not _FACET_VALUE.match(facet_value)):
+            return ExecutiveAnalysisResult(status="bad_request", detail="invalid_facet")
+        import a2g_exec_analysis as lib  # shared with the BE API Lambda: one definition of every figure and rule
+
+        with self._session(identity) as cur:
+            cur.execute("SELECT app.has_permission('source.records.read')")
+            record_level = bool(cur.fetchone()[0])
+            cur.execute("SELECT calls_loaded, responses_loaded FROM app.exec_loads()")
+            loaded = [v for v in cur.fetchone() if v is not None]
+            if len(loaded) < 2:
+                return ExecutiveAnalysisResult(status="no_scope", record_level=record_level)
+            data_through = min(loaded)
+            window = self._period(period_from, period_to, data_through)
+            if window is None:
+                return ExecutiveAnalysisResult(status="bad_request", detail="invalid_period")
+            start, end = window
+            try:
+                if kind == "themes":
+                    data = lib.executive_themes(cur, start, end, facet, record_level=record_level)
+                else:
+                    data = lib.executive_topic_matrix(cur, start, end, facet, facet_value, record_level=record_level)
+            except lib.NoExecutiveScope:
+                return ExecutiveAnalysisResult(status="no_scope", record_level=record_level)
+            except (lib.InvalidFacet, lib.InvalidFacetValue, lib.InvalidWindow):
+                return ExecutiveAnalysisResult(status="bad_request", detail="invalid_request", record_level=record_level)
+        if not data:
+            return ExecutiveAnalysisResult(status="no_scope", record_level=record_level)
+        return ExecutiveAnalysisResult(status="ok", data=data, record_level=record_level, data_through=data_through)
+
+    def executive_themes(
+        self, identity: Identity, *, period_from: dt.date | None, period_to: dt.date | None, facet: str
+    ) -> ExecutiveAnalysisResult:
+        return self._executive_analysis(
+            identity, kind="themes", period_from=period_from, period_to=period_to, facet=facet, facet_value=None
+        )
+
+    def executive_topic_matrix(
+        self,
+        identity: Identity,
+        *,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        facet: str,
+        facet_value: str | None,
+    ) -> ExecutiveAnalysisResult:
+        return self._executive_analysis(
+            identity, kind="matrix", period_from=period_from, period_to=period_to, facet=facet, facet_value=facet_value
+        )
+
 
 class FixtureScopedRepository:
     """Deterministic in-memory double with the same interface, for unit tests that need no database."""
@@ -1005,6 +1100,159 @@ class FixtureScopedRepository:
             data_through=self.DATA_THROUGH,
             citations=(Citation(record_id="RESP-000001", dataset="hcp_raw_insights", label="Recorded response"),),
         )
+
+    # -- Executive double ----------------------------------------------------------------------
+    # One Executive (``executive-region-01``) has data; every other Executive id has no scope. The numbers are
+    # hand-written to exercise suppression: ``None`` counts are withheld small groups.
+    EXECUTIVE_USER = "executive-region-01"
+
+    @staticmethod
+    def _count(value: int | None) -> dict[str, Any]:
+        return {"value": value, "suppressed": value is None}
+
+    def _exec_citation(self, key: str, label: str, n: int | None) -> dict[str, Any]:
+        return {
+            "citationId": f"agg:{key}",
+            "kind": "AGGREGATE",
+            "dataset": "hcp_raw_insights",
+            "label": label,
+            "responses": self._count(n),
+        }
+
+    def executive_themes(
+        self, identity: Identity, *, period_from: dt.date | None, period_to: dt.date | None, facet: str
+    ) -> ExecutiveAnalysisResult:
+        if identity.persona != "Executive":
+            return ExecutiveAnalysisResult(status="executive_only")
+        if facet not in EXECUTIVE_FACETS:
+            return ExecutiveAnalysisResult(status="bad_request", detail="invalid_facet")
+        if identity.user_id != self.EXECUTIVE_USER:
+            return ExecutiveAnalysisResult(status="no_scope")
+        frm, to = period_from or dt.date(2026, 8, 6), period_to or dt.date(2026, 11, 3)
+
+        def card(topic: str, n: int | None, prior: int | None, hcps: int | None, trend: str) -> dict[str, Any]:
+            return {
+                "cardId": f"{facet}:Portfolio:{topic}",
+                "facetValue": "Portfolio",
+                "topic": topic,
+                "responses": self._count(n),
+                "priorResponses": self._count(prior),
+                "distinctHcps": self._count(hcps),
+                "share": None if n is None else round(100.0 * n / 700, 1),
+                "regionCount": 2,
+                "trend": trend,
+                "citations": [
+                    self._exec_citation(
+                        f"themes:{facet}:{topic}:{frm}:{to}", f"Free-text responses on {topic}, {frm} to {to}", n
+                    )
+                ],
+            }
+
+        data = {
+            "facet": facet,
+            "facetLabel": facet.replace("_", " ").title(),
+            "from": frm.isoformat(),
+            "to": to.isoformat(),
+            "priorFrom": (frm - dt.timedelta(days=90)).isoformat(),
+            "priorTo": (frm - dt.timedelta(days=1)).isoformat(),
+            "groups": [
+                {
+                    "facetValue": "Portfolio",
+                    "freeTextResponses": self._count(700),
+                    "priorFreeTextResponses": self._count(690),
+                    "regionCount": 2,
+                    "cards": [
+                        card("ctDNA monitoring (emerging)", 72, 21, 40, "RISING"),
+                        card("Access and reimbursement", 99, 104, 60, "STEADY"),
+                        card("Pulmonary surveillance (emerging)", None, 3, None, "WITHHELD"),
+                    ],
+                }
+            ],
+            "groupsLeftOut": 0,
+            "sampleLimitations": [
+                "Themes are keyword groupings of free-text responses, not source facts.",
+                "Counts below 5 are withheld so no small group can be identified.",
+            ],
+            "note": "Derived themes.",
+        }
+        return ExecutiveAnalysisResult(status="ok", data=data, data_through=self.DATA_THROUGH)
+
+    def executive_topic_matrix(
+        self,
+        identity: Identity,
+        *,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        facet: str,
+        facet_value: str | None,
+    ) -> ExecutiveAnalysisResult:
+        if identity.persona != "Executive":
+            return ExecutiveAnalysisResult(status="executive_only")
+        if facet not in EXECUTIVE_FACETS:
+            return ExecutiveAnalysisResult(status="bad_request", detail="invalid_facet")
+        if identity.user_id != self.EXECUTIVE_USER:
+            return ExecutiveAnalysisResult(status="no_scope")
+        frm, to = period_from or dt.date(2026, 8, 6), period_to or dt.date(2026, 11, 3)
+
+        def cell(region: str, n: int | None, prior: int | None, trend: str) -> dict[str, Any]:
+            return {
+                "regionId": region,
+                "responses": self._count(n),
+                "priorResponses": self._count(prior),
+                "share": None if n is None else round(100.0 * n / 350, 1),
+                "priorShare": None if prior is None else round(100.0 * prior / 345, 1),
+                "sharePointChange": None,
+                "trend": trend,
+                "alert": trend == "RISING",
+            }
+
+        data = {
+            "facet": facet,
+            "facetValue": facet_value,
+            "from": frm.isoformat(),
+            "to": to.isoformat(),
+            "priorFrom": (frm - dt.timedelta(days=90)).isoformat(),
+            "priorTo": (frm - dt.timedelta(days=1)).isoformat(),
+            "thresholds": {
+                "minWindowResponses": 30,
+                "minTopicResponses": 10,
+                "minRelativeIncrease": 0.5,
+                "minSharePoints": 2.0,
+                "minCell": 5,
+                "rule": "A topic is rising when both periods hold at least 30 free-text responses and its share rose clearly.",
+                "approved": True,
+            },
+            "regions": [
+                {"regionId": "REGION-01", "regionName": "Region 1", "territoriesInScope": 6,
+                 "freeTextResponses": self._count(350), "priorFreeTextResponses": self._count(345), "sampleSufficient": True},
+                {"regionId": "REGION-02", "regionName": "Region 2", "territoriesInScope": 6,
+                 "freeTextResponses": self._count(350), "priorFreeTextResponses": self._count(345), "sampleSufficient": True},
+            ],
+            "rows": [
+                {
+                    "topic": "ctDNA monitoring (emerging)",
+                    "isOther": False,
+                    "cells": [cell("REGION-01", 40, 10, "RISING"), cell("REGION-02", 32, 11, "RISING")],
+                    "regionsRising": 2,
+                    "regionsFalling": 0,
+                    "crossRegion": True,
+                },
+                {
+                    "topic": "Pulmonary surveillance (emerging)",
+                    "isOther": False,
+                    "cells": [cell("REGION-01", None, 2, "WITHHELD"), cell("REGION-02", 12, 8, "STEADY")],
+                    "regionsRising": 0,
+                    "regionsFalling": 0,
+                    "crossRegion": False,
+                },
+            ],
+            "sampleLimitations": [
+                "A region needs at least 30 free-text responses in both periods before a trend arrow is shown.",
+                "Counts below 5 are withheld so no small group can be identified.",
+            ],
+            "note": "Derived topics.",
+        }
+        return ExecutiveAnalysisResult(status="ok", data=data, data_through=self.DATA_THROUGH)
 
 
 def repository_for(database_url: str | None) -> ScopedReadRepository:

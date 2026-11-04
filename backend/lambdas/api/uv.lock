@@ -7,6 +7,7 @@ name = "a2g-api-lambda"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "a2g-exec-analysis" },
     { name = "a2g-logging" },
     { name = "boto3" },
     { name = "psycopg", extra = ["binary"] },
@@ -21,6 +22,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "a2g-exec-analysis", editable = "../../libs/a2g_exec_analysis" },
     { name = "a2g-logging", editable = "../../libs/a2g_logging" },
     { name = "boto3", specifier = ">=1.35" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
@@ -30,6 +32,19 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "boto3", specifier = ">=1.43.123" },
+    { name = "pytest", specifier = ">=8" },
+]
+
+[[package]]
+name = "a2g-exec-analysis"
+version = "0.1.0"
+source = { editable = "../../libs/a2g_exec_analysis" }
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pytest", specifier = ">=8" },
 ]
 

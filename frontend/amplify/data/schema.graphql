@@ -1111,6 +1111,208 @@ type TerritorySummaries {
   note: String!
 }
 
+# --- Executive themes, cross-region topics and leadership summaries (ticket 13, #14) -----------------
+# Aggregate-only for an Executive: every count is a SuppressedCount (counts of 1 to 4 are withheld, with
+# complementary suppression), themes are derived keyword groupings of free text, and every figure comes
+# from SQL under the explicit executive scope. Citations are AGGREGATE (the cited set of responses,
+# described by its filters and size) unless the Executive also holds record-level permission, in which
+# case they are RECORD citations (response ids with excerpts). Nothing here claims a cause.
+
+enum ExecutiveThemeFacet { PORTFOLIO MOLECULE DISEASE_AREA STUDY }
+"""RISING and FALLING come from the approved threshold rule. WITHHELD means a count behind the arrow is a small group."""
+enum ExecutiveTrend { RISING FALLING STEADY WITHHELD INSUFFICIENT_SAMPLE }
+enum ExecutiveCitationKind { AGGREGATE RECORD }
+enum LeadershipStaleReason { NEWER_DATA_LOADED SCOPE_CHANGED }
+
+"""The responses a figure rests on. AGGREGATE describes the set (filters and size); RECORD names one response."""
+type ExecutiveCitation {
+  citationId: ID!
+  kind: ExecutiveCitationKind!
+  dataset: String!
+  label: String!
+  "AGGREGATE: how many responses the cited set holds (SuppressedCount; null value when withheld)."
+  responses: SuppressedCount
+  recordId: ID
+  excerpt: String
+  interactionDate: AWSDate
+}
+
+type ExecutiveThemeCard {
+  cardId: ID!
+  facetValue: String!
+  topic: String!
+  "Free-text responses on this theme in the window."
+  responses: SuppressedCount!
+  priorResponses: SuppressedCount!
+  distinctHcps: SuppressedCount!
+  "Percent of the group's free-text responses; null when withheld."
+  share: Float
+  regionCount: Int!
+  trend: ExecutiveTrend!
+  citations: [ExecutiveCitation!]!
+}
+
+type ExecutiveThemeGroup {
+  facetValue: String!
+  freeTextResponses: SuppressedCount!
+  priorFreeTextResponses: SuppressedCount!
+  regionCount: Int!
+  cards: [ExecutiveThemeCard!]!
+}
+
+type ExecutiveThemes {
+  from: AWSDate!
+  to: AWSDate!
+  priorFrom: AWSDate!
+  priorTo: AWSDate!
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+  accessLevel: ExecutiveAccessLevel!
+  facet: ExecutiveThemeFacet!
+  facetLabel: String!
+  definitionVersion: String!
+  disclosure: DisclosureRule!
+  groups: [ExecutiveThemeGroup!]!
+  "Facet values left out of the list (shown: the largest by free-text responses)."
+  groupsLeftOut: Int!
+  sampleLimitations: [String!]!
+  note: String!
+}
+
+type ExecutiveMatrixRegion {
+  regionId: ID!
+  regionName: String!
+  territoriesInScope: Int!
+  freeTextResponses: SuppressedCount!
+  priorFreeTextResponses: SuppressedCount!
+  "Both windows hold at least the approved minimum number of free-text responses."
+  sampleSufficient: Boolean!
+}
+
+type ExecutiveMatrixCell {
+  regionId: ID!
+  responses: SuppressedCount!
+  priorResponses: SuppressedCount!
+  share: Float
+  priorShare: Float
+  sharePointChange: Float
+  trend: ExecutiveTrend!
+  "True when this cell meets the approved alert threshold (RISING)."
+  alert: Boolean!
+}
+
+type ExecutiveMatrixRow {
+  topic: String!
+  isOther: Boolean!
+  cells: [ExecutiveMatrixCell!]!
+  regionsRising: Int!
+  regionsFalling: Int!
+  "Rising in two or more regions at once."
+  crossRegion: Boolean!
+}
+
+type ExecutiveThresholds {
+  minWindowResponses: Int!
+  minTopicResponses: Int!
+  minRelativeIncrease: Float!
+  minSharePoints: Float!
+  minCell: Int!
+  rule: String!
+  "True when an administrator approved this rule as a governed definition."
+  approved: Boolean!
+  definitionId: String
+  version: Int
+  approvedAt: AWSDateTime
+}
+
+type ExecutiveTopicMatrix {
+  from: AWSDate!
+  to: AWSDate!
+  priorFrom: AWSDate!
+  priorTo: AWSDate!
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+  accessLevel: ExecutiveAccessLevel!
+  facet: ExecutiveThemeFacet!
+  facetValue: String
+  definitionVersion: String!
+  disclosure: DisclosureRule!
+  thresholds: ExecutiveThresholds!
+  regions: [ExecutiveMatrixRegion!]!
+  rows: [ExecutiveMatrixRow!]!
+  sampleLimitations: [String!]!
+  note: String!
+}
+
+type LeadershipFigure { label: String!, value: SuppressedCount!, citationIds: [ID!]! }
+"""Generated text. Every statement cites at least one citation from the summary's citation list."""
+type LeadershipStatement { statementId: ID!, section: String!, text: String!, citationIds: [ID!]! }
+
+"""
+A saved leadership summary. Access is re-checked every time it is returned: Forbidden when the caller is no
+longer an Executive, when any territory it covers has left their explicit scope, or when it holds record-level
+material and the permission was withdrawn.
+"""
+type LeadershipSummary {
+  summaryId: ID!
+  title: String!
+  from: AWSDate!
+  to: AWSDate!
+  dataThrough: AWSDateTime
+  generatedAt: AWSDateTime!
+  scopeLabel: String!
+  scopeTerritoryIds: [ID!]!
+  accessLevel: ExecutiveAccessLevel!
+  definitionVersion: String!
+  "claude, or stub when no model was available."
+  modelMode: String!
+  "verified, filtered (statements with unsupported figures were dropped) or unchecked (stub)."
+  numberCheck: String!
+  droppedStatements: Int!
+  stale: Boolean!
+  staleReasons: [LeadershipStaleReason!]!
+  currentDataThrough: AWSDateTime
+  keyFigures: [LeadershipFigure!]!
+  statements: [LeadershipStatement!]!
+  sampleLimitations: [String!]!
+  definitions: [OverviewDefinition!]!
+  citations: [ExecutiveCitation!]!
+  disclosure: DisclosureRule!
+  regeneratesSummaryId: ID
+}
+
+type LeadershipSummaryItem {
+  summaryId: ID!
+  title: String
+  from: AWSDate
+  to: AWSDate
+  generatedAt: AWSDateTime!
+  dataThrough: AWSDateTime
+  "False when the caller can no longer open it; nothing else about it is revealed."
+  accessible: Boolean!
+  stale: Boolean!
+}
+
+"""A print-ready snapshot created only after the current access check succeeds."""
+type LeadershipSummaryExport {
+  summaryId: ID!
+  title: String!
+  scopeLabel: String!
+  from: AWSDate!
+  to: AWSDate!
+  dataThrough: AWSDateTime
+  generatedAt: AWSDateTime!
+  exportedAt: AWSDateTime!
+  accessLevel: ExecutiveAccessLevel!
+  definitionVersion: String!
+  keyFigures: [LeadershipFigure!]!
+  statements: [LeadershipStatement!]!
+  sampleLimitations: [String!]!
+  definitions: [OverviewDefinition!]!
+  citations: [ExecutiveCitation!]!
+  disclosureText: String!
+}
+
 """What the user is looking at when they open the chat from a dashboard. The agent treats it as defaults, not as authority."""
 enum ChatIntent { FREE TERRITORY_SUMMARY }
 input ChatContextInput { view: String, territoryId: String, questionId: String, from: AWSDate, to: AWSDate, intent: ChatIntent }
@@ -1369,6 +1571,14 @@ type Query {
   executiveOverview(from: AWSDate, to: AWSDate, rankBy: ExecutiveRankBy): ExecutiveOverview!
   "The calls or responses behind one chart point. Refused without explicit record-level permission."
   executiveDrilldown(scopeId: ID!, kind: ExecutiveDrilldownKind!, month: AWSDate!, limit: Int): ExecutiveDrilldown!
+  "Executive: portfolio, molecule, disease-area or study theme cards with trend arrows, counts and citations. Aggregate-only."
+  executiveThemes(from: AWSDate, to: AWSDate, facet: ExecutiveThemeFacet): ExecutiveThemes!
+  "Executive: topic-by-region matrix with trend arrows, counts and the approved alert thresholds. Small groups withheld."
+  executiveTopicMatrix(from: AWSDate, to: AWSDate, facet: ExecutiveThemeFacet, facetValue: String): ExecutiveTopicMatrix!
+  "Reopen a saved leadership summary. Re-checks access and computes staleness."
+  leadershipSummary(summaryId: ID!): LeadershipSummary!
+  "The caller's saved leadership summaries, newest first."
+  myLeadershipSummaries: [LeadershipSummaryItem!]!
   "The caller's own flags, newest first."
   myFlags: [Flag!]!
   adminAccessOverview: AdminAccessOverview!
@@ -1434,6 +1644,10 @@ type Mutation {
   saveBriefEdits(input: BriefEditInput!): PreCallBrief!
   "Create a printable brief snapshot after re-checking access and recording the export audit event."
   exportBrief(briefId: ID!): BriefExport!
+  "Executive: generate and save a source-linked leadership summary for a date range over the explicit scope."
+  generateLeadershipSummary(from: AWSDate, to: AWSDate, regeneratesSummaryId: ID): LeadershipSummary!
+  "Create a printable leadership summary after re-checking access and recording the export audit event."
+  exportLeadershipSummary(summaryId: ID!): LeadershipSummaryExport!
   "Raise a flag. Raising the same open flag again returns the existing one."
   flagIssue(input: FlagInput!): Flag!
   approveIdentityMapping(input: IdentityMappingInput!): IdentityMatch!

@@ -84,6 +84,9 @@ class NullBriefWriter:
     def save_brief(self, item: dict[str, Any]) -> bool:
         return False
 
+    def save_item(self, item: dict[str, Any]) -> bool:
+        return False
+
 
 _SERIALIZER = TypeSerializer()
 
@@ -117,19 +120,24 @@ class DynamoBriefWriter:
         return self._client
 
     def save_brief(self, item: dict[str, Any]) -> bool:
+        return self.save_item(item)
+
+    def save_item(self, item: dict[str, Any]) -> bool:
+        """Write one generated output (a brief, or a leadership summary under ``SUMMARY#``) exactly once."""
+        key = item.get("briefId") or item.get("summaryId")
         try:
             self._dynamodb().put_item(
                 TableName=self._table,
                 Item={k: _SERIALIZER.serialize(v) for k, v in item.items() if v is not None},
-                # A brief is written once; edits and reads belong to the BE Lambda's own narrow role.
+                # An item is written once; edits and reads belong to the BE Lambda's own narrow role.
                 ConditionExpression="attribute_not_exists(pk)",
             )
         except Exception as exc:
             # Type only: a client error message can echo item values.
-            log.error("brief write failed", brief_id=item.get("briefId"), error_type=type(exc).__name__)
+            log.error("generated output write failed", item_id=key, error_type=type(exc).__name__)
             self._client = None
             return False
-        log.info("brief saved", brief_id=item.get("briefId"), outcome="ok")
+        log.info("generated output saved", item_id=key, outcome="ok")
         return True
 
 

@@ -7,6 +7,7 @@
 import { todayIso, addDays } from "@/lib/dates"
 import type { ChatContext } from "./director-insights"
 import { TERRITORIES, type FixtureUser } from "./fixtures"
+import { buildMatrix, buildThemes } from "./mock-executive-themes"
 import { inferMockVisual, mockVisual } from "./mock-visuals"
 import { mockResponseRecord, mockTerritorySummary } from "./mock-director-insights"
 import type { ChatEventPage, SourceRecord } from "./types"
@@ -49,7 +50,47 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
     answer = summary.text
   } else if (summaryTerritory) {
     answer = `Territory ${summaryTerritory} is outside your scope, so I cannot summarise it.`
-  } else if (user.persona === "executive" || user.persona === "admin" || user.territoryIds.length === 0) {
+  } else if (user.persona === "executive" && user.territoryIds.length > 0) {
+    // Organisational analysis for an Executive: aggregate figures only, with the sample limitations stated and the
+    // cited sets described (never named). Same shape as the agent's executive tools.
+    const to = context?.to ?? todayIso(new Date(now))
+    const range = { from: context?.from ?? addDays(to, -89), to }
+    const input = {
+      territories: TERRITORIES.filter((t) => user.territoryIds.includes(t.id)),
+      range,
+      dataThrough: new Date(now - 86_400_000).toISOString(),
+      scopeLabel: user.scopeLabel,
+      records: false,
+      empty: false,
+    }
+    const portfolio = buildThemes(input, "PORTFOLIO").groups[0]
+    const matrix = buildMatrix(input, "PORTFOLIO", null)
+    const top = portfolio.cards.filter((c) => c.responses.value !== null).slice(0, 2)
+    const cross = matrix.rows.filter((r) => r.crossRegion && !r.isOther)
+    const period = `${range.from} to ${range.to}`
+    const cites = top.flatMap((c) => c.citations).map((c) => ({ record_id: c.citationId, dataset: c.dataset, label: c.label, kind: "aggregate", detail: `Described by its filters and size. Window ${period}.` }))
+    const total = portfolio.freeTextResponses.value
+    events.push(
+      ev("TOOL_CALL_START", { toolCallId: "t1", toolCallName: "get_org_themes" }),
+      custom("source_facts", {
+        facts: [
+          ...(total !== null ? [{ fact_id: "f1", label: "Free-text responses", value: total, unit: "responses", period, scope: "your regions", citation_ids: [] }] : []),
+          { fact_id: "f2", label: "Topics rising in 2+ regions", value: cross.length, unit: "topics", period, scope: "your regions", citation_ids: [] },
+        ],
+        data_through: new Date(now - 86_400_000).toISOString(),
+      }),
+      custom("citations", cites),
+      custom("sample_limitations", { items: matrix.sampleLimitations }),
+      ev("TOOL_CALL_END", { toolCallId: "t1" }),
+    )
+    const lead = top.map((c) => `${c.topic} (${c.responses.value?.toLocaleString("en-US")} responses)`).join(" and ")
+    answer =
+      `Between ${period}, ${total === null ? "a small number of" : total.toLocaleString("en-US")} free-text responses were recorded in your regions. ` +
+      (lead ? `The most recorded themes were ${lead}. ` : "") +
+      (cross.length ? `${cross.map((r) => r.topic).join(" and ")} rose in two or more regions at the approved threshold; that is a change in what was recorded, not a cause.` : "No topic rose in two or more regions at the approved threshold.") +
+      `\n\nSample limitations: ${matrix.sampleLimitations.join(" ")}`
+    suggestions.splice(0, suggestions.length, "Which topics are rising in more than one region?", "Which regions have too few responses to judge a trend?", "What did we withhold, and why?")
+  } else if (user.persona === "admin" || user.territoryIds.length === 0) {
     answer = "Record-level questions are not available for your role yet. Aggregate views are on your landing page."
   } else if (asked && !user.territoryIds.includes(asked)) {
     answer = `Territory ${asked} is outside your scope, so I cannot show any data for it. I can answer for the territories you have access to.`
@@ -106,8 +147,9 @@ export function readRun(runId: string, after: number, now = Date.now()): ChatEve
   return { events, done: finished && events.length === run.events.filter((e) => e.seq > after).length, status: finished ? "FINISHED" : "RUNNING" }
 }
 
-export function mockCitation(dataset: string, recordId: string, user: FixtureUser, now: Date = new Date()): SourceRecord | null {
-  if (user.territoryIds.length === 0 || user.persona === "executive") return null
+export function mockCitation(dataset: string, recordId: string, user: FixtureUser, now: Date = new Date(), recordAccess = false): SourceRecord | null {
+  // An Executive opens a record only with explicit record-level permission (the `records` mock scenario).
+  if (user.territoryIds.length === 0 || (user.persona === "executive" && !recordAccess)) return null
   if (dataset === "hcp_raw_insights") {
     const to = todayIso(now)
     const record = mockResponseRecord(recordId, { from: addDays(to, -89), to })

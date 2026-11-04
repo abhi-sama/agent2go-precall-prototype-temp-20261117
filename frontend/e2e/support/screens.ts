@@ -20,6 +20,8 @@ export interface ScreenSpec {
 
 const heading = (name: string, level = 1) => (page: Page) =>
   expect(page.getByRole("heading", { level, name })).toBeVisible()
+/** A toast is a transient overlay (a confirmation, not part of the screen), so measure once it has gone. */
+const toastsGone = (page: Page) => expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 12_000 })
 const testId = (id: string) => (page: Page) => expect(page.getByTestId(id).first()).toBeVisible()
 
 const STATE_APPEARANCES = [
@@ -312,6 +314,80 @@ export const SCREENS: ScreenSpec[] = [
       await page.getByTestId("country-option-BR").click()
       await expect(page.getByTestId("territory-map")).toHaveAttribute("data-view", "country", { timeout: 15_000 })
       await expect(page.getByTestId("flat-map-canvas")).toBeVisible()
+    },
+  },
+  {
+    name: "executive-themes",
+    path: "/executive/themes",
+    userId: "u-exec-all",
+    ready: async (page) => {
+      await testId("theme-card")(page)
+      await testId("topic-matrix")(page)
+      await expect(page.getByTestId("saved-summaries")).toBeVisible()
+      await expect(page.getByTestId("themes-loading")).toHaveCount(0)
+      await expect(page.getByTestId("matrix-loading")).toHaveCount(0)
+    },
+  },
+  {
+    name: "executive-themes-molecule",
+    path: "/executive/themes",
+    userId: "u-exec-all",
+    ready: testId("theme-card"),
+    prepare: async (page) => {
+      await page.getByTestId("facet-MOLECULE").click()
+      await expect(page.getByTestId("theme-group")).toHaveCount(4)
+      await expect(page.getByTestId("topic-matrix")).toHaveAttribute("data-facet", "MOLECULE")
+    },
+  },
+  {
+    name: "executive-themes-records",
+    path: "/executive/themes?scenario=records",
+    userId: "u-exec-all",
+    ready: async (page) => { await testId("theme-card")(page); await testId("source-record")(page) },
+  },
+  {
+    name: "executive-themes-summary",
+    path: "/executive/themes",
+    userId: "u-exec-all",
+    ready: testId("generate-leadership-summary"),
+    prepare: async (page) => {
+      await page.getByTestId("generate-leadership-summary").click()
+      await expect(page.getByTestId("leadership-summary")).toBeVisible({ timeout: 15_000 })
+      await toastsGone(page)
+    },
+  },
+  {
+    name: "executive-themes-export",
+    path: "/executive/themes",
+    userId: "u-exec-all",
+    ready: testId("generate-leadership-summary"),
+    prepare: async (page) => {
+      await page.getByTestId("generate-leadership-summary").click()
+      await page.getByTestId("export-summary").click({ timeout: 15_000 })
+      await expect(page.getByTestId("leadership-export-preview")).toBeVisible({ timeout: 15_000 })
+      await toastsGone(page)
+    },
+  },
+  {
+    name: "executive-themes-analysis",
+    path: "/executive/themes",
+    userId: "u-exec-all",
+    ready: testId("org-suggestion"),
+    prepare: async (page) => {
+      await page.getByTestId("org-suggestion").first().click()
+      await expect(page.getByTestId("assistant-turn").first()).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("sample-limitations").last()).toBeVisible()
+    },
+  },
+  {
+    name: "executive-themes-scope-changed",
+    path: "/executive/themes?scenario=scope-changed",
+    userId: "u-exec-all",
+    ready: testId("saved-summary"),
+    prepare: async (page) => {
+      await page.getByTestId("open-summary").first().click()
+      await expect(page.getByTestId("access-changed")).toBeVisible()
+      await toastsGone(page)
     },
   },
   {

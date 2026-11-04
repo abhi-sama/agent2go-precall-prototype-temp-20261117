@@ -128,7 +128,9 @@ def test_every_persona_can_ask_and_executives_get_no_record_level_data():
     assert director.types[-1] == "RUN_FINISHED" and director.facts
     executive = Persona.sign_in("executive-region-01").chat("How many calls were made in my region? Use the tool.")
     assert executive.types[-1] == "RUN_FINISHED"
-    assert not executive.facts and not executive.citations, "aggregate-only access reads no source rows"
+    # An Executive's analysis is aggregate: counts of free-text responses with aggregate citations, and no record is cited or opened.
+    assert executive.citations and all(c.get("kind") == "aggregate" for c in executive.citations), "aggregate-only access cites no source rows"
+    assert {f["unit"] for f in executive.facts} == {"responses"}, "and reads no call or HCP rows"
 
 
 def test_conversation_is_stored_in_fe_dynamodb_keyed_to_the_user(msl_run):

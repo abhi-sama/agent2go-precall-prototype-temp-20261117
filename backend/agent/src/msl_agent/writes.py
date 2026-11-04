@@ -44,6 +44,8 @@ class ConversationTurn:
     data_through: dt.datetime | None = None
     model_mode: str = "claude"
     unverified_numbers: list[str] = field(default_factory=list)
+    #: Executive analysis only: the limits of the sample the answer rests on, stated in the answer itself.
+    sample_limitations: list[str] = field(default_factory=list)
 
 
 class ConversationWriteTool(Protocol):
@@ -81,6 +83,7 @@ def item_for(turn: ConversationTurn, *, now: dt.datetime | None = None) -> dict[
         "generated_at": generated.isoformat(),
         "model_mode": turn.model_mode,
         "unverified_numbers": turn.unverified_numbers,
+        "sample_limitations": turn.sample_limitations,
         "expires_at": int(generated.timestamp()) + RETENTION_DAYS * 86_400,
     }
 

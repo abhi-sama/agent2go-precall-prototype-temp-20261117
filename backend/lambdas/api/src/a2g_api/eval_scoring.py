@@ -123,6 +123,9 @@ def unique_citations(citations: Iterable[Mapping[str, Any]]) -> list[tuple[str, 
     seen: list[tuple[str, str]] = []
     for c in citations:
         key = (str(c.get("dataset") or ""), str(c.get("record_id") or ""))
+        # An aggregate citation (an Executive's) names a set of responses, not a record anyone could read or leak.
+        if c.get("kind") == "aggregate" or key[1].startswith("agg:"):
+            continue
         if key[1] and key not in seen:
             seen.append(key)
     return seen

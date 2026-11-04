@@ -36,6 +36,7 @@ from typing import Any
 
 import psycopg
 
+from a2g_exec_analysis import suppress_flags
 from a2g_logging import get_logger
 
 from .activity import _add_months, _as_date, _int_arg, _month_end, _month_start, _parse_month
@@ -84,24 +85,6 @@ def disclosure_text(min_cell: int = MIN_CELL) -> str:
 
 
 # --------------------------------------------------------------------------- suppression
-
-
-def suppress_flags(values: Sequence[int | None], total: int | None, *, additive: bool, min_cell: int = MIN_CELL) -> tuple[list[bool], bool]:
-    """Which values to withhold, and whether the total must be withheld too.
-
-    A value is a small group when ``0 < value < min_cell``; zero identifies nobody. For components that sum
-    to a shown total (``additive``), exactly one withheld component could be recovered as total minus the others,
-    so the smallest other positive component is withheld as well; with none to withhold, the total goes.
-    """
-    flags = [v is not None and 0 < v < min_cell for v in values]
-    total_hidden = total is not None and 0 < total < min_cell
-    if additive and not total_hidden and sum(flags) == 1:
-        candidates = [(v, i) for i, (v, f) in enumerate(zip(values, flags)) if not f and v is not None and v > 0]
-        if candidates:
-            flags[min(candidates)[1]] = True
-        else:
-            total_hidden = True
-    return flags, total_hidden
 
 
 def _count(value: int | None, hidden: bool) -> dict[str, Any]:

@@ -70,14 +70,17 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     expect(overflow).toBeLessThanOrEqual(0)
   })
 
-  test("executive gets a plain aggregate-only answer, not data", async ({ page }) => {
+  test("executive gets an aggregate-only analysis that states its sample limitations, with no records", async ({ page }) => {
     await page.addInitScript(() => window.localStorage.setItem("a2g.local.userId", "u-exec-all"))
     await page.goto("/chat")
-    await ask(page, "How many calls were there?")
+    await ask(page, "Which topics are rising across regions?")
     await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
-    await expect(page.getByTestId("ai-summary")).toContainText("not available for your role")
-    await expect(page.getByTestId("source-facts")).toHaveCount(0)
+    await expect(page.getByTestId("sample-limitations")).toBeVisible()
+    await expect(page.getByTestId("ai-summary")).not.toContainText("Sample limitations")
     await expect(page.getByTestId("aggregate-only-note")).toContainText("does not grant source-row access")
+    // Sources describe sets of responses; none names a record.
+    await expect(page.getByTestId("ai-summary").getByTestId("inline-citation").first()).toBeVisible()
+    await expect(page.getByTestId("fact-f2")).toBeVisible()
   })
 
   test("a trend question draws a line whose values add up to the key figure; a plain count stays text and key figures", async ({ page }) => {

@@ -13,7 +13,8 @@ from .agent import MslAgent
 from .briefs import BriefRunner, BriefWriteTool, DynamoBriefWriter, NullBriefWriter
 from .config import Settings
 from .repository import ScopedReadRepository, repository_for
-from .schemas import Invocation
+from .schemas import BriefTask, Invocation, SummaryTask
+from .summaries import SummaryRunner
 from .writes import ConversationWriteTool, DynamoConversationWriter, NullConversationWriter
 
 configure(service="msl-agent")
@@ -42,12 +43,14 @@ def create_app(
     writer: ConversationWriteTool | None = None,
     runtime: MslAgent | None = None,
     briefs: BriefRunner | None = None,
+    summaries: SummaryRunner | None = None,
 ) -> FastAPI:
     resolved = settings or Settings.from_environment()
     agent = runtime or MslAgent(
         resolved, repository or repository_for(resolved.database_url), writer or writer_for(resolved)
     )
     brief_runner = briefs or BriefRunner(resolved, brief_writer_for(resolved))
+    summary_runner = summaries or SummaryRunner(resolved, brief_writer_for(resolved))
     app = FastAPI(title="MSL Agent Runtime", version="0.2.0")
 
     @app.get("/ping")
@@ -58,8 +61,15 @@ def create_app(
     async def invoke(invocation: Invocation) -> StreamingResponse:
         async def stream() -> AsyncIterator[bytes]:
             with correlation(invocation.identity.correlation_id):
-                # One AgentCore contract serves chat and briefs; a task selects the brief path.
-                runner = brief_runner if invocation.task is not None else agent
+                # One AgentCore contract serves chat, briefs and leadership summaries; the task type selects the path.
+                task = invocation.task
+                runner: BriefRunner | SummaryRunner | MslAgent
+                if isinstance(task, BriefTask):
+                    runner = brief_runner
+                elif isinstance(task, SummaryTask):
+                    runner = summary_runner
+                else:
+                    runner = agent
                 async for event in runner.run(invocation):
                     yield ag_ui.sse(event)
 

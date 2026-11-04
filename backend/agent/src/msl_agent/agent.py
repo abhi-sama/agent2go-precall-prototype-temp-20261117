@@ -30,7 +30,7 @@ from strands.models import BedrockModel
 
 from . import ag_ui, visuals
 from .config import Settings
-from .intent import infer_chart_request
+from .intent import infer_chart_request, infer_executive_facet, wants_region_matrix
 from .numbers import allowed_numbers, unverified_numbers
 from .repository import ScopedReadRepository
 from .schemas import Citation, Identity, Invocation
@@ -77,11 +77,33 @@ step, call suggest_follow_ups once with up to three short follow-up questions (n
 the answer after that call.
 """
 
+EXECUTIVE_ADDENDUM = """
+The user is an Executive with aggregate-only access to the regions they are explicitly authorized for. You do \
+organisational analysis with two tools, get_org_themes (theme cards by portfolio, molecule, disease area or study) \
+and get_region_topic_matrix (topics by region with trend arrows). The record-level tools return aggregate_only for \
+this user; say so only if asked for individual calls, HCPs or responses.
+Executive rules:
+- Themes are keyword groupings of free-text responses: derived, never source facts. Describe them as "recorded" themes.
+- A trend is a change in recorded responses between two equal periods under an approved threshold rule. Never name a \
+cause, never say why a topic changed, never say what an HCP thinks or intends, and never recommend an action.
+- A value marked "withheld (small group)" is hidden on purpose to protect small groups. Say it is withheld; never \
+estimate it, rank it, or work it out from other figures.
+- Keep the answer under 120 words: the leading themes with their counts, which ones the tool marks as rising or \
+falling, and anything withheld. The application appends the sample limitations (how many responses, which regions \
+have too few for a trend, what is withheld) to your answer in full, so mention them in one short clause at most.
+"""
+
 SUMMARY_TASK = """Task: write an AI summary of the recorded themes and changes for territory {territory}{period}.
 Call get_topic_trends exactly once with that territory{dates}, then write 3 to 5 short plain sentences: the leading \
 themes by their recorded response counts, which topics the tool flags as EMERGING or DECLINING under its stated rule, \
 and how many free-text responses the periods hold. Say a topic is mentioned more or less often, never why. \
 No clinical advice, no recommendations, no inferred views of any HCP. Do not call suggest_follow_ups."""
+
+EXECUTIVE_SUGGESTIONS = [
+    "Which themes are rising across regions?",
+    "Which topics show up in more than one region?",
+    "How large are the samples behind these themes?",
+]
 
 SUMMARY_SUGGESTIONS = [
     "Which topics are emerging in this territory?",
@@ -165,7 +187,8 @@ class MslAgent:
             endpoint_url=self._settings.bedrock_endpoint,
             region_name=self._settings.aws_region,
             streaming=True,  # BedrockModel selects ConverseStream; floci proxies only Converse/ConverseStream.
-            max_tokens=self._settings.max_output_tokens,
+            # An organisational answer cites several themes and regions, so it gets more room than a single-number answer.
+            max_tokens=self._settings.max_output_tokens * (2 if invocation.identity.persona == "Executive" else 1),
             boto_client_config=Config(read_timeout=90, retries={"max_attempts": 2, "mode": "standard"}),
         )
         return Agent(
@@ -174,6 +197,7 @@ class MslAgent:
             system_prompt=SYSTEM_PROMPT.format(
                 persona=invocation.identity.persona, today=dt.date.today().isoformat()
             )
+            + (EXECUTIVE_ADDENDUM if invocation.identity.persona == "Executive" else "")
             + context_note(invocation),
             messages=_history(invocation),
             callback_handler=None,  # events are consumed from stream_async, never printed
@@ -189,8 +213,19 @@ class MslAgent:
             tool_context=SimpleNamespace(tool_use={"toolUseId": f"auto-{len(ctx.visuals) + 1}"}, agent=None),
         )
 
+    @staticmethod
+    def _run_executive(ctx: RunContext, tools: dict[str, Any], question: str) -> None:
+        """Deterministic floor for an Executive run: the aggregate evidence exists whatever the model did."""
+        facet = infer_executive_facet(question)
+        ctx.tool_calls = 0  # a backstop is not charged to the model's tool budget
+        tools["get_org_themes"](facet=facet)
+        if wants_region_matrix(question):
+            ctx.tool_calls = 0
+            tools["get_region_topic_matrix"](facet=facet)
+
     async def run(self, invocation: Invocation) -> AsyncIterator[ag_ui.Event]:
         identity: Identity = invocation.identity
+        is_executive = identity.persona == "Executive"
         run_id = invocation.run_id or str(uuid4())
         message_id = str(uuid4())
         started = time.perf_counter()
@@ -215,15 +250,18 @@ class MslAgent:
                 # floci's stub answers with canned text and never calls tools, so the facts the panel
                 # shows are computed up front by the same deterministic tool.
                 tools = {t.tool_name: t for t in build_tools(ctx)}
-                await asyncio.to_thread(tools["get_activity_summary"])
+                if is_executive:
+                    await asyncio.to_thread(self._run_executive, ctx, tools, invocation.question)
+                else:
+                    await asyncio.to_thread(tools["get_activity_summary"])
                 summary_ctx = invocation.context
-                if summary_ctx is not None and summary_ctx.intent == "TERRITORY_SUMMARY":
+                if not is_executive and summary_ctx is not None and summary_ctx.intent == "TERRITORY_SUMMARY":
                     await asyncio.to_thread(
                         tools["get_topic_trends"], summary_ctx.from_date or "", summary_ctx.to_date or "", summary_ctx.territory_id or ""
                     )
                 for event in drain():
                     yield event
-                request = infer_chart_request(invocation.question)
+                request = None if is_executive else infer_chart_request(invocation.question)
                 if request:
                     await asyncio.to_thread(self._run_chart, ctx, tools, request)
                     for event in drain():
@@ -268,6 +306,23 @@ class MslAgent:
                     yield ag_ui.text_content(message_id, delta)
                 for event in drain():
                     yield event
+            if is_executive:
+                if not ctx.executive_evidence:
+                    # The model answered without the aggregate tools (or the stub never calls any): run them here.
+                    tools = {t.tool_name: t for t in build_tools(ctx)}
+                    await asyncio.to_thread(self._run_executive, ctx, tools, invocation.question)
+                for event in drain():
+                    yield event
+                if ctx.limitations:
+                    # The acceptance rule "answers state their sample limitations" is enforced by code, not by the prompt.
+                    paragraph = ("\n\n" if text_parts else "") + "Sample limitations: " + " ".join(ctx.limitations)
+                    if not text_open:
+                        text_open = True
+                        yield ag_ui.text_start(message_id)
+                    text_parts.append(paragraph)
+                    ctx.answer_chars += len(paragraph)
+                    yield ag_ui.text_content(message_id, paragraph)
+                    yield ag_ui.custom("sample_limitations", {"items": list(ctx.limitations)})
             if text_open:
                 yield ag_ui.text_end(message_id)
             for event in drain():
@@ -282,7 +337,7 @@ class MslAgent:
             )
             return
 
-        if not ctx.visuals and self.mode == "claude":
+        if not ctx.visuals and self.mode == "claude" and not is_executive:
             # Floor for the rule "a trend or comparison always gets a chart": the model skipped the tool, so run
             # the same deterministic query from the question's own words.
             request = infer_chart_request(invocation.question)
@@ -316,7 +371,8 @@ class MslAgent:
         )
 
         is_summary = invocation.context is not None and invocation.context.intent == "TERRITORY_SUMMARY"
-        suggestions = clean_suggestions(ctx.suggestions) or (SUMMARY_SUGGESTIONS if is_summary else DEFAULT_SUGGESTIONS)
+        fallback = EXECUTIVE_SUGGESTIONS if is_executive else (SUMMARY_SUGGESTIONS if is_summary else DEFAULT_SUGGESTIONS)
+        suggestions = clean_suggestions(ctx.suggestions) or fallback
         yield ag_ui.custom("suggestions", suggestions)
 
         scope = await asyncio.to_thread(self._repository.scope, identity)
@@ -334,6 +390,7 @@ class MslAgent:
             data_through=ctx.data_through or scope.data_through,
             model_mode=self.mode,
             unverified_numbers=unverified,
+            sample_limitations=list(ctx.limitations),
         )
         # Evaluation runs (thread ids start with ``eval-``) ask as a seeded subject; their turns are not that
         # person's conversation history, so they are not saved.

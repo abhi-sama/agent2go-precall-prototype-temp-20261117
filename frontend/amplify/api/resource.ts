@@ -82,6 +82,12 @@ export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'evalRatings' },
   { typeName: 'Mutation', fieldName: 'startEvalRun' },
   { typeName: 'Mutation', fieldName: 'rateAnswer' },
+  { typeName: 'Query', fieldName: 'executiveThemes' },
+  { typeName: 'Query', fieldName: 'executiveTopicMatrix' },
+  { typeName: 'Query', fieldName: 'leadershipSummary' },
+  { typeName: 'Query', fieldName: 'myLeadershipSummaries' },
+  { typeName: 'Mutation', fieldName: 'generateLeadershipSummary' },
+  { typeName: 'Mutation', fieldName: 'exportLeadershipSummary' },
 ] as const;
 
 /**

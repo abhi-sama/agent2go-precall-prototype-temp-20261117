@@ -212,6 +212,18 @@ A derived theme whose share of free-text responses rose between two equal period
 It reports a change in what was recorded, never a cause.
 _Avoid_: trend (when meaning the rule's verdict), alert (alerts are the MSL optional feature)
 
+**Topic-by-region matrix**:
+Themes (rows) by an Executive's explicitly granted regions (columns): count, share of the region's free-text responses, and a trend arrow judged by the approved threshold rule. Small groups are withheld; a region with too few responses gets no trend.
+_Avoid_: heatmap (the Director's topic-by-territory view)
+
+**Aggregate citation**:
+The way an aggregate-only user's theme card or summary cites its source: the set of responses it rests on, named by theme, window and size, never a record. Record citations exist only with record-level permission.
+_Avoid_: source record (a single response)
+
+**Leadership summary**:
+An Executive's AI-written, source-linked summary of a date range over their explicit scope, with key figures, metric definitions and sample limitations. Saved with its scope; access is re-checked on open and export.
+_Avoid_: report
+
 **Exception**:
 A finding that a join, load, key or identity is missing or inconsistent inside the viewer's scope, detected by a fixed rule.
 It describes data, never a person's conduct.

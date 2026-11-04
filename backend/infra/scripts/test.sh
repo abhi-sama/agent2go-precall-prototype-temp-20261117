@@ -6,6 +6,8 @@ export DATABASE_URL=$(python3 -c "import json;print(json.load(open('$REPO/backen
 
 echo "== logging redaction (unit)"
 (cd "$REPO/backend/libs/a2g_logging" && uv run --quiet pytest -q)
+echo "== executive theme analysis library (unit)"
+(cd "$REPO/backend/libs/a2g_exec_analysis" && uv run --quiet pytest -q)
 echo "== BE API Lambda (unit)"
 (cd "$REPO/backend/lambdas/api" && uv run --quiet pytest -q)
 echo "== territory geography data (unit)"

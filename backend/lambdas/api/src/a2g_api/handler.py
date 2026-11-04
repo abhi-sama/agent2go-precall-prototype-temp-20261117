@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, briefs, chat, director, director_insights, eval_panel, eval_store, executive, flags, hierarchy, post_call, resolvers
+from . import activity, briefs, chat, director, director_insights, eval_panel, eval_store, executive, executive_themes, flags, hierarchy, leadership, post_call, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .embeddings import provider_from_config
@@ -81,6 +81,19 @@ def _eval_store(settings: Settings) -> eval_store.DynamoEvalStore:
     return _eval_store_cache
 
 
+_summary_store_cache: briefs.DynamoBriefStore | None = None
+
+
+def _summary_store(settings: Settings) -> briefs.DynamoBriefStore:
+    """Leadership summaries share the briefs table and its narrow role, under the ``SUMMARY#`` sort-key prefix."""
+    global _summary_store_cache
+    if _summary_store_cache is None:
+        if not (settings.briefs_table and settings.briefs_role_arn):
+            raise Unavailable("summaries_unconfigured")
+        _summary_store_cache = briefs.DynamoBriefStore(settings.briefs_table, settings.briefs_role_arn, prefix=leadership.SUMMARY_PREFIX)
+    return _summary_store_cache
+
+
 def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..., Any]]:
     # Do not require the FE operational table for unrelated resolver unit tests or
     # legacy deployments; only the saved-view fields construct its client.
@@ -106,6 +119,14 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "territoryComparison": director.territory_comparison,
         "executiveOverview": executive.executive_overview,
         "executiveDrilldown": executive.executive_drilldown,
+        "executiveThemes": executive_themes.executive_themes,
+        "executiveTopicMatrix": executive_themes.executive_topic_matrix,
+        "leadershipSummary": lambda *a: leadership.get_leadership_summary(*a, store=_summary_store(settings)),
+        "myLeadershipSummaries": lambda *a: leadership.my_leadership_summaries(*a, store=_summary_store(settings)),
+        "generateLeadershipSummary": lambda cur, identity, user_id, args: leadership.generate_leadership_summary(
+            cur, identity, user_id, args, store=_summary_store(settings), runtime=runtime_for(settings), correlation_id=correlation_id
+        ),
+        "exportLeadershipSummary": lambda *a: leadership.export_leadership_summary(*a, store=_summary_store(settings)),
         "topicHeatmap": director_insights.topic_heatmap,
         "questionAnalytics": director_insights.question_analytics,
         "emergingTopics": director_insights.emerging_topics,

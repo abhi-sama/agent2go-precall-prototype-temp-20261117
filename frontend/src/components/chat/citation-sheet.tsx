@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { SourceFact } from "@/components/provenance/provenance"
 import { ErrorState } from "@/components/state/states"
 import { Skeleton } from "@/components/ui/skeleton"
-import type { CitationItem } from "@/lib/chat/events"
+import { isAggregateCitation, type CitationItem } from "@/lib/chat/events"
 import { buildFactCsv, downloadText } from "@/lib/provenance"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
@@ -71,16 +71,32 @@ function CitationBody({ citation }: { citation: CitationItem }) {
   )
 }
 
+/**
+ * An aggregate citation describes the set of responses a figure rests on. There is no single record to fetch, so this
+ * never calls the record query (an aggregate-only viewer would be refused anyway); it says what the set is.
+ */
+function AggregateBody({ citation }: { citation: CitationItem }) {
+  return (
+    <SourceFact title="Aggregate source">
+      <p data-testid="aggregate-citation" className="text-sm">{citation.label}</p>
+      {citation.detail && <p data-testid="aggregate-citation-detail" className="mt-2 text-sm text-muted-foreground">{citation.detail}</p>}
+      <p className="mt-4 rounded-xl border border-dashed p-3 text-xs text-muted-foreground">
+        This source describes a group of recorded responses, not a single record. Individual responses are not shown to aggregate-only access, and groups smaller than the disclosure threshold are withheld.
+      </p>
+    </SourceFact>
+  )
+}
+
 /** Opens a cited record. The BE returns it only if the viewer's access covers it. */
 export function CitationSheet({ citation, onClose }: { citation: CitationItem | null; onClose: () => void }) {
   return (
     <Sheet open={citation !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md" data-testid="citation-sheet">
         <SheetHeader>
-          <SheetTitle>Source record</SheetTitle>
+          <SheetTitle>{citation && isAggregateCitation(citation) ? "Aggregate source" : "Source record"}</SheetTitle>
           <SheetDescription>{citation?.label}</SheetDescription>
         </SheetHeader>
-        <div className="px-4 pb-6">{citation && <CitationBody key={`${citation.dataset}:${citation.recordId}`} citation={citation} />}</div>
+        <div className="px-4 pb-6">{citation && (isAggregateCitation(citation) ? <AggregateBody key={citation.recordId} citation={citation} /> : <CitationBody key={`${citation.dataset}:${citation.recordId}`} citation={citation} />)}</div>
       </SheetContent>
     </Sheet>
   )

@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "MSL AgentCore-compatible Strands runtime"
 requires-python = ">=3.12,<3.15"
 dependencies = [
+  "a2g-exec-analysis",
   "a2g-logging",
   "boto3>=1.35",
   "fastapi>=0.115",
@@ -14,6 +15,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
+a2g-exec-analysis = { path = "../libs/a2g_exec_analysis", editable = true }
 a2g-logging = { path = "../libs/a2g_logging", editable = true }
 
 [build-system]

@@ -29,6 +29,7 @@ from .config import (
 
 SRC_API = REPO / "backend" / "lambdas" / "api" / "src" / "a2g_api"
 SRC_LOG = REPO / "backend" / "libs" / "a2g_logging" / "src" / "a2g_logging"
+SRC_EXEC = REPO / "backend" / "libs" / "a2g_exec_analysis" / "src" / "a2g_exec_analysis"
 DEPS = ["boto3>=1.35", "psycopg[binary]>=3.2", "pyjwt[crypto]>=2.9"]
 
 
@@ -56,7 +57,7 @@ def build() -> tuple[bytes, str]:
         tmp.rename(deps_dir)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, prefix in ((deps_dir, Path()), (SRC_API, Path("a2g_api")), (SRC_LOG, Path("a2g_logging"))):
+        for root, prefix in ((deps_dir, Path()), (SRC_API, Path("a2g_api")), (SRC_LOG, Path("a2g_logging")), (SRC_EXEC, Path("a2g_exec_analysis"))):
             for f in sorted(root.rglob("*")):
                 if f.is_file() and "__pycache__" not in f.parts:
                     zf.write(f, prefix / f.relative_to(root))

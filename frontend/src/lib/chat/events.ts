@@ -24,7 +24,16 @@ export interface CitationItem {
   recordId: string
   dataset: string
   label: string
+  /**
+   * "aggregate" describes a set of responses (filters and size) instead of naming one record, so there is nothing to
+   * open: it never calls the record query. Executives without record-level permission get only these.
+   */
+  kind?: "record" | "aggregate"
+  detail?: string
 }
+
+/** Aggregate citations carry an `agg:` id; the agent also sends `kind` explicitly. */
+export const isAggregateCitation = (citation: CitationItem) => citation.kind === "aggregate" || citation.recordId.startsWith("agg:")
 
 /** A citation keeps one display number for the complete answer. */
 export function citationNumber(citations: CitationItem[], citation: CitationItem): number {
@@ -96,6 +105,8 @@ export interface AssistantTurn {
   text: string
   facts: FactItem[]
   citations: CitationItem[]
+  /** Why these figures may not generalise (window, small samples, withheld groups). Set for Executive analysis. */
+  sampleLimitations: string[]
   visuals: VisualItem[]
   suggestions: string[]
   tools: { id: string; name: string; done: boolean }[]
@@ -114,6 +125,7 @@ export function newTurn(runId: string): AssistantTurn {
     text: "",
     facts: [],
     citations: [],
+    sampleLimitations: [],
     visuals: [],
     suggestions: [],
     tools: [],
@@ -145,7 +157,17 @@ function parseFacts(value: unknown): FactItem[] {
 
 function parseCitations(value: unknown): CitationItem[] {
   if (!Array.isArray(value)) return []
-  return value.filter(isObject).map((c) => ({ recordId: str(c.record_id), dataset: str(c.dataset), label: str(c.label) }))
+  return value.filter(isObject).map((c) => {
+    const recordId = str(c.record_id)
+    const aggregate = c.kind === "aggregate" || recordId.startsWith("agg:")
+    return {
+      recordId,
+      dataset: str(c.dataset),
+      label: str(c.label),
+      ...(aggregate ? { kind: "aggregate" as const } : {}),
+      ...(typeof c.detail === "string" && c.detail ? { detail: c.detail } : {}),
+    }
+  })
 }
 
 const VISUAL_KINDS: readonly VisualKind[] = ["bar", "line", "distribution", "heatmap", "timeline", "table"]
@@ -255,6 +277,11 @@ function applyCustom(turn: AssistantTurn, name: string, value: unknown): Assista
     }
     case "visual":
       return applyVisual(turn, value)
+    case "sample_limitations": {
+      const items = isObject(value) && Array.isArray(value.items) ? value.items.filter((i): i is string => typeof i === "string" && i.trim() !== "") : []
+      const merged = [...new Set([...turn.sampleLimitations, ...items])]
+      return items.length ? { ...turn, sampleLimitations: merged } : turn
+    }
     case "suggestions":
       return { ...turn, suggestions: Array.isArray(value) ? value.filter((s): s is string => typeof s === "string").slice(0, 3) : [] }
     case "number_check": {

@@ -64,3 +64,23 @@ def infer_chart_request(question: str) -> ChartRequest | None:
     if _COMPARE.search(question):
         return ChartRequest(metric, _group(question, metric), "bar")
     return None
+
+
+_REGIONAL = re.compile(r"\b(regions?|regional|cross[- ]region|matrix|across|emerging|rising|which regions?)\b", re.I)
+
+
+def wants_region_matrix(question: str) -> bool:
+    """Whether an Executive question is about topics across regions (so the matrix is the right evidence)."""
+    return bool(_REGIONAL.search(question))
+
+
+def infer_executive_facet(question: str) -> str:
+    """Which grouping of themes an Executive question names. Only chooses *which* deterministic query to run."""
+    q = question.lower()
+    if re.search(r"\b(molecules?|drugs?|products?)\b", q):
+        return "MOLECULE"
+    if re.search(r"\b(disease areas?|landscapes?|tumou?rs?)\b", q):
+        return "DISEASE_AREA"
+    if re.search(r"\b(stud(?:y|ies)|trials?)\b", q):
+        return "STUDY"
+    return "PORTFOLIO"

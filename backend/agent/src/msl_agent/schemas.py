@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -46,6 +46,31 @@ class BriefTask(BaseModel):
     last_interaction_date: str | None = None
 
 
+class SummaryTask(BaseModel):
+    """A leadership summary to write for an Executive (docs/adr/0013). The BE Lambda computes every figure.
+
+    The facts and evidence are already small-group suppressed and aggregate-only; the agent reads no source.
+    """
+
+    type: Literal["leadership_summary"]
+    summary_id: str = Field(pattern=r"^ls-[0-9]{14}-[0-9a-f]{8}$")
+    title: str = Field(default="", max_length=200)
+    from_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    to_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    scope_label: str = Field(default="", max_length=400)
+    scope_territory_ids: list[str] = Field(default_factory=list, max_length=200)
+    access_level: Literal["AGGREGATE_ONLY", "RECORD_DRILLDOWN"] = "AGGREGATE_ONLY"
+    data_through: str | None = None
+    definition_version: str = Field(default="", max_length=64)
+    regenerates_summary_id: str | None = Field(default=None, max_length=64)
+    key_figures: list[dict[str, Any]] = Field(default_factory=list, max_length=20)
+    facts: list[dict[str, Any]] = Field(default_factory=list, max_length=60)
+    sample_limitations: list[str] = Field(default_factory=list, max_length=12)
+    definitions: list[dict[str, Any]] = Field(default_factory=list, max_length=12)
+    disclosure: dict[str, Any] = Field(default_factory=dict)
+    evidence: list[dict[str, Any]] = Field(default_factory=list, max_length=120)
+
+
 class AgentContext(BaseModel):
     """What the user was looking at when they opened the chat (set by the BE after validation).
 
@@ -68,8 +93,8 @@ class Invocation(BaseModel):
     thread_id: str = Field(min_length=1, max_length=128)
     run_id: str | None = Field(default=None, max_length=128)
     messages: list[Message] = Field(min_length=1, max_length=40)
-    #: Present for work other than a chat answer; today only the pre-call brief.
-    task: BriefTask | None = None
+    #: Present for work other than a chat answer: a pre-call brief or a leadership summary.
+    task: Annotated[BriefTask | SummaryTask, Field(discriminator="type")] | None = None
     context: AgentContext | None = None
 
     @field_validator("messages")
@@ -90,6 +115,10 @@ class Citation(BaseModel):
     record_id: str
     dataset: Literal["call_activity", "hcp_raw_insights"]
     label: str
+    #: ``aggregate`` cites a set of responses by its filters and size (Executive, aggregate-only); the UI shows it
+    #: inline and cannot open it as a record. ``record`` names one source record.
+    kind: Literal["record", "aggregate"] = "record"
+    detail: str | None = None
 
 
 class Fact(BaseModel):
