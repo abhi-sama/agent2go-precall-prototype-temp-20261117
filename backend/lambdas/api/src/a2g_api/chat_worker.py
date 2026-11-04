@@ -95,6 +95,7 @@ def run_chat(payload: Mapping[str, Any], settings: Settings, runtime: AgentRunti
         "thread_id": payload["thread_id"],
         "run_id": payload["run_id"],
         "messages": payload["messages"],
+        **({"context": payload["context"]} if payload.get("context") else {}),
     }
     try:
         for event in (runtime or runtime_for(settings)).invoke(request):

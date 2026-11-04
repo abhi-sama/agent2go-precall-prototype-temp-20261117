@@ -59,7 +59,11 @@ function ResponseTree({ response, byParent, level = 0 }: { response: HcpResponse
   )
 }
 
-/** Source-only HCP history. Parent links are already constrained by the API to one insight interaction. */
+/**
+ * Source-only HCP history. `data-layout-ok="overlap"` on the section: the closed <details> bodies still report layout boxes
+ * under their summaries (nothing is painted there), which the responsive overlap check would otherwise flag.
+ * Parent links are already constrained by the API to one insight interaction.
+ */
 export function HcpTimeline({ hcpId }: { hcpId: string }) {
   const adapter = useDataAdapter()
   const timeline = useQuery("hcpTimeline", hcpId, (ctx) => adapter.hcpTimeline(ctx, hcpId), true)
@@ -73,7 +77,7 @@ export function HcpTimeline({ hcpId }: { hcpId: string }) {
   const roots = timeline.data.responses.filter((response) => !response.parentResponseId)
 
   return (
-    <section data-testid="hcp-timeline" aria-labelledby="hcp-history-heading" className="mt-7 border-t pt-7">
+    <section data-testid="hcp-timeline" data-layout-ok="overlap" aria-labelledby="hcp-history-heading" className="mt-7 border-t pt-7">
       <div className="flex items-start gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-fact-soft text-fact"><CalendarDays className="size-5" aria-hidden /></span><div><h2 id="hcp-history-heading" className="text-xl font-semibold tracking-tight">Interaction history</h2><p className="mt-1 max-w-2xl text-sm text-muted-foreground">Source-recorded calls and perspectives for this HCP. Answers are never inferred or combined.</p></div></div>
 
       <div className="mt-6 grid min-w-0 gap-7 2xl:grid-cols-[minmax(0,.9fr)_minmax(22rem,1.1fr)]">

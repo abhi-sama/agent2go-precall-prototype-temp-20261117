@@ -207,6 +207,20 @@ _Avoid_: compliance, attainment, score
 The latest load time all in-scope sources are loaded through; a load date, not an interaction date.
 _Avoid_: last updated, as-of date
 
+**Emerging topic**:
+A derived theme whose share of free-text responses rose between two equal periods by more than an explicit, stated threshold (and enough responses exist in both).
+It reports a change in what was recorded, never a cause.
+_Avoid_: trend (when meaning the rule's verdict), alert (alerts are the MSL optional feature)
+
+**Exception**:
+A finding that a join, load, key or identity is missing or inconsistent inside the viewer's scope, detected by a fixed rule.
+It describes data, never a person's conduct.
+_Avoid_: error, violation
+
+**Screen context**:
+The territory, question, dates and view a chat was opened from; a default for the agent's tools and never extra access.
+_Avoid_: scope (scope means the territories a user may see)
+
 ## Governance
 
 **Ingestion run**:

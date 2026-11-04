@@ -5,8 +5,10 @@
  * streams. Numbers come from the same fixture arithmetic as the KPI cards, never from "the model".
  */
 import { todayIso, addDays } from "@/lib/dates"
+import type { ChatContext } from "./director-insights"
 import { TERRITORIES, type FixtureUser } from "./fixtures"
 import { inferMockVisual, mockVisual } from "./mock-visuals"
+import { mockResponseRecord, mockTerritorySummary } from "./mock-director-insights"
 import type { ChatEventPage, SourceRecord } from "./types"
 
 interface ScheduledEvent {
@@ -21,13 +23,33 @@ const TOKEN_MS = 90
 const ev = (type: string, extra: Record<string, unknown> = {}) => JSON.stringify({ type, timestamp: Date.now(), ...extra })
 const custom = (name: string, value: unknown) => ev("CUSTOM", { name, value })
 
-export function scriptRun(runId: string, user: FixtureUser, question: string, now = Date.now()): void {
+export function scriptRun(runId: string, user: FixtureUser, question: string, now = Date.now(), context?: ChatContext): void {
   const asked = question.match(/\b([A-Z]{2}-\d{2})\b/)?.[1]
   const events: string[] = [ev("RUN_STARTED", { threadId: "mock", runId }), custom("model_mode", { mode: "claude" })]
   let answer: string
   const suggestions = ["Which territories can I see?", "What have HCPs recorded about osimertinib?"]
 
-  if (user.persona === "executive" || user.persona === "admin" || user.territoryIds.length === 0) {
+  const summaryTerritory = context?.intent === "TERRITORY_SUMMARY" ? context.territoryId : undefined
+  if (summaryTerritory && user.persona === "director" && user.territoryIds.includes(summaryTerritory)) {
+    // An AI territory summary: only figures from the evidence the panel shows, each with the responses behind it.
+    const to = context?.to ?? todayIso(new Date(now))
+    const range = { from: context?.from ?? addDays(to, -89), to }
+    const summary = mockTerritorySummary(summaryTerritory, range)
+    const period = `${range.from} to ${range.to}`
+    const cites = summary.citations.map((c) => ({ record_id: c.record, dataset: "hcp_raw_insights", label: c.label }))
+    events.push(
+      ev("TOOL_CALL_START", { toolCallId: "t1", toolCallName: "get_topic_trends" }),
+      custom("source_facts", {
+        facts: summary.facts.map((f, i) => ({ fact_id: `f${i + 1}`, label: f.label, value: f.value, unit: f.unit, period, scope: summaryTerritory, citation_ids: [] })),
+        data_through: new Date(now - 86_400_000).toISOString(),
+      }),
+      custom("citations", cites),
+      ev("TOOL_CALL_END", { toolCallId: "t1" }),
+    )
+    answer = summary.text
+  } else if (summaryTerritory) {
+    answer = `Territory ${summaryTerritory} is outside your scope, so I cannot summarise it.`
+  } else if (user.persona === "executive" || user.persona === "admin" || user.territoryIds.length === 0) {
     answer = "Record-level questions are not available for your role yet. Aggregate views are on your landing page."
   } else if (asked && !user.territoryIds.includes(asked)) {
     answer = `Territory ${asked} is outside your scope, so I cannot show any data for it. I can answer for the territories you have access to.`
@@ -84,9 +106,28 @@ export function readRun(runId: string, after: number, now = Date.now()): ChatEve
   return { events, done: finished && events.length === run.events.filter((e) => e.seq > after).length, status: finished ? "FINISHED" : "RUNNING" }
 }
 
-export function mockCitation(dataset: string, recordId: string, user: FixtureUser): SourceRecord | null {
+export function mockCitation(dataset: string, recordId: string, user: FixtureUser, now: Date = new Date()): SourceRecord | null {
   if (user.territoryIds.length === 0 || user.persona === "executive") return null
-  if (dataset === "hcp_raw_insights" && /^RESP-[A-Z0-9-]+$/.test(recordId)) {
+  if (dataset === "hcp_raw_insights") {
+    const to = todayIso(now)
+    const record = mockResponseRecord(recordId, { from: addDays(to, -89), to })
+    if (record) {
+      // A Director-insights response: it opens only inside the viewer's scope.
+      if (!record.territoryId || !user.territoryIds.includes(record.territoryId)) return null
+      return {
+        dataset,
+        recordId,
+        title: "Recorded HCP response",
+        fields: [
+          { label: "Interaction date", value: record.interactionDate ?? "" },
+          { label: "Territory", value: record.territoryId },
+          { label: "Question", value: record.questionText ?? "" },
+          { label: "Recorded response", value: record.excerpt },
+        ],
+        dataThrough: new Date(now.getTime() - 86_400_000).toISOString(),
+      }
+    }
+    if (!/^RESP-[A-Z0-9-]+$/.test(recordId)) return null
     return {
       dataset,
       recordId,
@@ -96,7 +137,7 @@ export function mockCitation(dataset: string, recordId: string, user: FixtureUse
         { label: "Question", value: "What evidence would be most useful?" },
         { label: "Recorded response", value: "Long-term outcomes and access considerations are important." },
       ],
-      dataThrough: new Date(Date.now() - 86_400_000).toISOString(),
+      dataThrough: new Date(now.getTime() - 86_400_000).toISOString(),
     }
   }
   if (!/^CALL-\d+$/.test(recordId) || dataset !== "call_activity") return null

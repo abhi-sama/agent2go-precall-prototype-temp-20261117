@@ -125,6 +125,24 @@ expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(DISTINCT qstn_type) FROM q
 expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) >= 2000 FROM (SELECT DISTINCT rspns_txt FROM hcp_raw_insights WHERE qstn_type='open_text') t")" "t" "at least 2000 distinct qualitative answers"
 expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) FROM hcp_raw_insights c WHERE c.qstn_pid IS NOT NULL AND c.qstn_pid <> 'Q-NOT-IN-CATALOG' AND NOT EXISTS (SELECT 1 FROM hcp_raw_insights p WHERE p.insight_intrctn_dtl_sfdc_id=c.insight_intrctn_dtl_sfdc_id AND p.qstn_ext_id=c.qstn_pid)")" "0" "every follow-up has its parent in the same interaction"
 
+# Director insights: the theme classifier and the emerging-topic rule live in the database as deterministic SQL.
+expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT app.theme_of('We now use ctDNA to monitor MRD')")" "ctDNA monitoring (emerging)" "theme classifier puts emerging topics first"
+expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT app.theme_of('Payer denied the prior auth again')")" "Access and reimbursement" "theme classifier reads access language"
+expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT app.theme_of('Nothing in particular')")" "Other perspectives" "theme classifier has an explicit other bucket"
+emerging() { psql "$DATABASE_URL" -X -qAtc "SELECT app.emerging_status($1)"; }
+expect "$(emerging "40,5,100,100")" "EMERGING" "a clear rise in share is flagged EMERGING"
+expect "$(emerging "10,0,100,100")" "EMERGING" "a topic with no earlier mentions is flagged EMERGING once it has enough"
+expect "$(emerging "9,0,100,100")" "STABLE" "too few mentions is never flagged"
+expect "$(emerging "12,10,100,100")" "STABLE" "a rise below the share threshold is not flagged"
+expect "$(emerging "15,40,100,100")" "DECLINING" "the mirror image is flagged DECLINING"
+expect "$(emerging "40,5,100,29")" "INSUFFICIENT_SAMPLE" "a small earlier window is never compared"
+expect "$(emerging "40,5,29,100")" "INSUFFICIENT_SAMPLE" "a small latest window is never compared"
+expect "$(emerging "20,10,200,100")" "STABLE" "a busier period cannot create a trend (shares are compared, not counts)"
+expect "$(query_as director-region-01 Director "count(*) FROM app.source_load_status() WHERE load_state IN ('stale','failed')")" "2" "director sees the stale and failed loads without reading the admin tables"
+expect "$(query_as director-region-01 Director "count(*) FROM ingestion_runs")" "0" "director still cannot read ingestion runs directly"
+expect "$(query_as msl-t01-01 MSL "count(*) FROM app.source_load_status()")" "0" "an MSL gets no load status"
+expect "$(query_as executive-region-01 Executive "count(*) FROM app.source_load_status()")" "0" "an aggregate-only executive gets no load status"
+
 # Generator is deterministic: content checksum and manifest checksum survive a full re-seed.
 before_checksum=$(psql "$DATABASE_URL" -X -qAtc "SELECT md5(string_agg(concat_ws('|',crm_call_id,territory_id,prd_nm),',' ORDER BY source_row_id)) FROM call_activity")
 insight_sql="SELECT md5(string_agg(concat_ws('|',uniq_rspns_id,cust_mdm_id,qstn_ext_id,rspns_txt,followup_rspns,date_of_interaction),',' ORDER BY source_row_id)) FROM hcp_raw_insights"

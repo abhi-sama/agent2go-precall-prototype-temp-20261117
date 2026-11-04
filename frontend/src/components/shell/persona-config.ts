@@ -39,7 +39,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
     tagline: "Regional view",
     nav: [
       { label: "My region", href: "/director", icon: Users },
-      { label: "Themes", href: "/director", icon: BarChart3 },
+      { label: "Insights", href: "/director/insights", icon: BarChart3 },
       { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],
   },

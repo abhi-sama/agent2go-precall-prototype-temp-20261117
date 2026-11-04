@@ -141,6 +141,65 @@ export const SCREENS: ScreenSpec[] = [
     ready: async (page) => { await testId("director-overview")(page); await testId("coverage-available")(page) },
   },
   {
+    name: "director-insights",
+    path: "/director/insights",
+    userId: "u-dir-ne",
+    ready: async (page) => {
+      for (const id of ["summary-card", "topic-heatmap", "emerging-rule", "question-detail", "drill-table", "exceptions-table"]) await testId(id)(page)
+      await expect(page.getByTestId("echart").first()).toBeVisible()
+    },
+  },
+  {
+    name: "director-insights-heatmap-table",
+    path: "/director/insights",
+    userId: "u-dir-ne",
+    ready: testId("topic-heatmap"),
+    prepare: async (page) => {
+      await page.getByTestId("heatmap-view-table").click()
+      await page.locator('[data-testid="heatmap-cell"][data-territory="NE-02"][data-topic="Access and reimbursement"]').click()
+      await expect(page.getByTestId("cell-detail")).toBeVisible()
+    },
+  },
+  {
+    name: "director-insights-ai-summary",
+    path: "/director/insights",
+    userId: "u-dir-ne",
+    ready: testId("summary-card"),
+    prepare: async (page) => {
+      await page.getByTestId("generate-summary").first().click()
+      await expect(page.getByTestId("summary-result").first().getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 30_000 })
+    },
+  },
+  {
+    name: "director-insights-citation",
+    path: "/director/insights",
+    userId: "u-dir-ne",
+    ready: testId("theme-card"),
+    prepare: async (page) => {
+      await page.getByTestId("theme-card").first().getByTestId("evidence-chip").first().click()
+      await expect(page.getByTestId("citation-sheet")).toBeVisible()
+      await expect(page.getByTestId("citation-fields")).toBeVisible()
+    },
+  },
+  {
+    name: "director-insights-hcp-timeline",
+    path: "/director/insights",
+    userId: "u-dir-ne",
+    ready: testId("drill-table"),
+    prepare: async (page) => {
+      await page.getByTestId("drill-row").first().getByTestId("drill-open").click()
+      await page.locator('[data-testid="drill-row"][data-id="NE-01"]').getByTestId("drill-open").click()
+      await page.locator('[data-testid="drill-row"][data-id="HCP-0001"]').getByTestId("drill-open").click()
+      await expect(page.getByTestId("hcp-timeline")).toBeVisible()
+    },
+  },
+  {
+    name: "director-insights-empty",
+    path: "/director/insights?scenario=empty",
+    userId: "u-dir-ne",
+    ready: async (page) => { await expect(page.getByTestId("section-heatmap")).toContainText("No free-text responses in this period") },
+  },
+  {
     name: "executive-landing",
     path: "/executive",
     userId: "u-exec-all",

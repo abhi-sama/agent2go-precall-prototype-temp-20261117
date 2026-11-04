@@ -58,3 +58,4 @@ Then, as their blockers land:
 | 10 (#11) | `directorOverview`, `territoryComparison` | Gated by the `team.overview.read` permission; coverage reads the new `target_assignments` table (ADR 0008). |
 | 05 (#6) | `generateBrief`, `preCallBrief`, `myBriefs`, `saveBriefEdits` | Briefs are written by the agent and saved to FE DynamoDB; the BE Lambda reopens them with access re-checked and staleness computed (ADR 0009). |
 | 12 (#13) | `executiveOverview`, `executiveDrilldown` | Aggregate-only, explicit executive scope, small groups withheld; drill-down needs `source.records.read` (ADR 0009). |
+| 11 (#12) | `topicHeatmap`, `questionAnalytics`, `emergingTopics`, `directorDrilldown`, `directorExceptions`, `territorySummaryEvidence`; `startChatRun` takes an optional screen `context` | Same gate as ticket 10. Theme and emerging-topic rules are SQL functions shared with the agent (ADR 0011); AI territory summaries run through the chat path. |

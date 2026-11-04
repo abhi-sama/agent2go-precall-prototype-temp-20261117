@@ -1,6 +1,7 @@
 import { addDays, addMonths, daysInRange, todayIso, weekdaysInRange } from "@/lib/dates"
 import { log } from "@/lib/log/logger"
 import type { DataAdapter } from "./adapter"
+import { createMockDirectorInsights, mockHcpTerritory } from "./mock-director-insights"
 import { createMockGovernance } from "./governance"
 import { buildComparison, buildOverview, tooLong } from "./mock-director"
 import { buildExecutiveDrilldown, buildExecutiveOverview, defaultExecutiveRange, executiveWindowTooLong, type ExecutiveInput } from "./mock-executive"
@@ -177,6 +178,13 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     }
   }
 
+  /** `HCP-0001` is the profile-card fixture; the rest are the HCPs the Director drill-down lists, per territory. */
+  const hcpInScope = (hcpId: string) => {
+    const user = findUser(options.getUserId())
+    const territory = hcpId === "HCP-0001" ? "NE-01" : mockHcpTerritory(hcpId)
+    return territory !== null && user.territoryIds.includes(territory)
+  }
+
   const saved: SavedView[] = []
   const drafts: PostCallDraft[] = []
   const tasks: FollowUpTask[] = []
@@ -207,6 +215,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     kind: "mock",
     ...createMockGovernance({ getUser: () => findUser(options.getUserId()), gate, now }),
     ...createMockBriefs({ user: () => findUser(options.getUserId()), scenario, gate, now }),
+    ...createMockDirectorInsights({ getUser: () => findUser(options.getUserId()), gate, now }),
 
     async me(ctx): Promise<Me> {
       await gate(ctx, "me")
@@ -482,7 +491,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     async startChatRun(ctx, input) {
       const s = await gate(ctx, "startChatRun")
       if (s === "forbidden") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
-      scriptRun(input.runId, findUser(options.getUserId()), input.message, now().getTime())
+      scriptRun(input.runId, findUser(options.getUserId()), input.message, now().getTime(), input.context)
       return { runId: input.runId, status: "RUNNING" }
     },
 
@@ -494,15 +503,15 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
 
     async chatCitation(ctx, dataset, recordId) {
       await gate(ctx, "chatCitation")
-      const record = mockCitation(dataset, recordId, findUser(options.getUserId()))
+      const record = mockCitation(dataset, recordId, findUser(options.getUserId()), now())
       if (!record) throw new DataError("NOT_FOUND", "That record is not available in your scope.", ctx.correlationId)
       return record
     },
     async searchHcps(ctx, query): Promise<HcpSearchResult[]> { await gate(ctx, "searchHcps"); const user = findUser(options.getUserId()); return user.territoryIds.includes("NE-01") && query.toLowerCase().includes("call") ? [{ hcpId: "HCP-0001", name: { value: "Call system HCP 0001", state: "PRESENT" }, institution: { value: "Northeast Cancer Center", state: "PRESENT" }, territory: { value: "Boston Metro", state: "PRESENT" } }] : [] },
-    async hcpProfile(ctx, hcpId): Promise<HcpProfile> { await gate(ctx, "hcpProfile"); if (hcpId !== "HCP-0001" || !findUser(options.getUserId()).territoryIds.includes("NE-01")) throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId); const p = (v: string | null) => ({ value: v, state: v === null ? "MISSING" as const : "PRESENT" as const }); return { hcpId, name: p("Call system HCP 0001"), specialty: p("Medical oncology"), discipline: p("Oncology"), type: p("HCP"), institution: p("Northeast Cancer Center"), credentials: p(null), territory: p("Boston Metro") } },
+    async hcpProfile(ctx, hcpId): Promise<HcpProfile> { await gate(ctx, "hcpProfile"); if (!hcpInScope(hcpId)) throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId); const p = (v: string | null) => ({ value: v, state: v === null ? "MISSING" as const : "PRESENT" as const }); return { hcpId, name: p("Call system HCP 0001"), specialty: p("Medical oncology"), discipline: p("Oncology"), type: p("HCP"), institution: p("Northeast Cancer Center"), credentials: p(null), territory: p("Boston Metro") } },
     async hcpTimeline(ctx, hcpId): Promise<HcpTimeline> {
       await gate(ctx, "hcpTimeline")
-      if (hcpId !== "HCP-0001" || !findUser(options.getUserId()).territoryIds.includes("NE-01")) throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      if (!hcpInScope(hcpId)) throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
       const parent = { responseId: "insight-mock-parent", interactionId: "INSIGHT-MOCK-1", parentResponseId: null, questionId: "Q-001", question: "What evidence would be most useful?", answer: "Long-term outcomes and access considerations are important.", interactionDate: "2026-10-28", sourceRecordId: "RESP-MOCK-1" }
       const child = { responseId: "insight-mock-child", interactionId: "INSIGHT-MOCK-1", parentResponseId: parent.responseId, questionId: "Q-101", question: "Which access consideration should be discussed first?", answer: "Coverage criteria should be clear for the care team.", interactionDate: "2026-10-28", sourceRecordId: "RESP-MOCK-2" }
       const chain = Array.from({ length: 10 }, (_, index) => ({

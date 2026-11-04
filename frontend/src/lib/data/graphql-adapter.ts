@@ -1,4 +1,5 @@
 import type { DataAdapter } from "./adapter"
+import { createGraphQLDirectorInsights } from "./director-insights"
 import { createGraphQLGovernance } from "./governance"
 import {
   ACTIVITY_EVIDENCE_QUERY,
@@ -37,6 +38,7 @@ import {
   TOPIC_ALERT_RULES_QUERY,
   CREATE_TOPIC_ALERT_RULE_MUTATION,
   TOPIC_ALERTS_QUERY,
+  START_CHAT_RUN_MUTATION,
 } from "./operations"
 import {
   DataError,
@@ -134,6 +136,7 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
   return {
     kind: "appsync",
     ...createGraphQLGovernance((query, variables, ctx) => run(transport, query, variables, ctx)),
+    ...createGraphQLDirectorInsights((query, variables, ctx) => run(transport, query, variables, ctx)),
     async me(ctx) {
       const data = await run<{ me: Me }>(transport, ME_QUERY, undefined, ctx)
       return data.me
@@ -256,7 +259,12 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
       const data = await run<{ approveIdentityMapping: IdentityMatch }>(transport, APPROVE_IDENTITY_MAPPING_MUTATION, { input }, ctx)
       return data.approveIdentityMapping
     },
-    async startChatRun(ctx, input): Promise<ChatRun> { return (await run<{ startChatRun: ChatRun }>(transport, `mutation StartChatRun($threadId: ID!, $runId: ID!, $message: String!, $history: [ChatMessageInput!]) { startChatRun(threadId: $threadId, runId: $runId, message: $message, history: $history) { runId status } }`, input, ctx)).startChatRun },
+    async startChatRun(ctx, input): Promise<ChatRun> {
+      // The dashboard context is optional and omitted (never null) when absent: floci's executor rejects explicit nulls.
+      const { context, ...rest } = input
+      const variables = context && Object.keys(context).length ? { ...rest, context } : rest
+      return (await run<{ startChatRun: ChatRun }>(transport, START_CHAT_RUN_MUTATION, variables, ctx)).startChatRun
+    },
     async chatEvents(ctx, runId, after): Promise<ChatEventPage> { return (await run<{ chatEvents: ChatEventPage }>(transport, `query ChatEvents($runId: ID!, $after: Int) { chatEvents(runId: $runId, after: $after) { done status events { seq data } } }`, { runId, after }, ctx)).chatEvents },
     async chatCitation(ctx, dataset, recordId, auditExport = false): Promise<SourceRecord> { return (await run<{ chatCitation: SourceRecord }>(transport, `query ChatCitation($dataset: String!, $recordId: ID!, $auditExport: Boolean) { chatCitation(dataset: $dataset, recordId: $recordId, auditExport: $auditExport) { dataset recordId title dataThrough fields { label value } } }`, { dataset, recordId, auditExport }, ctx)).chatCitation },
     async searchHcps(ctx, query, limit) { return (await run<{ searchHcps: HcpSearchResult[] }>(transport, SEARCH_HCPS_QUERY, { query, limit: limit ?? null }, ctx)).searchHcps },

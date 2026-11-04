@@ -9,6 +9,7 @@ docs/adr/0007). Everything here runs under the caller's RLS session; runs are ow
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import re
 from collections.abc import Callable, Mapping
@@ -30,6 +31,11 @@ EVENTS_PAGE = 200
 
 Invoker = Callable[[str, dict[str, Any]], None]
 
+_INTENTS = frozenset({"FREE", "TERRITORY_SUMMARY"})
+_CONTEXT_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+_CONTEXT_VIEW = re.compile(r"^[a-z0-9-]{1,40}$")
+_CONTEXT_KEYS = frozenset({"view", "territoryId", "questionId", "from", "to", "intent"})
+
 
 def _id(args: Mapping[str, Any], name: str) -> str:
     value = args.get(name)
@@ -50,6 +56,43 @@ def _clean_history(raw: Any) -> list[dict[str, str]]:
         if role not in ("user", "assistant") or not isinstance(content, str) or not content.strip():
             raise BadRequest("invalid_history")
         out.append({"role": role, "content": content.strip()[:MAX_MESSAGE_CHARS]})
+    return out
+
+
+def _clean_context(raw: Any) -> dict[str, str] | None:
+    """The screen the chat was opened from. Validated here, and only ever a default for the agent's tools."""
+    if raw in (None, ""):
+        return None
+    if not isinstance(raw, Mapping) or not set(raw) <= _CONTEXT_KEYS:
+        raise BadRequest("invalid_context")
+    out: dict[str, str] = {}
+    for key, pattern, name in (
+        ("view", _CONTEXT_VIEW, "view"),
+        ("territoryId", _CONTEXT_ID, "territory_id"),
+        ("questionId", _CONTEXT_ID, "question_id"),
+    ):
+        value = raw.get(key)
+        if value in (None, ""):
+            continue
+        if not isinstance(value, str) or not pattern.match(value):
+            raise BadRequest("invalid_context")
+        out[name] = value
+    for key, name in (("from", "from_date"), ("to", "to_date")):
+        value = raw.get(key)
+        if value in (None, ""):
+            continue
+        try:
+            out[name] = dt.date.fromisoformat(str(value)).isoformat()
+        except ValueError as exc:
+            raise BadRequest("invalid_context") from exc
+    if "from_date" in out and "to_date" in out and out["from_date"] > out["to_date"]:
+        raise BadRequest("invalid_context")
+    intent = raw.get("intent") or "FREE"
+    if intent not in _INTENTS:
+        raise BadRequest("invalid_context")
+    out["intent"] = str(intent)
+    if intent == "TERRITORY_SUMMARY" and "territory_id" not in out:
+        raise BadRequest("invalid_context")
     return out
 
 
@@ -77,6 +120,13 @@ def start_chat_run(
     if not isinstance(message, str) or not message.strip() or len(message) > MAX_MESSAGE_CHARS:
         raise BadRequest("invalid_message")
     history = _clean_history(args.get("history"))
+    context = _clean_context(args.get("context"))
+    if context and context["intent"] == "TERRITORY_SUMMARY":
+        # Territory summaries are a Director task; the agent would read the same rows either way, but who may
+        # ask for one is decided here, in code, not by the prompt.
+        cur.execute("SELECT app.has_permission('team.overview.read') OR app.has_permission('admin.manage')")
+        if not cur.fetchone()[0]:
+            raise Forbidden("summary_requires_team_overview")
     if not worker_function:
         raise Unavailable("chat_not_configured")
 
@@ -100,6 +150,7 @@ def start_chat_run(
         "thread_id": thread_id,
         "run_id": run_id,
         "messages": [*history, {"role": "user", "content": message.strip()}],
+        **({"context": context} if context else {}),
     }
     try:
         invoker(worker_function, payload)

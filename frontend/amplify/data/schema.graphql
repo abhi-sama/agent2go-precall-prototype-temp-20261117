@@ -882,6 +882,213 @@ type BriefSummary {
 input BriefItemInput { itemId: ID text: String! detail: String }
 input BriefEditInput { briefId: ID! objective: String prompts: [BriefItemInput!] agenda: [BriefItemInput!] }
 
+# --- Director insights (ticket 11, #12) -------------------------------------------------------------
+# Every number is SQL under the caller's row-level security. Themes are derived keyword groupings of
+# free-text answers and are always shown as derived. Emerging-topic statuses come from an explicit
+# rule evaluated in the database (the rule text is returned with the result); they never claim a cause.
+
+enum ThemeFacet { NONE MOLECULE TUMOR_TYPE STUDY SURVEY }
+enum EmergingStatus { EMERGING DECLINING STABLE INSUFFICIENT_SAMPLE }
+enum DrilldownLevel { ROOT REGION TERRITORY }
+
+"""One recorded response that a theme, a flag or a summary cites. Opens through the citation query."""
+type InsightEvidence { recordId: ID!, excerpt: String!, questionText: String, interactionDate: AWSDate, territoryId: String }
+
+type HeatmapTerritory { territoryId: ID!, name: String, regionId: String!, regionName: String!, freeTextResponses: Int! }
+type HeatmapTopic { topic: String!, responses: Int!, distinctHcps: Int!, isOther: Boolean! }
+"""`share` is a percentage of `territoryResponses`, that territory's free-text responses in the window."""
+type HeatmapCell { territoryId: ID!, topic: String!, responses: Int!, distinctHcps: Int!, share: Float!, territoryResponses: Int! }
+"""A derived theme with the responses behind it. `facetValue` is set when cards are grouped by a facet."""
+type ThemeCard {
+  cardId: ID!
+  facetValue: String
+  topic: String!
+  responses: Int!
+  distinctHcps: Int!
+  territoryCount: Int!
+  share: Float!
+  facetResponses: Int!
+  evidence: [InsightEvidence!]!
+}
+type TopicHeatmap {
+  from: AWSDate!
+  to: AWSDate!
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+  definitionVersion: String!
+  facet: ThemeFacet!
+  facetLabel: String
+  territories: [HeatmapTerritory!]!
+  topics: [HeatmapTopic!]!
+  cells: [HeatmapCell!]!
+  themeCards: [ThemeCard!]!
+  freeTextResponses: Int!
+  note: String!
+}
+
+type EmergingWindow { from: AWSDate!, to: AWSDate!, freeTextResponses: Int! }
+"""The explicit rule. `rule` is the sentence the screen shows; the numbers are what the database evaluates."""
+type EmergingThresholds { minWindowResponses: Int!, minTopicResponses: Int!, minRelativeIncrease: Float!, minSharePoints: Float!, rule: String! }
+type WeekCount { weekStart: AWSDate!, responses: Int! }
+type EmergingTopic {
+  territoryId: String
+  topic: String!
+  currentResponses: Int!
+  priorResponses: Int!
+  currentTotal: Int!
+  priorTotal: Int!
+  currentShare: Float
+  priorShare: Float
+  sharePointChange: Float
+  status: EmergingStatus!
+  weeks: [WeekCount!]!
+  evidence: [InsightEvidence!]!
+}
+type EmergingTopics {
+  scopeLabel: String!
+  definitionVersion: String!
+  dataThrough: AWSDateTime
+  current: EmergingWindow!
+  prior: EmergingWindow!
+  thresholds: EmergingThresholds!
+  sampleSufficient: Boolean!
+  topics: [EmergingTopic!]!
+  statement: String!
+}
+
+type QuestionOption { questionId: ID!, questionText: String!, questionType: String, parentQuestionId: String, molecule: String, responses: Int!, distinctHcps: Int! }
+"""`responses` are distinct responses to this one question; `percentage` is of the question's denominator."""
+type ResponseBar { label: String!, responses: Int!, distinctHcps: Int!, percentage: Float! }
+type TerritoryQuestionCount { territoryId: String!, responses: Int!, distinctHcps: Int! }
+type NumericSummary { min: Float!, median: Float!, max: Float!, answered: Int! }
+type ParentAnswer { answer: String!, responses: Int! }
+"""The parent question and how its answers split inside the same interactions as the follow-up."""
+type ParentContext { questionId: ID!, questionText: String, questionType: String, inCatalog: Boolean!, answerBreakdown: [ParentAnswer!]!, note: String! }
+type FollowUpQuestion { questionId: ID!, questionText: String!, responses: Int! }
+type QuestionCatalogInfo { status: String, tumorType: String, survey: String, study: String }
+type QuestionDetail {
+  questionId: ID!
+  questionText: String!
+  questionType: String
+  parentQuestionId: String
+  molecule: String
+  responses: Int!
+  distinctHcps: Int!
+  denominator: Int!
+  bars: [ResponseBar!]!
+  barNote: String!
+  territories: [TerritoryQuestionCount!]!
+  numericSummary: NumericSummary
+  parent: ParentContext
+  followUps: [FollowUpQuestion!]!
+  catalog: QuestionCatalogInfo
+}
+type QuestionAnalytics {
+  scopeLabel: String!
+  definitionVersion: String!
+  from: AWSDate!
+  to: AWSDate!
+  dataThrough: AWSDateTime
+  options: [QuestionOption!]!
+  selected: QuestionDetail
+}
+
+type DrillCrumb { level: String!, id: String!, label: String! }
+"""One row of a drill-down level: a region, a territory or a permitted HCP."""
+type DrillChild {
+  id: ID!
+  label: String!
+  level: String!
+  childLabel: String!
+  childCount: Int!
+  distinctCalls: Int!
+  distinctEngagedHcps: Int!
+  responses: Int!
+  lastInteractionDate: AWSDate
+}
+type DirectorDrilldown {
+  level: DrilldownLevel!
+  id: String!
+  scopeLabel: String!
+  from: AWSDate!
+  to: AWSDate!
+  dataThrough: AWSDateTime
+  breadcrumb: [DrillCrumb!]!
+  children: [DrillChild!]!
+  totalChildren: Int!
+  truncated: Boolean!
+  note: String!
+}
+
+type ExceptionCategory { category: String!, label: String!, rule: String!, count: Int! }
+"""category: STALE_LOAD, MISSING_JOIN, UNRESOLVED_IDENTITY, DUPLICATE_KEY, STATUS_DIFFERENCE or MISSING_REPORTING."""
+type DirectorException {
+  exceptionId: ID!
+  category: String!
+  categoryLabel: String!
+  severity: String!
+  title: String!
+  detail: String!
+  territoryId: String
+  affectedCount: Int!
+  sourceTable: String!
+  sampleRecordIds: [String!]!
+  rule: String!
+}
+type DirectorExceptions {
+  scopeLabel: String!
+  from: AWSDate!
+  to: AWSDate!
+  dataThrough: AWSDateTime
+  definitionVersion: String!
+  categories: [ExceptionCategory!]!
+  exceptions: [DirectorException!]!
+  note: String!
+}
+
+type SummaryTheme {
+  topic: String!
+  currentResponses: Int!
+  priorResponses: Int!
+  currentTotal: Int!
+  priorTotal: Int!
+  currentShare: Float
+  priorShare: Float
+  sharePointChange: Float
+  status: EmergingStatus!
+  evidence: [InsightEvidence!]!
+}
+type FlaggedTopic { topic: String!, status: EmergingStatus!, currentResponses: Int!, priorResponses: Int! }
+"""The source figures and cited responses a territory summary is written from. The summary text is AI-generated."""
+type TerritorySummaryEvidence {
+  territoryId: ID!
+  name: String
+  regionId: String!
+  regionName: String!
+  distinctCalls: Int!
+  distinctEngagedHcps: Int!
+  responses: Int!
+  freeTextResponses: Int!
+  priorFreeTextResponses: Int!
+  topThemes: [SummaryTheme!]!
+  flagged: [FlaggedTopic!]!
+}
+type TerritorySummaries {
+  scopeLabel: String!
+  definitionVersion: String!
+  from: AWSDate!
+  to: AWSDate!
+  priorFrom: AWSDate!
+  priorTo: AWSDate!
+  dataThrough: AWSDateTime
+  territories: [TerritorySummaryEvidence!]!
+  note: String!
+}
+
+"""What the user is looking at when they open the chat from a dashboard. The agent treats it as defaults, not as authority."""
+enum ChatIntent { FREE TERRITORY_SUMMARY }
+input ChatContextInput { view: String, territoryId: String, questionId: String, from: AWSDate, to: AWSDate, intent: ChatIntent }
+
 type Query {
   me: Me!
   landingKpis(from: AWSDate, to: AWSDate, filters: InsightFiltersInput): LandingKpis!
@@ -892,6 +1099,18 @@ type Query {
   activityEvidence(metric: ActivityMetric!, month: AWSDate!, channel: String, limit: Int): ActivityEvidence!
   "Team and territory overview for a Director: only approved descendant territories, one window."
   directorOverview(from: AWSDate, to: AWSDate): DirectorOverview!
+  "Director: free-text themes by territory (heatmap) and evidence-backed theme cards, optionally grouped by a facet."
+  topicHeatmap(from: AWSDate, to: AWSDate, filters: InsightFiltersInput, facet: ThemeFacet): TopicHeatmap!
+  "Director: one question's response bars, distinct HCPs and responses, and its parent context."
+  questionAnalytics(from: AWSDate, to: AWSDate, filters: InsightFiltersInput, questionId: ID): QuestionAnalytics!
+  "Director: period-over-period theme shares judged by an explicit threshold rule evaluated in the database."
+  emergingTopics(from: AWSDate, to: AWSDate, filters: InsightFiltersInput): EmergingTopics!
+  "Director: region, territory and permitted HCP levels. Interaction detail opens from an HCP via hcpTimeline."
+  directorDrilldown(level: DrilldownLevel, id: ID, from: AWSDate, to: AWSDate): DirectorDrilldown!
+  "Director: stale loads, missing joins, unresolved identities, duplicate keys and status differences in scope."
+  directorExceptions(from: AWSDate, to: AWSDate): DirectorExceptions!
+  "Director: the source figures per territory that an AI territory summary is written from."
+  territorySummaryEvidence(from: AWSDate, to: AWSDate): TerritorySummaries!
   "2 to 6 in-scope territories compared over one identical window and one set of definitions."
   territoryComparison(territoryIds: [ID!]!, from: AWSDate, to: AWSDate): TerritoryComparison!
   "Aggregate-only enterprise overview for an Executive: explicit scope only, small groups withheld."
@@ -961,7 +1180,7 @@ type Mutation {
   approveDefinition(input: ApproveDefinitionInput!): GovernedDefinition!
   createGovernanceRequest(input: CreateGovernanceRequestInput!): GovernanceRequest!
   decideGovernanceRequest(input: DecideGovernanceRequestInput!): GovernanceRequest!
-  startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!]): ChatRun!
+  startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!], context: ChatContextInput): ChatRun!
   saveView(input: SaveViewInput!): SavedView!
   createPostCallDraft(input: PostCallDraftInput!): PostCallDraft!
   confirmPostCallDraft(draftId: ID!): PostCallDraft!

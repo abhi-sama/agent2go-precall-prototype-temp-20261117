@@ -150,3 +150,44 @@ def test_agentcore_adapter_sends_the_same_payload_with_a_session_per_thread() ->
     assert events == [{"type": "RUN_FINISHED"}]
     assert client.kw["agentRuntimeArn"].endswith("runtime/r") and len(client.kw["runtimeSessionId"]) >= 33
     assert json.loads(client.kw["payload"]) == {"thread_id": THREAD, "x": 1}
+
+
+def test_screen_context_is_validated_and_forwarded_to_the_worker() -> None:
+    sent: list[tuple[str, dict]] = []
+    cur = Cursor()
+    start(cur, lambda fn, payload: sent.append((fn, payload)), context={"view": "director-insights", "territoryId": "T01-02", "from": "2026-08-06", "to": "2026-11-03", "intent": "FREE"})
+    assert sent[0][1]["context"] == {"view": "director-insights", "territory_id": "T01-02", "from_date": "2026-08-06", "to_date": "2026-11-03", "intent": "FREE"}
+    assert not any("has_permission" in sql for sql in cur.sql)  # a free-form context needs no extra permission query
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "T01-01",
+        {"territoryId": "T01-01; DROP TABLE x"},
+        {"from": "2026-13-01"},
+        {"from": "2026-11-03", "to": "2026-01-01"},
+        {"intent": "DELETE_EVERYTHING"},
+        {"unknown": "x"},
+        {"intent": "TERRITORY_SUMMARY"},  # a summary needs a territory
+        {"view": "Director Insights!"},
+    ],
+)
+def test_bad_screen_context_is_refused(bad) -> None:
+    sent: list = []
+    with pytest.raises(BadRequest):
+        start(Cursor(), lambda *a: sent.append(a), context=bad)
+    assert not sent
+
+
+def test_territory_summary_needs_the_team_overview_permission() -> None:
+    from a2g_api.errors import Forbidden
+
+    class Denied(Cursor):
+        def fetchone(self) -> Any:
+            return (False,)
+
+    sent: list = []
+    with pytest.raises(Forbidden):
+        start(Denied(), lambda *a: sent.append(a), context={"intent": "TERRITORY_SUMMARY", "territoryId": "T01-02"})
+    assert not sent

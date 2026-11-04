@@ -11,7 +11,7 @@ export const LANDING_KPIS_QUERY = /* GraphQL */ `
 export const SEARCH_HCPS_QUERY = `query SearchHcps($query:String!,$limit:Int){ searchHcps(query:$query,limit:$limit){ hcpId name{value state} institution{value state} territory{value state} } }`
 export const HCP_PROFILE_QUERY = `query HcpProfile($hcpId:ID!){ hcpProfile(hcpId:$hcpId){ hcpId name{value state} specialty{value state} discipline{value state} type{value state} institution{value state} credentials{value state} territory{value state} } }`
 export const HCP_TIMELINE_QUERY = `query HcpTimeline($hcpId:ID!){ hcpTimeline(hcpId:$hcpId){ hcpId interactions{callId interactionDate channels types statuses products topics sourceRecordId} responses{responseId interactionId parentResponseId questionId question answer interactionDate sourceRecordId} perspectives{questionId question answers{responseId interactionId parentResponseId questionId question answer interactionDate sourceRecordId}} } }`
-export const START_CHAT_RUN_MUTATION = `mutation StartChatRun($threadId: ID!, $runId: ID!, $message: String!, $history: [ChatMessageInput!]) { startChatRun(threadId: $threadId, runId: $runId, message: $message, history: $history) { runId status } }`
+export const START_CHAT_RUN_MUTATION = `mutation StartChatRun($threadId: ID!, $runId: ID!, $message: String!, $history: [ChatMessageInput!], $context: ChatContextInput) { startChatRun(threadId: $threadId, runId: $runId, message: $message, history: $history, context: $context) { runId status } }`
 
 /** Extension of the foundation contract (added during integration) for the territory map. */
 export const GEO_ACTIVITY_QUERY = /* GraphQL */ `

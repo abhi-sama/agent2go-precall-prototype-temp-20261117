@@ -1,6 +1,7 @@
 "use client"
 
 import { MessageSquarePlus, SendHorizontal } from "lucide-react"
+import { useSearchParams } from "next/navigation"
 import * as React from "react"
 import { AssistantTurnView } from "@/components/chat/assistant-turn"
 import { CitationSheet } from "@/components/chat/citation-sheet"
@@ -8,6 +9,7 @@ import { ScopeLabel } from "@/components/shell/scope-label"
 import { Button } from "@/components/ui/button"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import type { CitationItem } from "@/lib/chat/events"
+import { parseChatContext, startersFor } from "@/lib/chat/context"
 import { MAX_QUESTION_CHARS, useChat } from "@/lib/chat/use-chat"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
@@ -24,6 +26,10 @@ export function ChatPanel() {
   const { userId, ready } = useSession()
   const me = useQuery("me", userId, (ctx) => adapter.me(ctx), ready)
   const { turns, running, send, reset } = useChat(adapter)
+  const params = useSearchParams()
+  // The screen the chat was opened from (a Director's territory or question). Defaults for the agent only.
+  const context = React.useMemo(() => parseChatContext(new URLSearchParams(params.toString())), [params])
+  const starters = startersFor(context, STARTERS)
   const [draft, setDraft] = React.useState("")
   const [open, setOpen] = React.useState<CitationItem | null>(null)
   const bottom = React.useRef<HTMLDivElement>(null)
@@ -41,7 +47,7 @@ export function ChatPanel() {
   const submit = (question: string) => {
     if (!question.trim() || running) return
     setDraft("")
-    void send(question)
+    void send(question, context)
   }
 
   return (
@@ -55,6 +61,11 @@ export function ChatPanel() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ScopeLabel label={me.status === "success" ? me.data.scopeLabel : undefined} loading={me.status !== "success"} />
+          {context && (
+            <span data-testid="chat-context" className="inline-flex min-h-8 items-center rounded-full border bg-muted px-3 text-sm text-muted-foreground">
+              Asking about {[context.territoryId, context.questionId, context.from && context.to ? `${context.from} to ${context.to}` : null].filter(Boolean).join(" · ") || "this screen"}
+            </span>
+          )}
           {turns.length > 0 && (
             <Button variant="outline" data-testid="chat-new" onClick={reset} disabled={running}>
               <MessageSquarePlus aria-hidden /> New conversation
@@ -68,7 +79,7 @@ export function ChatPanel() {
           <div className="flex flex-col gap-3 rounded-2xl border border-dashed p-6" data-testid="chat-empty">
             <p className="font-medium">Try a question</p>
             <ul className="flex flex-wrap gap-2">
-              {STARTERS.map((s) => (
+              {starters.map((s) => (
                 <li key={s}>
                   <button
                     type="button"

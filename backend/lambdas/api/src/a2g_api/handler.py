@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, briefs, chat, director, executive, flags, hierarchy, post_call, resolvers
+from . import activity, briefs, chat, director, director_insights, executive, flags, hierarchy, post_call, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .embeddings import provider_from_config
@@ -94,6 +94,12 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "territoryComparison": director.territory_comparison,
         "executiveOverview": executive.executive_overview,
         "executiveDrilldown": executive.executive_drilldown,
+        "topicHeatmap": director_insights.topic_heatmap,
+        "questionAnalytics": director_insights.question_analytics,
+        "emergingTopics": director_insights.emerging_topics,
+        "directorDrilldown": director_insights.director_drilldown,
+        "directorExceptions": director_insights.director_exceptions,
+        "territorySummaryEvidence": director_insights.territory_summary_evidence,
         # Resolved lazily: an unconfigured flag store must not break the other fields.
         "flagIssue": lambda *a: flags.flag_issue(*a, store=_flag_store(settings)),
         "myFlags": lambda *a: flags.my_flags(*a, store=_flag_store(settings)),

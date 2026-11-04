@@ -1,3 +1,4 @@
+import type { ChatContext, DirectorInsightsAdapter } from "./director-insights"
 import type { GovernanceAdapter } from "./governance"
 import type {
   ActivityEvidence,
@@ -52,7 +53,7 @@ import type {
  * worker, via `createGraphQLAdapter`) both implement it, so swapping is a one-line change in
  * `getDataAdapter()`.
  */
-export interface DataAdapter extends GovernanceAdapter {
+export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter {
   readonly kind: "mock" | "appsync"
   me(ctx: RequestContext): Promise<Me>
   /** `range` omitted lets the backend choose its default window. */
@@ -83,14 +84,14 @@ export interface DataAdapter extends GovernanceAdapter {
   createScopeAssignment(ctx: RequestContext, input: ScopeAssignmentInput): Promise<ScopeAssignment>
   setRolePermissions(ctx: RequestContext, input: { roleId: string; permissionCodes: string[] }): Promise<RolePermissionMatrix>
   approveIdentityMapping(ctx: RequestContext, input: { userId: string; rosterSourceRowId: string }): Promise<IdentityMatch>
-  startChatRun(ctx: RequestContext, input: { threadId: string; runId: string; message: string; history: ChatMessageInput[] }): Promise<ChatRun>
+  startChatRun(ctx: RequestContext, input: { threadId: string; runId: string; message: string; history: ChatMessageInput[]; context?: ChatContext }): Promise<ChatRun>
   /**
    * Start a streamed chat answer. The caller picks `runId` so it can poll straight away. The mutation
    * returns once the BE accepted the run; the answer arrives through `chatEvents`.
    */
   startChatRun(
     ctx: RequestContext,
-    input: { threadId: string; runId: string; message: string; history: ChatMessageInput[] },
+    input: { threadId: string; runId: string; message: string; history: ChatMessageInput[]; context?: ChatContext },
   ): Promise<ChatRun>
   /** Events with `seq > after`, in order. Stand-in for an AppSync subscription (docs/adr/0007). */
   chatEvents(ctx: RequestContext, runId: string, after: number): Promise<ChatEventPage>

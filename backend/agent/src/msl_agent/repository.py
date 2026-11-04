@@ -29,6 +29,7 @@ MAX_EXAMPLES = 5
 SNIPPET_CHARS = 240
 
 _TERRITORY = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
+_QUESTION = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 
 Status = Literal["ok", "aggregate_only", "no_scope", "bad_request"]
 
@@ -98,6 +99,59 @@ class ChartResult:
     detail: str = ""
 
 
+@dataclass(frozen=True)
+class TopicTrend:
+    topic: str
+    current: int
+    prior: int
+    #: EMERGING, DECLINING, STABLE or INSUFFICIENT_SAMPLE, from ``app.emerging_status`` (never the model).
+    status: str
+
+
+@dataclass(frozen=True)
+class TopicTrendsResult:
+    status: Status
+    period_from: dt.date | None = None
+    period_to: dt.date | None = None
+    prior_from: dt.date | None = None
+    prior_to: dt.date | None = None
+    territory_filter: str | None = None
+    territory_in_scope: bool | None = None
+    current_total: int = 0
+    prior_total: int = 0
+    topics: tuple[TopicTrend, ...] = ()
+    rule: str = ""
+    examples: tuple[ResponseExample, ...] = ()
+    data_through: dt.datetime | None = None
+    citations: tuple[Citation, ...] = ()
+    detail: str = ""
+
+
+@dataclass(frozen=True)
+class AnswerBar:
+    label: str
+    responses: int
+    distinct_hcps: int
+
+
+@dataclass(frozen=True)
+class QuestionBreakdownResult:
+    status: Status
+    question_id: str = ""
+    question_text: str = ""
+    question_type: str = ""
+    period_from: dt.date | None = None
+    period_to: dt.date | None = None
+    territory_filter: str | None = None
+    territory_in_scope: bool | None = None
+    responses: int = 0
+    distinct_hcps: int = 0
+    bars: tuple[AnswerBar, ...] = ()
+    data_through: dt.datetime | None = None
+    citations: tuple[Citation, ...] = ()
+    detail: str = ""
+
+
 class ScopedReadRepository(Protocol):
     def chart(
         self,
@@ -136,6 +190,25 @@ class ScopedReadRepository(Protocol):
     ) -> ResponseSearchResult: ...
 
     def scope(self, identity: Identity) -> ScopeResult: ...
+
+    def topic_trends(
+        self,
+        identity: Identity,
+        *,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        territory_id: str | None,
+    ) -> TopicTrendsResult: ...
+
+    def question_breakdown(
+        self,
+        identity: Identity,
+        *,
+        question_id: str,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        territory_id: str | None,
+    ) -> QuestionBreakdownResult: ...
 
 
 def _clip(text: str | None, limit: int = SNIPPET_CHARS) -> str:
@@ -454,6 +527,189 @@ class PostgresScopedRepository:
                 data_through=self._data_through(cur),
             )
 
+    def topic_trends(
+        self,
+        identity: Identity,
+        *,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        territory_id: str | None,
+    ) -> TopicTrendsResult:
+        """Free-text themes for the window against the equal window before it, judged by the database rule."""
+        if territory_id is not None and not _TERRITORY.match(territory_id):
+            return TopicTrendsResult(status="bad_request", detail="invalid_territory_id")
+        with self._session(identity) as cur:
+            gate = self._gate(cur)
+            if gate != "ok":
+                return TopicTrendsResult(status=gate)
+            data_through = self._data_through(cur)
+            window = self._period(period_from, period_to, data_through)
+            if window is None:
+                return TopicTrendsResult(status="bad_request", detail="invalid_period")
+            start, end = window
+            days = (end - start).days + 1
+            prior_end = start - dt.timedelta(days=1)
+            prior_start = start - dt.timedelta(days=days)
+            in_scope: bool | None = None
+            if territory_id is not None:
+                cur.execute("SELECT app.can_read_territory(%s)", (territory_id,))
+                in_scope = bool(cur.fetchone()[0])
+            params = {"frm": start, "pfrm": prior_start, "to": end, "territory": territory_id}
+            free_text = (
+                "h.qstn_type = 'open_text' AND nullif(btrim(h.rspns_txt), '') IS NOT NULL "
+                "AND h.excluded_rspns_flag IS NOT TRUE AND h.uniq_rspns_id IS NOT NULL "
+                "AND (%(territory)s::text IS NULL OR h.territory_id = %(territory)s)"
+            )
+            cur.execute(
+                f"""
+                WITH base AS (
+                  SELECT app.theme_of(h.rspns_txt) AS topic, h.uniq_rspns_id, (h.date_of_interaction >= %(frm)s) AS in_cur
+                  FROM hcp_raw_insights h
+                  WHERE {free_text} AND h.date_of_interaction BETWEEN %(pfrm)s AND %(to)s
+                ), grp AS (
+                  SELECT topic, count(DISTINCT uniq_rspns_id) FILTER (WHERE in_cur) AS cur_n,
+                         count(DISTINCT uniq_rspns_id) FILTER (WHERE NOT in_cur) AS pri_n FROM base GROUP BY 1
+                ), tot AS (
+                  SELECT count(DISTINCT uniq_rspns_id) FILTER (WHERE in_cur) AS cur_t,
+                         count(DISTINCT uniq_rspns_id) FILTER (WHERE NOT in_cur) AS pri_t FROM base
+                )
+                SELECT g.topic, g.cur_n, g.pri_n, t.cur_t, t.pri_t, app.emerging_status(g.cur_n, g.pri_n, t.cur_t, t.pri_t)
+                FROM grp g CROSS JOIN tot t
+                ORDER BY g.cur_n DESC, g.topic
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+            cur.execute("SELECT min_window_responses, min_topic_responses, min_relative_increase, min_share_points FROM app.emerging_thresholds()")
+            window_n, topic_n, rel, points = cur.fetchone()
+            rule = (
+                f"EMERGING means: at least {int(window_n)} free-text responses in both periods, at least {int(topic_n)} on the topic "
+                f"in the latest period, its share up by at least {float(points):g} percentage points, and at least {1 + float(rel):g} "
+                "times its earlier share. DECLINING is the mirror image."
+            )
+            topics = tuple(TopicTrend(r[0], int(r[1]), int(r[2]), r[5]) for r in rows)
+            flagged = [t.topic for t in topics if t.status in ("EMERGING", "DECLINING")]
+            lead = [t.topic for t in topics if t.topic != "Other perspectives"][:3]
+            examples: list[ResponseExample] = []
+            for topic in dict.fromkeys([*flagged, *lead]):
+                cur.execute(
+                    f"""
+                    SELECT h.uniq_rspns_id, h.date_of_interaction, h.molecule_type, h.qstn_txt, h.rspns_txt
+                    FROM hcp_raw_insights h
+                    WHERE {free_text} AND h.date_of_interaction BETWEEN %(frm)s AND %(to)s AND app.theme_of(h.rspns_txt) = %(topic)s
+                    ORDER BY h.date_of_interaction DESC, h.uniq_rspns_id LIMIT 1
+                    """,
+                    {**params, "topic": topic},
+                )
+                row = cur.fetchone()
+                if row:
+                    examples.append(ResponseExample(row[0], row[1], row[2], _clip(row[3]), _clip(row[4])))
+            current_total = int(rows[0][3]) if rows else 0
+            prior_total = int(rows[0][4]) if rows else 0
+        citations = tuple(
+            Citation(
+                record_id=e.record_id,
+                dataset="hcp_raw_insights",
+                label="Recorded response" + (f" on {e.interaction_date.isoformat()}" if e.interaction_date else ""),
+            )
+            for e in examples
+        )
+        return TopicTrendsResult(
+            status="ok",
+            period_from=start,
+            period_to=end,
+            prior_from=prior_start,
+            prior_to=prior_end,
+            territory_filter=territory_id,
+            territory_in_scope=in_scope,
+            current_total=current_total,
+            prior_total=prior_total,
+            topics=topics,
+            rule=rule,
+            examples=tuple(examples),
+            data_through=data_through,
+            citations=citations,
+        )
+
+    def question_breakdown(
+        self,
+        identity: Identity,
+        *,
+        question_id: str,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        territory_id: str | None,
+    ) -> QuestionBreakdownResult:
+        if not _QUESTION.match(question_id) or (territory_id is not None and not _TERRITORY.match(territory_id)):
+            return QuestionBreakdownResult(status="bad_request", detail="invalid_id")
+        with self._session(identity) as cur:
+            gate = self._gate(cur)
+            if gate != "ok":
+                return QuestionBreakdownResult(status=gate)
+            data_through = self._data_through(cur)
+            window = self._period(period_from, period_to, data_through)
+            if window is None:
+                return QuestionBreakdownResult(status="bad_request", detail="invalid_period")
+            start, end = window
+            in_scope: bool | None = None
+            if territory_id is not None:
+                cur.execute("SELECT app.can_read_territory(%s)", (territory_id,))
+                in_scope = bool(cur.fetchone()[0])
+            params = {"frm": start, "to": end, "territory": territory_id, "qid": question_id}
+            where = (
+                "h.qstn_ext_id = %(qid)s AND h.date_of_interaction BETWEEN %(frm)s AND %(to)s "
+                "AND h.excluded_rspns_flag IS NOT TRUE AND h.uniq_rspns_id IS NOT NULL "
+                "AND (%(territory)s::text IS NULL OR h.territory_id = %(territory)s)"
+            )
+            cur.execute(
+                f"SELECT min(h.qstn_txt), min(h.qstn_type), count(DISTINCT h.uniq_rspns_id), count(DISTINCT h.cust_mdm_id) FROM hcp_raw_insights h WHERE {where}",
+                params,
+            )
+            text, qtype, responses, hcps = cur.fetchone()
+            if not responses:
+                return QuestionBreakdownResult(
+                    status="ok", question_id=question_id, period_from=start, period_to=end,
+                    territory_filter=territory_id, territory_in_scope=in_scope, data_through=data_through,
+                )
+            cur.execute(
+                f"""
+                WITH r AS (SELECT h.uniq_rspns_id, h.cust_mdm_id, btrim(h.rspns_txt) AS ans, h.qstn_type FROM hcp_raw_insights h WHERE {where}),
+                o AS (
+                  SELECT r.uniq_rspns_id, r.cust_mdm_id,
+                         CASE WHEN r.qstn_type = 'open_text' THEN app.theme_of(r.ans)
+                              WHEN r.qstn_type = 'ranking' THEN 'Ranked first: ' || split_part(r.ans, ' > ', 1)
+                              ELSE coalesce(nullif(btrim(opt.value), ''), 'No response recorded') END AS label
+                  FROM r CROSS JOIN LATERAL unnest(CASE WHEN r.qstn_type = 'multi_select' THEN string_to_array(r.ans, ';') ELSE ARRAY[r.ans] END) AS opt(value)
+                )
+                SELECT label, count(DISTINCT uniq_rspns_id), count(DISTINCT cust_mdm_id) FROM o GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 8
+                """,
+                params,
+            )
+            bars = tuple(AnswerBar(r[0], int(r[1]), int(r[2])) for r in cur.fetchall())
+            cur.execute(
+                f"SELECT DISTINCT ON (h.uniq_rspns_id) h.uniq_rspns_id, h.date_of_interaction FROM hcp_raw_insights h WHERE {where} ORDER BY h.uniq_rspns_id, h.date_of_interaction DESC LIMIT %(limit)s",
+                {**params, "limit": MAX_EXAMPLES},
+            )
+            citations = tuple(
+                Citation(record_id=r[0], dataset="hcp_raw_insights", label="Recorded response" + (f" on {r[1].isoformat()}" if r[1] else ""))
+                for r in cur.fetchall()
+            )
+        return QuestionBreakdownResult(
+            status="ok",
+            question_id=question_id,
+            question_text=_clip(text),
+            question_type=qtype or "",
+            period_from=start,
+            period_to=end,
+            territory_filter=territory_id,
+            territory_in_scope=in_scope,
+            responses=int(responses),
+            distinct_hcps=int(hcps),
+            bars=bars,
+            data_through=data_through,
+            citations=citations,
+        )
+
 
 class FixtureScopedRepository:
     """Deterministic in-memory double with the same interface, for unit tests that need no database."""
@@ -669,6 +925,75 @@ class FixtureScopedRepository:
             return ScopeResult(status="no_scope")
         return ScopeResult(
             status="ok", territory_ids=ids, territory_count=len(ids), data_through=self.DATA_THROUGH
+        )
+
+    def topic_trends(
+        self,
+        identity: Identity,
+        *,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        territory_id: str | None,
+    ) -> TopicTrendsResult:
+        if identity.persona == "Executive":
+            return TopicTrendsResult(status="aggregate_only")
+        scope = self._scope_for(identity)
+        if not scope:
+            return TopicTrendsResult(status="no_scope")
+        in_scope = None if territory_id is None else territory_id in scope
+        topics = (
+            TopicTrend("ctDNA monitoring (emerging)", 72, 21, "EMERGING"),
+            TopicTrend("Access and reimbursement", 99, 104, "STABLE"),
+        )
+        example = ResponseExample(
+            "RESP-000001", dt.date(2026, 11, 3), "osimertinib", "How is it used?", "ctDNA monitoring after surgery."
+        )
+        return TopicTrendsResult(
+            status="ok",
+            period_from=period_from or dt.date(2026, 8, 6),
+            period_to=period_to or dt.date(2026, 11, 3),
+            prior_from=dt.date(2026, 5, 8),
+            prior_to=dt.date(2026, 8, 5),
+            territory_filter=territory_id,
+            territory_in_scope=in_scope,
+            current_total=711,
+            prior_total=701,
+            topics=topics,
+            rule="EMERGING means: at least 30 free-text responses in both periods and a clear rise in share. DECLINING is the mirror image.",
+            examples=(example,),
+            data_through=self.DATA_THROUGH,
+            citations=(Citation(record_id="RESP-000001", dataset="hcp_raw_insights", label="Recorded response"),),
+        )
+
+    def question_breakdown(
+        self,
+        identity: Identity,
+        *,
+        question_id: str,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        territory_id: str | None,
+    ) -> QuestionBreakdownResult:
+        if identity.persona == "Executive":
+            return QuestionBreakdownResult(status="aggregate_only")
+        scope = self._scope_for(identity)
+        if not scope:
+            return QuestionBreakdownResult(status="no_scope")
+        in_scope = None if territory_id is None else territory_id in scope
+        return QuestionBreakdownResult(
+            status="ok",
+            question_id=question_id,
+            question_text="Would you consider it earlier?",
+            question_type="yes_no",
+            period_from=period_from or dt.date(2026, 8, 6),
+            period_to=period_to or dt.date(2026, 11, 3),
+            territory_filter=territory_id,
+            territory_in_scope=in_scope,
+            responses=29,
+            distinct_hcps=29,
+            bars=(AnswerBar("Yes", 16, 15), AnswerBar("No", 10, 10), AnswerBar("Unsure", 3, 3)),
+            data_through=self.DATA_THROUGH,
+            citations=(Citation(record_id="RESP-000001", dataset="hcp_raw_insights", label="Recorded response"),),
         )
 
 

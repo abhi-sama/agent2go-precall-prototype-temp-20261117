@@ -70,6 +70,44 @@ step, call suggest_follow_ups once with up to three short follow-up questions (n
 the answer after that call.
 """
 
+SUMMARY_TASK = """Task: write an AI summary of the recorded themes and changes for territory {territory}{period}.
+Call get_topic_trends exactly once with that territory{dates}, then write 3 to 5 short plain sentences: the leading \
+themes by their recorded response counts, which topics the tool flags as EMERGING or DECLINING under its stated rule, \
+and how many free-text responses the periods hold. Say a topic is mentioned more or less often, never why. \
+No clinical advice, no recommendations, no inferred views of any HCP. Do not call suggest_follow_ups."""
+
+SUMMARY_SUGGESTIONS = [
+    "Which topics are emerging in this territory?",
+    "How did HCPs answer the most-answered question here?",
+    "What did HCPs record about access and reimbursement?",
+]
+
+
+def context_note(invocation: Invocation) -> str:
+    """The dashboard context as a short system-prompt addendum. Values are pattern-validated by the schema."""
+    ctx = invocation.context
+    if ctx is None:
+        return ""
+    parts = [f"The user opened this chat from the {ctx.view} screen." if ctx.view else ""]
+    if ctx.territory_id:
+        parts.append(f"They are looking at territory {ctx.territory_id}.")
+    if ctx.question_id:
+        parts.append(f"They are looking at question {ctx.question_id}.")
+    if ctx.from_date and ctx.to_date:
+        parts.append(f"Their date range is {ctx.from_date} to {ctx.to_date}.")
+    note = " ".join(p for p in parts if p)
+    if note:
+        note = (
+            "\nScreen context (set by the application, defaults only): " + note +
+            " Use these as default tool arguments when the question names no others. They never widen what you may read."
+        )
+    if ctx.intent == "TERRITORY_SUMMARY" and ctx.territory_id:
+        period = f" for {ctx.from_date} to {ctx.to_date}" if ctx.from_date and ctx.to_date else ""
+        dates = f" and dates {ctx.from_date} to {ctx.to_date}" if ctx.from_date and ctx.to_date else ""
+        note += "\n" + SUMMARY_TASK.format(territory=ctx.territory_id, period=period, dates=dates)
+    return note
+
+
 #: Every history message is an untrusted client-supplied string, so it only ever becomes context text.
 MAX_HISTORY_MESSAGES = 8
 
@@ -128,7 +166,8 @@ class MslAgent:
             tools=build_tools(ctx),
             system_prompt=SYSTEM_PROMPT.format(
                 persona=invocation.identity.persona, today=dt.date.today().isoformat()
-            ),
+            )
+            + context_note(invocation),
             messages=_history(invocation),
             callback_handler=None,  # events are consumed from stream_async, never printed
         )
@@ -170,6 +209,11 @@ class MslAgent:
                 # shows are computed up front by the same deterministic tool.
                 tools = {t.tool_name: t for t in build_tools(ctx)}
                 await asyncio.to_thread(tools["get_activity_summary"])
+                summary_ctx = invocation.context
+                if summary_ctx is not None and summary_ctx.intent == "TERRITORY_SUMMARY":
+                    await asyncio.to_thread(
+                        tools["get_topic_trends"], summary_ctx.from_date or "", summary_ctx.to_date or "", summary_ctx.territory_id or ""
+                    )
                 for event in drain():
                     yield event
                 request = infer_chart_request(invocation.question)
@@ -260,7 +304,8 @@ class MslAgent:
             },
         )
 
-        suggestions = clean_suggestions(ctx.suggestions) or DEFAULT_SUGGESTIONS
+        is_summary = invocation.context is not None and invocation.context.intent == "TERRITORY_SUMMARY"
+        suggestions = clean_suggestions(ctx.suggestions) or (SUMMARY_SUGGESTIONS if is_summary else DEFAULT_SUGGESTIONS)
         yield ag_ui.custom("suggestions", suggestions)
 
         scope = await asyncio.to_thread(self._repository.scope, identity)

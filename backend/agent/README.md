@@ -13,8 +13,9 @@ POST /invocations  {identity, thread_id, run_id, messages[]}
 
 | Module | Role |
 |---|---|
+| `schemas.py` | Request types, including the optional screen `context` (defaults for tool arguments and the summary task; never extra access). |
 | `repository.py` | Read tools' SQL. Connects as `app_user` and binds the caller with `app.set_request_identity` before any query, so RLS limits every result. |
-| `tools.py` | Strands tools (`get_activity_summary`, `search_recorded_responses`, `show_chart`, `show_answer_distribution`, `get_my_scope`, `suggest_follow_ups`); they record facts, citations and visuals as they run. |
+| `tools.py` | Strands tools (`get_activity_summary`, `search_recorded_responses`, `get_topic_trends`, `get_question_breakdown`, `show_chart`, `show_answer_distribution`, `get_my_scope`, `suggest_follow_ups`); they record facts, citations and visuals as they run. `get_topic_trends` and `get_question_breakdown` call the database's theme and emerging-topic functions (docs/adr/0011). |
 | `chart_data.py`, `visuals.py`, `intent.py` | Whitelisted aggregate SQL for charts, the `visual` AG-UI event payloads built from it, and the deterministic floor that draws a chart when the model skipped the tool (docs/adr/0009). |
 | `agent.py` | Runs the Strands agent over Bedrock ConverseStream and turns its events into AG-UI events. |
 | `numbers.py` | Checks that figures in the answer came from tool results. |

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import type { DataAdapter } from "@/lib/data"
+import type { ChatContext } from "@/lib/data/director-insights"
 import { toDataError, type ChatMessageInput } from "@/lib/data/types"
 import { log, newCorrelationId } from "@/lib/log/logger"
 import { applyEvent, newTurn, parseEvent, type AssistantTurn } from "./events"
@@ -62,7 +63,7 @@ export function useChat(adapter: DataAdapter) {
   React.useEffect(() => () => abort.current?.abort(), [])
 
   const send = React.useCallback(
-    async (question: string) => {
+    async (question: string, context?: ChatContext) => {
       const text = question.trim().slice(0, MAX_QUESTION_CHARS)
       if (!text || turnsRef.current.some((t) => t.answer.status === "running")) return
       const runId = newId()
@@ -75,7 +76,7 @@ export function useChat(adapter: DataAdapter) {
       const fail = (message: string) => patch(runId, (a) => ({ ...a, status: "error", error: message }))
 
       try {
-        await adapter.startChatRun(ctx, { threadId, runId, message: text, history })
+        await adapter.startChatRun(ctx, { threadId, runId, message: text, history, ...(context ? { context } : {}) })
         let after = 0
         let failures = 0
         const deadline = Date.now() + MAX_RUN_MS

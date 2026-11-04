@@ -46,6 +46,21 @@ class BriefTask(BaseModel):
     last_interaction_date: str | None = None
 
 
+class AgentContext(BaseModel):
+    """What the user was looking at when they opened the chat (set by the BE after validation).
+
+    It supplies defaults for tool arguments and picks the task. It is never authority: every tool still
+    reads under the caller's row-level security, so a context naming another territory reads nothing.
+    """
+
+    view: str | None = Field(default=None, max_length=40, pattern=r"^[a-z0-9-]+$")
+    territory_id: str | None = Field(default=None, max_length=40, pattern=r"^[A-Za-z0-9_-]+$")
+    question_id: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_.:-]+$")
+    from_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    to_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    intent: Literal["FREE", "TERRITORY_SUMMARY"] = "FREE"
+
+
 class Invocation(BaseModel):
     """AgentCore Runtime input (foundation-contract.md) plus the run id the BE streams events under."""
 
@@ -55,6 +70,7 @@ class Invocation(BaseModel):
     messages: list[Message] = Field(min_length=1, max_length=40)
     #: Present for work other than a chat answer; today only the pre-call brief.
     task: BriefTask | None = None
+    context: AgentContext | None = None
 
     @field_validator("messages")
     @classmethod
