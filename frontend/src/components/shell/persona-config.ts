@@ -27,7 +27,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
       { label: "My territory", href: "/msl", icon: Map },
       { label: "My activity", href: "/msl/activity", icon: Activity },
       { label: "Pre-call brief", href: null, icon: ClipboardList },
-      { label: "Insights", href: null, icon: BarChart3 },
+      { label: "Insights", href: "/msl", icon: BarChart3 },
       { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],
   },
@@ -38,7 +38,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
     tagline: "Regional view",
     nav: [
       { label: "My region", href: "/director", icon: Users },
-      { label: "Themes", href: null, icon: BarChart3 },
+      { label: "Themes", href: "/director", icon: BarChart3 },
       { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],
   },

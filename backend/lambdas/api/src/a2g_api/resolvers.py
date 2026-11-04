@@ -25,6 +25,7 @@ import psycopg
 from a2g_logging import get_logger
 
 from .errors import BadRequest, Forbidden, NoScope
+from .embeddings import EmbeddingProvider, vector_literal
 from .identity import Identity
 from .saved_views import SavedViews
 
@@ -489,7 +490,51 @@ def insight_discovery(cur: psycopg.Cursor, identity: Identity, user_id: str, arg
     )
     questions = [{"questionId": row[0], "questionText": row[1], "topic": row[2], "molecule": row[3], "tumorType": row[4], "study": row[5], "survey": row[6], "status": row[7] or "Unknown", "effectiveFrom": row[8].isoformat() if row[8] else None, "effectiveTo": row[9].isoformat() if row[9] else None, "applicability": row[10]} for row in cur.fetchall()]
     log.info("insight discovery computed", user_id=user_id, territory_count=effective, distribution_count=len(distributions), question_count=len(questions), range_days=(to - frm).days + 1)
-    return {"scopeLabel": label, "options": _options(cur), "distributions": distributions, "questions": questions}
+    cur.execute(
+        """WITH source AS (
+             SELECT lower(coalesce(rspns_txt, '')) AS response, qstn_ext_id, qstn_txt, uniq_rspns_id
+             FROM hcp_raw_insights WHERE excluded_rspns_flag IS NOT TRUE AND date_of_interaction BETWEEN %(frm)s AND %(to)s
+           ), classified AS (
+             SELECT CASE WHEN response LIKE '%%access%%' THEN 'Access considerations'
+                         WHEN response LIKE '%%evidence%%' THEN 'Evidence questions'
+                         ELSE 'Recorded perspectives' END AS theme, qstn_ext_id, qstn_txt, response, uniq_rspns_id
+             FROM source
+           )
+           SELECT theme, count(DISTINCT uniq_rspns_id), min(response), min(qstn_ext_id), min(qstn_txt)
+           FROM classified GROUP BY theme ORDER BY count(DISTINCT uniq_rspns_id) DESC, theme LIMIT 6""",
+        {"frm": frm, "to": to},
+    )
+    themes = [{"name": name, "responseCount": int(count), "excerpt": excerpt[:280], "recordId": record_id, "questionText": question} for name, count, excerpt, record_id, question in cur.fetchall()]
+    cur.execute(
+        """SELECT coalesce(nullif(btrim(followup_qstn), ''), nullif(btrim(followup_rspns), '')), count(DISTINCT uniq_rspns_id),
+                  min(rspns_txt), min(uniq_rspns_id)
+             FROM hcp_raw_insights WHERE excluded_rspns_flag IS NOT TRUE AND date_of_interaction BETWEEN %(frm)s AND %(to)s
+               AND (nullif(btrim(followup_qstn), '') IS NOT NULL OR nullif(btrim(followup_rspns), '') IS NOT NULL)
+             GROUP BY 1 ORDER BY count(DISTINCT uniq_rspns_id) DESC, 1 LIMIT 6""",
+        {"frm": frm, "to": to},
+    )
+    follow_ups = [{"topic": topic, "evidenceCount": int(count), "excerpt": excerpt[:280], "recordId": record_id} for topic, count, excerpt, record_id in cur.fetchall()]
+    return {"scopeLabel": label, "options": _options(cur), "distributions": distributions, "questions": questions, "themes": themes, "followUpTopics": follow_ups}
+
+
+def semantic_insight_search(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, provider: EmbeddingProvider) -> list[dict[str, Any]]:
+    _assigned, effective, label = _scope(cur, identity)
+    _require_record_access(cur, label, effective)
+    query = str(args.get("query") or "").strip()
+    limit = args.get("limit", 10)
+    if not 2 <= len(query) <= 500 or isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 25:
+        raise BadRequest("invalid_semantic_search")
+    vector = vector_literal(provider.embed(query))
+    cur.execute(
+        """SELECT h.uniq_rspns_id, h.qstn_txt, h.rspns_txt, h.date_of_interaction, h.territory_id,
+                  1 - (e.embedding <=> %s::vector) AS score
+             FROM embeddings e JOIN hcp_raw_insights h ON e.source_table = 'hcp_raw_insights' AND e.source_record_id = h.uniq_rspns_id
+             WHERE e.source_table = 'hcp_raw_insights' ORDER BY e.embedding <=> %s::vector, h.uniq_rspns_id LIMIT %s""",
+        (vector, vector, limit),
+    )
+    rows = [{"responseId": response_id, "questionText": question, "responseText": response, "interactionDate": date.isoformat(), "territoryId": territory, "score": round(float(score), 4)} for response_id, question, response, date, territory, score in cur.fetchall()]
+    log.info("semantic insight search computed", user_id=user_id, result_count=len(rows), scope_territory_count=effective)
+    return rows
 
 
 def saved_views(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, store: SavedViews) -> list[dict[str, Any]]:

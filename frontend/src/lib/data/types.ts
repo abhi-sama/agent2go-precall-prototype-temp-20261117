@@ -95,7 +95,15 @@ export interface InsightDiscovery {
   options: FilterOptions
   distributions: ResponseDistribution[]
   questions: CatalogQuestion[]
+  themes: QualitativeTheme[]
+  followUpTopics: FollowUpTopic[]
 }
+
+/** Derived from recorded responses; never a source fact or confirmed conclusion. */
+export interface QualitativeTheme { name: string; responseCount: number; excerpt: string; recordId: string; questionText: string | null }
+/** A possible topic, explicitly separate from a confirmed follow-up action. */
+export interface FollowUpTopic { topic: string; evidenceCount: number; excerpt: string; recordId: string }
+export interface SemanticInsightResult { responseId: string; questionText: string; responseText: string; interactionDate: IsoDate; territoryId: string; score: number }
 
 export interface SavedView {
   savedViewId: string

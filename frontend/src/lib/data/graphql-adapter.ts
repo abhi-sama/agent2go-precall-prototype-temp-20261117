@@ -22,6 +22,7 @@ import {
   INSIGHT_DISCOVERY_QUERY,
   SAVED_VIEWS_QUERY,
   SAVE_VIEW_MUTATION,
+  SEMANTIC_INSIGHT_SEARCH_QUERY,
 } from "./operations"
 import {
   DataError,
@@ -51,6 +52,7 @@ import {
   type InsightDiscovery,
   type InsightFilters,
   type SavedView,
+  type SemanticInsightResult,
 } from "./types"
 
 export interface GraphQLResponse<T> {
@@ -203,6 +205,9 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     async insightDiscovery(ctx, filters?: InsightFilters) {
       const data = await run<{ insightDiscovery: InsightDiscovery }>(transport, INSIGHT_DISCOVERY_QUERY, { filters }, ctx)
       return data.insightDiscovery
+    },
+    async semanticInsightSearch(ctx, query, limit) {
+      return (await run<{ semanticInsightSearch: SemanticInsightResult[] }>(transport, SEMANTIC_INSIGHT_SEARCH_QUERY, { query, limit: limit ?? null }, ctx)).semanticInsightSearch
     },
     async savedViews(ctx) {
       const data = await run<{ savedViews: SavedView[] }>(transport, SAVED_VIEWS_QUERY, undefined, ctx)

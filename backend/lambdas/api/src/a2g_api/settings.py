@@ -25,6 +25,8 @@ class Settings:
     saved_views_access_key: str | None = None
     saved_views_region: str = "us-east-1"
     fe_appsync_url: str | None = None
+    embedding_provider: str = "local"
+    embedding_endpoint: str | None = None
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> Settings:
@@ -58,4 +60,6 @@ class Settings:
             saved_views_region=e.get("AWS_REGION", "us-east-1"),
             # AWS only: the worker's IAM role is restricted to publishChatEvent on this API.
             fe_appsync_url=(e.get("A2G_FE_APPSYNC_URL") or "").rstrip("/") or None,
+            embedding_provider=e.get("A2G_EMBEDDING_PROVIDER", "local"),
+            embedding_endpoint=e.get("A2G_BEDROCK_ENDPOINT") or e.get("AWS_ENDPOINT_URL") or None,
         )

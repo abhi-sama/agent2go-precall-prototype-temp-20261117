@@ -23,6 +23,7 @@ from a2g_logging import configure, correlation, get_logger
 from . import activity, chat, director, flags, hierarchy, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
+from .embeddings import provider_from_config
 from .identity import JwksCache, resolve_identity
 from .settings import Settings
 from .saved_views import SavedViews
@@ -63,6 +64,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
 
     def save_view(cur, identity, user_id, args):
         return resolvers.save_view(cur, identity, user_id, args, store=SavedViews(settings))
+    embeddings = provider_from_config(settings.embedding_provider, endpoint_url=settings.embedding_endpoint, region_name=settings.saved_views_region)
 
     return {
         "startChatRun": partial(
@@ -88,6 +90,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "searchHcps": resolvers.search_hcps,
         "hcpProfile": resolvers.hcp_profile,
         "insightDiscovery": partial(resolvers.insight_discovery, default_range_days=settings.default_range_days),
+        "semanticInsightSearch": partial(resolvers.semantic_insight_search, provider=embeddings),
         "savedViews": list_views,
         "saveView": save_view,
         "adminHierarchy": hierarchy.admin_hierarchy,

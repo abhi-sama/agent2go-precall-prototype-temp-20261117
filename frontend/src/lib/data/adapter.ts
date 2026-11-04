@@ -18,6 +18,7 @@ import type {
   HcpProfile,
   HcpSearchResult,
   InsightDiscovery,
+  SemanticInsightResult,
   InsightFilters,
   IsoDate,
   IdentityMatch,
@@ -79,6 +80,7 @@ export interface DataAdapter extends GovernanceAdapter {
   searchHcps(ctx: RequestContext, query: string, limit?: number): Promise<HcpSearchResult[]>
   hcpProfile(ctx: RequestContext, hcpId: string): Promise<HcpProfile>
   insightDiscovery(ctx: RequestContext, filters?: InsightFilters): Promise<InsightDiscovery>
+  semanticInsightSearch(ctx: RequestContext, query: string, limit?: number): Promise<SemanticInsightResult[]>
   savedViews(ctx: RequestContext): Promise<SavedView[]>
   saveView(ctx: RequestContext, input: Pick<SavedView, "name" | "reportKind" | "filters">): Promise<SavedView>
   adminDataQuality(ctx: RequestContext): Promise<AdminDataQuality>

@@ -3,6 +3,7 @@
 import { MessagesSquare, Stethoscope, Users } from "lucide-react"
 import * as React from "react"
 import { AnalyticsFilterBar, QuestionDiscovery, ResponseDistributions } from "@/components/filters/insight-discovery"
+import { QualitativeInsights } from "@/components/insights/qualitative-insights"
 import { useSharedFilters } from "@/components/filters/filter-context"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { KpiCard } from "@/components/landing/kpi-card"
@@ -148,6 +149,7 @@ export function LandingSection({
       {discovery.status === "error" ? <ErrorState error={discovery.error} onRetry={discovery.refetch} /> : discovery.status === "success" && (
         <div className="flex flex-col gap-10">
           <ResponseDistributions discovery={discovery.data} />
+          <QualitativeInsights discovery={discovery.data} />
           <QuestionDiscovery discovery={discovery.data} />
         </div>
       )}

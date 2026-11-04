@@ -7,6 +7,7 @@ application dependencies. It intentionally retains data defects for governance t
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import os
@@ -152,8 +153,27 @@ def seed_insights() -> None:
         d = TODAY - timedelta(days=i % 365)
         geo = BY_TERRITORY[territory]
         name = "Insight directory HCP 0001" if canonical_hcp == "HCP-0001" else "Synthetic HCP " + hcp
-        rows.append((f"INT-{i + 1:06}",f"RAW-{i + 1:06}","seed",None,None,d.isoformat(),STUDIES[i % 4],"field","in-person",region,"2026-01-01T00:00:00",region,geo.country_code,geo.country_name,territory,territory,territory + " Oncology",region,region + " Region","Oncology",hcp,name,"medical oncology","Synthetic Cancer Center","oncology","HCP",None,"Oncology insight",None,None,f"INS-{i + 1:06}",f"How does {MOLECULES[i % 4]} fit in {TUMORS[i % 4]} discussion?",f"Recorded perspective {i % 17}: evidence and access are important.",question,"2025-01-01T00:00:00",None,status,"Oncology",None,"normal",None,"open_text",MOLECULES[i % 4],"treatment landscape","MSL pulse",TUMORS[i % 4],STUDIES[i % 4],None,None,None,None,None,unique,"2026-11-03T12:00:00Z",None,None,None,None,False))
+        follow_up = f"Explore {MOLECULES[i % 4]} evidence and access" if i % 9 == 0 else None
+        rows.append((f"INT-{i + 1:06}",f"RAW-{i + 1:06}","seed",None,None,d.isoformat(),STUDIES[i % 4],"field","in-person",region,"2026-01-01T00:00:00",region,geo.country_code,geo.country_name,territory,territory,territory + " Oncology",region,region + " Region","Oncology",hcp,name,"medical oncology","Synthetic Cancer Center","oncology","HCP",None,"Oncology insight",None,None,f"INS-{i + 1:06}",f"How does {MOLECULES[i % 4]} fit in {TUMORS[i % 4]} discussion?",f"Recorded perspective {i % 17}: evidence and access are important.",question,"2025-01-01T00:00:00",None,status,"Oncology",None,"normal",None,"open_text",MOLECULES[i % 4],"treatment landscape","MSL pulse",TUMORS[i % 4],STUDIES[i % 4],None,None,None,follow_up,None,unique,"2026-11-03T12:00:00Z",None,None,None,None,False))
     copy_rows("hcp_raw_insights", ["insight_intrctn_dtl_sfdc_id","response_id","insight_submitter_info","submitter_name","submitter_email","date_of_interaction","clinical_trial","type_of_visit","meeting_format","insight_region","src_created_dt","region_nm","insight_country","country_nm","insight_msl_territory","territory_id","territory_name","parent_territory_id","parent_territory_name","team_nm","cust_mdm_id","cust_nm","hcp_speciality","hcp_institution","hcp_discipline","hcp_type","internal_meeting_attendees","insight_name","insight_clinicaltrial_site","site_nm","insight_intrctn_rspns_sfdc_id","qstn_txt","rspns_txt","qstn_ext_id","qstn_tag_strt_dt","qstn_tag_end_dt","qstn_tag_status","tag_nm","pid","priority_tag","qstn_pid","qstn_type","molecule_type","landscape_type","survey_type","qstn_indicator","study_name","derived_rspns_text","follow_up_qstn_tag","followup_qid","followup_qstn","followup_rspns","uniq_rspns_id","sys_inserted_datetime","mdm_corp_prnt_id","mdm_corp_prnt_nm","hq_corp_prnt_id","hq_corp_prnt_nm","excluded_rspns_flag"], rows)
+
+def embedding(text: str) -> str:
+    values = [0.0] * 1536
+    for token in text.lower().split():
+        digest = hashlib.blake2b(token.encode(), digest_size=8).digest()
+        values[int.from_bytes(digest[:4], "big") % len(values)] += 1 if digest[4] & 1 else -1
+    magnitude = sum(value * value for value in values) ** 0.5
+    return "[" + ",".join(str(value / magnitude if magnitude else 0) for value in values) + "]"
+
+def seed_insight_embeddings() -> None:
+    # Representative vectors cover every territory while keeping local reset quick.
+    rows = []
+    for i in range(0, 60000, 125):
+        territory = TERRITORIES[i % len(TERRITORIES)]
+        response_id = f"RESP-{i + 1:06}"
+        text = f"How does {MOLECULES[i % 4]} fit in {TUMORS[i % 4]} discussion Recorded perspective {i % 17}: evidence and access are important"
+        rows.append(("hcp_raw_insights", response_id, territory, f"seed-insight-{response_id}", embedding(text), "local", "local-open-source"))
+    copy_rows("embeddings", ["source_table", "source_record_id", "territory_id", "content_hash", "embedding", "embedding_provider", "embedding_model"], rows)
 
 def seed_hcp_crosswalk() -> None:
     copy_rows("hcp_entities", ["hcp_id"], [(f"HCP-{i:04}",) for i in range(1, 3001)])
@@ -169,6 +189,7 @@ def main() -> None:
     seed_questions()
     seed_calls()
     seed_insights()
+    seed_insight_embeddings()
     seed_hcp_crosswalk()
     print(json.dumps({"call_rows": 25000, "insight_rows": 60000, "questions": 400, "seed_users": len(seed_users), "manifest": str(MANIFEST)}))
 

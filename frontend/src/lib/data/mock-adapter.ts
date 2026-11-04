@@ -455,7 +455,13 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
         options: discoveryOptions,
         distributions,
         questions: questions.filter((q) => matches(filters, q.questionId, "questionId") && matches(filters, q.molecule, "molecule") && matches(filters, q.study, "study") && matches(filters, q.survey, "survey")),
+        themes: [{ name: "Evidence questions", responseCount: 18, excerpt: "Evidence and access are important.", recordId: "RESP-000001", questionText: "How does treatment fit in discussion?" }],
+        followUpTopics: [{ topic: "Explore evidence and access", evidenceCount: 6, excerpt: "Evidence and access are important.", recordId: "RESP-000001" }],
       }
+    },
+    async semanticInsightSearch(ctx, query) {
+      await gate(ctx, "semanticInsightSearch")
+      return query.trim().length < 2 ? [] : [{ responseId: "RESP-000001", questionText: "How does treatment fit in discussion?", responseText: "Evidence and access are important.", interactionDate: "2026-10-15", territoryId: "NE-01", score: 0.91 }]
     },
     async savedViews(ctx) {
       await gate(ctx, "savedViews")

@@ -220,3 +220,17 @@ test("shared analytics filters, denominators, saved views and catalog dates work
   await page.getByRole("button", { name: "Save" }).click()
   await expect(page.getByRole("button", { name: /Breast review/ })).toBeVisible()
 })
+
+test("qualitative themes, possible topics, and scoped semantic search fit the iPad workspace", async ({ page }) => {
+  await page.goto("/msl")
+  await expect(page.getByRole("heading", { level: 2, name: "Qualitative insights" })).toBeVisible()
+  await expect(page.getByTestId("theme-card").first()).toContainText("Derived")
+  await expect(page.getByText("not a confirmed commitment or task").first()).toBeVisible()
+  await page.getByLabel("Search insight responses").fill("evidence")
+  const search = page.getByLabel("Search insights")
+  const box = await search.boundingBox()
+  expect(box!.height).toBeGreaterThanOrEqual(44)
+  await search.click()
+  await expect(page.getByTestId("semantic-search")).toContainText("RESP-")
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
+})

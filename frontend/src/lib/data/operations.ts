@@ -59,9 +59,12 @@ export const INSIGHT_DISCOVERY_QUERY = /* GraphQL */ `
       options { territories { value label } molecules { value label } landscapes { value label } studies { value label } surveys { value label } questions { value label } }
       distributions { questionId questionText parentQuestionId response count denominator percentage }
       questions { questionId questionText topic molecule tumorType study survey status effectiveFrom effectiveTo applicability }
+      themes { name responseCount excerpt recordId questionText }
+      followUpTopics { topic evidenceCount excerpt recordId }
     }
   }
 `
+export const SEMANTIC_INSIGHT_SEARCH_QUERY = `query SemanticInsightSearch($query: String!, $limit: Int) { semanticInsightSearch(query: $query, limit: $limit) { responseId questionText responseText interactionDate territoryId score } }`
 
 export const ACTIVITY_EVIDENCE_QUERY = /* GraphQL */ `
   query ActivityEvidence($metric: ActivityMetric!, $month: AWSDate!, $channel: String, $limit: Int) {

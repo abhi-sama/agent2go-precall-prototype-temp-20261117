@@ -435,7 +435,14 @@ type InsightDiscovery {
   options: FilterOptions!
   distributions: [ResponseDistribution!]!
   questions: [CatalogQuestion!]!
+  themes: [QualitativeTheme!]!
+  followUpTopics: [FollowUpTopic!]!
 }
+"A derived grouping of recorded responses; it is never a source fact."
+type QualitativeTheme { name: String!, responseCount: Int!, excerpt: String!, recordId: ID!, questionText: String }
+"A possible discussion topic supported by source evidence, not a confirmed commitment."
+type FollowUpTopic { topic: String!, evidenceCount: Int!, excerpt: String!, recordId: ID! }
+type SemanticInsightResult { responseId: ID!, questionText: String!, responseText: String!, interactionDate: AWSDate!, territoryId: String!, score: Float! }
 
 type SavedView {
   savedViewId: ID!
@@ -606,6 +613,7 @@ type Query {
   searchHcps(query: String!, limit: Int): [HcpSearchResult!]!
   hcpProfile(hcpId: ID!): HcpProfile!
   insightDiscovery(filters: InsightFiltersInput): InsightDiscovery!
+  semanticInsightSearch(query: String!, limit: Int): [SemanticInsightResult!]!
   savedViews: [SavedView!]!
   "Territory graph with cycles, orphans, missing links, overlaps and inheritance validated. Administrators only."
   adminHierarchy: HierarchyValidation!
