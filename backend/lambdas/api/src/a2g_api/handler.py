@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, chat, flags, resolvers
+from . import activity, chat, flags, hierarchy, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .identity import JwksCache, resolve_identity
@@ -88,6 +88,15 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "insightDiscovery": partial(resolvers.insight_discovery, default_range_days=settings.default_range_days),
         "savedViews": list_views,
         "saveView": save_view,
+        "adminHierarchy": hierarchy.admin_hierarchy,
+        "adminAccessTimeline": hierarchy.admin_access_timeline,
+        "requestScopeChange": hierarchy.request_scope_change,
+        "decideScopeChange": hierarchy.decide_scope_change,
+        "adminVisibility": hierarchy.admin_visibility,
+        "setCatalogVisibility": hierarchy.set_catalog_visibility,
+        "setResponseAccess": hierarchy.set_response_access,
+        "catalogQuestions": hierarchy.catalog_questions,
+        "questionResponses": hierarchy.question_responses,
     }
 
 

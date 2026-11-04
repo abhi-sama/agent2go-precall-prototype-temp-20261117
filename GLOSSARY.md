@@ -55,6 +55,22 @@ _Avoid_: org chart, tree (when overlaps exist)
 An effective-dated grant of one territory or region to a user, typed as primary, temporary coverage, executive or administrative.
 _Avoid_: entitlement row, territory assignment (roster sense)
 
+**Scope change request**:
+A transfer or temporary coverage asked for by one administrator and approved or rejected by a different one, with the reason kept; approving writes the effective-dated scope assignments.
+_Avoid_: ticket, workflow
+
+**Temporary coverage**:
+A scope assignment of type temporary that always has an end date and stops on it by the clock.
+_Avoid_: delegation, acting role
+
+**Transfer**:
+Moving a user's primary scope assignment from one territory to another at an effective date; the old assignment ends when the new one starts.
+_Avoid_: reassignment
+
+**Hierarchy finding**:
+A problem the hierarchy validation reports: a cycle, an orphan territory, a missing link, an overlap (several parents) or an uncovered territory.
+_Avoid_: hierarchy error
+
 **Entitlement**:
 Everything a user is authorized for at a moment: their persona's permissions plus their effective scope.
 _Avoid_: access rights, ACL
@@ -77,7 +93,7 @@ Permission to see counts and distributions with small-group suppression, without
 _Avoid_: summary access
 
 **Catalog visibility**:
-Permission to see catalog questions, granted separately from permission to see HCP responses.
+Permission to see catalog questions, granted separately from permission to see HCP responses; seeing a question never grants seeing its responses.
 
 ## Activity and insight
 

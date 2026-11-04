@@ -1,4 +1,5 @@
 import type { DataAdapter } from "./adapter"
+import { createGraphQLGovernance } from "./governance"
 import {
   ACTIVITY_EVIDENCE_QUERY,
   ACTIVITY_TRENDS_QUERY,
@@ -100,6 +101,7 @@ async function run<T>(
 export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
   return {
     kind: "appsync",
+    ...createGraphQLGovernance((query, variables, ctx) => run(transport, query, variables, ctx)),
     async me(ctx) {
       const data = await run<{ me: Me }>(transport, ME_QUERY, undefined, ctx)
       return data.me

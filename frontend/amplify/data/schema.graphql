@@ -308,6 +308,121 @@ input SaveViewInput {
   filters: InsightFiltersInput!
 }
 
+enum HierarchySeverity { ERROR WARNING }
+
+"""One holder of a territory: directly assigned, or inherited from `viaTerritoryId` further up."""
+type HierarchyHolder { userId: ID!, displayName: String!, assignmentType: String!, viaTerritoryId: ID! }
+
+"""A territory or region in the hierarchy graph. One node may have several parents."""
+type HierarchyNode {
+  territoryId: ID!
+  name: String!
+  kind: String!
+  parentIds: [ID!]!
+  childIds: [ID!]!
+  "Distance from the nearest root; null when no root reaches it (a cycle, or no links at all)."
+  depth: Int
+  directHolders: [HierarchyHolder!]!
+  inheritedHolders: [HierarchyHolder!]!
+  findingCodes: [String!]!
+}
+
+"""`source` is scope_relationship, source_feed, or both."""
+type HierarchyEdge { childId: ID!, parentId: ID!, source: String!, effectiveFrom: AWSDateTime }
+
+"""
+code is CYCLE, ORPHAN_TERRITORY, MISSING_LINK, OVERLAP or UNCOVERED_TERRITORY.
+Messages name territories and counts only.
+"""
+type HierarchyFinding { code: String!, severity: HierarchySeverity!, territoryIds: [ID!]!, message: String! }
+
+type HierarchyValidation {
+  generatedAt: AWSDateTime!
+  nodes: [HierarchyNode!]!
+  edges: [HierarchyEdge!]!
+  findings: [HierarchyFinding!]!
+  errorCount: Int!
+  warningCount: Int!
+}
+
+enum AssignmentStatus { SCHEDULED ACTIVE EXPIRED }
+
+"""One effective-dated scope assignment. `status` is computed from the clock, not stored."""
+type AccessTimelineEntry {
+  assignmentId: ID!
+  userId: ID!
+  displayName: String!
+  territoryId: String!
+  assignmentType: String!
+  effectiveFrom: AWSDateTime!
+  effectiveTo: AWSDateTime
+  approvedBy: ID
+  "The request that produced this assignment; null for assignments made directly."
+  requestId: ID
+  status: AssignmentStatus!
+  secondsRemaining: Int
+  unresolvedTerritory: Boolean!
+}
+
+enum ScopeChangeKind { TRANSFER TEMPORARY_COVERAGE }
+enum ScopeChangeStatus { PENDING APPROVED REJECTED }
+enum ScopeChangeDecision { APPROVE REJECT }
+
+"""A transfer or temporary coverage, with who asked, who decided and why."""
+type ScopeChangeRequest {
+  requestId: ID!
+  kind: ScopeChangeKind!
+  userId: ID!
+  displayName: String!
+  fromTerritoryId: String
+  toTerritoryId: String!
+  effectiveFrom: AWSDateTime!
+  effectiveTo: AWSDateTime
+  reason: String!
+  status: ScopeChangeStatus!
+  requestedBy: ID!
+  requestedAt: AWSDateTime!
+  decidedBy: ID
+  decidedAt: AWSDateTime
+  decisionNote: String
+}
+
+"""kind is SAME_USER_DUPLICATE or SHARED_PRIMARY."""
+type AccessOverlap { kind: String!, userId: ID, territoryId: String!, assignmentIds: [ID!]!, message: String! }
+
+type AccessTimeline {
+  generatedAt: AWSDateTime!
+  entries: [AccessTimelineEntry!]!
+  requests: [ScopeChangeRequest!]!
+  overlaps: [AccessOverlap!]!
+}
+
+input ScopeChangeInput {
+  kind: ScopeChangeKind!
+  userId: ID!
+  "Required for a transfer: the territory the user leaves."
+  fromTerritoryId: String
+  toTerritoryId: String!
+  effectiveFrom: AWSDateTime!
+  "Required for temporary coverage (it expires then); not allowed for a transfer."
+  effectiveTo: AWSDateTime
+  reason: String!
+}
+input ScopeChangeDecisionInput { requestId: ID!, decision: ScopeChangeDecision!, note: String }
+
+enum ResponseAccessLevel { NONE AGGREGATE_ONLY RECORDS }
+"""Whether a role can see catalog questions (catalog.read). Says nothing about responses."""
+type CatalogVisibilityRow { roleId: ID!, roleName: String!, catalogVisible: Boolean! }
+"""How much of the HCP responses a role can see. Says nothing about the catalog."""
+type ResponseAccessRow { roleId: ID!, roleName: String!, level: ResponseAccessLevel! }
+type AdminVisibility { catalogMatrix: [CatalogVisibilityRow!]!, responseMatrix: [ResponseAccessRow!]! }
+input CatalogVisibilityInput { roleId: ID!, visible: Boolean! }
+input ResponseAccessInput { roleId: ID!, level: ResponseAccessLevel! }
+
+type CatalogQuestionRow { questionId: ID!, text: String, status: String, molecule: String, tumorType: String, study: String, survey: String }
+type QuestionResponse { responseId: ID!, territoryId: String, interactionDate: AWSDate, text: String }
+type QuestionResponses { questionId: ID!, total: Int!, responses: [QuestionResponse!]! }
+
 type Query {
   me: Me!
   landingKpis(from: AWSDate, to: AWSDate, filters: InsightFiltersInput): LandingKpis!
@@ -326,6 +441,16 @@ type Query {
   hcpProfile(hcpId: ID!): HcpProfile!
   insightDiscovery(filters: InsightFiltersInput): InsightDiscovery!
   savedViews: [SavedView!]!
+  "Territory graph with cycles, orphans, missing links, overlaps and inheritance validated. Administrators only."
+  adminHierarchy: HierarchyValidation!
+  "Effective-dated assignments with computed status, the approval trail, and overlaps. Administrators only."
+  adminAccessTimeline(userId: ID): AccessTimeline!
+  "The catalog-access matrix and the response-access matrix, which are separate. Administrators only."
+  adminVisibility: AdminVisibility!
+  "Catalog questions. Needs catalog visibility; grants nothing about responses."
+  catalogQuestions(limit: Int): [CatalogQuestionRow!]!
+  "Recorded responses to one question. Needs response access and scope; catalog visibility is irrelevant."
+  questionResponses(questionId: ID!, limit: Int): QuestionResponses!
 }
 
 type Mutation {
@@ -334,6 +459,12 @@ type Mutation {
   approveIdentityMapping(input: IdentityMappingInput!): IdentityMatch!
   setRolePermissions(input: RolePermissionInput!): RolePermissionMatrix!
   createScopeAssignment(input: ScopeAssignmentInput!): ScopeAssignment!
+  "Ask for a transfer or temporary coverage. Nothing changes until a different administrator approves."
+  requestScopeChange(input: ScopeChangeInput!): ScopeChangeRequest!
+  "Approve (writes the effective-dated assignments) or reject. Not allowed on your own request."
+  decideScopeChange(input: ScopeChangeDecisionInput!): ScopeChangeRequest!
+  setCatalogVisibility(input: CatalogVisibilityInput!): CatalogVisibilityRow!
+  setResponseAccess(input: ResponseAccessInput!): ResponseAccessRow!
   startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!]): ChatRun!
   saveView(input: SaveViewInput!): SavedView!
   "Server-to-server only: the BE chat worker publishes an event after persisting it under RLS."

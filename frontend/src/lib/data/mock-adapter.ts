@@ -1,6 +1,7 @@
 import { addDays, addMonths, daysInRange, todayIso, weekdaysInRange } from "@/lib/dates"
 import { log } from "@/lib/log/logger"
 import type { DataAdapter } from "./adapter"
+import { createMockGovernance } from "./governance"
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
 import { mockCitation, readRun, scriptRun } from "./mock-chat"
 import {
@@ -137,6 +138,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
 
   return {
     kind: "mock",
+    ...createMockGovernance({ getUser: () => findUser(options.getUserId()), gate, now }),
 
     async me(ctx): Promise<Me> {
       await gate(ctx, "me")

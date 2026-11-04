@@ -31,6 +31,15 @@ export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'insightDiscovery' },
   { typeName: 'Query', fieldName: 'savedViews' },
   { typeName: 'Mutation', fieldName: 'saveView' },
+  { typeName: 'Query', fieldName: 'adminHierarchy' },
+  { typeName: 'Query', fieldName: 'adminAccessTimeline' },
+  { typeName: 'Mutation', fieldName: 'requestScopeChange' },
+  { typeName: 'Mutation', fieldName: 'decideScopeChange' },
+  { typeName: 'Query', fieldName: 'adminVisibility' },
+  { typeName: 'Mutation', fieldName: 'setCatalogVisibility' },
+  { typeName: 'Mutation', fieldName: 'setResponseAccess' },
+  { typeName: 'Query', fieldName: 'catalogQuestions' },
+  { typeName: 'Query', fieldName: 'questionResponses' },
 ] as const;
 
 /**

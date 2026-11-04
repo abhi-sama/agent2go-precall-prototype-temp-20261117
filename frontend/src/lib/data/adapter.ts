@@ -1,3 +1,4 @@
+import type { GovernanceAdapter } from "./governance"
 import type {
   ActivityEvidence,
   ActivityMetric,
@@ -33,7 +34,7 @@ import type {
  * worker, via `createGraphQLAdapter`) both implement it, so swapping is a one-line change in
  * `getDataAdapter()`.
  */
-export interface DataAdapter {
+export interface DataAdapter extends GovernanceAdapter {
   readonly kind: "mock" | "appsync"
   me(ctx: RequestContext): Promise<Me>
   /** `range` omitted lets the backend choose its default window. */
