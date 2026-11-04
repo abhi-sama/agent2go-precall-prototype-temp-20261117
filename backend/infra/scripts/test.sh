@@ -11,7 +11,9 @@ echo "== BE API Lambda (unit)"
 echo "== territory geography data (unit)"
 python3 -m unittest discover -s "$REPO/backend/db/tests" -q
 echo "== agent (unit; the floci stub fallback test starts a throwaway floci)"
-(cd "$REPO/backend/agent" && uv run --quiet pytest -q)
+OWNER_DSN="$DATABASE_URL"
+APP_DSN=$(printf '%s' "$OWNER_DSN" | sed -E 's#//[^@]+@#//app_user:app_user@#')
+(cd "$REPO/backend/agent" && A2G_OWNER_DB_URL="$OWNER_DSN" A2G_AGENT_DB_URL="$APP_DSN" uv run --quiet pytest -q)
 echo "== database schema, RLS and seed (reseeds the database)"
 bash "$REPO/backend/db/tests/test_database.sh"
 echo "== restoring the login-to-user mapping the reseed cleared"

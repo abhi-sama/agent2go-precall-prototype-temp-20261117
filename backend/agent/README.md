@@ -14,7 +14,8 @@ POST /invocations  {identity, thread_id, run_id, messages[]}
 | Module | Role |
 |---|---|
 | `repository.py` | Read tools' SQL. Connects as `app_user` and binds the caller with `app.set_request_identity` before any query, so RLS limits every result. |
-| `tools.py` | Strands tools (`get_activity_summary`, `search_recorded_responses`, `get_my_scope`, `suggest_follow_ups`); they record facts and citations as they run. |
+| `tools.py` | Strands tools (`get_activity_summary`, `search_recorded_responses`, `show_chart`, `show_answer_distribution`, `get_my_scope`, `suggest_follow_ups`); they record facts, citations and visuals as they run. |
+| `chart_data.py`, `visuals.py`, `intent.py` | Whitelisted aggregate SQL for charts, the `visual` AG-UI event payloads built from it, and the deterministic floor that draws a chart when the model skipped the tool (docs/adr/0009). |
 | `agent.py` | Runs the Strands agent over Bedrock ConverseStream and turns its events into AG-UI events. |
 | `numbers.py` | Checks that figures in the answer came from tool results. |
 | `writes.py` | The narrow write tool: assumes the FE role and puts one turn in FE DynamoDB. The model cannot call it. |
@@ -30,4 +31,5 @@ cd backend/agent && uv sync --all-groups && uv run pytest
 
 Unit tests use a scripted model.
 `test_stub_floci.py` starts a throwaway floci (no key needed) and runs the real agent against its Bedrock stub; it skips without Docker.
-End-to-end behaviour with Claude is proved through the API by `tests/api/test_chat.py`.
+End-to-end behaviour with Claude is proved through the API by `tests/api/test_chat.py` and `tests/api/test_chat_visuals.py`.
+Chart values are recounted against a real database by `tests/test_visuals_db.py` when `A2G_AGENT_DB_URL` (app_user) and `A2G_OWNER_DB_URL` are set.

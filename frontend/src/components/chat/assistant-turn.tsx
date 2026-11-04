@@ -2,15 +2,43 @@
 
 import { AlertTriangle, BarChart3, FileText, Loader2 } from "lucide-react"
 import * as React from "react"
+import { VisualCard } from "@/components/chat/visual-card"
 import { AiSummary, SourceFact, Suggestion } from "@/components/provenance/provenance"
 import { Badge } from "@/components/ui/badge"
-import { citationNumber, citationsForFact, type AssistantTurn, type CitationItem } from "@/lib/chat/events"
+import { useCountUp } from "@/hooks/use-count-up"
+import { citationNumber, citationsForFact, type AssistantTurn, type CitationItem, type FactItem } from "@/lib/chat/events"
 import { cn } from "@/lib/utils"
 
 const TOOL_LABELS: Record<string, string> = {
   get_activity_summary: "Counting calls, HCPs and responses",
   search_recorded_responses: "Searching recorded responses",
   get_my_scope: "Checking your scope",
+  show_chart: "Drawing a chart from your data",
+  show_answer_distribution: "Counting answers for a chart",
+}
+
+/** A key figure: counted by the database, so it eases up to the exact value and then shows it. */
+function KpiTile({ f, turn, onOpenCitation }: { f: FactItem; turn: AssistantTurn; onOpenCitation: (citation: CitationItem) => void }) {
+  const shown = useCountUp(f.value, 600)
+  return (
+    <div data-testid={`fact-${f.factId}`} data-value={f.value} className="rounded-xl border border-fact/20 bg-background/70 p-3">
+      <dt className="text-xs font-semibold text-muted-foreground">{f.label}</dt>
+      <dd className="mt-1 text-3xl font-semibold tracking-tight tabular-nums" aria-label={f.value.toLocaleString("en-US")}>
+        {shown.toLocaleString("en-US")}
+      </dd>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {f.scope} · {f.period}
+      </p>
+      {f.citationIds.length > 0 && <p className="text-xs text-muted-foreground">{f.citationIds.length} source records</p>}
+      {citationsForFact(f, turn.citations).length > 0 && (
+        <p className="mt-2 flex flex-wrap gap-1" aria-label={`Sources for ${f.label}`}>
+          {citationsForFact(f, turn.citations).map((citation) => (
+            <CitationLink key={`${citation.dataset}:${citation.recordId}`} citation={citation} citations={turn.citations} onOpen={onOpenCitation} />
+          ))}
+        </p>
+      )}
+    </div>
+  )
 }
 
 function formatThrough(iso: string | null): string | null {
@@ -22,7 +50,7 @@ function formatThrough(iso: string | null): string | null {
 function CitationLink({ citation, citations, onOpen }: { citation: CitationItem; citations: CitationItem[]; onOpen: (citation: CitationItem) => void }) {
   const number = citationNumber(citations, citation)
   if (number < 1) return null
-  return <button type="button" data-testid="inline-citation" onClick={() => onOpen(citation)} className="ml-1 inline-flex min-h-6 items-center rounded-md px-1 font-mono text-xs font-semibold text-fact underline decoration-fact/40 underline-offset-2 hover:bg-fact/10 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none" aria-label={`Open source ${number}: ${citation.label}`}>[{number}]</button>
+  return <button type="button" data-testid="inline-citation" onClick={() => onOpen(citation)} className="ml-1 inline-flex min-h-6 items-center justify-center rounded-md px-1 align-middle pointer-coarse:min-h-11 pointer-coarse:min-w-11 font-mono text-xs font-semibold text-fact underline decoration-fact/40 underline-offset-2 hover:bg-fact/10 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none" aria-label={`Open source ${number}: ${citation.label}`}>[{number}]</button>
 }
 
 /** Keep every deterministic claim in the streamed prose adjacent to its evidence. */
@@ -81,22 +109,18 @@ export function AssistantTurnView({
         >
           <dl data-testid="source-facts" className="grid gap-3 sm:grid-cols-3">
             {turn.facts.map((f) => (
-              <div key={f.factId} data-testid={`fact-${f.factId}`} data-value={f.value} className="rounded-xl border border-fact/20 bg-background/70 p-3">
-                <dt className="text-xs font-semibold text-muted-foreground">{f.label}</dt>
-                <dd className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">{f.value.toLocaleString("en-US")}</dd>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {f.scope} · {f.period}
-                </p>
-                {f.citationIds.length > 0 && <p className="text-xs text-muted-foreground">{f.citationIds.length} source records</p>}
-                {citationsForFact(f, turn.citations).length > 0 && (
-                  <p className="mt-2 flex flex-wrap gap-1" aria-label={`Sources for ${f.label}`}>
-                    {citationsForFact(f, turn.citations).map((citation) => <CitationLink key={`${citation.dataset}:${citation.recordId}`} citation={citation} citations={turn.citations} onOpen={onOpenCitation} />)}
-                  </p>
-                )}
-              </div>
+              <KpiTile key={f.factId} f={f} turn={turn} onOpenCitation={onOpenCitation} />
             ))}
           </dl>
         </SourceFact>
+      )}
+
+      {turn.visuals.length > 0 && (
+        <section aria-label="Charts" data-testid="visuals" className="grid min-w-0 gap-3">
+          {turn.visuals.map((v) => (
+            <VisualCard key={v.visualId} item={v} />
+          ))}
+        </section>
       )}
 
       {(turn.text || (running && turn.facts.length === 0 && activeTools.length === 0)) && (

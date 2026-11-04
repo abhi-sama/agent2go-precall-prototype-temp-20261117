@@ -219,6 +219,36 @@ export const SCREENS: ScreenSpec[] = [
       await expect(page.getByTestId("chat-rows")).toBeVisible()
     },
   },
+  ...([
+    ["line", "Show my calls by month", "line-chart"],
+    ["bars", "Compare my calls by product", "ranked-bars"],
+    ["heatmap", "Heatmap of calls by product", "heatmap-chart"],
+    ["timeline", "Show my weekly calls timeline", "timeline-chart"],
+    ["distribution", "How did HCPs rate it, show the scores", "distribution-chart"],
+    ["table", "Give me a table of calls", "visual-table"],
+  ] as const).map(([name, question, chart]): ScreenSpec => ({
+    name: `chat-visual-${name}`,
+    path: "/chat",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-input").fill(question)
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId(chart).first()).toBeVisible()
+    },
+  })),
+  {
+    name: "chat-visual-expanded",
+    path: "/chat",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-input").fill("Heatmap of calls by product")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await page.getByTestId("visual-expand").click()
+      await expect(page.getByTestId("visual-sheet")).toBeVisible()
+    },
+  },
   { name: "design-system", path: "/design", ready: async (page) => { await heading("Design system")(page); await testId("echart")(page) } },
   // The other appearances (docs/design/direction.md): the same screens in true black and in the other style.
   {

@@ -79,4 +79,87 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await expect(page.getByTestId("source-facts")).toHaveCount(0)
     await expect(page.getByTestId("aggregate-only-note")).toContainText("does not grant source-row access")
   })
+
+  test("a trend question draws a line whose values add up to the key figure; a plain count stays text and key figures", async ({ page }) => {
+    await page.goto("/chat")
+    await ask(page, "How many calls did I have in the last 90 days?")
+    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("visual")).toHaveCount(0)
+    await expect(page.getByTestId("source-facts")).toBeVisible()
+
+    await page.getByTestId("chat-new").click()
+    await ask(page, "Show my calls by month")
+    await expect(page.getByTestId("visual")).toHaveAttribute("data-kind", "line", { timeout: 15_000 })
+    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    const calls = Number(await page.getByTestId("fact-f1").getAttribute("data-value"))
+    const points = await page.getByTestId("line-point").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-value"))))
+    expect(points.length).toBeGreaterThanOrEqual(3)
+    expect(points.reduce((a, b) => a + b, 0)).toBe(calls)
+    await expect(page.getByTestId("visual-total")).toContainText(calls.toLocaleString("en-US"))
+  })
+
+  test("bars show exact values, a tap reads one out, the table twin matches, and the chart expands full screen", async ({ page }) => {
+    await page.goto("/chat")
+    await ask(page, "Compare my calls by product")
+    await expect(page.getByTestId("visual")).toHaveAttribute("data-kind", "bar", { timeout: 15_000 })
+    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    const calls = Number(await page.getByTestId("fact-f1").getAttribute("data-value"))
+    const bars = await page.getByTestId("bar-row").evaluateAll((els) => els.map((e) => [e.getAttribute("data-key"), Number(e.getAttribute("data-value"))] as const))
+    expect(bars.reduce((a, [, v]) => a + v, 0)).toBe(calls)
+    // Longest first.
+    expect(bars.map(([, v]) => v)).toEqual([...bars.map(([, v]) => v)].sort((a, b) => b - a))
+
+    // Tap a bar: its exact value and share appear in the readout.
+    await page.getByTestId("bar-row").nth(1).tap()
+    await expect(page.getByTestId("viz-readout")).toContainText(String(bars[1][1]))
+    await expect(page.getByTestId("viz-readout")).toContainText("% of the total")
+
+    // Every chart has a table twin with the same numbers.
+    await page.getByTestId("visual-toggle").click()
+    const cells = await page.getByTestId("visual-table").locator("tbody tr").evaluateAll((rows) => rows.map((r) => Number(r.querySelector("td")!.getAttribute("data-value"))))
+    expect(cells).toEqual(bars.map(([, v]) => v))
+    await page.getByTestId("visual-toggle").click()
+
+    // Expand to full screen, and close again.
+    await page.getByTestId("visual-expand").click()
+    await expect(page.getByTestId("visual-sheet")).toBeVisible()
+    await expect(page.getByTestId("visual-sheet").getByTestId("bar-row")).toHaveCount(bars.length)
+    await page.keyboard.press("Escape")
+    await expect(page.getByTestId("visual-sheet")).toHaveCount(0)
+  })
+
+  test("heatmap, timeline, distribution and table visuals render their values", async ({ page }) => {
+    await page.goto("/chat")
+    const kinds: [string, string, string][] = [
+      ["Heatmap of calls by product", "heatmap", "heat-cell"],
+      ["Show my weekly calls timeline", "timeline", "timeline-point"],
+      ["How did HCPs rate it, show the scores", "distribution", "distribution-chart"],
+      ["Give me a table of calls", "table", "table-row"],
+    ]
+    for (const [question, kind, mark] of kinds) {
+      await ask(page, question)
+      const turn = page.getByTestId("chat-turn").last()
+      await expect(turn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      await expect(turn.getByTestId("visual")).toHaveAttribute("data-kind", kind)
+      expect(await turn.getByTestId(mark).count()).toBeGreaterThan(0)
+    }
+    // Heatmap cells print their exact values (no hover needed) and add up to the key figure.
+    const turn = page.getByTestId("chat-turn").nth(0)
+    const total = Number(await turn.getByTestId("fact-f1").getAttribute("data-value"))
+    const cells = await turn.getByTestId("heat-cell").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-calls"))))
+    expect(cells.reduce((a, b) => a + b, 0)).toBe(total)
+  })
+
+  test("a visual never appears for an out-of-scope territory or an aggregate-only role", async ({ page }) => {
+    await page.goto("/chat")
+    await ask(page, "Show calls by month for SE-03")
+    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("visual")).toHaveCount(0)
+    await expect(page.getByTestId("visual-pending")).toHaveCount(0)
+    await page.addInitScript(() => window.localStorage.setItem("a2g.local.userId", "u-exec-all"))
+    await page.goto("/chat")
+    await ask(page, "Show calls by month")
+    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("visual")).toHaveCount(0)
+  })
 })

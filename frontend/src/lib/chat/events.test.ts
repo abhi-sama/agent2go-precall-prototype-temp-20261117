@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { applyEvent, newTurn, parseEvent } from "./events"
+import { applyEvent, newTurn, parseEvent, parseVisual } from "./events"
 import { citationNumber, citationsForFact } from "./events"
 
 const fold = (events: object[]) =>
@@ -74,5 +74,39 @@ describe("applyEvent", () => {
     const turn = fold([{ type: "CUSTOM", name: "source_facts", value: "oops" }, { type: "CUSTOM", name: "suggestions", value: 3 }])
     expect(turn.facts).toEqual([])
     expect(turn.suggestions).toEqual([])
+  })
+})
+
+describe("visual events", () => {
+  const base = { visual_id: "v1", kind: "bar", title: "Distinct calls by product", unit: "calls", total: 6, points: [{ key: "a", label: "a", value: 4, share_pct: 66.7 }, { key: "b", label: "b", value: 2, share_pct: 33.3 }] }
+  const custom = (value: unknown) => ({ type: "CUSTOM", name: "visual", value })
+
+  it("reserves a place when the query starts and fills it with the plotted values", () => {
+    let turn = applyEvent(newTurn("r"), custom({ phase: "pending", visual_id: "v1" }))
+    expect(turn.visuals).toEqual([{ visualId: "v1", status: "pending", spec: null }])
+    turn = applyEvent(turn, custom({ phase: "ready", ...base }))
+    expect(turn.visuals).toHaveLength(1)
+    expect(turn.visuals[0].status).toBe("ready")
+    expect(turn.visuals[0].spec?.points.map((p) => [p.value, p.sharePct])).toEqual([[4, 66.7], [2, 33.3]])
+  })
+
+  it("a chart tool that ends without a visual leaves no placeholder", () => {
+    let turn = applyEvent(newTurn("r"), { type: "TOOL_CALL_START", toolCallId: "v1", toolCallName: "show_chart" })
+    turn = applyEvent(turn, custom({ phase: "pending", visual_id: "v1" }))
+    turn = applyEvent(turn, { type: "TOOL_CALL_END", toolCallId: "v1" })
+    expect(turn.visuals).toEqual([])
+  })
+
+  it("drops malformed visuals instead of half drawing them", () => {
+    expect(parseVisual({ visual_id: "v1", kind: "pie" })).toBeNull()
+    expect(parseVisual({ kind: "bar" })).toBeNull()
+    const turn = applyEvent(newTurn("r"), custom({ phase: "ready", visual_id: "v9", kind: "nope" }))
+    expect(turn.visuals).toEqual([])
+  })
+
+  it("keeps a ready visual when its tool call ends", () => {
+    let turn = applyEvent(newTurn("r"), custom({ phase: "ready", ...base }))
+    turn = applyEvent(turn, { type: "TOOL_CALL_END", toolCallId: "v1" })
+    expect(turn.visuals).toHaveLength(1)
   })
 })

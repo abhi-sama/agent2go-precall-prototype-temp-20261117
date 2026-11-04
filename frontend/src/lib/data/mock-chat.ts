@@ -6,6 +6,7 @@
  */
 import { todayIso, addDays } from "@/lib/dates"
 import { TERRITORIES, type FixtureUser } from "./fixtures"
+import { inferMockVisual, mockVisual } from "./mock-visuals"
 import type { ChatEventPage, SourceRecord } from "./types"
 
 interface ScheduledEvent {
@@ -51,6 +52,13 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
       custom("citations", cites),
       ev("TOOL_CALL_END", { toolCallId: "t1" }),
     )
+    const request = inferMockVisual(question)
+    if (request) {
+      const through = new Date(now - 86_400_000).toISOString()
+      const common = { from: addDays(to, -89), to, total: request.type === "distribution" ? responses : calls, scope: territory.id, dataThrough: through, metric: request.type === "distribution" ? ("responses" as const) : ("calls" as const) }
+      // The placeholder streams first, then the plotted values: the same two steps as the real agent.
+      events.push(ev("TOOL_CALL_START", { toolCallId: "v1", toolCallName: "show_chart" }), custom("visual", { phase: "pending", visual_id: "v1", tool: "show_chart" }), custom("visual", mockVisual(request, common, "v1")), ev("TOOL_CALL_END", { toolCallId: "v1" }))
+    }
     answer = `In ${territory.id} you had ${calls} distinct calls with ${hcps} engaged HCPs and ${responses} insight responses over the last 90 days.`
   }
 

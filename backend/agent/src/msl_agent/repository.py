@@ -19,6 +19,8 @@ from typing import Literal, Protocol
 
 import psycopg
 
+from . import chart_data
+from .chart_data import ChartParams, Matrix, SeriesRow, TableRow
 from .schemas import Citation, Identity
 
 MAX_RANGE_DAYS = 366 * 3
@@ -79,7 +81,40 @@ class ScopeResult:
     detail: str = field(default="")
 
 
+@dataclass(frozen=True)
+class ChartResult:
+    """One deterministic aggregate for a visual. ``rows`` / ``matrix`` / ``table`` depend on the shape asked for."""
+
+    status: Status
+    shape: str = "series"  # series | matrix | table | distribution
+    params: ChartParams | None = None
+    territory_in_scope: bool | None = None
+    rows: tuple[SeriesRow, ...] = ()
+    matrix: Matrix | None = None
+    table: tuple[TableRow, ...] = ()
+    total: int = 0
+    left_out: int = 0
+    data_through: dt.datetime | None = None
+    detail: str = ""
+
+
 class ScopedReadRepository(Protocol):
+    def chart(
+        self,
+        identity: Identity,
+        *,
+        shape: str,
+        metric: str,
+        group_by: str,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        territory_id: str | None,
+        product: str | None,
+        topic: str | None,
+        answer_type: str | None,
+        last_days: int | None = None,
+    ) -> ChartResult: ...
+
     def activity_summary(
         self,
         identity: Identity,
@@ -156,10 +191,13 @@ class PostgresScopedRepository:
 
     @staticmethod
     def _period(
-        period_from: dt.date | None, period_to: dt.date | None, data_through: dt.datetime | None
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        data_through: dt.datetime | None,
+        days: int | None = None,
     ) -> tuple[dt.date, dt.date] | None:
         end = period_to or (data_through.date() if data_through else dt.date.today())
-        start = period_from or end - dt.timedelta(days=DEFAULT_WINDOW_DAYS - 1)
+        start = period_from or end - dt.timedelta(days=(days or DEFAULT_WINDOW_DAYS) - 1)
         if start > end or (end - start).days > MAX_RANGE_DAYS:
             return None
         return start, end
@@ -329,6 +367,65 @@ class PostgresScopedRepository:
             citations=citations,
         )
 
+    def chart(
+        self,
+        identity: Identity,
+        *,
+        shape: str,
+        metric: str,
+        group_by: str,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        territory_id: str | None,
+        product: str | None,
+        topic: str | None,
+        answer_type: str | None,
+        last_days: int | None = None,
+    ) -> ChartResult:
+        if territory_id is not None and not _TERRITORY.match(territory_id):
+            return ChartResult(status="bad_request", detail="invalid_territory_id")
+        if shape != "distribution" and not chart_data.is_valid_pair(metric, group_by):
+            return ChartResult(status="bad_request", detail="unsupported_grouping")
+        with self._session(identity) as cur:
+            gate = self._gate(cur)
+            if gate != "ok":
+                return ChartResult(status=gate)
+            data_through = self._data_through(cur)
+            window = self._period(period_from, period_to, data_through, last_days)
+            if window is None:
+                return ChartResult(status="bad_request", detail="invalid_period")
+            start, end = window
+            if not chart_data.fits(shape, group_by, start, end):
+                return ChartResult(status="bad_request", detail="too_many_buckets")
+            in_scope: bool | None = None
+            if territory_id is not None:
+                cur.execute("SELECT app.can_read_territory(%s)", (territory_id,))
+                in_scope = bool(cur.fetchone()[0])
+                if not in_scope:
+                    return ChartResult(status="ok", params=None, territory_in_scope=False, data_through=data_through)
+            params = ChartParams(
+                metric=metric,
+                group_by=group_by,
+                period_from=start,
+                period_to=end,
+                territory_id=territory_id,
+                product=product,
+                topic=topic,
+                answer_type=answer_type,
+            )
+            if shape == "matrix":
+                matrix, left_out = chart_data.run_matrix(cur, params)
+                total = chart_data.total_count(cur, params)
+                return ChartResult("ok", shape, params, in_scope, matrix=matrix, total=total, left_out=left_out, data_through=data_through)
+            if shape == "table":
+                table, total, left_out = chart_data.run_table(cur, params)
+                return ChartResult("ok", shape, params, in_scope, table=tuple(table), total=total, left_out=left_out, data_through=data_through)
+            if shape == "distribution":
+                rows, total = chart_data.run_distribution(cur, params)
+                return ChartResult("ok", shape, params, in_scope, rows=tuple(rows), total=total, data_through=data_through)
+            rows, total, left_out = chart_data.run_series(cur, params)
+            return ChartResult("ok", shape, params, in_scope, rows=tuple(rows), total=total, left_out=left_out, data_through=data_through)
+
     def scope(self, identity: Identity) -> ScopeResult:
         with self._session(identity) as cur:
             gate = self._gate(cur)
@@ -433,6 +530,136 @@ class FixtureScopedRepository:
                 Citation(record_id="RESP-000001", dataset="hcp_raw_insights", label="Recorded response"),
             ),
         )
+
+    # -- chart double -------------------------------------------------------------------------
+    # Its own small dataset (calls and responses with dates, products and answers) so chart tests have
+    # a ground truth they can compute by hand. It does not feed ``activity_summary``.
+    _CHART_CALLS = (
+        # call id, date, territory, product, call type, hcp
+        ("CALL-00001", dt.date(2026, 11, 3), "T01-01", "osimertinib", "scientific", "H1"),
+        ("CALL-08761", dt.date(2026, 11, 2), "T01-01", "pembrolizumab", "scientific", "H2"),
+        ("CALL-00002", dt.date(2026, 10, 15), "T01-01", "osimertinib", "scientific", "H1"),
+        ("CALL-00003", dt.date(2026, 10, 1), "T01-01", "pembrolizumab", "scientific", "H3"),
+        ("CALL-00004", dt.date(2026, 9, 12), "T01-01", "osimertinib", "scientific", "H2"),
+        ("CALL-00005", dt.date(2026, 9, 12), "T01-01", "osimertinib", "scientific", "H4"),
+        ("CALL-09001", dt.date(2026, 11, 3), "T02-01", "osimertinib", "scientific", "H9"),
+        ("CALL-09002", dt.date(2026, 10, 20), "T02-01", "pembrolizumab", "scientific", "H9"),
+    )
+    _CHART_RESPONSES = (
+        # response id, date, territory, molecule, answer type, program, answer
+        ("RESP-000001", dt.date(2026, 11, 3), "T01-01", "osimertinib", "likert_5", "MSL pulse", "4"),
+        ("RESP-000002", dt.date(2026, 11, 3), "T01-01", "osimertinib", "likert_5", "MSL pulse", "5"),
+        ("RESP-000003", dt.date(2026, 10, 15), "T01-01", "pembrolizumab", "yes_no", "Advisory board", "Yes"),
+        ("RESP-000004", dt.date(2026, 10, 1), "T01-01", "osimertinib", "likert_5", "MSL pulse", "4"),
+        ("RESP-000005", dt.date(2026, 9, 12), "T01-01", "osimertinib", "open_text", "MSL pulse", "Access matters."),
+        ("RESP-000006", dt.date(2026, 11, 2), "T02-01", "osimertinib", "likert_5", "MSL pulse", "2"),
+    )
+
+    def chart(
+        self,
+        identity: Identity,
+        *,
+        shape: str,
+        metric: str,
+        group_by: str,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+        territory_id: str | None,
+        product: str | None,
+        topic: str | None,
+        answer_type: str | None,
+        last_days: int | None = None,
+    ) -> ChartResult:
+        if identity.persona == "Executive":
+            return ChartResult(status="aggregate_only")
+        scope = self._scope_for(identity)
+        if not scope:
+            return ChartResult(status="no_scope")
+        if shape != "distribution" and not chart_data.is_valid_pair(metric, group_by):
+            return ChartResult(status="bad_request", detail="unsupported_grouping")
+        if territory_id is not None and territory_id not in scope:
+            return ChartResult(status="ok", territory_in_scope=False, data_through=self.DATA_THROUGH)
+        end = period_to or self.DATA_THROUGH.date()
+        start = period_from or end - dt.timedelta(days=(last_days or chart_data.DEFAULT_DAYS) - 1)
+        params = ChartParams(metric, group_by, start, end, territory_id, product, topic, answer_type)
+
+        def visible(row_date: dt.date, row_territory: str, row_product: str) -> bool:
+            return (
+                start <= row_date <= end
+                and row_territory in scope
+                and territory_id in (None, row_territory)
+                and (not product or product.lower() in row_product.lower())
+            )
+
+        def group_key(name: str, row_date: dt.date, fields: dict[str, str]) -> str:
+            if name == "day":
+                return row_date.isoformat()
+            if name == "week":
+                return (row_date - dt.timedelta(days=row_date.weekday())).isoformat()
+            if name == "month":
+                return row_date.strftime("%Y-%m")
+            return fields[name]
+
+        def counts(metric_name: str, group_name: str | None) -> dict[str, int]:
+            seen: dict[str, set[str]] = {}
+            if metric_name == "responses":
+                for rid, day, terr, mol, qtype, program, _ in self._CHART_RESPONSES:
+                    if not visible(day, terr, mol):
+                        continue
+                    if topic and topic.lower() not in f"{mol} {program} {qtype}".lower():
+                        continue
+                    fields = {"territory": terr, "product": mol, "question_type": qtype, "program": program}
+                    key = group_key(group_name, day, fields) if group_name else "all"
+                    seen.setdefault(key, set()).add(rid)
+            else:
+                for cid, day, terr, prod, ctype, hcp in self._CHART_CALLS:
+                    if not visible(day, terr, prod):
+                        continue
+                    fields = {"territory": terr, "product": prod, "call_type": ctype}
+                    key = group_key(group_name, day, fields) if group_name else "all"
+                    seen.setdefault(key, set()).add(cid if metric_name == "calls" else hcp)
+            return {k: len(v) for k, v in seen.items()}
+
+        total = counts(metric, None).get("all", 0)
+        if shape == "distribution":
+            answers: dict[str, set[str]] = {}
+            for rid, day, terr, mol, qtype, program, answer in self._CHART_RESPONSES:
+                if qtype == answer_type and visible(day, terr, mol):
+                    if not topic or topic.lower() in f"{mol} {program}".lower():
+                        answers.setdefault(answer, set()).add(rid)
+            found = {k: len(v) for k, v in answers.items()}
+            order = chart_data._ANSWER_ORDER.get(answer_type or "")
+            keys = order or sorted(found, key=lambda k: (-found[k], k))
+            rows = tuple(SeriesRow(k, k, found.get(k, 0)) for k in keys)
+            return ChartResult("ok", shape, params, None, rows=rows, total=sum(found.values()), data_through=self.DATA_THROUGH)
+        if shape == "matrix":
+            months = chart_data.month_starts(start, end)
+            by_row = counts(metric, group_by)
+            cells: dict[str, dict[str, int]] = {}
+            source = self._CHART_RESPONSES if metric == "responses" else self._CHART_CALLS
+            for row in source:
+                day, terr = row[1], row[2]
+                prod = row[3]
+                if not visible(day, terr, prod):
+                    continue
+                cells.setdefault(terr if group_by == "territory" else prod, {}).setdefault(day.strftime("%Y-%m"), set()).add(row[0] if metric != "engaged_hcps" else row[5])
+            ranked = sorted(by_row, key=lambda k: (-by_row[k], k))[: chart_data.MAX_ROWS]
+            rows = tuple((k, tuple(len(cells.get(k, {}).get(m, ())) for m in months)) for k in ranked)
+            return ChartResult("ok", shape, params, None, matrix=Matrix(tuple(months), rows), total=total, data_through=self.DATA_THROUGH)
+        if shape == "table":
+            per = {m: counts(m, group_by) for m in chart_data.METRICS}
+            keys = chart_data.buckets(group_by, start, end) if group_by in chart_data.TIME_DIMS else sorted(
+                set().union(*(c.keys() for c in per.values())), key=lambda k: (-per["calls"].get(k, 0), k)
+            )
+            table = tuple(TableRow(k, tuple(per[m].get(k, 0) for m in chart_data.METRICS)) for k in keys[: chart_data.MAX_ROWS])
+            return ChartResult("ok", shape, params, None, table=table, total=counts("calls", None).get("all", 0), data_through=self.DATA_THROUGH)
+        found = counts(metric, group_by)
+        if group_by in chart_data.TIME_DIMS:
+            rows = tuple(SeriesRow(k, k, found.get(k, 0)) for k in chart_data.buckets(group_by, start, end))
+            return ChartResult("ok", shape, params, None, rows=rows, total=total, data_through=self.DATA_THROUGH)
+        ranked = sorted(found.items(), key=lambda kv: (-kv[1], kv[0]))
+        rows = tuple(SeriesRow(k, k, v) for k, v in ranked[: chart_data.MAX_BARS])
+        return ChartResult("ok", shape, params, None, rows=rows, total=total, left_out=max(0, len(ranked) - len(rows)), data_through=self.DATA_THROUGH)
 
     def scope(self, identity: Identity) -> ScopeResult:
         if identity.persona == "Executive":

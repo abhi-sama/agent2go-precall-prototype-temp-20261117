@@ -29,3 +29,29 @@ test("a seeded MSL asks in the chat panel and gets a streamed, cited answer from
   await page.getByTestId("citation").first().click()
   await expect(page.getByTestId("citation-fields")).toContainText("T01-01")
 })
+
+test("a trend question draws a chart whose values are the database counts, through the real stack", async ({ page }) => {
+  test.setTimeout(150_000)
+  const msl = a2g.seeded_users.find((u) => u.userId === "msl-t01-01")!
+  await page.goto("/login")
+  await page.getByTestId("login-email").fill(msl.email)
+  await page.getByTestId("login-password").fill(a2g.local_password)
+  await page.getByTestId("login-submit").click()
+  await expect(page).toHaveURL(/\/msl$/)
+  await page.goto("/chat")
+  await page.getByTestId("chat-input").fill("Show my calls by month over the last 90 days.")
+  await page.getByTestId("chat-send").click()
+
+  await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 120_000 })
+  const visual = page.getByTestId("visual").first()
+  await expect(visual).toHaveAttribute("data-kind", "line")
+  const total = Number(await visual.getAttribute("data-total"))
+  const points = await page.getByTestId("line-point").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-value"))))
+  expect(total).toBeGreaterThan(0)
+  expect(points.reduce((a, b) => a + b, 0)).toBe(total)
+  // Hover or tap reads out an exact value; the chart expands full screen.
+  await page.getByTestId("line-hit").hover({ position: { x: 200, y: 100 } })
+  await expect(page.getByTestId("viz-readout").first()).toContainText("calls")
+  await visual.getByTestId("visual-expand").click()
+  await expect(page.getByTestId("visual-sheet")).toBeVisible()
+})

@@ -30,7 +30,11 @@ class ScriptedAgent:
             if isinstance(step, tuple):  # ("tool", name, kwargs)
                 _, name, kwargs = step
                 yield {"current_tool_use": {"toolUseId": f"t-{name}", "name": name, "input": ""}}
-                extra = {"tool_context": SimpleNamespace(agent=None)} if name == "suggest_follow_ups" else {}
+                extra = (
+                    {"tool_context": SimpleNamespace(agent=None, tool_use={"toolUseId": f"t-{name}"})}
+                    if name in ("suggest_follow_ups", "show_chart", "show_answer_distribution")
+                    else {}
+                )
                 self.tools[name](**kwargs, **extra)
                 yield {
                     "message": {

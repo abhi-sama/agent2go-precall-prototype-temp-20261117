@@ -5,7 +5,9 @@
  * plus `CUSTOM` events for the three kinds of content the panel keeps visually distinct:
  *  - `source_facts` / `citations`: numbers computed by SQL under RLS, and the records behind them,
  *  - the streamed text: the AI summary (generated, never the source of a number),
- *  - `suggestions`: proposals the user may act on.
+ *  - `suggestions`: proposals the user may act on,
+ *  - `visual`: a chart, heatmap, timeline or small table (generative UI). A `pending` event reserves its place the
+ *    moment the agent starts the query; the `ready` event carries the plotted values, all computed by SQL under RLS.
  */
 
 export interface FactItem {
@@ -34,6 +36,51 @@ export function citationsForFact(fact: FactItem, citations: CitationItem[]): Cit
   return citations.filter((citation) => ids.has(citation.recordId))
 }
 
+export type VisualKind = "bar" | "line" | "distribution" | "heatmap" | "timeline" | "table"
+
+export interface VisualPoint {
+  key: string
+  label: string
+  value: number
+  /** Share of the period total (one decimal), computed by the query; null where groups can overlap. */
+  sharePct: number | null
+  /** A time bucket the period only partly covers. */
+  partial: boolean
+}
+
+export interface VisualRow {
+  key: string
+  label: string
+  values: number[]
+}
+
+export interface VisualSpec {
+  visualId: string
+  kind: VisualKind
+  title: string
+  subtitle: string
+  metric: string
+  unit: string
+  period: string
+  scope: string
+  definition: string
+  dataThrough: string | null
+  total: number | null
+  leftOut: number
+  points: VisualPoint[]
+  columns: string[]
+  columnUnits: string[]
+  rows: VisualRow[]
+  peakKey: string | null
+}
+
+/** One visual in a turn: a reserved place while the query runs, then the plotted values. */
+export interface VisualItem {
+  visualId: string
+  status: "pending" | "ready"
+  spec: VisualSpec | null
+}
+
 export type TurnStatus = "running" | "done" | "error"
 
 export interface NumberCheck {
@@ -49,6 +96,7 @@ export interface AssistantTurn {
   text: string
   facts: FactItem[]
   citations: CitationItem[]
+  visuals: VisualItem[]
   suggestions: string[]
   tools: { id: string; name: string; done: boolean }[]
   mode: "claude" | "stub" | null
@@ -66,6 +114,7 @@ export function newTurn(runId: string): AssistantTurn {
     text: "",
     facts: [],
     citations: [],
+    visuals: [],
     suggestions: [],
     tools: [],
     mode: null,
@@ -99,6 +148,62 @@ function parseCitations(value: unknown): CitationItem[] {
   return value.filter(isObject).map((c) => ({ recordId: str(c.record_id), dataset: str(c.dataset), label: str(c.label) }))
 }
 
+const VISUAL_KINDS: readonly VisualKind[] = ["bar", "line", "distribution", "heatmap", "timeline", "table"]
+const nums = (v: unknown): number[] => (Array.isArray(v) ? v.filter((n): n is number => typeof n === "number" && Number.isFinite(n)) : [])
+const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [])
+
+/** Only well-formed visuals are drawn; anything else is dropped rather than half-rendered. */
+export function parseVisual(value: unknown): VisualSpec | null {
+  if (!isObject(value) || typeof value.visual_id !== "string") return null
+  const kind = VISUAL_KINDS.find((k) => k === value.kind)
+  if (!kind) return null
+  const points = (Array.isArray(value.points) ? value.points : []).filter(isObject).map((p) => ({
+    key: str(p.key),
+    label: str(p.label),
+    value: typeof p.value === "number" ? p.value : 0,
+    sharePct: typeof p.share_pct === "number" ? p.share_pct : null,
+    partial: p.partial === true,
+  }))
+  const rows = (Array.isArray(value.rows) ? value.rows : []).filter(isObject).map((r) => ({ key: str(r.key), label: str(r.label), values: nums(r.values) }))
+  return {
+    visualId: value.visual_id,
+    kind,
+    title: str(value.title),
+    subtitle: str(value.subtitle),
+    metric: str(value.metric),
+    unit: str(value.unit),
+    period: str(value.period),
+    scope: str(value.scope),
+    definition: str(value.definition),
+    dataThrough: typeof value.data_through === "string" ? value.data_through : null,
+    total: typeof value.total === "number" ? value.total : null,
+    leftOut: typeof value.left_out === "number" ? value.left_out : 0,
+    points,
+    columns: strs(value.columns),
+    columnUnits: strs(value.column_units),
+    rows,
+    peakKey: typeof value.peak_key === "string" ? value.peak_key : null,
+  }
+}
+
+function applyVisual(turn: AssistantTurn, value: unknown): AssistantTurn {
+  if (!isObject(value)) return turn
+  const id = str(value.visual_id)
+  if (!id) return turn
+  if (value.phase === "pending") {
+    return turn.visuals.some((v) => v.visualId === id) ? turn : { ...turn, visuals: [...turn.visuals, { visualId: id, status: "pending", spec: null }] }
+  }
+  const spec = parseVisual(value)
+  if (!spec) {
+    // A visual that cannot be drawn must not leave a placeholder behind.
+    return { ...turn, visuals: turn.visuals.filter((v) => v.visualId !== id || v.status === "ready") }
+  }
+  const ready: VisualItem = { visualId: id, status: "ready", spec }
+  return turn.visuals.some((v) => v.visualId === id)
+    ? { ...turn, visuals: turn.visuals.map((v) => (v.visualId === id ? ready : v)) }
+    : { ...turn, visuals: [...turn.visuals, ready] }
+}
+
 /** Parse the JSON of one event; anything that is not an object with a string `type` is ignored. */
 export function parseEvent(data: string): Json | null {
   try {
@@ -116,7 +221,12 @@ export function applyEvent(turn: AssistantTurn, event: Json): AssistantTurn {
     case "TOOL_CALL_START":
       return { ...turn, tools: [...turn.tools, { id: str(event.toolCallId), name: str(event.toolCallName), done: false }] }
     case "TOOL_CALL_END":
-      return { ...turn, tools: turn.tools.map((t) => (t.id === event.toolCallId ? { ...t, done: true } : t)) }
+      return {
+        ...turn,
+        tools: turn.tools.map((t) => (t.id === event.toolCallId ? { ...t, done: true } : t)),
+        // A chart tool that ended without a ready visual (refused or no data) leaves no empty placeholder.
+        visuals: turn.visuals.filter((v) => v.status === "ready" || v.visualId !== event.toolCallId),
+      }
     case "RUN_FINISHED":
       return { ...turn, status: "done" }
     case "RUN_ERROR":
@@ -143,6 +253,8 @@ function applyCustom(turn: AssistantTurn, name: string, value: unknown): Assista
       const fresh = parseCitations(value).filter((c) => !known.has(`${c.dataset}:${c.recordId}`))
       return { ...turn, citations: [...turn.citations, ...fresh] }
     }
+    case "visual":
+      return applyVisual(turn, value)
     case "suggestions":
       return { ...turn, suggestions: Array.isArray(value) ? value.filter((s): s is string => typeof s === "string").slice(0, 3) : [] }
     case "number_check": {

@@ -22,13 +22,15 @@ from a2g_logging import get_logger
 from strands import tool
 from strands.types.tools import ToolContext
 
-from . import ag_ui
-from .repository import ActivityResult, ResponseSearchResult, ScopedReadRepository, ScopeResult
+from . import ag_ui, chart_data, visuals
+from .repository import ActivityResult, ChartResult, ResponseSearchResult, ScopedReadRepository, ScopeResult
 from .schemas import Citation, Fact, Identity
+from .visuals import Visual
 
 log = get_logger(__name__)
 
-MAX_TOOL_CALLS = 6
+MAX_TOOL_CALLS = 8
+VISUAL_TOOLS = frozenset({"show_chart", "show_answer_distribution"})
 MAX_SUGGESTIONS = 3
 MAX_CITATIONS = 12
 
@@ -52,9 +54,12 @@ class RunContext:
     citations: dict[tuple[str, str], Citation] = field(default_factory=dict)
     tool_results: list[str] = field(default_factory=list)
     suggestions: list[str] = field(default_factory=list)
+    visuals: list[Visual] = field(default_factory=list)
     pending: deque[ag_ui.Event] = field(default_factory=deque)
     data_through: dt.datetime | None = None
     tool_calls: int = 0
+    #: Characters of answer text streamed so far; ``suggest_follow_ups`` is refused until the answer exists.
+    answer_chars: int = 0
 
     # -- bookkeeping --------------------------------------------------------------------------
     def _add_citations(self, items: tuple[Citation, ...]) -> list[str]:
@@ -102,6 +107,47 @@ class RunContext:
     def _budget_exhausted(self) -> bool:
         self.tool_calls += 1
         return self.tool_calls > MAX_TOOL_CALLS
+
+
+    def visual_result(self, visual_id: str, result: ChartResult, chart_type: str) -> str:
+        """Turn one chart query into a ``visual`` event plus the summary the model may quote."""
+        if result.status != "ok":
+            instruction = _REFUSALS.get(result.status, "Invalid request. Try a different grouping.")
+            if result.detail == "too_many_buckets":
+                instruction = "That period has too many buckets to draw. Use a shorter period, or group by month or week."
+            return self._record({"status": result.status, "instruction": instruction})
+        if result.territory_in_scope is False or result.params is None:
+            # Same answer whether the territory is real or not: out-of-scope metadata is itself restricted.
+            return self._record(
+                {
+                    "status": "out_of_scope",
+                    "instruction": "That territory is outside this user's scope, so no chart can be shown for it. "
+                    "Say that plainly and do not guess or describe it.",
+                }
+            )
+        self.data_through = result.data_through
+        if result.shape == "matrix":
+            visual = visuals.matrix_visual(visual_id, result)
+        elif result.shape == "table":
+            visual = visuals.table_visual(visual_id, result)
+        elif result.shape == "distribution":
+            visual = visuals.distribution_visual(visual_id, result)
+        else:
+            visual = visuals.series_visual(visual_id, result, chart_type)
+        if result.total == 0:
+            return self._record(
+                {
+                    "status": "no_data",
+                    "instruction": "Nothing was recorded for that request in this user's scope. Say so plainly; no chart is shown.",
+                }
+            )
+        self.visuals.append(visual)
+        self.pending.append(ag_ui.custom("visual", visual.event_value()))
+        return self._record_text(visuals.summary_for_model(visual))
+
+    def _record_text(self, text: str) -> str:
+        self.tool_results.append(text)
+        return text
 
     # -- results ------------------------------------------------------------------------------
     def activity(self, result: ActivityResult) -> str:
@@ -318,6 +364,132 @@ def build_tools(ctx: RunContext) -> list[Any]:
         log.info("tool call", tool="get_my_scope", run_id=ctx.run_id)
         return ctx.scope_result(ctx.repository.scope(ctx.identity))
 
+    def _visual_id(tool_context: ToolContext, fallback: str) -> str:
+        use = getattr(tool_context, "tool_use", None)
+        if isinstance(use, dict) and use.get("toolUseId"):
+            return str(use["toolUseId"])
+        return f"{fallback}{len(ctx.visuals) + 1}"
+
+    def _window(from_date: str, to_date: str, last_days: int) -> tuple[dt.date | None, dt.date | None, int | None]:
+        days = max(1, min(int(last_days), 1095)) if last_days else None
+        return _parse_date(from_date), _parse_date(to_date), days
+
+    @tool(context=True)
+    def show_chart(
+        metric: str,
+        group_by: str,
+        tool_context: ToolContext,
+        chart_type: str = "auto",
+        from_date: str = "",
+        to_date: str = "",
+        last_days: int = 0,
+        territory_id: str = "",
+        product: str = "",
+        topic: str = "",
+    ) -> str:
+        """Show the user a chart or table of a count, trend or comparison, drawn from the database.
+
+        Call this whenever the question is about a trend over time, a comparison between territories,
+        products or programs, a breakdown, a ranking or a table. The numbers are computed by SQL under the
+        user's access and plotted by the interface; you never supply a value. Use at most two charts per answer.
+
+        Args:
+            metric: One of calls, engaged_hcps, responses.
+            group_by: day, week or month (time axis); territory, product (any metric); call_type (calls and
+                engaged_hcps); question_type or program (responses only).
+            chart_type: auto picks a line for time and bars otherwise. Also line, bar, timeline (needs day or
+                week), heatmap (group_by territory or product by month) or table (calls, HCPs and responses together).
+            from_date: First day, YYYY-MM-DD. Leave empty for the last 90 days of loaded data.
+            to_date: Last day, YYYY-MM-DD. Leave empty for the latest loaded day.
+            last_days: Instead of from_date, the number of most recent days to cover (for example 30 or 365).
+            territory_id: Optional territory id such as T01-01. Leave empty for the user's whole scope.
+            product: Optional product or molecule name, for example osimertinib.
+            topic: Optional word or phrase narrowing responses (for example a molecule, study or theme).
+        """
+        if ctx._budget_exhausted():
+            return ctx._record({"status": "bad_request", "instruction": "Tool budget used; answer with what you have."})
+        metric, group_by, chart_type = metric.strip().lower(), group_by.strip().lower(), chart_type.strip().lower()
+        if chart_type not in visuals.CHART_TYPES or not chart_data.is_valid_pair(metric, group_by):
+            return ctx._record(
+                {
+                    "status": "bad_request",
+                    "instruction": "Unsupported metric, grouping or chart type. Use metric calls, engaged_hcps or responses; "
+                    "group_by day, week, month, territory, product (call_type for calls; question_type or program for responses).",
+                }
+            )
+        if chart_type == "timeline" and group_by not in ("day", "week"):
+            return ctx._record({"status": "bad_request", "instruction": "A timeline needs group_by day or week."})
+        if chart_type == "heatmap" and group_by not in ("territory", "product"):
+            return ctx._record({"status": "bad_request", "instruction": "A heatmap needs group_by territory or product."})
+        try:
+            period_from, period_to, days = _window(from_date, to_date, last_days)
+        except ValueError:
+            return ctx._record({"status": "bad_request", "instruction": "Dates must be YYYY-MM-DD."})
+        log.info("tool call", tool="show_chart", run_id=ctx.run_id)
+        shape = {"heatmap": "matrix", "table": "table"}.get(chart_type, "series")
+        result = ctx.repository.chart(
+            ctx.identity,
+            shape=shape,
+            metric=metric,
+            group_by=group_by,
+            period_from=period_from,
+            period_to=period_to,
+            territory_id=territory_id.strip() or None,
+            product=product.strip() or None,
+            topic=" ".join(topic.split())[:80] or None,
+            answer_type=None,
+            last_days=days,
+        )
+        return ctx.visual_result(_visual_id(tool_context, "v"), result, chart_type)
+
+    @tool(context=True)
+    def show_answer_distribution(
+        answer_type: str,
+        tool_context: ToolContext,
+        topic: str = "",
+        from_date: str = "",
+        to_date: str = "",
+        last_days: int = 0,
+        territory_id: str = "",
+    ) -> str:
+        """Show how often each answer was given to scored or choice questions, as a distribution chart.
+
+        Use this for questions about how HCPs rated, agreed, answered yes or no, or chose between options.
+        Counts and shares are computed by SQL; you never supply a value.
+
+        Args:
+            answer_type: likert_5 (1 to 5 agreement), rating_0_10, yes_no or single_choice.
+            topic: Optional word or phrase narrowing the questions (for example a molecule, study or theme).
+            from_date: First day, YYYY-MM-DD. Leave empty for the last 90 days of loaded data.
+            to_date: Last day, YYYY-MM-DD. Leave empty for the latest loaded day.
+            last_days: Instead of from_date, the number of most recent days to cover.
+            territory_id: Optional territory id. Leave empty for the user's whole scope.
+        """
+        if ctx._budget_exhausted():
+            return ctx._record({"status": "bad_request", "instruction": "Tool budget used; answer with what you have."})
+        answer_type = answer_type.strip().lower()
+        if answer_type not in chart_data._ANSWER_FILTER:
+            return ctx._record({"status": "bad_request", "instruction": "answer_type must be likert_5, rating_0_10, yes_no or single_choice."})
+        try:
+            period_from, period_to, days = _window(from_date, to_date, last_days)
+        except ValueError:
+            return ctx._record({"status": "bad_request", "instruction": "Dates must be YYYY-MM-DD."})
+        log.info("tool call", tool="show_answer_distribution", run_id=ctx.run_id)
+        result = ctx.repository.chart(
+            ctx.identity,
+            shape="distribution",
+            metric="responses",
+            group_by="month",
+            period_from=period_from,
+            period_to=period_to,
+            territory_id=territory_id.strip() or None,
+            product=None,
+            topic=" ".join(topic.split())[:80] or None,
+            answer_type=answer_type,
+            last_days=days,
+        )
+        return ctx.visual_result(_visual_id(tool_context, "v"), result, "bar")
+
     @tool(context=True)
     def suggest_follow_ups(questions: list[str], tool_context: ToolContext) -> str:
         """Offer up to three short follow-up questions the user could ask next.
@@ -329,6 +501,15 @@ def build_tools(ctx: RunContext) -> list[Any]:
         Args:
             questions: Up to three short follow-up questions.
         """
+        if ctx.answer_chars == 0:
+            # The call that ends the run must come after the answer, never instead of it.
+            return json.dumps(
+                {
+                    "status": "answer_first",
+                    "instruction": "Write the answer to the user's question now, copying figures exactly from the tool "
+                    "results. Only after that, call suggest_follow_ups once.",
+                }
+            )
         ctx.suggestions = clean_suggestions(list(questions))
         # The answer is already written; end the run here instead of letting the model restate it.
         agent = getattr(tool_context, "agent", None)
@@ -336,4 +517,11 @@ def build_tools(ctx: RunContext) -> list[Any]:
             agent.cancel(after_current_tools=True)
         return json.dumps({"status": "ok", "accepted": len(ctx.suggestions)})
 
-    return [get_activity_summary, search_recorded_responses, get_my_scope, suggest_follow_ups]
+    return [
+        get_activity_summary,
+        search_recorded_responses,
+        show_chart,
+        show_answer_distribution,
+        get_my_scope,
+        suggest_follow_ups,
+    ]
