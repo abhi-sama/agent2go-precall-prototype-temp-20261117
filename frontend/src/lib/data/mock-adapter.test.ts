@@ -76,6 +76,15 @@ describe("mock adapter", () => {
     await expect(make("u-admin-sec").geoActivity(ctx, range)).rejects.toMatchObject({ code: "FORBIDDEN" })
   })
 
+  it("searches mock HCPs only within the selected persona scope and exposes missing fields", async () => {
+    const northeast = make("u-msl-ne-01")
+    await expect(northeast.searchHcps(ctx, "call system")).resolves.toMatchObject([{ hcpId: "HCP-0001" }])
+    await expect(make("u-msl-se-03").searchHcps(ctx, "call system")).resolves.toEqual([])
+    const profile = await northeast.hcpProfile(ctx, "HCP-0001")
+    expect(profile.credentials).toEqual({ value: null, state: "MISSING" })
+    await expect(make("u-msl-se-03").hcpProfile(ctx, "HCP-0001")).rejects.toMatchObject({ code: "FORBIDDEN" })
+  })
+
   it("parses scenario only from known values", () => {
     expect(readScenario("?scenario=empty")).toBe("empty")
     expect(readScenario("?scenario=bogus")).toBe("ok")

@@ -9,6 +9,8 @@ import {
   LANDING_KPIS_QUERY,
   ME_QUERY,
   MY_FLAGS_QUERY,
+  HCP_PROFILE_QUERY,
+  SEARCH_HCPS_QUERY,
   START_CHAT_RUN_MUTATION,
 } from "./operations"
 import {
@@ -20,6 +22,8 @@ import {
   type DateRange,
   type Flag,
   type GeoActivity,
+  type HcpProfile,
+  type HcpSearchResult,
   type LandingKpis,
   type Me,
   type RequestContext,
@@ -149,5 +153,7 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
       const data = await run<{ chatCitation: SourceRecord }>(transport, CHAT_CITATION_QUERY, { dataset, recordId }, ctx)
       return data.chatCitation
     },
+    async searchHcps(ctx, query, limit) { return (await run<{ searchHcps: HcpSearchResult[] }>(transport, SEARCH_HCPS_QUERY, { query, limit: limit ?? null }, ctx)).searchHcps },
+    async hcpProfile(ctx, hcpId) { return (await run<{ hcpProfile: HcpProfile }>(transport, HCP_PROFILE_QUERY, { hcpId }, ctx)).hcpProfile },
   }
 }

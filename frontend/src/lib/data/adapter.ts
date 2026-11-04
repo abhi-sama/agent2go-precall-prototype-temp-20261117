@@ -9,6 +9,8 @@ import type {
   Flag,
   FlagInput,
   GeoActivity,
+  HcpProfile,
+  HcpSearchResult,
   IsoDate,
   LandingKpis,
   Me,
@@ -52,4 +54,6 @@ export interface DataAdapter {
   chatEvents(ctx: RequestContext, runId: string, after: number): Promise<ChatEventPage>
   /** Open a cited source record; the BE returns it only if the caller's scope covers it. */
   chatCitation(ctx: RequestContext, dataset: string, recordId: string): Promise<SourceRecord>
+  searchHcps(ctx: RequestContext, query: string, limit?: number): Promise<HcpSearchResult[]>
+  hcpProfile(ctx: RequestContext, hcpId: string): Promise<HcpProfile>
 }

@@ -170,6 +170,32 @@ export interface FlagInput {
   note?: string | null
 }
 
+export type HcpFieldState = "PRESENT" | "MISSING"
+
+/** Explicit field provenance prevents a missing source value being mistaken for an empty one. */
+export interface HcpField {
+  value: string | null
+  state: HcpFieldState
+}
+
+export interface HcpSearchResult {
+  hcpId: string
+  name: HcpField
+  institution: HcpField
+  territory: HcpField
+}
+
+export interface HcpProfile {
+  hcpId: string
+  name: HcpField
+  specialty: HcpField
+  discipline: HcpField
+  type: HcpField
+  institution: HcpField
+  credentials: HcpField
+  territory: HcpField
+}
+
 export type DataErrorCode =
   | "UNAUTHENTICATED"
   | "FORBIDDEN"

@@ -39,6 +39,32 @@ query LandingKpis($from: AWSDate, $to: AWSDate) {
 }
 """
 
+SEARCH_HCPS = """
+query SearchHcps($query: String!, $limit: Int) {
+  searchHcps(query: $query, limit: $limit) {
+    hcpId
+    name { value state }
+    institution { value state }
+    territory { value state }
+  }
+}
+"""
+
+HCP_PROFILE = """
+query HcpProfile($hcpId: ID!) {
+  hcpProfile(hcpId: $hcpId) {
+    hcpId
+    name { value state }
+    specialty { value state }
+    discipline { value state }
+    type { value state }
+    institution { value state }
+    credentials { value state }
+    territory { value state }
+  }
+}
+"""
+
 
 GEO_ACTIVITY = """
 query GeoActivity($from: AWSDate, $to: AWSDate) {
@@ -177,6 +203,12 @@ class Persona:
 
     def landing_kpis(self, frm: str | None = None, to: str | None = None) -> GraphQLResult:
         return self.query(LANDING_KPIS, {"from": frm, "to": to})
+
+    def search_hcps(self, query: str, limit: int | None = None) -> GraphQLResult:
+        return self.query(SEARCH_HCPS, {"query": query, "limit": limit})
+
+    def hcp_profile(self, hcp_id: str) -> GraphQLResult:
+        return self.query(HCP_PROFILE, {"hcpId": hcp_id})
 
 
 @dataclass

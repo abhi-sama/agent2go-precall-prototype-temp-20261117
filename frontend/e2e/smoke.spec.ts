@@ -45,6 +45,21 @@ test.describe("MSL landing", () => {
       expect(box!.width, `${id} width`).toBeGreaterThanOrEqual(44)
     }
   })
+
+  test("searches and selects an authorized HCP with an explicit missing profile field", async ({ page }) => {
+    await page.goto("/msl")
+    await page.getByTestId("hcp-search-input").fill("call system")
+    await page.getByTestId("hcp-search-submit").click()
+    const result = page.getByTestId("hcp-result-HCP-0001")
+    await expect(result).toBeVisible()
+    const box = await result.boundingBox()
+    expect(box?.height).toBeGreaterThanOrEqual(44)
+    await result.click()
+    await expect(page.getByTestId("hcp-profile")).toContainText("Call system HCP 0001")
+    await expect(page.getByTestId("hcp-profile")).toContainText("Credentials")
+    await expect(page.getByTestId("hcp-profile")).toContainText("Missing")
+    await expect(page.getByTestId("hcp-profile")).toContainText("Not available")
+  })
 })
 
 test.describe("states", () => {

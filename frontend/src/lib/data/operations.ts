@@ -26,6 +26,9 @@ export const LANDING_KPIS_QUERY = /* GraphQL */ `
   }
 `
 
+export const SEARCH_HCPS_QUERY = `query SearchHcps($query:String!,$limit:Int){ searchHcps(query:$query,limit:$limit){ hcpId name{value state} institution{value state} territory{value state} } }`
+export const HCP_PROFILE_QUERY = `query HcpProfile($hcpId:ID!){ hcpProfile(hcpId:$hcpId){ hcpId name{value state} specialty{value state} discipline{value state} type{value state} institution{value state} credentials{value state} territory{value state} } }`
+
 /** Extension of the foundation contract (added during integration) for the territory map. */
 export const GEO_ACTIVITY_QUERY = /* GraphQL */ `
   query GeoActivity($from: AWSDate, $to: AWSDate) {

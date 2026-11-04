@@ -208,6 +208,11 @@ type SourceRecord {
   dataThrough: AWSDateTime
 }
 
+enum HcpFieldState { PRESENT MISSING }
+type HcpField { value: String state: HcpFieldState! }
+type HcpSearchResult { hcpId: ID! name: HcpField! institution: HcpField! territory: HcpField! }
+type HcpProfile { hcpId: ID! name: HcpField! specialty: HcpField! discipline: HcpField! type: HcpField! institution: HcpField! credentials: HcpField! territory: HcpField! }
+
 type Query {
   me: Me!
   landingKpis(from: AWSDate, to: AWSDate): LandingKpis!
@@ -220,6 +225,8 @@ type Query {
   myFlags: [Flag!]!
   chatEvents(runId: ID!, after: Int): ChatEventPage!
   chatCitation(dataset: String!, recordId: ID!): SourceRecord!
+  searchHcps(query: String!, limit: Int): [HcpSearchResult!]!
+  hcpProfile(hcpId: ID!): HcpProfile!
 }
 
 type Mutation {

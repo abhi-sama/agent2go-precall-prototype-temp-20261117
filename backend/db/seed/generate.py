@@ -63,7 +63,7 @@ def users() -> list[dict[str, str]]:
     return result
 
 def seed_entitlements(seed_users: list[dict[str, str]]) -> None:
-    sql("TRUNCATE artifact_evidence, generated_artifacts, embeddings, audit_events, data_quality_issues, ingestion_runs, data_sources, metric_definitions, user_scope_assignments, user_role_assignments, role_permissions, permissions, roles, users, territory_scope_relationships, territory_geography, call_activity, hcp_raw_insights, question_tag, territory_rd_access, medical_roster RESTART IDENTITY CASCADE")
+    sql("TRUNCATE hcp_identifier_crosswalk, hcp_entities, artifact_evidence, generated_artifacts, embeddings, audit_events, data_quality_issues, ingestion_runs, data_sources, metric_definitions, user_scope_assignments, user_role_assignments, role_permissions, permissions, roles, users, territory_scope_relationships, territory_geography, call_activity, hcp_raw_insights, question_tag, territory_rd_access, medical_roster RESTART IDENTITY CASCADE")
     sql("INSERT INTO roles VALUES ('msl','MSL field role'),('director','Director role'),('executive','Executive aggregate-only role'),('administrator','Data security administrator')")
     sql("INSERT INTO permissions VALUES ('source.records.read','Read source records'),('catalog.read','Read question catalog'),('aggregate.read','Read scoped aggregate values'),('admin.manage','Manage governance data')")
     sql("INSERT INTO role_permissions VALUES ('msl','source.records.read'),('msl','catalog.read'),('msl','aggregate.read'),('director','source.records.read'),('director','catalog.read'),('director','aggregate.read'),('executive','aggregate.read'),('administrator','admin.manage'),('administrator','source.records.read'),('administrator','catalog.read'),('administrator','aggregate.read')")
@@ -125,7 +125,8 @@ def seed_calls() -> None:
         # postal code always belong together, and agree with territory_geography.
         geo = BY_TERRITORY[territory]
         city = city_for(territory, call // len(TERRITORIES))
-        rows.append(("in-person",city.street,"field",d.isoformat(),call_id,False,"scientific",45,False,False,False,0,None,None,"advisory",None,False,"HCP",False,False,None,"completed",hcp,"MED-" + str(i % 20),TUMORS[i % 4],"pre-call planning","PRD-" + str(i % 4),molecule,territory,territory + " Oncology","Oncology","REP-" + territory,"Synthetic Rep",None,hcp,"Synthetic HCP " + hcp,"oncologist","MD",None,city.street,city.name,geo.subdivision_code,city.postal_code,None,None,None,None,"2026-11-03T12:00:00Z"))
+        name = "Call system HCP 0001" if hcp == "HCP-0001" else "Synthetic HCP " + hcp
+        rows.append(("in-person",city.street,"field",d.isoformat(),call_id,False,"scientific",45,False,False,False,0,None,None,"advisory",None,False,"HCP",False,False,None,"completed",hcp,"MED-" + str(i % 20),TUMORS[i % 4],"pre-call planning","PRD-" + str(i % 4),molecule,territory,territory + " Oncology","Oncology","REP-" + territory,"Synthetic Rep",None,hcp,name,"oncologist",None if hcp == "HCP-0001" else "MD",None,city.street,city.name,geo.subdivision_code,city.postal_code,None,None,None,None,"2026-11-03T12:00:00Z"))
     copy_rows("call_activity", ["atnde_type","addr","call_chnl","call_dt","crm_call_id","clm_flag","call_type","call_dur","exs_inac_call_flag","exs_jnt_msl_sls_call_flag","jnt_smad_vist","exs_lb_flag","exs_lgcy_call_atnde_id","exs_lgcy_call_id","exs_mtg_type","exs_non_npi_cust_id","exs_snacks","exs_type_of_vist","is_par_call_flag","is_smpld_call_flag","par_call_id","call_sta","cust_src_id","crm_med_disc_id","derived_disease_state","reason_for_visit","crm_prd_id","prd_nm","territory_id","territory_name","team_nm","crm_call_user_id","rep_nm","rep_email_id","cust_mdm_id","cust_full_nm","cust_sub_typ","cust_cdtl","npi_id","addr_ln_1","city","st_cd","pstl_cd","mdm_corp_prnt_id","mdm_corp_prnt_nm","hq_corp_prnt_id","hq_corp_prnt_nm","sys_inserted_datetime"], rows)
 
 def seed_insights() -> None:
@@ -133,14 +134,23 @@ def seed_insights() -> None:
     for i in range(60000):
         territory = TERRITORIES[i % len(TERRITORIES)]
         region = REGIONS[i % len(TERRITORIES) // 6]
-        hcp = f"HCP-{(i % 3000) + 1:04}"
+        canonical_hcp = f"HCP-{(i % 3000) + 1:04}"
+        hcp = "LEGACY-HCP-0001" if canonical_hcp == "HCP-0001" else canonical_hcp
         question = f"Q-{(i % 400) + 1:04}"
         status = "Retired" if i % 10 == 0 else "Active"  # catalog-vs-response status difference
         unique = "RESP-000001" if i == 59999 else f"RESP-{i + 1:06}"
         d = TODAY - timedelta(days=i % 365)
         geo = BY_TERRITORY[territory]
-        rows.append((f"INT-{i + 1:06}",f"RAW-{i + 1:06}","seed",None,None,d.isoformat(),STUDIES[i % 4],"field","in-person",region,"2026-01-01T00:00:00",region,geo.country_code,geo.country_name,territory,territory,territory + " Oncology",region,region + " Region","Oncology",hcp,"Synthetic HCP " + hcp,"medical oncology","Synthetic Cancer Center","oncology","HCP",None,"Oncology insight",None,None,f"INS-{i + 1:06}",f"How does {MOLECULES[i % 4]} fit in {TUMORS[i % 4]} discussion?",f"Recorded perspective {i % 17}: evidence and access are important.",question,"2025-01-01T00:00:00",None,status,"Oncology",None,"normal",None,"open_text",MOLECULES[i % 4],"treatment landscape","MSL pulse",TUMORS[i % 4],STUDIES[i % 4],None,None,None,None,None,unique,"2026-11-03T12:00:00Z",None,None,None,None,False))
+        name = "Insight directory HCP 0001" if canonical_hcp == "HCP-0001" else "Synthetic HCP " + hcp
+        rows.append((f"INT-{i + 1:06}",f"RAW-{i + 1:06}","seed",None,None,d.isoformat(),STUDIES[i % 4],"field","in-person",region,"2026-01-01T00:00:00",region,geo.country_code,geo.country_name,territory,territory,territory + " Oncology",region,region + " Region","Oncology",hcp,name,"medical oncology","Synthetic Cancer Center","oncology","HCP",None,"Oncology insight",None,None,f"INS-{i + 1:06}",f"How does {MOLECULES[i % 4]} fit in {TUMORS[i % 4]} discussion?",f"Recorded perspective {i % 17}: evidence and access are important.",question,"2025-01-01T00:00:00",None,status,"Oncology",None,"normal",None,"open_text",MOLECULES[i % 4],"treatment landscape","MSL pulse",TUMORS[i % 4],STUDIES[i % 4],None,None,None,None,None,unique,"2026-11-03T12:00:00Z",None,None,None,None,False))
     copy_rows("hcp_raw_insights", ["insight_intrctn_dtl_sfdc_id","response_id","insight_submitter_info","submitter_name","submitter_email","date_of_interaction","clinical_trial","type_of_visit","meeting_format","insight_region","src_created_dt","region_nm","insight_country","country_nm","insight_msl_territory","territory_id","territory_name","parent_territory_id","parent_territory_name","team_nm","cust_mdm_id","cust_nm","hcp_speciality","hcp_institution","hcp_discipline","hcp_type","internal_meeting_attendees","insight_name","insight_clinicaltrial_site","site_nm","insight_intrctn_rspns_sfdc_id","qstn_txt","rspns_txt","qstn_ext_id","qstn_tag_strt_dt","qstn_tag_end_dt","qstn_tag_status","tag_nm","pid","priority_tag","qstn_pid","qstn_type","molecule_type","landscape_type","survey_type","qstn_indicator","study_name","derived_rspns_text","follow_up_qstn_tag","followup_qid","followup_qstn","followup_rspns","uniq_rspns_id","sys_inserted_datetime","mdm_corp_prnt_id","mdm_corp_prnt_nm","hq_corp_prnt_id","hq_corp_prnt_nm","excluded_rspns_flag"], rows)
+
+def seed_hcp_crosswalk() -> None:
+    copy_rows("hcp_entities", ["hcp_id"], [(f"HCP-{i:04}",) for i in range(1, 3001)])
+    rows = []
+    for i in range(1, 3001):
+        hcp = f"HCP-{i:04}"; rows.extend([("call_activity.cust_mdm_id", hcp, hcp), ("hcp_raw_insights.cust_mdm_id", "LEGACY-HCP-0001" if i == 1 else hcp, hcp)])
+    copy_rows("hcp_identifier_crosswalk", ["source_system", "source_identifier", "hcp_id"], rows)
 
 def main() -> None:
     seed_users = users()
@@ -149,6 +159,7 @@ def main() -> None:
     seed_questions()
     seed_calls()
     seed_insights()
+    seed_hcp_crosswalk()
     print(json.dumps({"call_rows": 25000, "insight_rows": 60000, "questions": 400, "seed_users": len(seed_users), "manifest": str(MANIFEST)}))
 
 if __name__ == "__main__":

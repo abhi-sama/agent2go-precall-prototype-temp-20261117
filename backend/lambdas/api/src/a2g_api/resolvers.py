@@ -30,6 +30,7 @@ from .identity import Identity
 log = get_logger(__name__)
 
 MAX_RANGE_DAYS = 366 * 3
+MAX_HCP_SEARCH_RESULTS = 50
 
 
 def _scope(cur: psycopg.Cursor, identity: Identity) -> tuple[list[str], int, str]:
@@ -271,3 +272,48 @@ def _geo_scope_label(assigned: list[str], leaf_count: int, is_admin: bool) -> st
         return "No territory assigned"
     names = ", ".join(assigned)
     return names if leaf_count <= len(assigned) else f"{names} \u00b7 {leaf_count} territories"
+
+
+def _hcp_field(value: Any) -> dict[str, Any]:
+    return {"value": value, "state": "MISSING" if value is None else "PRESENT"}
+
+
+def _require_hcp_search_access(cur: psycopg.Cursor, identity: Identity) -> None:
+    _assigned, effective, label = _scope(cur, identity)
+    _require_record_access(cur, label, effective)
+
+
+def _search_pattern(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 200:
+        raise BadRequest("search_query_required")
+    return "%" + value.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+def _profile(cur: psycopg.Cursor, hcp_id: str) -> tuple[Any, ...] | None:
+    cur.execute("""
+      WITH visible AS (SELECT x.hcp_id FROM hcp_identifier_crosswalk x JOIN call_activity c ON x.source_system='call_activity.cust_mdm_id' AND x.source_identifier=c.cust_mdm_id WHERE x.hcp_id=%(id)s UNION SELECT x.hcp_id FROM hcp_identifier_crosswalk x JOIN hcp_raw_insights i ON x.source_system='hcp_raw_insights.cust_mdm_id' AND x.source_identifier=i.cust_mdm_id WHERE x.hcp_id=%(id)s), calls AS (SELECT c.* FROM call_activity c JOIN hcp_identifier_crosswalk x ON x.source_system='call_activity.cust_mdm_id' AND x.source_identifier=c.cust_mdm_id JOIN visible v ON v.hcp_id=x.hcp_id), insights AS (SELECT i.* FROM hcp_raw_insights i JOIN hcp_identifier_crosswalk x ON x.source_system='hcp_raw_insights.cust_mdm_id' AND x.source_identifier=i.cust_mdm_id JOIN visible v ON v.hcp_id=x.hcp_id) SELECT v.hcp_id, COALESCE((SELECT min(cust_full_nm) FROM calls),(SELECT min(cust_nm) FROM insights)), (SELECT min(hcp_speciality) FROM insights), (SELECT min(hcp_discipline) FROM insights), (SELECT min(hcp_type) FROM insights), (SELECT min(hcp_institution) FROM insights), (SELECT min(cust_cdtl) FROM calls), (SELECT string_agg(territory_name, ', ' ORDER BY territory_name) FROM (SELECT DISTINCT territory_name FROM calls WHERE territory_name IS NOT NULL UNION SELECT DISTINCT territory_name FROM insights WHERE territory_name IS NOT NULL) t) FROM visible v
+    """, {"id": hcp_id})
+    return cur.fetchone()
+
+
+def hcp_profile(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
+    _require_hcp_search_access(cur, identity)
+    hcp_id = args.get("hcpId")
+    if not isinstance(hcp_id, str) or not hcp_id.strip() or len(hcp_id) > 200: raise BadRequest("invalid_hcp_id")
+    row = _profile(cur, hcp_id.strip())
+    if row is None: raise Forbidden("hcp_not_in_scope")
+    keys = ("hcpId", "name", "specialty", "discipline", "type", "institution", "credentials", "territory")
+    raw = dict(zip(keys, row, strict=True))
+    return {"hcpId": raw["hcpId"], **{key: _hcp_field(raw[key]) for key in keys[1:]}}
+
+
+def search_hcps(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> list[dict[str, Any]]:
+    _require_hcp_search_access(cur, identity)
+    pattern = _search_pattern(args.get("query")); limit = args.get("limit", 20)
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_HCP_SEARCH_RESULTS: raise BadRequest("invalid_search_limit")
+    cur.execute("""SELECT DISTINCT x.hcp_id FROM hcp_identifier_crosswalk x JOIN call_activity c ON x.source_system='call_activity.cust_mdm_id' AND x.source_identifier=c.cust_mdm_id WHERE c.cust_full_nm ILIKE %(p)s ESCAPE '\\' OR c.territory_name ILIKE %(p)s ESCAPE '\\' UNION SELECT DISTINCT x.hcp_id FROM hcp_identifier_crosswalk x JOIN hcp_raw_insights i ON x.source_system='hcp_raw_insights.cust_mdm_id' AND x.source_identifier=i.cust_mdm_id WHERE i.cust_nm ILIKE %(p)s ESCAPE '\\' OR i.hcp_institution ILIKE %(p)s ESCAPE '\\' OR i.territory_name ILIKE %(p)s ESCAPE '\\'""", {"p": pattern})
+    results = []
+    for (hcp_id,) in cur.fetchall():
+        row = _profile(cur, hcp_id)
+        if row: results.append({"hcpId": row[0], "name": _hcp_field(row[1]), "institution": _hcp_field(row[5]), "territory": _hcp_field(row[7])})
+    return sorted(results, key=lambda item: (item["name"]["value"] or "", item["hcpId"]))[:limit]

@@ -6,7 +6,7 @@ Every view is limited to what the viewer is entitled to see.
 ## People and roles
 
 **HCP**:
-A healthcare professional an MSL engages with, identified by `cust_mdm_id`.
+A healthcare professional an MSL engages with, identified by a canonical HCP ID through the source identifier crosswalk (not by a display name).
 _Avoid_: customer, doctor, physician, KOL
 
 **MSL**:

@@ -15,6 +15,8 @@ import {
   type GeoActivity,
   type GeoCountry,
   type GeoTerritory,
+  type HcpProfile,
+  type HcpSearchResult,
   type LandingKpis,
   type Me,
   type RequestContext,
@@ -357,5 +359,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       if (!record) throw new DataError("NOT_FOUND", "That record is not available in your scope.", ctx.correlationId)
       return record
     },
+    async searchHcps(ctx, query): Promise<HcpSearchResult[]> { await gate(ctx, "searchHcps"); const user = findUser(options.getUserId()); return user.territoryIds.includes("NE-01") && query.toLowerCase().includes("call") ? [{ hcpId: "HCP-0001", name: { value: "Call system HCP 0001", state: "PRESENT" }, institution: { value: "Northeast Cancer Center", state: "PRESENT" }, territory: { value: "Boston Metro", state: "PRESENT" } }] : [] },
+    async hcpProfile(ctx, hcpId): Promise<HcpProfile> { await gate(ctx, "hcpProfile"); if (hcpId !== "HCP-0001") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId); const p = (v: string | null) => ({ value: v, state: v === null ? "MISSING" as const : "PRESENT" as const }); return { hcpId, name: p("Call system HCP 0001"), specialty: p("Medical oncology"), discipline: p("Oncology"), type: p("HCP"), institution: p("Northeast Cancer Center"), credentials: p(null), territory: p("Boston Metro") } },
   }
 }
