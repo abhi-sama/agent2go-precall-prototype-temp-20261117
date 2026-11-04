@@ -152,6 +152,46 @@ def _value(cur: psycopg.Cursor, metric: str, frm, to, e: Expectation, **over: An
     return count(cur, metric, frm, to, **kwargs)
 
 
+def _executive_cells(cur: psycopg.Cursor, frm: str | dt.date, to: str | dt.date) -> list[tuple[Any, ...]]:
+    """The independent aggregate recount for Executive chat.
+
+    This uses the same governed security-definer surface as the overview, but does not share the agent's shaping or
+    suppression code. It runs as the seeded Executive, so scope remains an effective-dated Executive assignment.
+    """
+    cur.execute(
+        "SELECT level, territory_id, region_id, month, calls, responses, hcps FROM app.exec_cells(%s, %s)",
+        (frm, to),
+    )
+    return list(cur.fetchall())
+
+
+def _executive_value(cur: psycopg.Cursor, metric: str, frm, to, e: Expectation, **over: Any) -> float:
+    index = {"distinct_calls": 4, "responses": 5, "engaged_hcps": 6}.get(metric)
+    if index is None:
+        raise ValueError("unsupported_executive_metric")
+    territory = over.get("territory", e.territory)
+    level = "TERRITORY" if territory else "TOTAL"
+    for row in _executive_cells(cur, frm, to):
+        if row[0] == level and (not territory or row[1] == territory) and (level != "TERRITORY" or row[3] is None):
+            return float(row[index] or 0)
+    return 0.0
+
+
+def _executive_group_values(cur: psycopg.Cursor, e: Expectation) -> dict[str, float]:
+    assert e.of and e.group_by
+    level = {"month": "MONTH", "region": "REGION", "territory": "TERRITORY"}.get(e.group_by)
+    index = {"distinct_calls": 4, "responses": 5, "engaged_hcps": 6}.get(e.of)
+    if level is None or index is None:
+        raise ValueError("unsupported_executive_group")
+    out: dict[str, float] = {}
+    for row in _executive_cells(cur, e.from_date, e.to_date):
+        if row[0] != level or (level == "TERRITORY" and row[3] is not None):
+            continue
+        key = row[3].strftime("%Y-%m") if level == "MONTH" else str(row[2] if level == "REGION" else row[1])
+        out[key] = float(row[index] or 0)
+    return {key: out.get(key, 0.0) for key in e.keys} if e.keys else out
+
+
 _FILLER = {"and", "the", "for", "with", "about", "use"}
 
 
@@ -177,6 +217,24 @@ def _fmt(value: float) -> str:
 
 def compute_truth(cur: psycopg.Cursor, e: Expectation) -> Truth:
     """What a correct answer says for this expectation."""
+    if e.aggregate:
+        if e.metric in ("distinct_calls", "engaged_hcps", "responses"):
+            value = _executive_value(cur, e.metric, e.from_date, e.to_date, e)
+            return Truth(value=value, text=_fmt(value))
+        if e.metric == "trend":
+            assert e.of and e.prior
+            prior = _executive_value(cur, e.of, e.prior[0], e.prior[1], e)
+            current = _executive_value(cur, e.of, e.from_date, e.to_date, e)
+            direction = _direction(prior, current)
+            return Truth(value=current, prior_value=prior, direction=direction, text=f"{direction} ({_fmt(prior)} to {_fmt(current)})")
+        if e.metric == "leader":
+            values = _executive_group_values(cur, e)
+            if not values:
+                return Truth(text="no data in scope", extreme=e.extreme)
+            best = (max if e.extreme == "max" else min)(values.values())
+            leaders = sorted(key for key, value in values.items() if value == best)
+            shown = ", ".join(f"{key} {_fmt(value)}" for key, value in sorted(values.items(), key=lambda pair: (-pair[1], pair[0]))[:6])
+            return Truth(value=best, leaders=leaders, values=values, extreme=e.extreme, text=f"most: {' / '.join(leaders)} ({shown})")
     if e.metric == "answer_share":
         den = count(cur, "question_responses", e.from_date, e.to_date, territory=e.territory, question_id=e.question_id)
         num = count(cur, "question_responses", e.from_date, e.to_date, territory=e.territory, question_id=e.question_id, answer=e.answer)
@@ -334,6 +392,30 @@ def _recount_series(cur: psycopg.Cursor, v: Mapping[str, Any]) -> tuple[bool, st
     return False, "points differ from SQL"
 
 
+def _recount_executive_series(cur: psycopg.Cursor, v: Mapping[str, Any]) -> tuple[bool, str]:
+    """Recount plotted Executive aggregates through the governed aggregate function, not source-row RLS."""
+    metric = {"calls": 4, "responses": 5, "engaged_hcps": 6}.get(str(v.get("metric") or ""))
+    period = str(v.get("period") or "")
+    if metric is None or " to " not in period:
+        return True, "not recountable"
+    frm, to = period.split(" to ", 1)
+    points = {str(point["key"]): int(point["value"]) for point in v.get("points") or []}
+    if not points:
+        return True, "no shown aggregate points"
+    rows = _executive_cells(cur, frm, to)
+    if all(_MONTH.match(key) for key in points):
+        truth = {row[3].strftime("%Y-%m"): int(row[metric] or 0) for row in rows if row[0] == "MONTH" and row[3]}
+    elif all(key.startswith("REGION-") for key in points):
+        truth = {str(row[2]): int(row[metric] or 0) for row in rows if row[0] == "REGION"}
+    else:
+        truth = {str(row[1]): int(row[metric] or 0) for row in rows if row[0] == "TERRITORY" and row[3] is None}
+    if not all(truth.get(key) == value for key, value in points.items()):
+        return False, "points differ from Executive aggregate SQL"
+    total = v.get("total")
+    overall = next((int(row[metric] or 0) for row in rows if row[0] == "TOTAL"), 0)
+    return total in (None, overall), "ok" if total in (None, overall) else "total differs from Executive aggregate SQL"
+
+
 def _group_expr(dim: str, date_col: str, table: str, metric: str) -> str | None:
     if dim in _BUCKET:
         return _BUCKET[dim].format(d=date_col)
@@ -413,6 +495,8 @@ def _distribution_consistent(v: Mapping[str, Any]) -> tuple[bool, str]:
 def recount_visual(cur: psycopg.Cursor, visual: Mapping[str, Any]) -> tuple[bool, str]:
     """Whether every number a ready chart plots equals an independent recount. ``(True, reason)`` when nothing is checkable."""
     kind = visual.get("kind")
+    if visual.get("scope") == "your executive scope" and kind in ("line", "bar", "timeline"):
+        return _recount_executive_series(cur, visual)
     if kind in ("line", "bar", "timeline"):
         return _recount_series(cur, visual)
     if kind == "heatmap":

@@ -76,7 +76,7 @@ def ideal(q: GoldenQuestion, *, wrong: bool = False) -> tuple[Capture, Evidence]
         cites = []
     visuals = []
     if q.visual == "chart":
-        visuals = [{"phase": "ready", "kind": "bar", "title": "Chart", "metric": "calls", "total": 12, "points": [{"key": "a", "value": 12}]}]
+        visuals = [{"phase": "ready", "kind": q.draws or "bar", "title": "Chart", "metric": "calls", "total": 12, "points": [{"key": "a", "value": 12}]}]
     cap = Capture(text=text, facts=facts, citations=cites, visuals=visuals, computed=set(numbers_in(text)))
     if e.metric in ROW_METRICS:
         # A counted answer comes with the rows it counted: one row set per figure, each listing exactly that many rows.

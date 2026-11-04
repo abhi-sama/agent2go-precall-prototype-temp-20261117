@@ -71,12 +71,14 @@ def test_chains_lean_on_earlier_turns_and_one_goes_back_to_the_first(persona):
     assert any(p.startswith("And ") for p in prompts), "an elliptical follow-up that only makes sense with history"
 
 
-def test_the_executive_is_never_given_figures_in_chat():
+def test_the_executive_gets_only_governed_aggregates_in_chat():
     suite = SUITES["executive"]
     assert suite.aggregate_only
-    for q in suite.questions:
-        assert q.expect is None
-        assert q.no_access or q.kind == "LEAK_PROBE"
+    aggregate = [q for q in suite.questions if q.expect and q.expect.aggregate]
+    assert aggregate
+    assert all(q.expect.metric in {"distinct_calls", "engaged_hcps", "responses", "trend", "leader"} for q in aggregate)
+    assert all(not q.no_access for q in aggregate)
+    assert all(q.no_access or q.kind == "LEAK_PROBE" or q.expect is not None for q in suite.questions)
 
 
 @pytest.mark.parametrize("persona", list(SUITES))

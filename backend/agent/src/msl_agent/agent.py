@@ -85,9 +85,14 @@ the answer after that call.
 EXECUTIVE_ADDENDUM = """
 The user is an Executive with aggregate-only access to the regions they are explicitly authorized for. You do \
 organisational analysis with two tools, get_org_themes (theme cards by portfolio, molecule, disease area or study) \
-and get_region_topic_matrix (topics by region with trend arrows). The record-level tools return aggregate_only for \
-this user; say so only if asked for individual calls, HCPs or responses.
+and get_region_topic_matrix (topics by region with trend arrows), plus get_executive_activity for counts, trends and \
+comparisons of calls, engaged HCPs or insight responses. Use get_executive_activity instead of the record-level tools \
+for every quantitative Executive question: total for a count, month for a trend, and region or territory for a comparison. \
+It draws the safe chart itself. The record-level tools return aggregate_only for this user; say so only if asked for \
+individual calls, HCPs or responses.
 Executive rules:
+- The aggregate activity tool is the only source for Executive activity figures. It returns no source records, even for \
+an in-scope territory. State that rows are not available when relevant; never offer names, record ids, quotations or exports.
 - Themes are keyword groupings of free-text responses: derived, never source facts. Describe them as "recorded" themes.
 - A trend is a change in recorded responses between two equal periods under an approved threshold rule. Never name a \
 cause, never say why a topic changed, never say what an HCP thinks or intends, and never recommend an action.
@@ -219,10 +224,37 @@ class MslAgent:
         )
 
     @staticmethod
+    def _executive_activity_group(question: str) -> str | None:
+        """Return the only aggregate grouping that can satisfy this quantitative Executive question."""
+        q = question.lower()
+        is_theme_question = any(word in q for word in ("theme", "topic", "what are hcp", "what did hcp", "recorded perspective", "ctdna", "sequencing"))
+        if is_theme_question:
+            return None
+        request = infer_chart_request(question)
+        if request and request.group_by in ("month", "week", "day"):
+            return "month"
+        if request and request.group_by == "territory":
+            return "territory"
+        if "region" in q or "compare" in q or "versus" in q:
+            return "region"
+        return "total"
+
+    @staticmethod
     def _run_executive(ctx: RunContext, tools: dict[str, Any], question: str) -> None:
         """Deterministic floor for an Executive run: the aggregate evidence exists whatever the model did."""
-        facet = infer_executive_facet(question)
         ctx.tool_calls = 0  # a backstop is not charged to the model's tool budget
+        group_by = MslAgent._executive_activity_group(question)
+        if group_by is not None:
+            request = infer_chart_request(question)
+            q = question.lower()
+            metric = request.metric if request else ("responses" if "response" in q or "insight" in q else "calls")
+            tools["get_executive_activity"](
+                metric=metric,
+                group_by=group_by,
+                tool_context=SimpleNamespace(tool_use={"toolUseId": f"exec-auto-{len(ctx.visuals) + 1}"}, agent=None),
+            )
+            return
+        facet = infer_executive_facet(question)
         tools["get_org_themes"](facet=facet)
         if wants_region_matrix(question):
             ctx.tool_calls = 0
@@ -312,8 +344,11 @@ class MslAgent:
                 for event in drain():
                     yield event
             if is_executive:
-                if not ctx.executive_evidence:
-                    # The model answered without the aggregate tools (or the stub never calls any): run them here.
+                requested_group = self._executive_activity_group(invocation.question)
+                if not ctx.executive_evidence or (requested_group is not None and requested_group not in ctx.executive_activity_groups):
+                    # The model may call the aggregate tool with its default ``total`` grouping for a trend or
+                    # comparison. Evidence exists in that case, but not the requested grouping, so use the
+                    # question's deterministic grouping as a second backstop.
                     tools = {t.tool_name: t for t in build_tools(ctx)}
                     await asyncio.to_thread(self._run_executive, ctx, tools, invocation.question)
                 for event in drain():

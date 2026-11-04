@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from . import chart_data
 from .chart_data import GROUP_LABELS, METRIC_DEFINITIONS, METRIC_LABELS, METRIC_UNITS
-from .repository import ChartResult, QuestionBreakdownResult
+from .repository import ChartResult, ExecutiveActivityResult, QuestionBreakdownResult
 
 VisualKind = Literal["bar", "line", "distribution", "heatmap", "timeline", "table"]
 ChartType = Literal["auto", "line", "bar", "timeline", "heatmap", "table"]
@@ -157,6 +157,60 @@ def series_visual(visual_id: str, result: ChartResult, chart_type: str) -> Visua
         left_out=result.left_out,
         points=points,
         peak_key=peak.key if peak and peak.value > 0 else None,
+    )
+
+
+def executive_activity_visual(visual_id: str, result: ExecutiveActivityResult) -> Visual:
+    """A chart of only the Executive aggregates that remain publishable after suppression.
+
+    Withheld points never become zero-height marks or table values: omitting them avoids telling a viewer that a
+    small group had zero activity. The accompanying limitations name the suppression rule.
+    """
+    assert result.period_from is not None and result.period_to is not None
+    metric_label = METRIC_LABELS[result.metric]
+    if result.group_by == "total":
+        points = (
+            [VisualPoint(key="total", label="All authorized scope", value=result.total.value)]
+            if result.total.value is not None
+            else []
+        )
+    else:
+        points = [
+            VisualPoint(
+                key=row.key,
+                label=_month_name(row.key) if result.group_by == "month" else row.label,
+                value=row.count.value,
+                share_pct=None,
+                partial=_partial(result.group_by, row.key, result.period_from, result.period_to)
+                if result.group_by == "month"
+                else False,
+            )
+            for row in result.rows
+            if row.count.value is not None
+        ]
+    kind: VisualKind = "line" if result.group_by == "month" else "bar"
+    peak = max(points, key=lambda point: (point.value, point.key), default=None) if kind == "line" else None
+    return Visual(
+        visual_id=visual_id,
+        kind=kind,
+        title=(
+            f"{metric_label} (shown aggregate)"
+            if result.group_by == "total"
+            else f"{metric_label} by {GROUP_LABELS.get(result.group_by, result.group_by)} (shown aggregates)"
+        ),
+        subtitle=f"{_period_text(result.period_from, result.period_to)} · your executive scope",
+        metric=result.metric,
+        unit=METRIC_UNITS[result.metric],
+        period=_period_text(result.period_from, result.period_to),
+        scope="your executive scope",
+        definition=(
+            METRIC_DEFINITIONS[result.metric]
+            + " Small groups and complementary values are withheld and are not plotted."
+        ),
+        data_through=result.data_through.isoformat() if result.data_through else None,
+        total=result.total.value,
+        points=points,
+        peak_key=peak.key if peak else None,
     )
 
 

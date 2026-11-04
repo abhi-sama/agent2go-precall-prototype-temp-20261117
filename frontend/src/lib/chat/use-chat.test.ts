@@ -54,4 +54,16 @@ describe("mock chat", () => {
     const text = page.events.map((e) => JSON.parse(e.data)).filter((e) => e.type === "TEXT_MESSAGE_CONTENT").map((e) => e.delta).join("")
     expect(text).toContain("outside your scope")
   })
+
+  it("gives an executive a suppressed aggregate activity chart without source rows", async () => {
+    const page = await eventsOf("u-exec-all", "Show calls by month")
+    const custom = page.events.map((event) => JSON.parse(event.data)).filter((event) => event.type === "CUSTOM")
+    const facts = custom.find((event) => event.name === "source_facts")
+    const citations = custom.find((event) => event.name === "citations")
+    const visual = custom.find((event) => event.name === "visual" && event.value?.phase === "ready")
+    expect(facts.value.facts).toEqual(expect.arrayContaining([expect.objectContaining({ label: "Distinct calls", value: 48 })]))
+    expect(citations.value).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "aggregate", record_id: expect.stringMatching(/^agg:/) })]))
+    expect(visual.value.points).toHaveLength(2)
+    expect(JSON.stringify(page.events)).not.toMatch(/CALL-\d|RESP-\d/)
+  })
 })

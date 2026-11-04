@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 import psycopg
+from a2g_exec_analysis import suppress_flags
 
 from . import chart_data
 from .chart_data import ChartParams, Matrix, SeriesRow, TableRow
@@ -173,7 +174,47 @@ class ExecutiveAnalysisResult:
     detail: str = ""
 
 
+@dataclass(frozen=True)
+class ExecutiveCount:
+    """One aggregate-only count. Suppressed values are deliberately absent, never zero."""
+
+    value: int | None
+    suppressed: bool = False
+
+
+@dataclass(frozen=True)
+class ExecutiveActivityRow:
+    key: str
+    label: str
+    count: ExecutiveCount
+
+
+@dataclass(frozen=True)
+class ExecutiveActivityResult:
+    """Executive-overview activity aggregates, safe to render in chat without source rows."""
+
+    status: Status
+    metric: str = "calls"
+    group_by: str = "total"
+    period_from: dt.date | None = None
+    period_to: dt.date | None = None
+    total: ExecutiveCount = field(default_factory=lambda: ExecutiveCount(None, True))
+    rows: tuple[ExecutiveActivityRow, ...] = ()
+    data_through: dt.datetime | None = None
+    detail: str = ""
+
+
 class ScopedReadRepository(Protocol):
+    def executive_activity(
+        self,
+        identity: Identity,
+        *,
+        metric: str,
+        group_by: str,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+    ) -> ExecutiveActivityResult: ...
+
     def executive_themes(
         self, identity: Identity, *, period_from: dt.date | None, period_to: dt.date | None, facet: str
     ) -> ExecutiveAnalysisResult: ...
@@ -754,6 +795,95 @@ class PostgresScopedRepository:
             citations=citations,
         )
 
+    # -- Executive aggregate activity ---------------------------------------------------------
+    def executive_activity(
+        self,
+        identity: Identity,
+        *,
+        metric: str,
+        group_by: str,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+    ) -> ExecutiveActivityResult:
+        """Read the Executive overview's security-definer cells, never its source rows.
+
+        This intentionally does not reuse the normal activity/chart queries: those are RLS-protected source
+        tables and an aggregate-only Executive correctly sees none of their rows. ``app.exec_cells`` is the
+        governed aggregate door used by the overview, and its result is suppressed here before it reaches a tool.
+        """
+        if identity.persona != "Executive":
+            return ExecutiveActivityResult(status="executive_only")
+        if metric not in ("calls", "engaged_hcps", "responses") or group_by not in ("total", "month", "region", "territory"):
+            return ExecutiveActivityResult(status="bad_request", detail="invalid_executive_activity_request")
+        with self._session(identity) as cur:
+            cur.execute("SELECT app.can_read_aggregate()")
+            if not bool(cur.fetchone()[0]):
+                return ExecutiveActivityResult(status="aggregate_only")
+            cur.execute("SELECT territory_id, territory_name, region_id, region_name FROM app.exec_units() ORDER BY region_id, territory_id")
+            units = cur.fetchall()
+            if not units:
+                return ExecutiveActivityResult(status="no_scope")
+            cur.execute("SELECT calls_loaded, responses_loaded FROM app.exec_loads()")
+            loaded = [v for v in cur.fetchone() if v is not None]
+            if not loaded:
+                return ExecutiveActivityResult(status="no_scope")
+            data_through = min(loaded)
+            window = self._period(period_from, period_to, data_through)
+            if window is None:
+                return ExecutiveActivityResult(status="bad_request", detail="invalid_period")
+            start, end = window
+            cur.execute("SELECT level, territory_id, region_id, month, calls, responses, hcps FROM app.exec_cells(%s, %s)", (start, end))
+            cells = cur.fetchall()
+
+        metric_index = {"calls": 4, "responses": 5, "engaged_hcps": 6}[metric]
+        total = 0
+        by_month: dict[str, int] = {}
+        by_region: dict[str, int] = {}
+        by_territory: dict[str, int] = {}
+        for level, territory_id, region_id, month, calls, responses, hcps in cells:
+            value = int((calls, responses, hcps)[metric_index - 4] or 0)
+            if level == "TOTAL":
+                total = value
+            elif level == "MONTH" and month is not None:
+                # ``app.exec_cells`` exposes a date (the first day of the month); chart keys use YYYY-MM so
+                # their label and partial-period helpers can safely reconstruct that calendar month.
+                by_month[month.strftime("%Y-%m")] = value
+            elif level == "REGION" and region_id:
+                by_region[str(region_id)] = value
+            elif level == "TERRITORY" and territory_id and month is None:
+                by_territory[str(territory_id)] = value
+
+        region_names: dict[str, str] = {}
+        territory_names: dict[str, str] = {}
+        for territory_id, territory_name, region_id, region_name in units:
+            territory_names[str(territory_id)] = f"{territory_id} · {territory_name}"
+            region_names[str(region_id)] = str(region_name)
+        if group_by == "total":
+            hidden = 0 < total < 5
+            return ExecutiveActivityResult(
+                status="ok", metric=metric, group_by=group_by, period_from=start, period_to=end,
+                total=ExecutiveCount(None if hidden else total, hidden), data_through=data_through,
+            )
+
+        values = {"month": by_month, "region": by_region, "territory": by_territory}[group_by]
+        names = {"month": {}, "region": region_names, "territory": territory_names}[group_by]
+        # The shared suppression helper implements the Executive overview's primary and complementary suppression.
+        keys = sorted(values)
+        flags, total_hidden = suppress_flags([values[key] for key in keys], total, additive=True)
+        rows = tuple(
+            ExecutiveActivityRow(
+                key=key,
+                label=key if group_by == "month" else names.get(key, key),
+                count=ExecutiveCount(None if flags[index] else values[key], bool(flags[index])),
+            )
+            for index, key in enumerate(keys)
+        )
+        return ExecutiveActivityResult(
+            status="ok", metric=metric, group_by=group_by, period_from=start, period_to=end,
+            total=ExecutiveCount(None if total_hidden else total, bool(total_hidden)), rows=rows,
+            data_through=data_through,
+        )
+
     # -- Executive (aggregate-only) analysis ---------------------------------------------------
     def _executive_analysis(
         self,
@@ -1104,6 +1234,63 @@ class FixtureScopedRepository:
         )
 
     # -- Executive double ----------------------------------------------------------------------
+    def executive_activity(
+        self,
+        identity: Identity,
+        *,
+        metric: str,
+        group_by: str,
+        period_from: dt.date | None,
+        period_to: dt.date | None,
+    ) -> ExecutiveActivityResult:
+        if identity.persona != "Executive":
+            return ExecutiveActivityResult(status="executive_only")
+        if metric not in ("calls", "engaged_hcps", "responses") or group_by not in ("total", "month", "region", "territory"):
+            return ExecutiveActivityResult(status="bad_request")
+        if identity.user_id != self.EXECUTIVE_USER:
+            return ExecutiveActivityResult(status="no_scope")
+        start, end = period_from or dt.date(2026, 8, 6), period_to or dt.date(2026, 11, 3)
+        totals = {"calls": 48, "engaged_hcps": 36, "responses": 84}
+        groups = {
+            "month": {
+                "calls": {"2026-08": 15, "2026-09": 17, "2026-10": 12, "2026-11": 4},
+                "engaged_hcps": {"2026-08": 12, "2026-09": 13, "2026-10": 8, "2026-11": 3},
+                "responses": {"2026-08": 28, "2026-09": 31, "2026-10": 20, "2026-11": 5},
+            },
+            "region": {
+                "calls": {"REGION-01": 30, "REGION-02": 14, "REGION-03": 4},
+                "engaged_hcps": {"REGION-01": 21, "REGION-02": 12, "REGION-03": 3},
+                "responses": {"REGION-01": 52, "REGION-02": 27, "REGION-03": 5},
+            },
+            "territory": {
+                "calls": {"T01-01": 31, "T01-02": 13, "T01-03": 4},
+                "engaged_hcps": {"T01-01": 22, "T01-02": 11, "T01-03": 3},
+                "responses": {"T01-01": 56, "T01-02": 23, "T01-03": 5},
+            },
+        }
+        total = totals[metric]
+        if group_by == "total":
+            return ExecutiveActivityResult(
+                status="ok", metric=metric, group_by=group_by, period_from=start, period_to=end,
+                total=ExecutiveCount(total), data_through=self.DATA_THROUGH,
+            )
+        values = groups[group_by][metric]
+        keys = sorted(values)
+        hidden, total_hidden = suppress_flags([values[key] for key in keys], total, additive=True)
+        labels = {
+            "REGION-01": "Region 1", "REGION-02": "Region 2", "REGION-03": "Region 3",
+            "T01-01": "T01-01 · North", "T01-02": "T01-02 · South", "T01-03": "T01-03 · West",
+        }
+        return ExecutiveActivityResult(
+            status="ok", metric=metric, group_by=group_by, period_from=start, period_to=end,
+            total=ExecutiveCount(None if total_hidden else total, bool(total_hidden)),
+            rows=tuple(
+                ExecutiveActivityRow(key, labels.get(key, key), ExecutiveCount(None if hidden[i] else values[key], bool(hidden[i])))
+                for i, key in enumerate(keys)
+            ),
+            data_through=self.DATA_THROUGH,
+        )
+
     # One Executive (``executive-region-01``) has data; every other Executive id has no scope. The numbers are
     # hand-written to exercise suppression: ``None`` counts are withheld small groups.
     EXECUTIVE_USER = "executive-region-01"

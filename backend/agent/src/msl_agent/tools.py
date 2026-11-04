@@ -23,11 +23,11 @@ from strands import tool
 from strands.types.tools import ToolContext
 
 from . import ag_ui, chart_data, visuals
-from .row_sets import KIND_UNITS, MAX_ROW_SETS, RowSet
 from .repository import (
     EXECUTIVE_FACETS,
     ActivityResult,
     ChartResult,
+    ExecutiveActivityResult,
     ExecutiveAnalysisResult,
     QuestionBreakdownResult,
     ResponseSearchResult,
@@ -35,6 +35,7 @@ from .repository import (
     ScopeResult,
     TopicTrendsResult,
 )
+from .row_sets import KIND_UNITS, MAX_ROW_SETS, RowSet
 from .schemas import Citation, Fact, Identity
 from .visuals import Visual
 
@@ -62,6 +63,10 @@ MAX_EXEC_FACTS = 14
 DEFAULT_LIMITATION = (
     "Themes are keyword groupings of the free-text responses that were recorded, so they describe what was recorded "
     "in this period, not what every HCP thinks."
+)
+EXECUTIVE_ACTIVITY_LIMITATIONS = (
+    "This is an aggregate-only view; individual records, names and row exports are not available.",
+    "Counts below 5 are withheld, with complementary suppression where needed so a small group cannot be calculated.",
 )
 
 
@@ -91,6 +96,8 @@ class RunContext:
     limitations: list[str] = field(default_factory=list)
     #: True once an Executive analysis tool returned data; the runtime backstops a run that ended without one.
     executive_evidence: bool = False
+    #: Groupings returned by the aggregate activity tool, so a total cannot satisfy a requested trend/comparison.
+    executive_activity_groups: set[str] = field(default_factory=set)
 
     # -- bookkeeping --------------------------------------------------------------------------
     def _add_citations(self, items: tuple[Citation, ...]) -> list[str]:
@@ -461,6 +468,56 @@ class RunContext:
 
     def _exec_refusal(self, result: ExecutiveAnalysisResult) -> str:
         return self._record({"status": result.status, "instruction": _REFUSALS.get(result.status, "Invalid request.")})
+
+    def exec_activity(self, result: ExecutiveActivityResult, visual_id: str) -> str:
+        """Publish only suppressed Executive overview aggregates and an optional safe chart."""
+        if result.status != "ok" or result.period_from is None or result.period_to is None:
+            return self._record({"status": result.status, "instruction": _REFUSALS.get(result.status, "Invalid request.")})
+        self.executive_evidence = True
+        self.executive_activity_groups.add(result.group_by)
+        self.data_through = result.data_through
+        period = f"{result.period_from.isoformat()} to {result.period_to.isoformat()}"
+        label = {"calls": "Distinct calls", "engaged_hcps": "Engaged HCPs", "responses": "Insight responses"}[result.metric]
+        citation = Citation(
+            record_id=f"agg:executive:activity:{result.metric}:{result.group_by}:{result.period_from}:{result.period_to}",
+            # The chat-event citation schema has the two source-dataset variants only. Its aggregate kind means
+            # this is not a readable hcp_raw_insights record (matching the existing Executive theme citations).
+            dataset="hcp_raw_insights",
+            label=f"Suppressed {label.lower()} aggregate, {period}",
+            kind="aggregate",
+            detail="Aggregate-only; no source rows are available",
+        )
+        cited = self._add_citations((citation,))
+        facts: list[Fact] = []
+        if result.total.value is not None:
+            facts.append(self._add_fact(label, result.total.value, {"calls": "calls", "engaged_hcps": "HCPs", "responses": "responses"}[result.metric], period, "your executive scope", cited))
+        self._publish(facts, (citation,))
+        self._add_limitations(list(EXECUTIVE_ACTIVITY_LIMITATIONS))
+        rows = [
+            {"key": row.key, "label": row.label, "value": self._shown({"value": row.count.value, "suppressed": row.count.suppressed})}
+            for row in result.rows
+        ]
+        # A visible total earns a single safe aggregate bar. A withheld total deliberately emits no point.
+        if result.group_by != "total" or result.total.value is not None:
+            visual = visuals.executive_activity_visual(visual_id, result)
+            self.visuals.append(visual)
+            self.pending.append(ag_ui.custom("visual", visual.event_value()))
+        return self._record(
+            {
+                "status": "ok",
+                "metric": result.metric,
+                "group_by": result.group_by,
+                "period": period,
+                "total": self._shown({"value": result.total.value, "suppressed": result.total.suppressed}),
+                "rows": rows,
+                "sample_limitations": list(EXECUTIVE_ACTIVITY_LIMITATIONS),
+                "instruction": (
+                    "Copy shown counts exactly. A value marked 'withheld (small group)' is intentionally unavailable: "
+                    "do not estimate it, treat it as zero, rank it, or calculate it from another total. Never offer rows, "
+                    "names, record ids, quotes or citations to individual records. State that the result is aggregate-only."
+                ),
+            }
+        )
 
     def _exec_finish(self, data: dict[str, Any], citations: list[Citation], facts: list[Fact]) -> list[str]:
         limitations = [str(x) for x in data.get("sampleLimitations") or []] or [DEFAULT_LIMITATION]
@@ -1015,6 +1072,45 @@ def build_tools(ctx: RunContext) -> list[Any]:
         log.info("tool call", tool=tool_name, run_id=ctx.run_id)
         return facet, None
 
+    @tool(context=True)
+    def get_executive_activity(
+        metric: str,
+        tool_context: ToolContext,
+        group_by: str = "total",
+        from_date: str = "",
+        to_date: str = "",
+    ) -> str:
+        """Executive only: get a suppressed aggregate count, trend or comparison from the Executive overview.
+
+        Use this for Executive questions about calls, engaged HCPs or insight responses. It reads the same
+        aggregate-only SQL functions as the Executive overview, not source rows. For a plain count use group_by
+        total; use month for a trend and region or territory for a comparison. The response always notes that rows
+        are unavailable and withholds small groups (including complementary values).
+
+        Args:
+            metric: calls, engaged_hcps, or responses.
+            group_by: total, month, region, or territory.
+            from_date: First day, YYYY-MM-DD. Leave empty for the last 90 days of loaded data.
+            to_date: Last day, YYYY-MM-DD. Leave empty for the latest loaded day.
+        """
+        if ctx.identity.persona != "Executive":
+            return ctx._record({"status": "executive_only", "instruction": _REFUSALS["executive_only"]})
+        if ctx._budget_exhausted():
+            return ctx._record({"status": "bad_request", "instruction": "Tool budget used; answer with what you have."})
+        metric, group_by = metric.strip().lower(), group_by.strip().lower()
+        if metric not in ("calls", "engaged_hcps", "responses") or group_by not in ("total", "month", "region", "territory"):
+            return ctx._record(
+                {"status": "bad_request", "instruction": "metric must be calls, engaged_hcps or responses; group_by must be total, month, region or territory."}
+            )
+        window = _executive_window(from_date, to_date)
+        if window is None:
+            return ctx._record({"status": "bad_request", "instruction": "Dates must be YYYY-MM-DD."})
+        log.info("tool call", tool="get_executive_activity", run_id=ctx.run_id)
+        result = ctx.repository.executive_activity(
+            ctx.identity, metric=metric, group_by=group_by, period_from=window[0], period_to=window[1]
+        )
+        return ctx.exec_activity(result, _visual_id(tool_context, "exec-"))
+
     @tool
     def get_org_themes(facet: str = "PORTFOLIO", from_date: str = "", to_date: str = "") -> str:
         """Executive only: the leading free-text themes across the user's authorized regions, with trend and counts.
@@ -1106,6 +1202,7 @@ def build_tools(ctx: RunContext) -> list[Any]:
         get_topic_trends,
         get_question_breakdown,
         get_my_scope,
+        get_executive_activity,
         get_org_themes,
         get_region_topic_matrix,
         suggest_follow_ups,

@@ -23,6 +23,8 @@ const TOOL_LABELS: Record<string, string> = {
 /** A key figure: counted by the database, so it eases up to the exact value and then shows it. */
 function KpiTile({ f, turn, onOpenCitation }: { f: FactItem; turn: AssistantTurn; onOpenCitation: (citation: CitationItem) => void }) {
   const shown = useCountUp(f.value, 600)
+  const sources = citationsForFact(f, turn.citations)
+  const aggregate = sources.length > 0 && sources.every(isAggregateCitation)
   return (
     <div data-testid={`fact-${f.factId}`} data-value={f.value} className="rounded-lg border border-border bg-background p-3">
       <dt className="text-xs font-semibold text-muted-foreground">{f.label}</dt>
@@ -32,10 +34,10 @@ function KpiTile({ f, turn, onOpenCitation }: { f: FactItem; turn: AssistantTurn
       <p className="mt-1 text-xs text-muted-foreground">
         {f.scope} · {f.period}
       </p>
-      {f.citationIds.length > 0 && <p className="text-xs text-muted-foreground">{f.citationIds.length} source records</p>}
-      {citationsForFact(f, turn.citations).length > 0 && (
+      {f.citationIds.length > 0 && <p className="text-xs text-muted-foreground">{f.citationIds.length} {aggregate ? "aggregate source" : "source records"}</p>}
+      {sources.length > 0 && (
         <p className="mt-2 flex flex-wrap gap-1" aria-label={`Sources for ${f.label}`}>
-          {citationsForFact(f, turn.citations).map((citation) => (
+          {sources.map((citation) => (
             <CitationLink key={`${citation.dataset}:${citation.recordId}`} citation={citation} citations={turn.citations} onOpen={onOpenCitation} />
           ))}
         </p>

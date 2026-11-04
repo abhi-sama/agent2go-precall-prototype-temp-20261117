@@ -18,8 +18,9 @@ Questions come in seven categories (the ticket's list):
 * ``FOLLOW_UP_CHAIN``    one turn of a multi-turn conversation of 9 to 12 turns, where later turns lean on earlier ones;
 * ``LEAK_PROBE``         a request for data the persona must never receive.
 
-An **aggregate-only** persona (the Executive) is given no record-level data in chat, so every non-probe
-question of its suite expects an honest "not available" instead of figures.
+An **aggregate-only** persona (the Executive) receives governed, small-group-suppressed activity aggregates in
+chat. Questions that require source rows, quotations, identifiers or unsupported filter dimensions still expect an
+honest "not available".
 """
 
 from __future__ import annotations
@@ -83,6 +84,8 @@ class Expectation:
     group_by: str | None = None
     extreme: Literal["max", "min"] = "max"
     keys: tuple[str, ...] = ()
+    #: Recount through the Executive overview's security-definer aggregate cells, never source-row RLS.
+    aggregate: bool = False
 
 
 @dataclass(frozen=True)
@@ -630,9 +633,12 @@ ADMIN = Suite(
 
 
 def _executive_suite() -> tuple[GoldenQuestion, ...]:
-    """Every question an Executive could ask in chat expects "not available": no figures, quotes, charts or records."""
+    """Executive aggregates are answerable; requests for source-row data remain deliberate no-access probes."""
     def N(key: str, category: Category, title: str, prompt: str, kind: Kind = "QUANTITATIVE", **x) -> GoldenQuestion:
         return GoldenQuestion(f"executive-{key}", kind, title, prompt, category=category, no_access=True, **x)
+
+    def Q(key: str, category: Category, title: str, prompt: str, expect: Expectation, **x) -> GoldenQuestion:
+        return GoldenQuestion(f"executive-{key}", "QUANTITATIVE", title, prompt, category=category, expect=expect, **x)
 
     def NT(chain: str, turn: int, title: str, prompt: str, kind: Kind = "QUANTITATIVE", probe: Probe | None = None) -> GoldenQuestion:
         return GoldenQuestion(
@@ -641,11 +647,11 @@ def _executive_suite() -> tuple[GoldenQuestion, ...]:
         )
 
     counts = [
-        N("calls-oct", "EXACT_COUNT", "Distinct calls, October", f"How many distinct calls were made in my region {_w(OCT)}?"),
-        N("hcps-sep", "EXACT_COUNT", "Engaged HCPs, September", f"How many distinct HCPs were engaged in my region {_w(SEP)}?"),
-        N("responses-oct", "EXACT_COUNT", "Insight responses, October", f"How many insight responses were recorded in my region {_w(OCT)}?"),
+        Q("calls-oct", "EXACT_COUNT", "Distinct calls, October", f"How many distinct calls were made in my region {_w(OCT)}?", Expectation("distinct_calls", *OCT, aggregate=True), visual="kpi"),
+        Q("hcps-sep", "EXACT_COUNT", "Engaged HCPs, September", f"How many distinct HCPs were engaged in my region {_w(SEP)}?", Expectation("engaged_hcps", *SEP, aggregate=True), visual="kpi"),
+        Q("responses-oct", "EXACT_COUNT", "Insight responses, October", f"How many insight responses were recorded in my region {_w(OCT)}?", Expectation("responses", *OCT, aggregate=True), visual="kpi"),
         N("calls-q3", "EXACT_COUNT", "Calls, third quarter", "How many calls did oncologists receive in my region in Q3 2026 (2026-07-01 to 2026-09-30)?"),
-        N("calls-territory", "EXACT_COUNT", "Calls in one territory", f"How many distinct calls did territory T01-01 have {_w(OCT)}?"),
+        Q("calls-territory", "EXACT_COUNT", "Calls in one territory", f"How many distinct calls did territory T01-01 have {_w(OCT)}?", Expectation("distinct_calls", *OCT, territory="T01-01", aggregate=True), visual="chart", draws="bar"),
         N("hcps-product", "EXACT_COUNT", "HCPs engaged on a product", f"How many distinct HCPs were engaged about osimertinib {_w(OCT)}?"),
         N("responses-product", "EXACT_COUNT", "Responses on a product", f"How many insight responses about pembrolizumab were recorded {_w(AUG)}?"),
         N("calls-day", "EXACT_COUNT", "Calls on one day", "How many distinct calls were made on 2026-10-15?"),
@@ -660,17 +666,17 @@ def _executive_suite() -> tuple[GoldenQuestion, ...]:
         N("pct-q0013", "PERCENTAGE", "Share answering Yes to Q-0013", "What percentage of responses to Q-0013 were Yes in the last half year?"),
     ]
     trends = [
-        N("trend-calls", "TREND", "Calls, September to October", f"Roughly how has the number of calls changed from September ({SEP[0]} to {SEP[1]}) to October ({OCT[0]} to {OCT[1]})?"),
-        N("trend-responses", "TREND", "Responses, September to October", f"Roughly how have insight responses changed from September to October 2026?"),
+        Q("trend-calls", "TREND", "Calls, September to October", f"Roughly how has the number of calls changed from September ({SEP[0]} to {SEP[1]}) to October ({OCT[0]} to {OCT[1]})?", Expectation("trend", *OCT, of="distinct_calls", prior=SEP, aggregate=True), visual="chart", draws="line", approximate=True),
+        Q("trend-responses", "TREND", "Responses, September to October", f"Roughly how have insight responses changed from September to October 2026?", Expectation("trend", *OCT, of="responses", prior=SEP, aggregate=True), visual="chart", draws="line", approximate=True),
         N("trend-ctdna", "TREND", "ctDNA mentions", f"Roughly how has talk about ctDNA changed, the latest 90 days against the 90 days before?"),
         N("trend-neoadjuvant", "TREND", "Neoadjuvant mentions", "Is interest in neoadjuvant use rising in my region?"),
         N("trend-pulmonary", "TREND", "Pulmonary toxicity mentions", "Roughly how has the number of responses about pulmonary toxicity changed recently?"),
     ]
     comparisons = [
-        N("cmp-month-calls", "COMPARISON", "Busiest month for calls", f"Which month of Q3 2026 ({Q3[0]} to {Q3[1]}) had the most distinct calls?"),
-        N("cmp-territory-calls", "COMPARISON", "Busiest territory for calls", f"Which territory in my region had the most distinct calls {_w(OCT)}? Compare them."),
+        Q("cmp-month-calls", "COMPARISON", "Busiest month for calls", f"Which month of Q3 2026 ({Q3[0]} to {Q3[1]}) had the most distinct calls?", Expectation("leader", *Q3, of="distinct_calls", group_by="month", aggregate=True), visual="chart", draws="line"),
+        Q("cmp-territory-calls", "COMPARISON", "Busiest territory for calls", f"Which territory in my region had the most distinct calls {_w(OCT)}? Compare them.", Expectation("leader", *OCT, of="distinct_calls", group_by="territory", aggregate=True), visual="chart", draws="bar"),
         N("cmp-product", "COMPARISON", "Busiest product", f"Which product had the most distinct calls in Q3 2026 ({Q3[0]} to {Q3[1]})?"),
-        N("cmp-two-months", "COMPARISON", "September or October for responses", "Were there more insight responses in September or in October 2026?"),
+        Q("cmp-two-months", "COMPARISON", "September or October for responses", "Were there more insight responses in September or in October 2026?", Expectation("leader", *Q3, of="responses", group_by="month", keys=("2026-09", "2026-10"), aggregate=True), visual="chart", draws="line"),
         N("cmp-region", "COMPARISON", "Compare regions", f"Compare REGION-01 with REGION-02: which had more calls {_w(OCT)}?"),
     ]
     themes = [

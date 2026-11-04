@@ -32,7 +32,7 @@ class ScriptedAgent:
                 yield {"current_tool_use": {"toolUseId": f"t-{name}", "name": name, "input": ""}}
                 extra = (
                     {"tool_context": SimpleNamespace(agent=None, tool_use={"toolUseId": f"t-{name}"})}
-                    if name in ("suggest_follow_ups", "show_chart", "show_answer_distribution")
+                    if name in ("suggest_follow_ups", "show_chart", "show_answer_distribution", "get_executive_activity")
                     else {}
                 )
                 self.tools[name](**kwargs, **extra)

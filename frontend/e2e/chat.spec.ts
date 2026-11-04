@@ -83,6 +83,23 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await expect(page.getByTestId("fact-f2")).toBeVisible()
   })
 
+  test("executive activity uses a suppressed aggregate chart, never source rows", async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem("a2g.local.userId", "u-exec-all"))
+    await page.goto("/chat")
+    await ask(page, "Show calls by month")
+    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("visual")).toHaveAttribute("data-kind", "line")
+    await expect(page.getByTestId("visual-title")).toContainText("shown aggregates")
+    await expect(page.getByTestId("sample-limitations")).toContainText("withheld")
+    await expect(page.getByTestId("aggregate-only-note")).toBeVisible()
+    await expect(page.getByTestId("fact-f1")).toContainText("aggregate source")
+    await expect(page.getByTestId("fact-f1")).not.toContainText("source records")
+    await expect(page.getByTestId("ai-summary")).toContainText("individual records are not available")
+    await expect(page.getByTestId("show-rows")).toHaveCount(0)
+    const points = await page.getByTestId("line-point").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-value"))))
+    expect(points).toEqual([15, 17])
+  })
+
   test("a trend question draws a line whose values add up to the key figure; a plain count stays text and key figures", async ({ page }) => {
     await page.goto("/chat")
     await ask(page, "How many calls did I have in the last 90 days?")

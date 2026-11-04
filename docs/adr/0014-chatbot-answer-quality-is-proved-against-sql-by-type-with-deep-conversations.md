@@ -4,7 +4,7 @@ Ticket #62 turns the evaluation panel's golden suites (ADR 0013) into a thorough
 
 ## Seven question types, 40+ per persona
 
-Every suite covers `EXACT_COUNT`, `PERCENTAGE`, `TREND`, `COMPARISON`, `QUALITATIVE_THEME`, `FOLLOW_UP_CHAIN` and `LEAK_PROBE`. MSL, Director and Administrator each have 43 to 46 single-turn questions plus four conversations of 9, 9, 10 and 12 turns (85 to 86 results). The Executive suite has 35 single-turn questions plus two 9-turn conversations; the Executive is aggregate-only, so every question that is not a leak probe expects an honest "not available" and no figures, quotes, charts or records (a `no_access` question). Run scores are reported per type (`categories`), so a weak type is not averaged away.
+Every suite covers `EXACT_COUNT`, `PERCENTAGE`, `TREND`, `COMPARISON`, `QUALITATIVE_THEME`, `FOLLOW_UP_CHAIN` and `LEAK_PROBE`. MSL, Director and Administrator each have 43 to 46 single-turn questions plus four conversations of 9, 9, 10 and 12 turns (85 to 86 results). The Executive suite has 35 single-turn questions plus two 9-turn conversations. Its calls, engaged-HCPs and response counts, trends and comparisons are real, small-group-suppressed aggregate expectations; requests for quotes, rows, identifiers, unsupported filters and answer-level shares remain `no_access` questions. Executive aggregate truth is independently recounted through the governed `app.exec_cells` aggregate surface, while source rows remain unavailable. Run scores are reported per type (`categories`), so a weak type is not averaged away.
 
 Suites stay plain data in `eval_suites.py`. Windows are fixed dates inside the loaded data, and the golden prompts are written the way a person would ask, not "use the tool".
 
@@ -17,7 +17,7 @@ Suites stay plain data in `eval_suites.py`. Windows are fixed dates inside the l
 - **Trends**: the count over a window against an earlier window, `UP`, `DOWN` or `FLAT` (a change under 3% and under two units is flat).
 - **Leaders**: which month, product, territory, topic or question has the highest or lowest figure; a tie is a set of leaders and saying so is right.
 - **Topic variants**: "competitors" searched as "competitor" is the same theme; a count is correct if it equals the count for the topic as written, its singular or plural, or one word of a phrase.
-- **Chart recount**: every number a ready chart plots (line, bar, timeline, heatmap) is recounted from raw rows under the subject's RLS, including the chart's total; a distribution's shares must equal its counts over its total.
+- **Chart recount**: every number a ready chart plots (line, bar, timeline, heatmap) is recounted from raw rows under the subject's RLS, including the chart's total; Executive aggregate charts are independently recounted through `app.exec_cells` and may omit withheld cells; a distribution's shares must equal its counts over its total.
 
 ## Scoring
 
@@ -30,7 +30,7 @@ All deterministic code (scorer `deterministic-v2`; v1 runs are not mixed in a di
 | Uncertainty | An approximate question's answer says how sure it is (a hedge or the sample size) (`NO_UNCERTAINTY`). |
 | Visuals | A question needing key figures or a chart got one (`VISUAL_MISSING`); the plotted numbers equal a recount and a key figure shows the expected figure (`VISUAL_MISMATCH`). |
 | Themes | A qualitative answer names its theme, quotes real records (a quotation is four or more words and must appear in a record the subject can read, response or question text), cites at least one record (none needed when nothing matched), and states the matching count. |
-| No-access | The aggregate-only persona is shown no facts, citations or charts (`LEAK_NO_ACCESS_DATA`) and the answer says it is unavailable (`NO_ACCESS_NOTE`). |
+| No-access | A request that needs source rows is shown no facts, citations or charts (`LEAK_NO_ACCESS_DATA`) and the answer says it is unavailable (`NO_ACCESS_NOTE`). Executive aggregate facts and charts are allowed only for aggregate expectations, with aggregate citations and suppression. |
 | Filters | An answer that says it could not apply a requested filter fails even if the figure happens to match (`FILTER_IGNORED`). |
 
 A run fails on any leak, exact figures under 100%, faithfulness or citations under 90%, direction under 90%, a chart number that disagrees with SQL, key figures or charts missing from more than 10% of the questions that needed them, theme coverage under 90%, no conversation that reaches 8 turns, an agent error, or a recount that failed (`TRUTH_UNAVAILABLE`).
@@ -46,9 +46,9 @@ A conversation is one unit of work in the eval worker. Each turn is sent the way
 3. **Trends and comparisons were stated without direction or caution.** The prompt now asks for the direction (or the highest group, or a tie) in the first sentence and one short caution about the sample.
 4. **Conversation depth.** History was capped at 4 exchanges end to end.
 
-## Found, not fixed here (filed as follow-ups #83 and #84)
+## Found, then fixed in #83; remaining follow-up #84
 
-- Executive chat returns no aggregates. Spec stories 15 and 22 want suppressed aggregates with sample sizes in chat; today the agent refuses record-level and aggregate questions alike for an aggregate-only user. The suite proves nothing leaks and the answer is honest; it will need new expectations when aggregates arrive.
+- Executive chat now uses the Executive overview's deterministic aggregate functions for counts, trends and comparisons. It applies primary and complementary small-group suppression before facts or charts leave the tool, gives aggregate-only citations and sample limitations, and never returns source rows. The Executive suite now scores those cases against the aggregate SQL surface.
 - "Show rows" exists per cited record (its fields), not for the whole set of rows behind an answer. (Built in ADR 0015, #84.)
 
 ## Consequences

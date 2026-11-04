@@ -52,10 +52,44 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
   } else if (summaryTerritory) {
     answer = `Territory ${summaryTerritory} is outside your scope, so I cannot summarise it.`
   } else if (user.persona === "executive" && user.territoryIds.length > 0) {
-    // Organisational analysis for an Executive: aggregate figures only, with the sample limitations stated and the
-    // cited sets described (never named). Same shape as the agent's executive tools.
+    // Executive activity uses the same aggregate-only wire contract as the runtime. The mock deliberately omits
+    // suppressed month points rather than representing them as zero, so responsive UI checks exercise the safe chart.
     const to = context?.to ?? todayIso(new Date(now))
     const range = { from: context?.from ?? addDays(to, -89), to }
+    const activityQuestion = /\b(calls?|engaged|hcps?|responses?|insights?)\b/i.test(question) && !/\b(theme|topic|ctdna|sequencing|what .*say)\b/i.test(question)
+    if (activityQuestion) {
+      const period = `${range.from} to ${range.to}`
+      const total = 48
+      const citation = { record_id: `agg:executive:activity:calls:${range.from}:${range.to}`, dataset: "hcp_raw_insights", label: `Suppressed call aggregate, ${period}`, kind: "aggregate", detail: "Aggregate-only; no source rows are available" }
+      const trend = /\b(month|trend|over time|change|compare)\b/i.test(question)
+      events.push(
+        ev("TOOL_CALL_START", { toolCallId: "t1", toolCallName: "get_executive_activity" }),
+        custom("source_facts", { facts: [{ fact_id: "f1", label: "Distinct calls", value: total, unit: "calls", period, scope: "your executive scope", citation_ids: [citation.record_id] }], data_through: new Date(now - 86_400_000).toISOString() }),
+        custom("citations", [citation]),
+        custom("sample_limitations", { items: ["This is an aggregate-only view; individual records, names and row exports are not available.", "Counts below 5 are withheld, with complementary suppression where needed so a small group cannot be calculated."] }),
+      )
+      if (trend) {
+        events.push(
+          custom("visual", { phase: "pending", visual_id: "exec-v1", tool: "get_executive_activity" }),
+          custom("visual", {
+            phase: "ready", visual_id: "exec-v1", kind: "line", title: "Distinct calls by month (shown aggregates)", subtitle: `${period} · your executive scope`, metric: "calls", unit: "calls", period, scope: "your executive scope", definition: "Distinct calls; small groups and complementary values are withheld and are not plotted.", data_through: new Date(now - 86_400_000).toISOString(), total,
+            points: [{ key: "2026-08", label: "Aug 2026", value: 15, partial: false }, { key: "2026-09", label: "Sep 2026", value: 17, partial: false }], peak_key: "2026-09",
+          }),
+        )
+      } else {
+        events.push(
+          custom("visual", { phase: "pending", visual_id: "exec-v1", tool: "get_executive_activity" }),
+          custom("visual", {
+            phase: "ready", visual_id: "exec-v1", kind: "bar", title: "Distinct calls (shown aggregate)", subtitle: `${period} · your executive scope`, metric: "calls", unit: "calls", period, scope: "your executive scope", definition: "Distinct calls; small groups and complementary values are withheld and are not plotted.", data_through: new Date(now - 86_400_000).toISOString(), total,
+            points: [{ key: "total", label: "All authorized scope", value: total, partial: false }],
+          }),
+        )
+      }
+      events.push(ev("TOOL_CALL_END", { toolCallId: "t1" }))
+      answer = `The shown aggregate count is ${total} distinct calls for ${period}. Small-group months are withheld, and individual records are not available for your role.`
+      suggestions.splice(0, suggestions.length, "How have calls changed by month?", "Compare calls across my regions", "What activity groups are withheld?")
+    } else {
+      // Organisational theme analysis for an Executive: aggregate figures only, with cited sets described (never named).
     const input = {
       territories: TERRITORIES.filter((t) => user.territoryIds.includes(t.id)),
       range,
@@ -93,6 +127,7 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
       (cross.length ? `${cross.map((r) => r.topic).join(" and ")} rose in two or more regions at the approved threshold; that is a change in what was recorded, not a cause.` : "No topic rose in two or more regions at the approved threshold.") +
       `\n\nSample limitations: ${matrix.sampleLimitations.join(" ")}`
     suggestions.splice(0, suggestions.length, "Which topics are rising in more than one region?", "Which regions have too few responses to judge a trend?", "What did we withhold, and why?")
+    }
   } else if (user.persona === "admin" || user.territoryIds.length === 0) {
     answer = "Record-level questions are not available for your role yet. Aggregate views are on your landing page."
   } else if (asked && !user.territoryIds.includes(asked)) {

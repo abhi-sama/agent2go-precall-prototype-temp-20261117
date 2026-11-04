@@ -470,6 +470,19 @@ export const SCREENS: ScreenSpec[] = [
   },
   { name: "chat", path: "/chat", ready: async (page) => { await heading("Ask the agent")(page); await testId("chat-input")(page) } },
   {
+    name: "chat-executive-activity",
+    path: "/chat",
+    userId: "u-exec-all",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-input").fill("Show calls by month")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      await expect(page.getByTestId("visual")).toHaveAttribute("data-kind", "line")
+      await expect(page.getByTestId("sample-limitations")).toBeVisible()
+    },
+  },
+  {
     name: "chat-answer",
     path: "/chat",
     ready: testId("chat-input"),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -9,6 +10,7 @@ from conftest import make_invocation
 from test_runtime import collect, names, runtime
 
 from msl_agent.repository import FixtureScopedRepository
+from msl_agent.tools import RunContext, build_tools
 
 EXEC = "executive-region-01"
 
@@ -125,13 +127,56 @@ async def repository_refuses(repository: FixtureScopedRepository) -> str:
 
 
 @pytest.mark.asyncio
-async def test_executive_record_tools_still_refuse_and_no_chart_fallback_runs(settings, repository) -> None:
+async def test_executive_activity_tool_returns_suppressed_aggregates_and_a_chart(settings, repository) -> None:
+    steps = [
+        ("tool", "get_executive_activity", {"metric": "calls", "group_by": "month"}),
+        "The displayed aggregates are available; small groups are withheld.",
+    ]
+    agent, writer = runtime(settings, repository, steps)
+    events = await collect(agent, executive("Show call activity by month"))
+    facts = event(events, "source_facts")["facts"]
+    assert {f["label"]: f["value"] for f in facts}["Distinct calls"] == 48
+    assert event(events, "visual")["kind"] == "line"
+    assert all(c["kind"] == "aggregate" and c["record_id"].startswith("agg:") for c in event(events, "citations"))
+    result = {tool.tool_name: tool for tool in build_tools(RunContext(identity=executive().identity, repository=repository))}["get_executive_activity"]
+    # The model gets a human-safe marker, never the raw suppression boolean or hidden count.
+    assert '"suppressed"' not in result(metric="calls", group_by="month", tool_context=SimpleNamespace(tool_use={}))
+    assert writer.turns[0].citations and all(c.kind == "aggregate" for c in writer.turns[0].citations)
+
+
+@pytest.mark.asyncio
+async def test_executive_visible_total_gets_a_single_safe_aggregate_bar(settings, repository) -> None:
+    agent, _ = runtime(
+        settings,
+        repository,
+        [("tool", "get_executive_activity", {"metric": "calls"}), "The displayed total is aggregate-only."],
+    )
+    events = await collect(agent, executive("How many distinct calls are in my scope?"))
+    visual = event(events, "visual")
+    assert visual["kind"] == "bar" and visual["points"] == [{"key": "total", "label": "All authorized scope", "value": 48, "partial": False}]
+
+
+@pytest.mark.asyncio
+async def test_executive_record_tools_still_refuse_but_the_runtime_backstops_activity(settings, repository) -> None:
     steps = [("tool", "get_activity_summary", {}), "Not available."]
     agent, _ = runtime(settings, repository, steps)
     events = await collect(agent, executive("Compare calls by territory per month"))
-    assert "visual" not in names(events)
+    assert "visual" in names(events)
     facts = event(events, "source_facts")["facts"]
-    assert all("calls" not in f["label"].lower() for f in facts)
+    assert any("calls" in f["label"].lower() for f in facts)
+    assert all(c["kind"] == "aggregate" for c in event(events, "citations"))
+
+
+@pytest.mark.asyncio
+async def test_executive_default_total_does_not_satisfy_a_requested_trend_chart(settings, repository) -> None:
+    # Claude can select the tool while leaving its default total grouping in place.  A total is useful evidence,
+    # but it does not satisfy a by-month request, so the runtime must append the deterministic safe trend chart.
+    steps = [("tool", "get_executive_activity", {"metric": "calls"}) for _ in range(5)]
+    steps.append("The aggregate total is available.")
+    agent, _ = runtime(settings, repository, steps)
+    events = await collect(agent, executive("Show distinct calls by month"))
+    assert names(events)[-1] == "RUN_FINISHED"
+    assert any(e.get("name") == "visual" and e["value"].get("kind") == "line" for e in events)
 
 
 @pytest.mark.asyncio

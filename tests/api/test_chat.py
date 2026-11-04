@@ -123,14 +123,20 @@ def test_foreign_citations_and_runs_are_not_readable(msl, other_msl, msl_run, db
     assert again.errors and "BadRequest" in again.error_types
 
 
-def test_every_persona_can_ask_and_executives_get_no_record_level_data():
+def test_every_persona_can_ask_and_executives_get_suppressed_aggregate_activity_only():
     director = Persona.sign_in("director-region-01").chat("Which territories can I see? Use the tool.")
     assert director.types[-1] == "RUN_FINISHED" and director.facts
-    executive = Persona.sign_in("executive-region-01").chat("How many calls were made in my region? Use the tool.")
+    executive = Persona.sign_in("executive-region-01").chat(
+        "Show distinct calls by month in my region between 2026-08-01 and 2026-10-31. Use the aggregate activity tool."
+    )
     assert executive.types[-1] == "RUN_FINISHED"
-    # An Executive's analysis is aggregate: counts of free-text responses with aggregate citations, and no record is cited or opened.
+    # Executive activity is aggregate-only: every citation names an aggregate set, no source record or row leaks.
     assert executive.citations and all(c.get("kind") == "aggregate" for c in executive.citations), "aggregate-only access cites no source rows"
-    assert {f["unit"] for f in executive.facts} == {"responses"}, "and reads no call or HCP rows"
+    assert {f["unit"] for f in executive.facts} == {"calls"}
+    assert executive.custom("visual"), "a trend/comparison gets a deterministic aggregate chart"
+    assert executive.custom("sample_limitations")
+    blob = json.dumps(executive.events)
+    assert "CALL-" not in blob and "RESP-" not in blob
 
 
 def test_conversation_is_stored_in_fe_dynamodb_keyed_to_the_user(msl_run):
