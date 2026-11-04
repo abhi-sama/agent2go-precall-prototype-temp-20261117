@@ -76,13 +76,23 @@ def seed_entitlements(seed_users: list[dict[str, str]]) -> None:
         end = "17:30:00" if index == 59 else None
         roster.append((NAMES[index % len(NAMES)], "Clinician" + str(index + 1), f"{NAMES[index % len(NAMES)]} Clinician {index + 1}", f"staff{index + 1}@example.test", territory, territory, territory, region, start, end, territory, f"VVA-{index + 1:03}", None, f"SUB-{index + 1:03}", "2026-11-03T12:00:00Z", "MED-20261103", "synthetic", f"roster-{index + 1}", "2026-11-03T12:00:00", "2024-01-01", None, "Oncology"))
     copy_rows("medical_roster", ["first_name","last_name","full_name","email_id","sfdc_territory_id","territory_id","territory_name","region_name","start_date","end_date","roster_member_territory_id","vva_user_id","profile_nm","sfdc_submitter_id","sys_inserted_datetime","batch_id","source_name","dbt_scd_id","dbt_updated_at","dbt_valid_from","dbt_valid_to","team_nm"], roster)
+    # Governance fixture: an unresolved login has two exact-email roster candidates.
+    # They stay candidates until an administrator explicitly approves one; the seed
+    # deliberately does not choose a row based on a similar identity.
+    duplicate_login = "admin.region-04@example.test"
+    for suffix in ("A", "B"):
+        sql(f"INSERT INTO medical_roster(first_name,last_name,full_name,email_id,territory_id,territory_name,region_name,sys_inserted_datetime,source_name,dbt_scd_id,dbt_updated_at,dbt_valid_from,team_nm) VALUES ('Review','Candidate {suffix}','Review Candidate {suffix}',{q(duplicate_login)},'T04-01','T04-01','REGION-04','2026-11-03T12:00:00Z','synthetic',{q('roster-review-' + suffix)},'2026-11-03T12:00:00','2024-01-01','Oncology')")
     for row in seed_users:
         role = row["persona"].lower() if row["persona"] != "Administrator" else "administrator"
         # The final admin is deliberately unresolved, rather than silently joined.
         state = "unresolved" if row["user_id"] == "admin-region-04" else "matched"
-        sql(f"INSERT INTO users(user_id,identity_subject,display_name,email,identity_status) VALUES ({q(row['user_id'])},{q('cognito|' + row['user_id'])},{q(row['persona'] + ' ' + row['territory_id'])},{q(row['email'])},{q(state)})")
+        # This is a pre-approved mapping, not an inferred email join.  It gives the
+        # reconciliation screen an affirmative case beside missing/conflicting cases.
+        roster_source = "1" if row["user_id"] == "admin-region-01" else "NULL"
+        sql(f"INSERT INTO users(user_id,identity_subject,display_name,email,identity_status,roster_source_row_id) VALUES ({q(row['user_id'])},{q('cognito|' + row['user_id'])},{q(row['persona'] + ' ' + row['territory_id'])},{q(row['email'])},{q(state)},{roster_source})")
         sql(f"INSERT INTO user_role_assignments(user_id,role_id,effective_from) VALUES ({q(row['user_id'])},{q(role)},'2024-01-01T00:00:00Z')")
         sql(f"INSERT INTO user_scope_assignments(user_id,territory_id,assignment_type,effective_from) VALUES ({q(row['user_id'])},{q(row['territory_id'])},{q('primary' if role == 'msl' else ('executive' if role == 'executive' else 'administrative'))},'2024-01-01T00:00:00Z')")
+    sql("INSERT INTO user_scope_assignments(user_id,territory_id,assignment_type,effective_from) VALUES ('admin-region-03','UNRESOLVED-01','administrative','2024-01-01T00:00:00Z')")
     territory_rows = []
     relation_rows = []
     for i, territory in enumerate(TERRITORIES):

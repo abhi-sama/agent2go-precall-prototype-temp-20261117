@@ -2,16 +2,16 @@ import type { DataAdapter } from "./adapter"
 import {
   ACTIVITY_EVIDENCE_QUERY,
   ACTIVITY_TRENDS_QUERY,
-  CHAT_CITATION_QUERY,
-  CHAT_EVENTS_QUERY,
+  ACCESS_AUDIT_QUERY,
+  ADMIN_ACCESS_OVERVIEW_QUERY,
+  APPROVE_IDENTITY_MAPPING_MUTATION,
+  CREATE_SCOPE_ASSIGNMENT_MUTATION,
   FLAG_ISSUE_MUTATION,
   GEO_ACTIVITY_QUERY,
   LANDING_KPIS_QUERY,
   ME_QUERY,
   MY_FLAGS_QUERY,
-  HCP_PROFILE_QUERY,
-  SEARCH_HCPS_QUERY,
-  START_CHAT_RUN_MUTATION,
+  SET_ROLE_PERMISSIONS_MUTATION,
 } from "./operations"
 import {
   DataError,
@@ -19,14 +19,19 @@ import {
   type ActivityTrends,
   type ChatEventPage,
   type ChatRun,
+  type AccessAuditEvent,
+  type AccessAuditFilter,
+  type AdminAccessOverview,
   type DateRange,
+  type IdentityMatch,
   type Flag,
   type GeoActivity,
-  type HcpProfile,
-  type HcpSearchResult,
   type LandingKpis,
   type Me,
   type RequestContext,
+  type RolePermissionMatrix,
+  type ScopeAssignment,
+  type ScopeAssignmentInput,
   type SourceRecord,
 } from "./types"
 
@@ -51,9 +56,6 @@ function classify(errors: NonNullable<GraphQLResponse<unknown>["errors"]>, corre
   }
   if (text.includes("forbidden") || text.includes("access")) {
     return new DataError("FORBIDDEN", "You do not have access to this data.", correlationId)
-  }
-  if (text.includes("notfound") || text.includes("not_found")) {
-    return new DataError("NOT_FOUND", "That record is not available in your scope.", correlationId)
   }
   if (text.includes("badrequest") || text.includes("bad_request")) {
     return new DataError("BAD_REQUEST", "That request was not accepted.", correlationId)
@@ -136,24 +138,28 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
       )
       return data.flagIssue
     },
-    async startChatRun(ctx, input) {
-      const data = await run<{ startChatRun: ChatRun }>(
-        transport,
-        START_CHAT_RUN_MUTATION,
-        { threadId: input.threadId, runId: input.runId, message: input.message, history: input.history },
-        ctx,
-      )
-      return data.startChatRun
+    async adminAccessOverview(ctx) {
+      const data = await run<{ adminAccessOverview: AdminAccessOverview }>(transport, ADMIN_ACCESS_OVERVIEW_QUERY, undefined, ctx)
+      return data.adminAccessOverview
     },
-    async chatEvents(ctx, runId, after) {
-      const data = await run<{ chatEvents: ChatEventPage }>(transport, CHAT_EVENTS_QUERY, { runId, after }, ctx)
-      return data.chatEvents
+    async accessAudit(ctx, filter?: AccessAuditFilter) {
+      const data = await run<{ accessAudit: AccessAuditEvent[] }>(transport, ACCESS_AUDIT_QUERY, { filter }, ctx)
+      return data.accessAudit
     },
-    async chatCitation(ctx, dataset, recordId) {
-      const data = await run<{ chatCitation: SourceRecord }>(transport, CHAT_CITATION_QUERY, { dataset, recordId }, ctx)
-      return data.chatCitation
+    async createScopeAssignment(ctx, input: ScopeAssignmentInput) {
+      const data = await run<{ createScopeAssignment: ScopeAssignment }>(transport, CREATE_SCOPE_ASSIGNMENT_MUTATION, { input }, ctx)
+      return data.createScopeAssignment
     },
-    async searchHcps(ctx, query, limit) { return (await run<{ searchHcps: HcpSearchResult[] }>(transport, SEARCH_HCPS_QUERY, { query, limit: limit ?? null }, ctx)).searchHcps },
-    async hcpProfile(ctx, hcpId) { return (await run<{ hcpProfile: HcpProfile }>(transport, HCP_PROFILE_QUERY, { hcpId }, ctx)).hcpProfile },
+    async setRolePermissions(ctx, input: { roleId: string; permissionCodes: string[] }) {
+      const data = await run<{ setRolePermissions: RolePermissionMatrix }>(transport, SET_ROLE_PERMISSIONS_MUTATION, { input }, ctx)
+      return data.setRolePermissions
+    },
+    async approveIdentityMapping(ctx, input: { userId: string; rosterSourceRowId: string }) {
+      const data = await run<{ approveIdentityMapping: IdentityMatch }>(transport, APPROVE_IDENTITY_MAPPING_MUTATION, { input }, ctx)
+      return data.approveIdentityMapping
+    },
+    async startChatRun(ctx, input): Promise<ChatRun> { return (await run<{ startChatRun: ChatRun }>(transport, `mutation StartChatRun($threadId: ID!, $runId: ID!, $message: String!, $history: [ChatMessageInput!]) { startChatRun(threadId: $threadId, runId: $runId, message: $message, history: $history) { runId status } }`, input, ctx)).startChatRun },
+    async chatEvents(ctx, runId, after): Promise<ChatEventPage> { return (await run<{ chatEvents: ChatEventPage }>(transport, `query ChatEvents($runId: ID!, $after: Int) { chatEvents(runId: $runId, after: $after) { done status events { seq data } } }`, { runId, after }, ctx)).chatEvents },
+    async chatCitation(ctx, dataset, recordId): Promise<SourceRecord> { return (await run<{ chatCitation: SourceRecord }>(transport, `query ChatCitation($dataset: String!, $recordId: ID!) { chatCitation(dataset: $dataset, recordId: $recordId) { dataset recordId title dataThrough fields { label value } } }`, { dataset, recordId }, ctx)).chatCitation },
   }
 }

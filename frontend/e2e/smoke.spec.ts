@@ -136,6 +136,23 @@ test("persona quick-switch changes landing route, scope and data", async ({ page
   expect(directorCalls).toBeGreaterThan(await kpiValue(page, "calls"))
 })
 
+test("administrator can review governed access controls at the iPad viewport", async ({ page }) => {
+  await page.goto("/msl")
+  await page.getByTestId("persona-switch").click()
+  await page.getByTestId("persona-option-u-admin-sec").click()
+  await expect(page).toHaveURL(/\/admin$/)
+  await expect(page.getByRole("heading", { level: 2, name: "Login-to-roster reconciliation" })).toBeVisible()
+  await expect(page.getByTestId("identity-reconciliation")).toContainText("conflicting")
+  await expect(page.getByRole("heading", { level: 2, name: "Role permission matrix" })).toBeVisible()
+  await expect(page.getByTestId("scope-assignments")).toContainText("Unresolved")
+  await expect(page.getByTestId("access-audit-filters")).toBeVisible()
+  await expect(page.getByLabel("From time")).toBeVisible()
+  await expect(page.getByLabel("To time")).toBeVisible()
+  const addAssignment = await page.getByRole("button", { name: "Add assignment" }).boundingBox()
+  expect(addAssignment).not.toBeNull()
+  expect(addAssignment!.height).toBeGreaterThanOrEqual(44)
+})
+
 test("a persona opening another persona's route gets a gate, not data", async ({ page }) => {
   await page.goto("/executive")
   await expect(page.getByTestId("role-gate")).toBeVisible()

@@ -170,30 +170,72 @@ export interface FlagInput {
   note?: string | null
 }
 
-export type HcpFieldState = "PRESENT" | "MISSING"
-
-/** Explicit field provenance prevents a missing source value being mistaken for an empty one. */
-export interface HcpField {
-  value: string | null
-  state: HcpFieldState
+export interface IdentityMatch {
+  userId: string
+  displayName: string
+  identityStatus: string
+  rosterSourceRowId: string | null
+  rosterName: string | null
+  exactEmailCandidateCount: number
+  candidateRosterSourceRowIds: string[]
+  /** matched, missing, or conflicting; candidates are never a mapping by themselves. */
+  flag: string
 }
 
-export interface HcpSearchResult {
-  hcpId: string
-  name: HcpField
-  institution: HcpField
-  territory: HcpField
+export interface PermissionGrant {
+  permissionCode: string
+  description: string
 }
 
-export interface HcpProfile {
-  hcpId: string
-  name: HcpField
-  specialty: HcpField
-  discipline: HcpField
-  type: HcpField
-  institution: HcpField
-  credentials: HcpField
-  territory: HcpField
+export interface RolePermissionMatrix {
+  roleId: string
+  roleName: string
+  permissions: PermissionGrant[]
+}
+
+export interface ScopeAssignment {
+  assignmentId: string
+  userId: string
+  displayName: string
+  territoryId: string
+  assignmentType: string
+  effectiveFrom: IsoDateTime
+  effectiveTo: IsoDateTime | null
+  unresolvedTerritory: boolean
+}
+
+export interface AccessAuditEvent {
+  eventId: string
+  actorUserId: string | null
+  action: string
+  resourceType: string
+  resourceId: string | null
+  outcome: string
+  occurredAt: IsoDateTime
+}
+
+export interface AdminAccessOverview {
+  identityMatches: IdentityMatch[]
+  availablePermissions: PermissionGrant[]
+  roleMatrix: RolePermissionMatrix[]
+  scopeAssignments: ScopeAssignment[]
+}
+
+export interface AccessAuditFilter {
+  actorUserId?: string
+  action?: string
+  resourceType?: string
+  outcome?: string
+  from?: IsoDateTime
+  to?: IsoDateTime
+}
+
+export interface ScopeAssignmentInput {
+  userId: string
+  territoryId: string
+  assignmentType: string
+  effectiveFrom: IsoDateTime
+  effectiveTo?: IsoDateTime
 }
 
 export type DataErrorCode =

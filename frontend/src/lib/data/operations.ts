@@ -132,40 +132,45 @@ export const FLAG_ISSUE_MUTATION = /* GraphQL */ `
   }
 `
 
-/** Chat (ticket 02). The answer streams back as AG-UI events read by polling `chatEvents`. */
-export const START_CHAT_RUN_MUTATION = /* GraphQL */ `
-  mutation StartChatRun($threadId: ID!, $runId: ID!, $message: String!, $history: [ChatMessageInput!]) {
-    startChatRun(threadId: $threadId, runId: $runId, message: $message, history: $history) {
-      runId
-      status
+export const ADMIN_ACCESS_OVERVIEW_QUERY = /* GraphQL */ `
+  query AdminAccessOverview {
+    adminAccessOverview {
+      identityMatches { userId displayName identityStatus rosterSourceRowId rosterName exactEmailCandidateCount candidateRosterSourceRowIds flag }
+      availablePermissions { permissionCode description }
+      roleMatrix { roleId roleName permissions { permissionCode description } }
+      scopeAssignments { assignmentId userId displayName territoryId assignmentType effectiveFrom effectiveTo unresolvedTerritory }
     }
   }
 `
 
-export const CHAT_EVENTS_QUERY = /* GraphQL */ `
-  query ChatEvents($runId: ID!, $after: Int) {
-    chatEvents(runId: $runId, after: $after) {
-      events {
-        seq
-        data
-      }
-      done
-      status
+export const ACCESS_AUDIT_QUERY = /* GraphQL */ `
+  query AccessAudit($filter: AccessAuditFilter) {
+    accessAudit(filter: $filter) {
+      eventId actorUserId action resourceType resourceId outcome occurredAt
     }
   }
 `
 
-export const CHAT_CITATION_QUERY = /* GraphQL */ `
-  query ChatCitation($dataset: String!, $recordId: ID!) {
-    chatCitation(dataset: $dataset, recordId: $recordId) {
-      dataset
-      recordId
-      title
-      fields {
-        label
-        value
-      }
-      dataThrough
+export const CREATE_SCOPE_ASSIGNMENT_MUTATION = /* GraphQL */ `
+  mutation CreateScopeAssignment($input: ScopeAssignmentInput!) {
+    createScopeAssignment(input: $input) {
+      assignmentId userId displayName territoryId assignmentType effectiveFrom effectiveTo unresolvedTerritory
+    }
+  }
+`
+
+export const SET_ROLE_PERMISSIONS_MUTATION = /* GraphQL */ `
+  mutation SetRolePermissions($input: RolePermissionInput!) {
+    setRolePermissions(input: $input) {
+      roleId roleName permissions { permissionCode description }
+    }
+  }
+`
+
+export const APPROVE_IDENTITY_MAPPING_MUTATION = /* GraphQL */ `
+  mutation ApproveIdentityMapping($input: IdentityMappingInput!) {
+    approveIdentityMapping(input: $input) {
+      userId displayName identityStatus rosterSourceRowId rosterName exactEmailCandidateCount candidateRosterSourceRowIds flag
     }
   }
 `

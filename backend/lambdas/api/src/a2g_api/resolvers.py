@@ -30,7 +30,6 @@ from .identity import Identity
 log = get_logger(__name__)
 
 MAX_RANGE_DAYS = 366 * 3
-MAX_HCP_SEARCH_RESULTS = 50
 
 
 def _scope(cur: psycopg.Cursor, identity: Identity) -> tuple[list[str], int, str]:
@@ -274,46 +273,70 @@ def _geo_scope_label(assigned: list[str], leaf_count: int, is_admin: bool) -> st
     return names if leaf_count <= len(assigned) else f"{names} \u00b7 {leaf_count} territories"
 
 
-def _hcp_field(value: Any) -> dict[str, Any]:
-    return {"value": value, "state": "MISSING" if value is None else "PRESENT"}
+SCOPE_ASSIGNMENT_TYPES = frozenset({"primary", "temporary", "executive", "administrative"})
 
+def _require_admin(cur):
+    cur.execute("SELECT app.has_permission('admin.manage')")
+    if not cur.fetchone()[0]: raise Forbidden("admin_manage_required")
 
-def _require_hcp_search_access(cur: psycopg.Cursor, identity: Identity) -> None:
-    _assigned, effective, label = _scope(cur, identity)
-    _require_record_access(cur, label, effective)
+def _time(value, name, required=False):
+    if value in (None, ""):
+        if required: raise BadRequest(f"missing_{name}")
+        return None
+    try: value = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError as exc: raise BadRequest(f"invalid_{name}") from exc
+    if value.tzinfo is None: raise BadRequest(f"invalid_{name}")
+    return value
 
+def _identity_matches(cur, user_id=None):
+    cur.execute("""SELECT u.user_id,coalesce(u.display_name,''),u.identity_status,u.roster_source_row_id,m.full_name,(SELECT count(*) FROM medical_roster c WHERE c.email_id IS NOT NULL AND c.email_id=u.email),coalesce((SELECT array_agg(c.source_row_id ORDER BY c.source_row_id) FROM medical_roster c WHERE c.email_id IS NOT NULL AND c.email_id=u.email),ARRAY[]::bigint[]) FROM users u LEFT JOIN medical_roster m ON m.source_row_id=u.roster_source_row_id WHERE (%s::text IS NULL OR u.user_id=%s) ORDER BY u.user_id""", (user_id,user_id))
+    out=[]
+    for uid,name,status,rid,rname,count,ids in cur.fetchall():
+        flag="matched" if rid is not None and status=="matched" else ("conflicting" if rid is None and count>1 else "missing")
+        out.append({"userId":uid,"displayName":name,"identityStatus":status,"rosterSourceRowId":str(rid) if rid else None,"rosterName":rname,"exactEmailCandidateCount":int(count),"candidateRosterSourceRowIds":[str(x) for x in ids],"flag":flag})
+    return out
 
-def _search_pattern(value: Any) -> str:
-    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 200:
-        raise BadRequest("search_query_required")
-    return "%" + value.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+def _roles(cur, role_id=None):
+    cur.execute("SELECT r.role_id,r.role_name,p.permission_code,p.description FROM roles r LEFT JOIN role_permissions rp ON rp.role_id=r.role_id LEFT JOIN permissions p ON p.permission_code=rp.permission_code WHERE (%s::text IS NULL OR r.role_id=%s) ORDER BY r.role_id,p.permission_code",(role_id,role_id)); out={}
+    for rid,name,code,description in cur.fetchall(): out.setdefault(rid,{"roleId":rid,"roleName":name,"permissions":[]})["permissions"] += [] if code is None else [{"permissionCode":code,"description":description}]
+    return list(out.values())
 
+def _assignments(cur, assignment_id=None):
+    cur.execute("""SELECT a.assignment_id,a.user_id,coalesce(u.display_name,''),a.territory_id,a.assignment_type,a.effective_from,a.effective_to,NOT EXISTS(SELECT 1 FROM territory_rd_access t WHERE t.child_territory_id=a.territory_id UNION ALL SELECT 1 FROM territory_scope_relationships r WHERE r.child_territory_id=a.territory_id OR r.parent_territory_id=a.territory_id) FROM user_scope_assignments a JOIN users u ON u.user_id=a.user_id WHERE (%s::bigint IS NULL OR a.assignment_id=%s) ORDER BY a.effective_from DESC,a.assignment_id DESC""",(assignment_id,assignment_id))
+    return [{"assignmentId":str(a),"userId":u,"displayName":n,"territoryId":t,"assignmentType":k,"effectiveFrom":f.isoformat(),"effectiveTo":z.isoformat() if z else None,"unresolvedTerritory":bool(q)} for a,u,n,t,k,f,z,q in cur.fetchall()]
 
-def _profile(cur: psycopg.Cursor, hcp_id: str) -> tuple[Any, ...] | None:
-    cur.execute("""
-      WITH visible AS (SELECT x.hcp_id FROM hcp_identifier_crosswalk x JOIN call_activity c ON x.source_system='call_activity.cust_mdm_id' AND x.source_identifier=c.cust_mdm_id WHERE x.hcp_id=%(id)s UNION SELECT x.hcp_id FROM hcp_identifier_crosswalk x JOIN hcp_raw_insights i ON x.source_system='hcp_raw_insights.cust_mdm_id' AND x.source_identifier=i.cust_mdm_id WHERE x.hcp_id=%(id)s), calls AS (SELECT c.* FROM call_activity c JOIN hcp_identifier_crosswalk x ON x.source_system='call_activity.cust_mdm_id' AND x.source_identifier=c.cust_mdm_id JOIN visible v ON v.hcp_id=x.hcp_id), insights AS (SELECT i.* FROM hcp_raw_insights i JOIN hcp_identifier_crosswalk x ON x.source_system='hcp_raw_insights.cust_mdm_id' AND x.source_identifier=i.cust_mdm_id JOIN visible v ON v.hcp_id=x.hcp_id) SELECT v.hcp_id, COALESCE((SELECT min(cust_full_nm) FROM calls),(SELECT min(cust_nm) FROM insights)), (SELECT min(hcp_speciality) FROM insights), (SELECT min(hcp_discipline) FROM insights), (SELECT min(hcp_type) FROM insights), (SELECT min(hcp_institution) FROM insights), (SELECT min(cust_cdtl) FROM calls), (SELECT string_agg(territory_name, ', ' ORDER BY territory_name) FROM (SELECT DISTINCT territory_name FROM calls WHERE territory_name IS NOT NULL UNION SELECT DISTINCT territory_name FROM insights WHERE territory_name IS NOT NULL) t) FROM visible v
-    """, {"id": hcp_id})
-    return cur.fetchone()
+def _audit(cur, actor, action, resource_type, resource_id, outcome): cur.execute("INSERT INTO audit_events(actor_user_id,action,resource_type,resource_id,outcome,correlation_id) VALUES(%s,%s,%s,%s,%s,current_setting('app.correlation_id',true))",(actor,action,resource_type,resource_id,outcome))
 
+def admin_access_overview(cur, identity, user_id, args):
+    _require_admin(cur); cur.execute("SELECT permission_code,description FROM permissions ORDER BY permission_code")
+    return {"identityMatches":_identity_matches(cur),"availablePermissions":[{"permissionCode":x,"description":y} for x,y in cur.fetchall()],"roleMatrix":_roles(cur),"scopeAssignments":_assignments(cur)}
 
-def hcp_profile(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
-    _require_hcp_search_access(cur, identity)
-    hcp_id = args.get("hcpId")
-    if not isinstance(hcp_id, str) or not hcp_id.strip() or len(hcp_id) > 200: raise BadRequest("invalid_hcp_id")
-    row = _profile(cur, hcp_id.strip())
-    if row is None: raise Forbidden("hcp_not_in_scope")
-    keys = ("hcpId", "name", "specialty", "discipline", "type", "institution", "credentials", "territory")
-    raw = dict(zip(keys, row, strict=True))
-    return {"hcpId": raw["hcpId"], **{key: _hcp_field(raw[key]) for key in keys[1:]}}
+def access_audit(cur, identity, user_id, args):
+    _require_admin(cur); q=args.get("filter") or {}; frm,to=_time(q.get("from"),"from"),_time(q.get("to"),"to")
+    if frm and to and frm>to: raise BadRequest("invalid_range")
+    cur.execute("SELECT event_id,actor_user_id,action,resource_type,resource_id,outcome,occurred_at FROM audit_events WHERE (%s::text IS NULL OR actor_user_id=%s) AND (%s::text IS NULL OR action=%s) AND (%s::text IS NULL OR resource_type=%s) AND (%s::text IS NULL OR outcome=%s) AND (%s::timestamptz IS NULL OR occurred_at>=%s) AND (%s::timestamptz IS NULL OR occurred_at<=%s) ORDER BY occurred_at DESC,event_id DESC LIMIT 250",(q.get("actorUserId"),q.get("actorUserId"),q.get("action"),q.get("action"),q.get("resourceType"),q.get("resourceType"),q.get("outcome"),q.get("outcome"),frm,frm,to,to))
+    return [{"eventId":str(i),"actorUserId":a,"action":x,"resourceType":r,"resourceId":d,"outcome":o,"occurredAt":t.isoformat()} for i,a,x,r,d,o,t in cur.fetchall()]
 
+def create_scope_assignment(cur, identity, user_id, args):
+    _require_admin(cur); q=args.get("input") or {}; target,territory,kind=str(q.get("userId") or ""),str(q.get("territoryId") or ""),str(q.get("assignmentType") or ""); frm,to=_time(q.get("effectiveFrom"),"effective_from",True),_time(q.get("effectiveTo"),"effective_to")
+    if not target or not territory or kind not in SCOPE_ASSIGNMENT_TYPES or (to and to<=frm): raise BadRequest("invalid_scope_assignment")
+    cur.execute("SELECT 1 FROM users WHERE user_id=%s",(target,));
+    if not cur.fetchone(): raise BadRequest("unknown_user")
+    cur.execute("SELECT EXISTS(SELECT 1 FROM territory_rd_access WHERE child_territory_id=%s) OR EXISTS(SELECT 1 FROM territory_scope_relationships WHERE child_territory_id=%s OR parent_territory_id=%s)",(territory,territory,territory))
+    if not cur.fetchone()[0]: raise BadRequest("unresolved_territory")
+    cur.execute("INSERT INTO user_scope_assignments(user_id,territory_id,assignment_type,effective_from,effective_to,approved_by) VALUES(%s,%s,%s,%s,%s,%s) RETURNING assignment_id",(target,territory,kind,frm,to,user_id)); aid=int(cur.fetchone()[0]); _audit(cur,user_id,"scope_assignment.created","user_scope_assignment",str(aid),"scheduled" if frm>dt.datetime.now(dt.timezone.utc) else "applied")
+    return _assignments(cur,aid)[0]
 
-def search_hcps(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> list[dict[str, Any]]:
-    _require_hcp_search_access(cur, identity)
-    pattern = _search_pattern(args.get("query")); limit = args.get("limit", 20)
-    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_HCP_SEARCH_RESULTS: raise BadRequest("invalid_search_limit")
-    cur.execute("""SELECT DISTINCT x.hcp_id FROM hcp_identifier_crosswalk x JOIN call_activity c ON x.source_system='call_activity.cust_mdm_id' AND x.source_identifier=c.cust_mdm_id WHERE c.cust_full_nm ILIKE %(p)s ESCAPE '\\' OR c.territory_name ILIKE %(p)s ESCAPE '\\' UNION SELECT DISTINCT x.hcp_id FROM hcp_identifier_crosswalk x JOIN hcp_raw_insights i ON x.source_system='hcp_raw_insights.cust_mdm_id' AND x.source_identifier=i.cust_mdm_id WHERE i.cust_nm ILIKE %(p)s ESCAPE '\\' OR i.hcp_institution ILIKE %(p)s ESCAPE '\\' OR i.territory_name ILIKE %(p)s ESCAPE '\\'""", {"p": pattern})
-    results = []
-    for (hcp_id,) in cur.fetchall():
-        row = _profile(cur, hcp_id)
-        if row: results.append({"hcpId": row[0], "name": _hcp_field(row[1]), "institution": _hcp_field(row[5]), "territory": _hcp_field(row[7])})
-    return sorted(results, key=lambda item: (item["name"]["value"] or "", item["hcpId"]))[:limit]
+def approve_identity_mapping(cur, identity, user_id, args):
+    _require_admin(cur); q=args.get("input") or {}; target=str(q.get("userId") or "")
+    try: rid=int(q.get("rosterSourceRowId"))
+    except (TypeError,ValueError) as exc: raise BadRequest("invalid_roster_source_row_id") from exc
+    cur.execute("UPDATE users SET roster_source_row_id=%s,identity_status='matched' WHERE user_id=%s RETURNING user_id",(rid,target))
+    if not cur.fetchone(): raise BadRequest("unknown_user")
+    _audit(cur,user_id,"identity_mapping.approved","user",target,"applied"); return _identity_matches(cur,target)[0]
+
+def set_role_permissions(cur, identity, user_id, args):
+    _require_admin(cur); q=args.get("input") or {}; rid=str(q.get("roleId") or ""); codes=sorted({str(x) for x in q.get("permissionCodes",[]) if str(x)})
+    if not rid or not codes: raise BadRequest("invalid_role_permissions")
+    cur.execute("DELETE FROM role_permissions WHERE role_id=%s",(rid,)); cur.executemany("INSERT INTO role_permissions(role_id,permission_code) VALUES(%s,%s)",[(rid,x) for x in codes]); _audit(cur,user_id,"role_permissions.updated","role",rid,"applied")
+    return _roles(cur,rid)[0]

@@ -17,14 +17,15 @@ export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'activityTrends' },
   { typeName: 'Query', fieldName: 'activityEvidence' },
   { typeName: 'Query', fieldName: 'myFlags' },
-  { typeName: 'Query', fieldName: 'searchHcps' },
-  { typeName: 'Query', fieldName: 'hcpProfile' },
-  { typeName: 'Query', fieldName: 'searchHcps' },
-  { typeName: 'Query', fieldName: 'hcpProfile' },
+  { typeName: 'Query', fieldName: 'adminAccessOverview' },
+  { typeName: 'Query', fieldName: 'accessAudit' },
   { typeName: 'Mutation', fieldName: 'flagIssue' },
   { typeName: 'Query', fieldName: 'chatEvents' },
   { typeName: 'Query', fieldName: 'chatCitation' },
   { typeName: 'Mutation', fieldName: 'startChatRun' },
+  { typeName: 'Mutation', fieldName: 'approveIdentityMapping' },
+  { typeName: 'Mutation', fieldName: 'setRolePermissions' },
+  { typeName: 'Mutation', fieldName: 'createScopeAssignment' },
 ] as const;
 
 /**

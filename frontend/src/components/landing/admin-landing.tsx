@@ -1,42 +1,70 @@
 "use client"
 
-import { ClipboardCheck, DatabaseZap, KeyRound } from "lucide-react"
+import { useState, type FormEvent } from "react"
+import { Check, CircleAlert, Clock3, KeyRound, ShieldCheck } from "lucide-react"
+import { ErrorState, BlockSkeleton } from "@/components/state/states"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { useDataAdapter } from "@/lib/data/data-provider"
+import { DataError, type AccessAuditFilter, type AdminAccessOverview, type IdentityMatch, type PermissionGrant, type RolePermissionMatrix, type ScopeAssignmentInput } from "@/lib/data/types"
+import { useQuery } from "@/lib/data/use-query"
+import { newCorrelationId } from "@/lib/log/logger"
 import { useSession } from "@/lib/session/session-provider"
 
-const MODULES = [
-  { icon: DatabaseZap, title: "Data loads", body: "Load status, stale and failed loads, and data quality findings." },
-  { icon: KeyRound, title: "Access and scope", body: "Who can see which territories, and when assignments change." },
-  { icon: ClipboardCheck, title: "AI evaluations", body: "Golden-question runs, leak probes, history and diffs." },
-] as const
+const flagTone = (flag: string) => flag === "matched" ? "secondary" : "destructive"
+const isoFromControl = (value: string) => value ? new Date(value).toISOString() : ""
 
-/** Placeholder landing: the Data/Security Administrator sees no clinical content, only operations. */
+function RoleGrantEditor({ role, catalog, onSaved }: { role: RolePermissionMatrix; catalog: PermissionGrant[]; onSaved: () => void }) {
+  const adapter = useDataAdapter()
+  const [selected, setSelected] = useState(() => new Set(role.permissions.map((permission) => permission.permissionCode)))
+  const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  async function save() {
+    if (!adapter.setRolePermissions) return
+    setSaving(true); setNotice(null)
+    try { await adapter.setRolePermissions({ correlationId: newCorrelationId() }, { roleId: role.roleId, permissionCodes: [...selected] }); setNotice("Saved and audited."); onSaved() }
+    catch { setNotice("The grants could not be saved. Nothing changed.") }
+    finally { setSaving(false) }
+  }
+  return <li className="grid gap-3 border-b border-border py-4 last:border-b-0 sm:grid-cols-[minmax(11rem,0.8fr)_minmax(22rem,1.6fr)_auto] sm:items-center"><div><p className="font-medium">{role.roleName}</p><p className="mt-0.5 text-xs text-muted-foreground">{role.roleId}</p></div><fieldset className="flex flex-wrap gap-x-4 gap-y-2" aria-label={`${role.roleName} explicit permissions`}>{catalog.map((permission) => <label key={permission.permissionCode} className="flex min-h-11 items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" checked={selected.has(permission.permissionCode)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(permission.permissionCode)) next.delete(permission.permissionCode); else next.add(permission.permissionCode); return next })} className="size-4 accent-primary" /><span>{permission.permissionCode}</span></label>)}</fieldset><div className="flex items-center gap-2 sm:justify-end"><Button size="sm" variant="outline" onClick={save} disabled={saving || selected.size === 0}>{saving ? "Saving" : "Save grants"}</Button>{notice && <span className="text-xs text-muted-foreground" role="status">{notice}</span>}</div></li>
+}
+
+function AssignmentForm({ onSaved }: { onSaved: () => void }) {
+  const adapter = useDataAdapter()
+  const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!adapter.createScopeAssignment) return
+    const form = new FormData(event.currentTarget); const effectiveFrom = isoFromControl(String(form.get("effectiveFrom") ?? "")); const effectiveTo = isoFromControl(String(form.get("effectiveTo") ?? ""))
+    if (!effectiveFrom) return
+    const input: ScopeAssignmentInput = { userId: String(form.get("userId") ?? "").trim(), territoryId: String(form.get("territoryId") ?? "").trim(), assignmentType: String(form.get("assignmentType") ?? "temporary"), effectiveFrom, ...(effectiveTo ? { effectiveTo } : {}) }
+    setSaving(true); setNotice(null)
+    try { await adapter.createScopeAssignment({ correlationId: newCorrelationId() }, input); setNotice("Assignment saved; its effective date controls access."); event.currentTarget.reset(); onSaved() }
+    catch { setNotice("The assignment was not saved. Check the user, territory, and dates.") }
+    finally { setSaving(false) }
+  }
+  return <form onSubmit={submit} className="grid gap-3 border-t pt-4 sm:grid-cols-2 lg:grid-cols-5" data-testid="scope-assignment-form"><label className="grid gap-1 text-xs font-medium text-muted-foreground">User ID<Input name="userId" required placeholder="msl-t01-01" /></label><label className="grid gap-1 text-xs font-medium text-muted-foreground">Territory ID<Input name="territoryId" required placeholder="T01-02" /></label><label className="grid gap-1 text-xs font-medium text-muted-foreground">Assignment type<select name="assignmentType" defaultValue="temporary" className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"><option value="primary">Primary</option><option value="temporary">Temporary coverage</option><option value="executive">Executive</option><option value="administrative">Administrative</option></select></label><label className="grid gap-1 text-xs font-medium text-muted-foreground">Effective from<Input name="effectiveFrom" type="datetime-local" required /></label><div className="flex items-end"><Button type="submit" className="w-full" disabled={saving}>{saving ? "Saving" : "Add assignment"}</Button></div><label className="grid gap-1 text-xs font-medium text-muted-foreground sm:col-span-2 lg:col-span-2">Effective to (optional)<Input name="effectiveTo" type="datetime-local" /></label>{notice && <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3" role="status">{notice}</p>}</form>
+}
+
+function AuditSearch({ refreshKey }: { refreshKey: number }) {
+  const adapter = useDataAdapter(); const [filter, setFilter] = useState<AccessAuditFilter>({})
+  const audit = useQuery("accessAudit", `${refreshKey}:${JSON.stringify(filter)}`, (ctx) => adapter.accessAudit ? adapter.accessAudit(ctx, filter) : Promise.reject(new DataError("UNAVAILABLE", "Audit search unavailable", ctx.correlationId)))
+  function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); const optional = (name: string) => String(form.get(name) ?? "").trim() || undefined; const timestamp = (name: string) => { const value = optional(name); return value ? isoFromControl(value) : undefined }; setFilter({ actorUserId: optional("actor"), action: optional("action"), resourceType: optional("resource"), outcome: optional("outcome"), from: timestamp("from"), to: timestamp("to") }) }
+  return <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10" aria-labelledby="audit-heading"><div className="flex flex-wrap items-baseline justify-between gap-2"><div><h2 id="audit-heading" className="text-lg font-semibold tracking-tight">Access audit</h2><p className="mt-1 text-sm text-muted-foreground">Search actor, action, resource, time, and outcome. Results are limited to 250.</p></div><Badge variant="outline">Immutable event log</Badge></div><form onSubmit={submit} className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" data-testid="access-audit-filters"><Input name="actor" placeholder="Actor ID" aria-label="Actor ID" /><Input name="action" placeholder="Action" aria-label="Action" /><Input name="resource" placeholder="Resource type" aria-label="Resource type" /><Input name="outcome" placeholder="Outcome" aria-label="Outcome" /><Input name="from" type="datetime-local" aria-label="From time" /><Input name="to" type="datetime-local" aria-label="To time" /><Button type="submit" variant="outline">Search audit</Button></form><div className="mt-4 overflow-x-auto">{audit.status === "loading" ? <BlockSkeleton className="h-28 min-w-[42rem]" /> : audit.status === "error" ? <ErrorState error={audit.error} onRetry={audit.refetch} /> : <table className="w-full min-w-[42rem] text-left text-sm" data-testid="access-audit-results"><thead className="border-b text-xs text-muted-foreground"><tr><th className="px-2 py-2 font-medium">Time</th><th className="px-2 py-2 font-medium">Actor</th><th className="px-2 py-2 font-medium">Action</th><th className="px-2 py-2 font-medium">Resource</th><th className="px-2 py-2 font-medium">Outcome</th></tr></thead><tbody>{audit.data.map((event) => <tr key={event.eventId} className="border-b border-border/70 last:border-0"><td className="px-2 py-3 tabular-nums text-muted-foreground">{new Date(event.occurredAt).toLocaleString()}</td><td className="px-2 py-3">{event.actorUserId ?? "System"}</td><td className="px-2 py-3">{event.action}</td><td className="px-2 py-3">{event.resourceType}{event.resourceId ? ` · ${event.resourceId}` : ""}</td><td className="px-2 py-3"><Badge variant={event.outcome === "applied" ? "secondary" : "outline"}>{event.outcome}</Badge></td></tr>)}</tbody></table>}</div></section>
+}
+
+/** Administrator workflow for governed login mappings, grants, effective scopes, and audit evidence. */
 export function AdminLanding() {
-  const { user } = useSession()
-  return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Administration</h1>
-        <p className="max-w-2xl text-muted-foreground">
-          Data and security operations. This role never sees clinical call content or HCP-level detail.
-        </p>
-        <div>
-          <ScopeLabel label={user.scopeLabel} />
-        </div>
-      </header>
-      <div className="grid gap-4 sm:grid-cols-3">
-        {MODULES.map(({ icon: Icon, title, body }) => (
-          <article key={title} className="rounded-2xl border bg-card p-5 shadow-card">
-            <div className="flex items-center justify-between">
-              <span className="grid size-10 place-items-center rounded-xl bg-primary/12 text-accent-text"><Icon className="size-5" aria-hidden /></span>
-              <Badge variant="outline">Coming soon</Badge>
-            </div>
-            <h3 className="mt-4 text-base font-semibold">{title}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-          </article>
-        ))}
-      </div>
-    </div>
-  )
+  const { user } = useSession(); const adapter = useDataAdapter(); const [refreshKey, setRefreshKey] = useState(0); const [mappingNotice, setMappingNotice] = useState<string | null>(null)
+  const overview = useQuery("adminAccessOverview", String(refreshKey), (ctx) => adapter.adminAccessOverview ? adapter.adminAccessOverview(ctx) : Promise.reject(new DataError("UNAVAILABLE", "Admin access unavailable", ctx.correlationId)))
+  const refresh = () => setRefreshKey((value) => value + 1)
+  async function approve(match: IdentityMatch, rosterSourceRowId: string) { if (!adapter.approveIdentityMapping) return; setMappingNotice(null); try { await adapter.approveIdentityMapping({ correlationId: newCorrelationId() }, { userId: match.userId, rosterSourceRowId }); setMappingNotice("Mapping approved explicitly and added to the audit."); refresh() } catch { setMappingNotice("The mapping was not approved. Review the roster candidate and try again.") } }
+  return <div className="flex flex-col gap-6 pb-8"><header className="flex flex-col gap-3 border-b pb-6"><div className="flex items-center gap-2 text-accent-text"><ShieldCheck className="size-5" aria-hidden /><span className="text-sm font-medium">Governed access controls</span></div><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Administration</h1><p className="max-w-3xl text-muted-foreground">Reconcile identities deliberately, set explicit permissions, and schedule territory access without changing it early.</p><div><ScopeLabel label={user.scopeLabel} /></div></header>{overview.status === "loading" ? <BlockSkeleton className="h-96" /> : overview.status === "error" ? <ErrorState error={overview.error} onRetry={overview.refetch} /> : <AdminWorkspace overview={overview.data} onRefresh={refresh} onApprove={approve} mappingNotice={mappingNotice} refreshKey={refreshKey} />}</div>
+}
+
+function AdminWorkspace({ overview, onRefresh, onApprove, mappingNotice, refreshKey }: { overview: AdminAccessOverview; onRefresh: () => void; onApprove: (match: IdentityMatch, rosterSourceRowId: string) => Promise<void>; mappingNotice: string | null; refreshKey: number }) {
+  const flagged = overview.identityMatches.filter((match) => match.flag !== "matched")
+  return <><section className="rounded-xl bg-card ring-1 ring-foreground/10" aria-labelledby="reconciliation-heading"><div className="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-4"><div><h2 id="reconciliation-heading" className="text-lg font-semibold tracking-tight">Login-to-roster reconciliation</h2><p className="mt-1 text-sm text-muted-foreground">Exact-email candidates are signals only. Nothing is linked until you approve a row.</p></div><Badge variant={flagged.length ? "destructive" : "secondary"}>{flagged.length} need review</Badge></div><div className="overflow-x-auto"><table className="w-full min-w-[46rem] text-left text-sm" data-testid="identity-reconciliation"><thead className="border-b text-xs text-muted-foreground"><tr><th className="px-4 py-2 font-medium">Login</th><th className="px-4 py-2 font-medium">Status</th><th className="px-4 py-2 font-medium">Roster link</th><th className="px-4 py-2 font-medium">Explicit action</th></tr></thead><tbody>{overview.identityMatches.map((match) => <tr key={match.userId} className="border-b border-border/70 last:border-0"><td className="px-4 py-3"><p className="font-medium">{match.displayName || match.userId}</p><p className="text-xs text-muted-foreground">{match.userId}</p></td><td className="px-4 py-3"><Badge variant={flagTone(match.flag)}>{match.flag}</Badge></td><td className="px-4 py-3">{match.rosterSourceRowId ? match.rosterName ?? `Roster row ${match.rosterSourceRowId}` : `${match.exactEmailCandidateCount} exact candidate${match.exactEmailCandidateCount === 1 ? "" : "s"}`}</td><td className="px-4 py-3">{match.flag === "matched" ? <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Check className="size-3" /> Approved</span> : <div className="flex gap-2">{match.candidateRosterSourceRowIds.map((id) => <Button key={id} size="sm" variant="outline" onClick={() => onApprove(match, id)}>Approve row {id}</Button>)}</div>}</td></tr>)}</tbody></table></div>{mappingNotice && <p className="border-t px-4 py-3 text-sm text-muted-foreground" role="status">{mappingNotice}</p>}</section><section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10" aria-labelledby="roles-heading"><div className="flex items-start justify-between gap-3"><div><h2 id="roles-heading" className="text-lg font-semibold tracking-tight">Role permission matrix</h2><p className="mt-1 text-sm text-muted-foreground">Every grant is explicit. Saving a matrix change is audited.</p></div><KeyRound className="mt-1 size-5 text-accent-text" aria-hidden /></div><ul className="mt-4">{overview.roleMatrix.map((role) => <RoleGrantEditor key={role.roleId} role={role} catalog={overview.availablePermissions} onSaved={onRefresh} />)}</ul></section><section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10" aria-labelledby="scope-heading"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 id="scope-heading" className="text-lg font-semibold tracking-tight">Effective-dated territory assignments</h2><p className="mt-1 text-sm text-muted-foreground">A scheduled assignment remains inactive until its effective time; unknown territories stay visibly unresolved.</p></div><Clock3 className="mt-1 size-5 text-accent-text" aria-hidden /></div><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[42rem] text-left text-sm" data-testid="scope-assignments"><thead className="border-b text-xs text-muted-foreground"><tr><th className="px-2 py-2 font-medium">User</th><th className="px-2 py-2 font-medium">Territory</th><th className="px-2 py-2 font-medium">Type</th><th className="px-2 py-2 font-medium">Effective window</th></tr></thead><tbody>{overview.scopeAssignments.map((assignment) => <tr key={assignment.assignmentId} className="border-b border-border/70 last:border-0"><td className="px-2 py-3">{assignment.displayName || assignment.userId}</td><td className="px-2 py-3">{assignment.territoryId} {assignment.unresolvedTerritory && <Badge variant="destructive">Unresolved</Badge>}</td><td className="px-2 py-3">{assignment.assignmentType}</td><td className="px-2 py-3 tabular-nums text-muted-foreground">{new Date(assignment.effectiveFrom).toLocaleString()} {assignment.effectiveTo ? `– ${new Date(assignment.effectiveTo).toLocaleString()}` : "– ongoing"}</td></tr>)}</tbody></table></div><AssignmentForm onSaved={onRefresh} /></section><AuditSearch refreshKey={refreshKey} /><p className="flex items-center gap-2 text-xs text-muted-foreground"><CircleAlert className="size-4" aria-hidden />Access changes are deterministic, effective-dated, and audited; they never depend on an AI decision.</p></>
 }

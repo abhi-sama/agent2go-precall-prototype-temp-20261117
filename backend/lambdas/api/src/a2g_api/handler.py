@@ -69,8 +69,11 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         # Resolved lazily: an unconfigured flag store must not break the other fields.
         "flagIssue": lambda *a: flags.flag_issue(*a, store=_flag_store(settings)),
         "myFlags": lambda *a: flags.my_flags(*a, store=_flag_store(settings)),
-        "searchHcps": resolvers.search_hcps,
-        "hcpProfile": resolvers.hcp_profile,
+        "adminAccessOverview": resolvers.admin_access_overview,
+        "accessAudit": resolvers.access_audit,
+        "approveIdentityMapping": resolvers.approve_identity_mapping,
+        "setRolePermissions": resolvers.set_role_permissions,
+        "createScopeAssignment": resolvers.create_scope_assignment,
     }
 
 

@@ -4,10 +4,12 @@ import type { DataAdapter } from "./adapter"
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
 import { mockCitation, readRun, scriptRun } from "./mock-chat"
 import {
+  type AccessAuditEvent, type AccessAuditFilter, type AdminAccessOverview,
   DataError,
   type ActivityEvidence,
   type ActivityMonth,
   type ActivityTrends,
+  type ChatEventPage, type ChatRun, type SourceRecord,
   type DateRange,
   type EvidenceRecord,
   type Flag,
@@ -15,11 +17,10 @@ import {
   type GeoActivity,
   type GeoCountry,
   type GeoTerritory,
-  type HcpProfile,
-  type HcpSearchResult,
   type LandingKpis,
   type Me,
   type RequestContext,
+  type RolePermissionMatrix, type ScopeAssignment, type ScopeAssignmentInput,
 } from "./types"
 
 export type MockScenario = "ok" | "empty" | "error" | "forbidden" | "slow" | "stale"
@@ -65,6 +66,9 @@ export const GEO_MIN_CELL = 5
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
+const ADMIN: AdminAccessOverview = { identityMatches:[{userId:"u-admin-sec",displayName:"Sofia Alvarez",identityStatus:"matched",rosterSourceRowId:"101",rosterName:"Sofia Alvarez",exactEmailCandidateCount:1,candidateRosterSourceRowIds:["101"],flag:"matched"},{userId:"u-review",displayName:"Duplicate roster candidate",identityStatus:"unresolved",rosterSourceRowId:null,rosterName:null,exactEmailCandidateCount:2,candidateRosterSourceRowIds:["209","266"],flag:"conflicting"}], availablePermissions:[{permissionCode:"source.records.read",description:"Read source records"},{permissionCode:"catalog.read",description:"Read catalog"},{permissionCode:"aggregate.read",description:"Read aggregates"},{permissionCode:"admin.manage",description:"Manage governance"}], roleMatrix:[{roleId:"msl",roleName:"MSL field role",permissions:[{permissionCode:"source.records.read",description:"Read source records"}]},{roleId:"administrator",roleName:"Data security administrator",permissions:[{permissionCode:"admin.manage",description:"Manage governance"}]}], scopeAssignments:[{assignmentId:"19",userId:"u-review",displayName:"Duplicate roster candidate",territoryId:"UNRESOLVED-01",assignmentType:"temporary",effectiveFrom:"2026-10-01T00:00:00Z",effectiveTo:null,unresolvedTerritory:true}] }
+const ADMIN_AUDIT: AccessAuditEvent[]=[{eventId:"901",actorUserId:"u-admin-sec",action:"scope_assignment.created",resourceType:"user_scope_assignment",resourceId:"19",outcome:"scheduled",occurredAt:"2026-11-03T14:20:00Z"}]
+
 /** Flags live per user for the life of the page, like the FE DynamoDB table does for real. */
 const MOCK_FLAGS = new Map<string, Flag[]>()
 
@@ -77,6 +81,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
   const now = options.now ?? (() => new Date())
   const scenario = () =>
     options.getScenario?.() ?? readScenario(typeof window === "undefined" ? undefined : window.location.search)
+  const admin = structuredClone(ADMIN); const audit = [...ADMIN_AUDIT]
 
   async function gate(ctx: RequestContext, operation: string) {
     const s = scenario()
@@ -339,27 +344,13 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       MOCK_FLAGS.set(user.userId, [flag, ...flags])
       return flag
     },
-
-    async startChatRun(ctx, input) {
-      const s = await gate(ctx, "startChatRun")
-      if (s === "forbidden") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
-      scriptRun(input.runId, findUser(options.getUserId()), input.message, now().getTime())
-      return { runId: input.runId, status: "RUNNING" }
-    },
-
-    async chatEvents(ctx, runId, after) {
-      const page = readRun(runId, after, now().getTime())
-      if (!page) throw new DataError("NOT_FOUND", "That run is not available.", ctx.correlationId)
-      return page
-    },
-
-    async chatCitation(ctx, dataset, recordId) {
-      await gate(ctx, "chatCitation")
-      const record = mockCitation(dataset, recordId, findUser(options.getUserId()))
-      if (!record) throw new DataError("NOT_FOUND", "That record is not available in your scope.", ctx.correlationId)
-      return record
-    },
-    async searchHcps(ctx, query): Promise<HcpSearchResult[]> { await gate(ctx, "searchHcps"); const user = findUser(options.getUserId()); return user.territoryIds.includes("NE-01") && query.toLowerCase().includes("call") ? [{ hcpId: "HCP-0001", name: { value: "Call system HCP 0001", state: "PRESENT" }, institution: { value: "Northeast Cancer Center", state: "PRESENT" }, territory: { value: "Boston Metro", state: "PRESENT" } }] : [] },
-    async hcpProfile(ctx, hcpId): Promise<HcpProfile> { await gate(ctx, "hcpProfile"); if (hcpId !== "HCP-0001") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId); const p = (v: string | null) => ({ value: v, state: v === null ? "MISSING" as const : "PRESENT" as const }); return { hcpId, name: p("Call system HCP 0001"), specialty: p("Medical oncology"), discipline: p("Oncology"), type: p("HCP"), institution: p("Northeast Cancer Center"), credentials: p(null), territory: p("Boston Metro") } },
+    async adminAccessOverview(ctx) { await gate(ctx,"adminAccessOverview"); if(findUser(options.getUserId()).persona!=="admin") throw new DataError("FORBIDDEN","No access",ctx.correlationId); return structuredClone(admin) },
+    async accessAudit(ctx, filter: AccessAuditFilter={}) { await gate(ctx,"accessAudit"); return audit.filter(x => (!filter.actorUserId||x.actorUserId===filter.actorUserId)&&(!filter.action||x.action===filter.action)&&(!filter.resourceType||x.resourceType===filter.resourceType)&&(!filter.outcome||x.outcome===filter.outcome)) },
+    async createScopeAssignment(ctx,input: ScopeAssignmentInput): Promise<ScopeAssignment> { await gate(ctx,"createScopeAssignment"); const row={assignmentId:String(100+admin.scopeAssignments.length),userId:input.userId,displayName:input.userId,territoryId:input.territoryId,assignmentType:input.assignmentType,effectiveFrom:input.effectiveFrom,effectiveTo:input.effectiveTo??null,unresolvedTerritory:false}; admin.scopeAssignments.unshift(row); audit.unshift({eventId:row.assignmentId,actorUserId:options.getUserId(),action:"scope_assignment.created",resourceType:"user_scope_assignment",resourceId:row.assignmentId,outcome:"scheduled",occurredAt:new Date().toISOString()}); return row },
+    async setRolePermissions(ctx,input): Promise<RolePermissionMatrix> { await gate(ctx,"setRolePermissions"); const row=admin.roleMatrix.find(x=>x.roleId===input.roleId)!; row.permissions=admin.availablePermissions.filter(x=>input.permissionCodes.includes(x.permissionCode)); return structuredClone(row) },
+    async approveIdentityMapping(ctx,input) { await gate(ctx,"approveIdentityMapping"); const row=admin.identityMatches.find(x=>x.userId===input.userId)!; row.rosterSourceRowId=input.rosterSourceRowId;row.rosterName="Approved roster entry";row.identityStatus="matched";row.flag="matched";return structuredClone(row) },
+    async startChatRun(ctx, input): Promise<ChatRun> { const s=await gate(ctx,"startChatRun"); if(s==="forbidden") throw new DataError("FORBIDDEN","No access",ctx.correlationId); scriptRun(input.runId,findUser(options.getUserId()),input.message,now().getTime()); return {runId:input.runId,status:"RUNNING"} },
+    async chatEvents(ctx, runId, after): Promise<ChatEventPage> { const page=readRun(runId,after,now().getTime()); if(!page) throw new DataError("NOT_FOUND","Run unavailable",ctx.correlationId); return page },
+    async chatCitation(ctx, dataset, recordId): Promise<SourceRecord> { await gate(ctx,"chatCitation"); const record=mockCitation(dataset,recordId,findUser(options.getUserId())); if(!record) throw new DataError("NOT_FOUND","Source unavailable",ctx.correlationId); return record },
   }
 }
