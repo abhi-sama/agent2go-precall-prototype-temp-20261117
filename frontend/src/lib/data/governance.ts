@@ -123,6 +123,14 @@ export interface AdminVisibility {
   catalogMatrix: CatalogVisibilityRow[]
   responseMatrix: ResponseAccessRow[]
 }
+export interface MetadataValue { value: string; sourceTable: string; sourceRecordId: string; observedAt: IsoDateTime | null }
+export interface MetadataComparison { questionId: string; field: string; catalogValues: MetadataValue[]; responseValues: MetadataValue[]; isConsistent: boolean }
+export type GovernedDefinitionKind = "METRIC" | "QUESTION"
+export type GovernedDefinitionStatus = "DRAFT" | "APPROVED" | "RETIRED"
+export interface GovernedDefinition { definitionId: string; version: number; kind: GovernedDefinitionKind; name: string; definition: string; ownerUserId: string; status: GovernedDefinitionStatus; approvedBy: string | null; approvedAt: IsoDateTime | null; createdAt: IsoDateTime }
+export interface GovernanceRequestAudit { actorUserId: string; action: string; note: string | null; occurredAt: IsoDateTime }
+export interface GovernanceRequest { requestId: string; requestType: "RETENTION" | "CORRECTION" | "DELETION"; resourceType: string; resourceId: string; reason: string; status: "OPEN" | "IN_REVIEW" | "COMPLETED" | "REJECTED"; requestedBy: string; requestedAt: IsoDateTime; decidedBy: string | null; decidedAt: IsoDateTime | null; decisionNote: string | null; auditHistory: GovernanceRequestAudit[] }
+export interface IssueAssistantResponse { issueId: string; explanation: string; suggestedSteps: string[]; capabilities: string[]; autonomousActions: string[] }
 
 /** The governance slice of the data adapter. */
 export interface GovernanceAdapter {
@@ -133,6 +141,14 @@ export interface GovernanceAdapter {
   adminVisibility(ctx: RequestContext): Promise<AdminVisibility>
   setCatalogVisibility(ctx: RequestContext, input: { roleId: string; visible: boolean }): Promise<CatalogVisibilityRow>
   setResponseAccess(ctx: RequestContext, input: { roleId: string; level: ResponseAccessLevel }): Promise<ResponseAccessRow>
+  adminMetadataReconciliation(ctx: RequestContext): Promise<MetadataComparison[]>
+  adminDefinitions(ctx: RequestContext): Promise<GovernedDefinition[]>
+  createDefinition(ctx: RequestContext, input: { definitionId: string; kind: GovernedDefinitionKind; name: string; definition: string }): Promise<GovernedDefinition>
+  approveDefinition(ctx: RequestContext, input: { definitionId: string; version: number }): Promise<GovernedDefinition>
+  governanceRequestQueue(ctx: RequestContext): Promise<GovernanceRequest[]>
+  createGovernanceRequest(ctx: RequestContext, input: { requestType: GovernanceRequest["requestType"]; resourceType: string; resourceId: string; reason: string }): Promise<GovernanceRequest>
+  decideGovernanceRequest(ctx: RequestContext, input: { requestId: string; status: "IN_REVIEW" | "COMPLETED" | "REJECTED"; note?: string }): Promise<GovernanceRequest>
+  adminIssueAssistant(ctx: RequestContext, issueId: string): Promise<IssueAssistantResponse>
 }
 
 const HOLDER = "userId displayName assignmentType viaTerritoryId"
@@ -178,6 +194,17 @@ export const SET_CATALOG_VISIBILITY_MUTATION = /* GraphQL */ `
 export const SET_RESPONSE_ACCESS_MUTATION = /* GraphQL */ `
   mutation SetResponseAccess($input: ResponseAccessInput!) { setResponseAccess(input: $input) { roleId roleName level } }
 `
+const DEFINITION_FIELDS = "definitionId version kind name definition ownerUserId status approvedBy approvedAt createdAt"
+const REQUEST_AUDIT_FIELDS = "actorUserId action note occurredAt"
+const GOVERNANCE_REQUEST_FIELDS = `requestId requestType resourceType resourceId reason status requestedBy requestedAt decidedBy decidedAt decisionNote auditHistory { ${REQUEST_AUDIT_FIELDS} }`
+export const ADMIN_METADATA_RECONCILIATION_QUERY = /* GraphQL */ `query AdminMetadataReconciliation { adminMetadataReconciliation { questionId field isConsistent catalogValues { value sourceTable sourceRecordId observedAt } responseValues { value sourceTable sourceRecordId observedAt } } }`
+export const ADMIN_DEFINITIONS_QUERY = /* GraphQL */ `query AdminDefinitions { adminDefinitions { ${DEFINITION_FIELDS} } }`
+export const CREATE_DEFINITION_MUTATION = /* GraphQL */ `mutation CreateDefinition($input: CreateDefinitionInput!) { createDefinition(input: $input) { ${DEFINITION_FIELDS} } }`
+export const APPROVE_DEFINITION_MUTATION = /* GraphQL */ `mutation ApproveDefinition($input: ApproveDefinitionInput!) { approveDefinition(input: $input) { ${DEFINITION_FIELDS} } }`
+export const GOVERNANCE_REQUEST_QUEUE_QUERY = /* GraphQL */ `query GovernanceRequestQueue { governanceRequestQueue { ${GOVERNANCE_REQUEST_FIELDS} } }`
+export const CREATE_GOVERNANCE_REQUEST_MUTATION = /* GraphQL */ `mutation CreateGovernanceRequest($input: CreateGovernanceRequestInput!) { createGovernanceRequest(input: $input) { ${GOVERNANCE_REQUEST_FIELDS} } }`
+export const DECIDE_GOVERNANCE_REQUEST_MUTATION = /* GraphQL */ `mutation DecideGovernanceRequest($input: DecideGovernanceRequestInput!) { decideGovernanceRequest(input: $input) { ${GOVERNANCE_REQUEST_FIELDS} } }`
+export const ADMIN_ISSUE_ASSISTANT_QUERY = /* GraphQL */ `query AdminIssueAssistant($issueId: ID!) { adminIssueAssistant(issueId: $issueId) { issueId explanation suggestedSteps capabilities autonomousActions } }`
 
 type Call = <T>(query: string, variables: Record<string, unknown> | undefined, ctx: RequestContext) => Promise<T>
 
@@ -204,6 +231,14 @@ export function createGraphQLGovernance(call: Call): GovernanceAdapter {
     async setResponseAccess(ctx, input) {
       return (await call<{ setResponseAccess: ResponseAccessRow }>(SET_RESPONSE_ACCESS_MUTATION, { input }, ctx)).setResponseAccess
     },
+    async adminMetadataReconciliation(ctx) { return (await call<{ adminMetadataReconciliation: MetadataComparison[] }>(ADMIN_METADATA_RECONCILIATION_QUERY, undefined, ctx)).adminMetadataReconciliation },
+    async adminDefinitions(ctx) { return (await call<{ adminDefinitions: GovernedDefinition[] }>(ADMIN_DEFINITIONS_QUERY, undefined, ctx)).adminDefinitions },
+    async createDefinition(ctx, input) { return (await call<{ createDefinition: GovernedDefinition }>(CREATE_DEFINITION_MUTATION, { input }, ctx)).createDefinition },
+    async approveDefinition(ctx, input) { return (await call<{ approveDefinition: GovernedDefinition }>(APPROVE_DEFINITION_MUTATION, { input }, ctx)).approveDefinition },
+    async governanceRequestQueue(ctx) { return (await call<{ governanceRequestQueue: GovernanceRequest[] }>(GOVERNANCE_REQUEST_QUEUE_QUERY, undefined, ctx)).governanceRequestQueue },
+    async createGovernanceRequest(ctx, input) { return (await call<{ createGovernanceRequest: GovernanceRequest }>(CREATE_GOVERNANCE_REQUEST_MUTATION, { input }, ctx)).createGovernanceRequest },
+    async decideGovernanceRequest(ctx, input) { return (await call<{ decideGovernanceRequest: GovernanceRequest }>(DECIDE_GOVERNANCE_REQUEST_MUTATION, { input }, ctx)).decideGovernanceRequest },
+    async adminIssueAssistant(ctx, issueId) { return (await call<{ adminIssueAssistant: IssueAssistantResponse }>(ADMIN_ISSUE_ASSISTANT_QUERY, { issueId }, ctx)).adminIssueAssistant },
   }
 }
 
@@ -285,6 +320,13 @@ export function createMockGovernance(options: MockGovernanceOptions): Governance
     { roleId: "executive", roleName: "Executive aggregate-only role", level: "AGGREGATE_ONLY" },
     { roleId: "administrator", roleName: "Data security administrator", level: "RECORDS" },
   ]
+  const definitions: GovernedDefinition[] = [
+    { definitionId: "distinct-calls", version: 1, kind: "METRIC", name: "Distinct calls", definition: "Count distinct crm_call_id; repeated product rows do not increase the count.", ownerUserId: "u-admin-sec", status: "APPROVED", approvedBy: "u-admin-ops", approvedAt: iso(-3 * day), createdAt: iso(-4 * day) },
+    { definitionId: "q-0001", version: 1, kind: "QUESTION", name: "Question Q-0001", definition: "Canonical question wording and applicability.", ownerUserId: "u-admin-sec", status: "DRAFT", approvedBy: null, approvedAt: null, createdAt: iso(-1 * day) },
+  ]
+  const governanceQueue: GovernanceRequest[] = [
+    { requestId: "1", requestType: "CORRECTION", resourceType: "question_tag", resourceId: "Q-0100", reason: "Parent question needs source investigation.", status: "IN_REVIEW", requestedBy: "u-admin-sec", requestedAt: iso(-2 * day), decidedBy: "u-admin-ops", decidedAt: iso(-day), decisionNote: "Reviewing source lineage.", auditHistory: [{ actorUserId: "u-admin-sec", action: "CREATED", note: "Request opened from quality finding.", occurredAt: iso(-2 * day) }, { actorUserId: "u-admin-ops", action: "REVIEWED", note: "Source lineage review started.", occurredAt: iso(-day) }] },
+  ]
 
   return {
     async adminHierarchy(ctx) {
@@ -353,5 +395,13 @@ export function createMockGovernance(options: MockGovernanceOptions): Governance
       row.level = input.level
       return { ...row }
     },
+    async adminMetadataReconciliation(ctx) { await options.gate(ctx, "adminMetadataReconciliation"); requireAdmin(ctx); return [{ questionId: "Q-0010", field: "status", isConsistent: false, catalogValues: [{ value: "Active", sourceTable: "question_tag", sourceRecordId: "TAG-0010", observedAt: iso(-day) }], responseValues: [{ value: "Retired", sourceTable: "hcp_raw_insights", sourceRecordId: "INT-000010", observedAt: iso(-day) }] }] },
+    async adminDefinitions(ctx) { await options.gate(ctx, "adminDefinitions"); requireAdmin(ctx); return structuredClone(definitions) },
+    async createDefinition(ctx, input) { await options.gate(ctx, "createDefinition"); requireAdmin(ctx); const version = Math.max(0, ...definitions.filter((d) => d.definitionId === input.definitionId).map((d) => d.version)) + 1; const row: GovernedDefinition = { ...input, version, ownerUserId: options.getUser().userId, status: "DRAFT", approvedBy: null, approvedAt: null, createdAt: options.now().toISOString() }; definitions.unshift(row); return structuredClone(row) },
+    async approveDefinition(ctx, input) { await options.gate(ctx, "approveDefinition"); requireAdmin(ctx); const row = definitions.find((d) => d.definitionId === input.definitionId && d.version === input.version); if (!row || row.ownerUserId === options.getUser().userId) throw new DataError("BAD_REQUEST", "This version is not approvable.", ctx.correlationId); row.status = "APPROVED"; row.approvedBy = options.getUser().userId; row.approvedAt = options.now().toISOString(); return structuredClone(row) },
+    async governanceRequestQueue(ctx) { await options.gate(ctx, "governanceRequestQueue"); requireAdmin(ctx); return structuredClone(governanceQueue) },
+    async createGovernanceRequest(ctx, input) { await options.gate(ctx, "createGovernanceRequest"); requireAdmin(ctx); const row: GovernanceRequest = { requestId: String(governanceQueue.length + 1), ...input, status: "OPEN", requestedBy: options.getUser().userId, requestedAt: options.now().toISOString(), decidedBy: null, decidedAt: null, decisionNote: null, auditHistory: [{ actorUserId: options.getUser().userId, action: "CREATED", note: "Queue request created", occurredAt: options.now().toISOString() }] }; governanceQueue.unshift(row); return structuredClone(row) },
+    async decideGovernanceRequest(ctx, input) { await options.gate(ctx, "decideGovernanceRequest"); requireAdmin(ctx); const row = governanceQueue.find((item) => item.requestId === input.requestId); if (!row) throw new DataError("BAD_REQUEST", "No such request.", ctx.correlationId); row.status = input.status; row.decidedBy = options.getUser().userId; row.decidedAt = options.now().toISOString(); row.decisionNote = input.note ?? null; row.auditHistory.push({ actorUserId: options.getUser().userId, action: input.status === "IN_REVIEW" ? "REVIEWED" : input.status, note: input.note ?? null, occurredAt: options.now().toISOString() }); return structuredClone(row) },
+    async adminIssueAssistant(ctx, issueId) { await options.gate(ctx, "adminIssueAssistant"); requireAdmin(ctx); return { issueId, explanation: "This finding needs a source-level reconciliation before any record is changed.", suggestedSteps: ["Review the preserved source records and load timestamps.", "Confirm the authoritative source owner.", "Open a human-reviewed lifecycle request if remediation is required."], capabilities: ["EXPLAIN", "SUGGEST"], autonomousActions: [] } },
   }
 }

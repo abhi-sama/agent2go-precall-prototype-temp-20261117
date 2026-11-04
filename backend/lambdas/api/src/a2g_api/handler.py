@@ -104,6 +104,14 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "catalogQuestions": hierarchy.catalog_questions,
         "questionResponses": hierarchy.question_responses,
         "adminDataQuality": resolvers.admin_data_quality,
+        "adminMetadataReconciliation": resolvers.admin_metadata_reconciliation,
+        "adminDefinitions": resolvers.admin_definitions,
+        "governanceRequestQueue": resolvers.governance_request_queue,
+        "adminIssueAssistant": resolvers.admin_issue_assistant,
+        "createDefinition": resolvers.create_definition,
+        "approveDefinition": resolvers.approve_definition,
+        "createGovernanceRequest": resolvers.create_governance_request,
+        "decideGovernanceRequest": resolvers.decide_governance_request,
     }
 
 

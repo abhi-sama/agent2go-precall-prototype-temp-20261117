@@ -26,7 +26,7 @@ const tab = (page: Page, name: string) => page.getByRole("tab", { name })
 
 test("administrator validates the hierarchy, approves coverage, and keeps catalog apart from responses", async ({ page }) => {
   await page.goto("/admin/governance")
-  await expect(page.getByRole("heading", { level: 1, name: "Hierarchy and coverage" })).toBeVisible()
+  await expect(page.getByRole("heading", { level: 1, name: "Data governance workspace" })).toBeVisible()
 
   // Cycles and orphans are called out, and the tree shows them outside any root.
   const findings = page.getByTestId("hierarchy-findings")
@@ -69,6 +69,20 @@ test("administrator validates the hierarchy, approves coverage, and keeps catalo
   await expect(page.getByRole("status").filter({ hasText: "Catalog visibility saved" })).toBeVisible()
   await expect(responseGroup.getByRole("radio", { name: "Aggregate only" })).toBeChecked()
   await expect(responseGroup.getByRole("radio", { name: "Records" })).not.toBeChecked()
+
+  // The ticket 17 governance controls preserve provenance, versions, audit history and a
+  // read-only assistant boundary.
+  await tab(page, "Metadata reconciliation").click()
+  await expect(page.getByTestId("metadata-reconciliation")).toContainText("question_tag")
+  await expect(page.getByTestId("metadata-reconciliation")).toContainText("hcp_raw_insights")
+  await tab(page, "Definitions").click()
+  await expect(page.getByTestId("definition-catalog")).toContainText("Distinct calls")
+  await expect(page.getByText("awaiting approval")).toBeVisible()
+  await tab(page, "Lifecycle queue").click()
+  await expect(page.getByTestId("lifecycle-queue")).toContainText("Parent question needs source investigation")
+  await tab(page, "Issue assistant").click()
+  await expect(page.getByTestId("issue-assistant")).toContainText("Read-only boundary")
+  await expect(page.getByTestId("issue-assistant")).toContainText("Autonomous fixes and access grants: none")
 })
 
 test("a non-administrator gets a gate, not the governance data", async ({ page }) => {
@@ -84,13 +98,13 @@ test.describe("viewport matrix", () => {
       test.skip(testInfo.project.name !== "ipad-landscape", "the matrix sets its own viewports; run it once")
       await page.setViewportSize({ width: viewport.width, height: viewport.height })
       await page.goto("/admin/governance")
-      for (const name of ["Hierarchy", "Access timeline", "Catalog and responses"]) {
+      for (const name of ["Hierarchy", "Access timeline", "Catalog and responses", "Metadata reconciliation", "Definitions", "Lifecycle queue", "Issue assistant"]) {
         await tab(page, name).click()
         await expect(page.getByRole("tabpanel", { name })).toBeVisible()
         await expect(tab(page, name)).toHaveAttribute("aria-selected", "true")
         await page.waitForLoadState("networkidle")
         // Wait out the panel cross-fade and the mock adapter's latency.
-        await expect(page.getByRole("tabpanel", { name }).getByRole("status").or(page.getByRole("tabpanel", { name }).locator("h2").first())).toBeVisible()
+        await expect(page.getByRole("tabpanel", { name }).getByRole("status").or(page.getByRole("tabpanel", { name }).locator("[data-testid], [data-slot=card]").first())).toBeVisible()
         await page.waitForTimeout(600)
         if (name === "Hierarchy") await page.getByRole("button", { name: "Show details for NE-01" }).first().click()
 

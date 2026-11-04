@@ -693,6 +693,147 @@ def save_view(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mappi
     view = store.save(user_id, input_)
     log.info("saved view stored", user_id=user_id, report_kind=view["reportKind"])
     return view
+
+
+def admin_metadata_reconciliation(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Compare status values without selecting or overwriting either source of record."""
+    _require_admin(cur)
+    cur.execute(
+        """
+        WITH catalog AS (
+          SELECT qstn_ext_id AS question_id,
+                 jsonb_agg(jsonb_build_object('value', coalesce(qstn_tag_status, 'Unknown'),
+                   'sourceTable', 'question_tag', 'sourceRecordId', qstn_tag_sfdc_id,
+                   'observedAt', sys_inserted_datetime) ORDER BY source_row_id) AS values
+          FROM question_tag WHERE qstn_ext_id IS NOT NULL GROUP BY qstn_ext_id
+        ), response AS (
+          SELECT qstn_ext_id AS question_id,
+                 jsonb_agg(DISTINCT jsonb_build_object('value', coalesce(qstn_tag_status, 'Unknown'),
+                   'sourceTable', 'hcp_raw_insights', 'sourceRecordId', insight_intrctn_dtl_sfdc_id,
+                   'observedAt', sys_inserted_datetime)) AS values
+          FROM hcp_raw_insights WHERE qstn_ext_id IS NOT NULL GROUP BY qstn_ext_id
+        )
+        SELECT coalesce(catalog.question_id, response.question_id), coalesce(catalog.values, '[]'::jsonb),
+               coalesce(response.values, '[]'::jsonb)
+        FROM catalog FULL OUTER JOIN response USING (question_id)
+        WHERE catalog.values IS DISTINCT FROM response.values
+        ORDER BY coalesce(catalog.question_id, response.question_id) LIMIT 100
+        """
+    )
+    rows = []
+    for question_id, catalog_values, response_values in cur.fetchall():
+        # Status values are compared as sets. Provenance is retained in each member above.
+        catalog_statuses = {item["value"] for item in catalog_values}
+        response_statuses = {item["value"] for item in response_values}
+        if catalog_statuses != response_statuses:
+            rows.append({"questionId": question_id, "field": "status", "catalogValues": catalog_values, "responseValues": response_values, "isConsistent": False})
+    return rows
+
+
+def _definition_row(row: tuple[Any, ...]) -> dict[str, Any]:
+    return {"definitionId": row[0], "version": int(row[1]), "kind": row[2].upper(), "name": row[3], "definition": row[4], "ownerUserId": row[5], "status": row[6].upper(), "approvedBy": row[7], "approvedAt": row[8].isoformat() if row[8] else None, "createdAt": row[9].isoformat()}
+
+
+def admin_definitions(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> list[dict[str, Any]]:
+    _require_admin(cur)
+    cur.execute("SELECT definition_id,version,kind,name,definition,owner_user_id,status,approved_by,approved_at,created_at FROM governed_definitions ORDER BY definition_id,version DESC")
+    return [_definition_row(row) for row in cur.fetchall()]
+
+
+def create_definition(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
+    _require_admin(cur)
+    payload = args.get("input") or {}
+    definition_id, kind = str(payload.get("definitionId") or "").strip(), str(payload.get("kind") or "").lower()
+    name, definition = str(payload.get("name") or "").strip(), str(payload.get("definition") or "").strip()
+    if not definition_id or len(definition_id) > 100 or kind not in {"metric", "question"} or not name or not definition or len(name) > 200 or len(definition) > 2000:
+        raise BadRequest("invalid_definition")
+    cur.execute("SELECT coalesce(max(version), 0) + 1 FROM governed_definitions WHERE definition_id=%s", (definition_id,))
+    version = int(cur.fetchone()[0])
+    cur.execute("INSERT INTO governed_definitions(definition_id,version,kind,name,definition,owner_user_id,status) VALUES(%s,%s,%s,%s,%s,%s,'draft') RETURNING definition_id,version,kind,name,definition,owner_user_id,status,approved_by,approved_at,created_at", (definition_id, version, kind, name, definition, user_id))
+    row = cur.fetchone()
+    _audit(cur, user_id, "definition.version_created", "governed_definition", f"{definition_id}:{version}", "applied")
+    return _definition_row(row)
+
+
+def approve_definition(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
+    _require_admin(cur)
+    payload = args.get("input") or {}
+    definition_id = str(payload.get("definitionId") or "").strip()
+    try:
+        version = int(payload.get("version"))
+    except (TypeError, ValueError) as exc:
+        raise BadRequest("invalid_definition_version") from exc
+    cur.execute("UPDATE governed_definitions SET status='approved',approved_by=%s,approved_at=now() WHERE definition_id=%s AND version=%s AND status='draft' AND owner_user_id<>%s RETURNING definition_id,version,kind,name,definition,owner_user_id,status,approved_by,approved_at,created_at", (user_id, definition_id, version, user_id))
+    row = cur.fetchone()
+    if not row:
+        raise BadRequest("definition_not_approvable")
+    _audit(cur, user_id, "definition.approved", "governed_definition", f"{definition_id}:{version}", "applied")
+    return _definition_row(row)
+
+
+def _request_row(cur: psycopg.Cursor, request_id: int) -> dict[str, Any]:
+    cur.execute("SELECT request_id,request_type,resource_type,resource_id,reason,status,requested_by,requested_at,decided_by,decided_at,decision_note FROM governance_requests WHERE request_id=%s", (request_id,))
+    row = cur.fetchone()
+    if not row:
+        raise BadRequest("unknown_governance_request")
+    cur.execute("SELECT actor_user_id,action,note,occurred_at FROM governance_request_audit WHERE request_id=%s ORDER BY occurred_at,audit_id", (request_id,))
+    return {"requestId": str(row[0]), "requestType": row[1].upper(), "resourceType": row[2], "resourceId": row[3], "reason": row[4], "status": row[5].upper(), "requestedBy": row[6], "requestedAt": row[7].isoformat(), "decidedBy": row[8], "decidedAt": row[9].isoformat() if row[9] else None, "decisionNote": row[10], "auditHistory": [{"actorUserId": a, "action": action.upper(), "note": note, "occurredAt": at.isoformat()} for a, action, note, at in cur.fetchall()]}
+
+
+def governance_request_queue(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> list[dict[str, Any]]:
+    _require_admin(cur)
+    cur.execute("SELECT request_id FROM governance_requests ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_review' THEN 1 ELSE 2 END, requested_at DESC")
+    return [_request_row(cur, int(row[0])) for row in cur.fetchall()]
+
+
+def create_governance_request(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
+    _require_admin(cur)
+    payload = args.get("input") or {}
+    request_type = str(payload.get("requestType") or "").lower()
+    resource_type, resource_id, reason = (str(payload.get(key) or "").strip() for key in ("resourceType", "resourceId", "reason"))
+    if request_type not in {"retention", "correction", "deletion"} or not resource_type or not resource_id or not reason or len(reason) > 500:
+        raise BadRequest("invalid_governance_request")
+    cur.execute("INSERT INTO governance_requests(request_type,resource_type,resource_id,reason,requested_by) VALUES(%s,%s,%s,%s,%s) RETURNING request_id", (request_type, resource_type, resource_id, reason, user_id))
+    request_id = int(cur.fetchone()[0])
+    cur.execute("INSERT INTO governance_request_audit(request_id,actor_user_id,action,note) VALUES(%s,%s,'created',%s)", (request_id, user_id, "Queue request created"))
+    _audit(cur, user_id, "governance_request.created", "governance_request", str(request_id), "applied")
+    return _request_row(cur, request_id)
+
+
+def decide_governance_request(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
+    _require_admin(cur)
+    payload = args.get("input") or {}
+    try:
+        request_id = int(payload.get("requestId"))
+    except (TypeError, ValueError) as exc:
+        raise BadRequest("invalid_governance_request") from exc
+    status = str(payload.get("status") or "").lower()
+    note = str(payload.get("note") or "").strip()
+    if status not in {"in_review", "completed", "rejected"} or len(note) > 500:
+        raise BadRequest("invalid_governance_request")
+    cur.execute("UPDATE governance_requests SET status=%s,decided_by=%s,decided_at=now(),decision_note=%s WHERE request_id=%s AND status IN ('open','in_review') RETURNING request_id", (status, user_id, note or None, request_id))
+    if not cur.fetchone():
+        raise BadRequest("governance_request_not_actionable")
+    action = {"in_review": "reviewed", "completed": "completed", "rejected": "rejected"}[status]
+    cur.execute("INSERT INTO governance_request_audit(request_id,actor_user_id,action,note) VALUES(%s,%s,%s,%s)", (request_id, user_id, action, note or None))
+    _audit(cur, user_id, f"governance_request.{action}", "governance_request", str(request_id), "applied")
+    return _request_row(cur, request_id)
+
+
+def admin_issue_assistant(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
+    """A read-only assistant boundary: it explains source findings but has no mutation/tool access."""
+    _require_admin(cur)
+    issue_id = str(args.get("issueId") or "").strip()
+    issues = {issue["issueId"]: issue for issue in admin_data_quality(cur, identity, user_id, {})["issues"]}
+    issue = issues.get(issue_id)
+    if not issue:
+        raise BadRequest("unknown_data_quality_issue")
+    steps = [
+        "Review the preserved source records and their load timestamps.",
+        "Confirm the authoritative source owner and document the reconciliation decision.",
+        "Create a correction, retention, or deletion request for human approval if remediation is required.",
+    ]
+    return {"issueId": issue_id, "explanation": issue["summary"], "suggestedSteps": steps, "capabilities": ["EXPLAIN", "SUGGEST"], "autonomousActions": []}
 def _quality_record(source_table: str, source_record_id: str, label: str) -> dict[str, str]:
     return {
         "recordId": f"{source_table}:{source_record_id}",

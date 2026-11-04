@@ -595,6 +595,22 @@ type QuestionDependencyGraph { missingParentCount: Int! duplicateKeyCount: Int! 
 type IdentityQuality { matched: Int! unmatched: Int! }
 type RecordGrainQuality { callProductRows: Int! distinctCalls: Int! }
 type AdminDataQuality { ingestionRuns: [IngestionRun!]! identities: IdentityQuality! duplicateKeyCount: Int! recordGrain: RecordGrainQuality! issues: [DataQualityIssue!]! questionGraph: QuestionDependencyGraph! }
+"One source value with its original source-row provenance; values are never overwritten during comparison."
+type MetadataValue { value: String! sourceTable: String! sourceRecordId: ID! observedAt: AWSDateTime }
+type MetadataComparison { questionId: ID! field: String! catalogValues: [MetadataValue!]! responseValues: [MetadataValue!]! isConsistent: Boolean! }
+enum GovernedDefinitionKind { METRIC QUESTION }
+enum GovernedDefinitionStatus { DRAFT APPROVED RETIRED }
+type GovernedDefinition { definitionId: ID! version: Int! kind: GovernedDefinitionKind! name: String! definition: String! ownerUserId: ID! status: GovernedDefinitionStatus! approvedBy: ID approvedAt: AWSDateTime createdAt: AWSDateTime! }
+input CreateDefinitionInput { definitionId: ID! kind: GovernedDefinitionKind! name: String! definition: String! }
+input ApproveDefinitionInput { definitionId: ID! version: Int! }
+enum GovernanceRequestType { RETENTION CORRECTION DELETION }
+enum GovernanceRequestStatus { OPEN IN_REVIEW COMPLETED REJECTED }
+type GovernanceRequestAudit { actorUserId: ID! action: String! note: String occurredAt: AWSDateTime! }
+type GovernanceRequest { requestId: ID! requestType: GovernanceRequestType! resourceType: String! resourceId: ID! reason: String! status: GovernanceRequestStatus! requestedBy: ID! requestedAt: AWSDateTime! decidedBy: ID decidedAt: AWSDateTime decisionNote: String auditHistory: [GovernanceRequestAudit!]! }
+input CreateGovernanceRequestInput { requestType: GovernanceRequestType! resourceType: String! resourceId: ID! reason: String! }
+input DecideGovernanceRequestInput { requestId: ID! status: GovernanceRequestStatus! note: String }
+"The issue assistant can only explain and suggest. It has no mutation, grant, or fix capability."
+type IssueAssistantResponse { issueId: ID! explanation: String! suggestedSteps: [String!]! capabilities: [String!]! autonomousActions: [String!]! }
 
 type Query {
   me: Me!
@@ -631,6 +647,14 @@ type Query {
   "Recorded responses to one question. Needs response access and scope; catalog visibility is irrelevant."
   questionResponses(questionId: ID!, limit: Int): QuestionResponses!
   adminDataQuality: AdminDataQuality!
+  "Side-by-side status values and provenance from the catalog and recorded responses. Administrators only."
+  adminMetadataReconciliation: [MetadataComparison!]!
+  "Version history for governed metric and question definitions. Administrators only."
+  adminDefinitions: [GovernedDefinition!]!
+  "Retention, correction, and deletion queues with their audit history. Administrators only."
+  governanceRequestQueue: [GovernanceRequest!]!
+  "Read-only issue explanation and investigation suggestions. Administrators only."
+  adminIssueAssistant(issueId: ID!): IssueAssistantResponse!
 }
 
 type Mutation {
@@ -645,6 +669,11 @@ type Mutation {
   decideScopeChange(input: ScopeChangeDecisionInput!): ScopeChangeRequest!
   setCatalogVisibility(input: CatalogVisibilityInput!): CatalogVisibilityRow!
   setResponseAccess(input: ResponseAccessInput!): ResponseAccessRow!
+  "Creates a new immutable definition version in draft; a different administrator must approve it."
+  createDefinition(input: CreateDefinitionInput!): GovernedDefinition!
+  approveDefinition(input: ApproveDefinitionInput!): GovernedDefinition!
+  createGovernanceRequest(input: CreateGovernanceRequestInput!): GovernanceRequest!
+  decideGovernanceRequest(input: DecideGovernanceRequestInput!): GovernanceRequest!
   startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!]): ChatRun!
   saveView(input: SaveViewInput!): SavedView!
   "Server-to-server only: the BE chat worker publishes an event after persisting it under RLS."
