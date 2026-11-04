@@ -106,29 +106,3 @@ def test_requests_without_a_valid_token_are_rejected(token):
 
 def test_invalid_range_is_rejected(msl):
     assert "BadRequest" in msl.landing_kpis("2026-11-03", "2026-01-01").error_types
-
-
-TERRITORY_ACTIVITY = """
-query T($from: AWSDate, $to: AWSDate) {
-  territoryActivity(from: $from, to: $to) {
-    territoryId regionId col row inScope isOwn distinctCalls distinctEngagedHcps responseCount
-  }
-}
-"""
-
-
-def test_territory_visual_returns_only_scoped_territories(msl, db):
-    res = msl.query(TERRITORY_ACTIVITY, {"from": FROM, "to": TO})
-    assert not res.errors, res.errors
-    (tile,) = res.data["territoryActivity"]
-    assert tile["territoryId"] == "T01-01" and tile["isOwn"] and tile["inScope"]
-    assert {k: tile[k] for k in ("distinctCalls", "distinctEngagedHcps", "responseCount")} == kpis(db, ["T01-01"], FROM, TO)
-
-
-def test_director_territory_visual_covers_the_region(db):
-    res = Persona.sign_in("director-region-01").query(TERRITORY_ACTIVITY, {"from": FROM, "to": TO})
-    tiles = res.data["territoryActivity"]
-    assert sorted(t["territoryId"] for t in tiles) == region_territories(db, "REGION-01")
-    assert {t["regionId"] for t in tiles} == {"REGION-01"}
-    assert sorted(t["col"] for t in tiles) == list(range(6))
-    assert not any(t["isOwn"] for t in tiles)

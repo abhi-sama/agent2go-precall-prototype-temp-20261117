@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe("MSL landing", () => {
-  test("renders scope, freshness, KPI cards and the territory visual", async ({ page }) => {
+  test("renders scope, freshness, KPI cards and the territory map", async ({ page }) => {
     await page.goto("/msl")
     await expect(page.getByRole("heading", { level: 1, name: "My territory" })).toBeVisible()
     await expect(page.getByTestId("scope-label")).toContainText("Territory NE-01")
@@ -21,8 +21,11 @@ test.describe("MSL landing", () => {
     // Engaged HCPs cannot exceed distinct calls (calls are counted once, not per row).
     expect(await kpiValue(page, "hcps")).toBeLessThanOrEqual(await kpiValue(page, "calls"))
 
-    await expect(page.getByTestId("territory-visual")).toBeVisible()
-    await expect(page.getByTestId("territory-visual")).toHaveAttribute("data-renderer", /^(3d|2d)$/)
+    // An MSL lands directly on the flat map of their own territory.
+    await expect(page.getByTestId("territory-map")).toBeVisible()
+    await expect(page.getByTestId("territory-map")).toHaveAttribute("data-renderer", "flat")
+    await expect(page.getByTestId("territory-map")).toHaveAttribute("data-view", "country")
+    await expect(page.getByTestId("territory-map")).toHaveAttribute("data-lit", "NE-01")
   })
 
   test("changing the date range reloads the KPIs", async ({ page }) => {
@@ -31,14 +34,6 @@ test.describe("MSL landing", () => {
     const before = await kpiValue(page, "calls")
     await page.getByTestId("range-90d").click()
     await expect.poll(() => kpiValue(page, "calls")).toBeGreaterThan(before)
-  })
-
-  test("2D fallback can be chosen and shows the same territories", async ({ page }) => {
-    await page.goto("/msl")
-    await page.getByTestId("view-2d").click()
-    await expect(page.getByTestId("territory-visual")).toHaveAttribute("data-renderer", "2d")
-    await expect(page.getByTestId("territory-2d")).toBeVisible()
-    await expect(page.getByTestId("territory-detail")).toContainText("Boston Metro")
   })
 
   test("touch targets are at least 44pt", async ({ page }) => {

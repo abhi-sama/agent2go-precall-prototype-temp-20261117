@@ -3,10 +3,10 @@ import {
   ACTIVITY_EVIDENCE_QUERY,
   ACTIVITY_TRENDS_QUERY,
   FLAG_ISSUE_MUTATION,
+  GEO_ACTIVITY_QUERY,
   LANDING_KPIS_QUERY,
   ME_QUERY,
   MY_FLAGS_QUERY,
-  TERRITORY_ACTIVITY_QUERY,
 } from "./operations"
 import {
   DataError,
@@ -14,10 +14,10 @@ import {
   type ActivityTrends,
   type DateRange,
   type Flag,
+  type GeoActivity,
   type LandingKpis,
   type Me,
   type RequestContext,
-  type TerritoryActivity,
 } from "./types"
 
 export interface GraphQLResponse<T> {
@@ -87,14 +87,14 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
       )
       return data.landingKpis
     },
-    async territoryActivity(ctx, range?: Partial<DateRange>) {
-      const data = await run<{ territoryActivity: TerritoryActivity[] }>(
+    async geoActivity(ctx, range?: Partial<DateRange>) {
+      const data = await run<{ geoActivity: GeoActivity }>(
         transport,
-        TERRITORY_ACTIVITY_QUERY,
+        GEO_ACTIVITY_QUERY,
         { from: range?.from ?? null, to: range?.to ?? null },
         ctx,
       )
-      return data.territoryActivity
+      return data.geoActivity
     },
     async activityTrends(ctx, months) {
       const data = await run<{ activityTrends: ActivityTrends }>(transport, ACTIVITY_TRENDS_QUERY, { months: months ?? null }, ctx)

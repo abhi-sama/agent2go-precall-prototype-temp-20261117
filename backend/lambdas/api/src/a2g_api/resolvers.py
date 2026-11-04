@@ -160,72 +160,114 @@ def landing_kpis(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Ma
     }
 
 
-def territory_activity(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, default_range_days: int) -> list[dict[str, Any]]:
-    """Per-territory KPIs for the caller's leaf territories, same definitions as landingKpis."""
-    assigned, effective, label = _scope(cur, identity)
-    _require_record_access(cur, label, effective)
-    frm, to = _range(args, _data_through(cur), default_range_days)
+#: Aggregate-only callers never see a count below this, and never see a total that would let
+#: them subtract one back out (small-group suppression, ADR 0003).
+MIN_CELL = 5
+
+
+def geo_activity(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, default_range_days: int) -> dict[str, Any]:
+    """Distinct calls per territory and per country for the territory map.
+
+    Works for every persona that holds ``aggregate.read``: the counts come from the
+    SECURITY DEFINER aggregate functions (migration 006), which restrict to the caller's
+    effective scope, so an Executive gets the map without ever reading a call row. Out-of-scope
+    territories are not returned at all, so they cannot be coloured or even named.
+    Callers without ``source.records.read`` (aggregate-only) get small counts suppressed.
+    """
+    cur.execute("SELECT app.can_read_aggregate(), app.has_permission('source.records.read'), app.has_permission('admin.manage')")
+    can_aggregate, can_records, is_admin = (bool(v) for v in cur.fetchone())
+    if not can_aggregate:
+        raise Forbidden("aggregate_access_required")
+    cur.execute("SELECT app.aggregate_data_through()")
+    data_through = cur.fetchone()[0]
+    frm, to = _range(args, data_through, default_range_days)
+
     cur.execute(
         """
-        WITH scope AS (
-          SELECT s.territory_id FROM app.current_scope_territories() s
-          WHERE NOT EXISTS (
-            SELECT 1 FROM territory_scope_relationships r
-            WHERE r.parent_territory_id = s.territory_id
-              AND r.effective_from <= now() AND (r.effective_to IS NULL OR r.effective_to > now()))
-        ),
-        region AS (
-          SELECT DISTINCT ON (r.child_territory_id) r.child_territory_id AS territory_id,
-                 r.parent_territory_id AS region_id, coalesce(r.region_name, r.parent_territory_id) AS region_name
-          FROM territory_scope_relationships r
-          WHERE r.effective_from <= now() AND (r.effective_to IS NULL OR r.effective_to > now())
-          ORDER BY r.child_territory_id, (r.parent_territory_id LIKE 'REGION-%%') DESC, r.parent_territory_id
-        ),
-        names AS (
-          SELECT DISTINCT ON (child_territory_id) child_territory_id AS territory_id, child_territory_name AS name
-          FROM territory_rd_access ORDER BY child_territory_id, child_territory_name
-        ),
-        calls AS (
-          SELECT territory_id, count(DISTINCT crm_call_id) AS calls, count(DISTINCT cust_mdm_id) AS hcps
-          FROM call_activity WHERE call_dt BETWEEN %(frm)s AND %(to)s GROUP BY territory_id
-        ),
-        responses AS (
-          SELECT territory_id, count(DISTINCT uniq_rspns_id) AS responses
-          FROM hcp_raw_insights WHERE date_of_interaction BETWEEN %(frm)s AND %(to)s
-            AND excluded_rspns_flag IS NOT TRUE GROUP BY territory_id
-        )
-        SELECT s.territory_id, coalesce(n.name, s.territory_id), coalesce(g.region_id, ''),
-               coalesce(g.region_name, ''), coalesce(c.calls, 0), coalesce(c.hcps, 0), coalesce(x.responses, 0)
-        FROM scope s
-        LEFT JOIN names n USING (territory_id)
-        LEFT JOIN region g USING (territory_id)
-        LEFT JOIN calls c USING (territory_id)
-        LEFT JOIN responses x USING (territory_id)
-        ORDER BY g.region_id, s.territory_id
+        SELECT territory_id, territory_name, region_id, region_name, country_code, country_name,
+               subdivision_code, subdivision_name, latitude, longitude, is_own, distinct_calls
+        FROM app.geo_territories(%(frm)s, %(to)s)
         """,
         {"frm": frm, "to": to},
     )
-    rows = cur.fetchall()
-    regions = sorted({r[2] for r in rows})
-    col_in_region: dict[str, int] = {}
-    tiles = []
-    for tid, name, region_id, region_name, calls, hcps, responses in rows:
-        col = col_in_region.get(region_id, 0)
-        col_in_region[region_id] = col + 1
-        tiles.append(
-            {
-                "territoryId": tid,
-                "name": name,
-                "regionId": region_id,
-                "regionName": region_name,
-                "col": col,
-                "row": regions.index(region_id),
-                "inScope": True,
-                "isOwn": tid in assigned,
-                "distinctCalls": int(calls),
-                "distinctEngagedHcps": int(hcps),
-                "responseCount": int(responses),
-            }
-        )
-    log.info("territory activity computed", user_id=user_id, count=len(tiles), range_days=(to - frm).days + 1)
-    return tiles
+    territory_rows = cur.fetchall()
+    cur.execute(
+        "SELECT country_code, country_name, territory_count, distinct_calls FROM app.geo_countries(%(frm)s, %(to)s)",
+        {"frm": frm, "to": to},
+    )
+    country_rows = cur.fetchall()
+    if not territory_rows and not is_admin:
+        raise NoScope("no_effective_scope")
+
+    suppress = not can_records
+    hidden_countries = {r[4] for r in territory_rows if suppress and int(r[11]) < MIN_CELL}
+
+    territories = [
+        {
+            "territoryId": tid,
+            "name": name,
+            "regionId": region_id,
+            "regionName": region_name,
+            "countryCode": country_code,
+            "countryName": country_name,
+            "subdivisionCode": sub_code,
+            "subdivisionName": sub_name,
+            "latitude": float(lat),
+            "longitude": float(lon),
+            "isOwn": bool(own),
+            "distinctCalls": None if suppress and int(calls) < MIN_CELL else int(calls),
+            "suppressed": suppress and int(calls) < MIN_CELL,
+        }
+        for tid, name, region_id, region_name, country_code, country_name, sub_code, sub_name, lat, lon, own, calls in territory_rows
+    ]
+    countries = [
+        {
+            "countryCode": code,
+            "countryName": name,
+            "territoryCount": int(count),
+            "distinctCalls": None if suppress and (int(calls) < MIN_CELL or code in hidden_countries) else int(calls),
+            "suppressed": suppress and (int(calls) < MIN_CELL or code in hidden_countries),
+        }
+        for code, name, count, calls in country_rows
+    ]
+
+    scope_label = _geo_scope_label(_assigned_scope_ids(cur), len(territories), is_admin)
+    log.info(
+        "geo activity computed",
+        user_id=user_id,
+        territory_count=len(territories),
+        country_count=len(countries),
+        suppressed_count=sum(1 for t in territories if t["suppressed"]),
+        range_days=(to - frm).days + 1,
+    )
+    return {
+        "from": frm.isoformat(),
+        "to": to.isoformat(),
+        "dataThrough": data_through.isoformat() if data_through else None,
+        "scopeLabel": scope_label,
+        "territories": territories,
+        "countries": countries,
+    }
+
+
+def _assigned_scope_ids(cur: psycopg.Cursor) -> list[str]:
+    cur.execute(
+        """
+        SELECT DISTINCT territory_id FROM user_scope_assignments
+        WHERE user_id = app.request_user_id()
+          AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now())
+        ORDER BY territory_id
+        """
+    )
+    return [r[0] for r in cur.fetchall()]
+
+
+def _geo_scope_label(assigned: list[str], leaf_count: int, is_admin: bool) -> str:
+    """Same wording as ``_scope`` but counted from the territories the caller can actually see,
+    because an aggregate-only caller cannot read the hierarchy table ``_scope`` walks."""
+    if is_admin:
+        return "All territories (administrator)"
+    if not assigned:
+        return "No territory assigned"
+    names = ", ".join(assigned)
+    return names if leaf_count <= len(assigned) else f"{names} \u00b7 {leaf_count} territories"

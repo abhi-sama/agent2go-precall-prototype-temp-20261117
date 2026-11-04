@@ -40,6 +40,20 @@ query LandingKpis($from: AWSDate, $to: AWSDate) {
 """
 
 
+GEO_ACTIVITY = """
+query GeoActivity($from: AWSDate, $to: AWSDate) {
+  geoActivity(from: $from, to: $to) {
+    from to dataThrough scopeLabel
+    territories {
+      territoryId name regionId regionName countryCode countryName subdivisionCode subdivisionName
+      latitude longitude isOwn distinctCalls suppressed
+    }
+    countries { countryCode countryName territoryCount distinctCalls suppressed }
+  }
+}
+"""
+
+
 @cache
 def state() -> dict[str, Any]:
     if not STATE.exists():
@@ -142,6 +156,9 @@ class Persona:
         res = self.query(ME, headers=headers)
         assert not res.errors, res.errors
         return res.data["me"]
+
+    def geo_activity(self, frm: str | None = None, to: str | None = None) -> GraphQLResult:
+        return self.query(GEO_ACTIVITY, {"from": frm, "to": to})
 
     def landing_kpis(self, frm: str | None = None, to: str | None = None) -> GraphQLResult:
         return self.query(LANDING_KPIS, {"from": frm, "to": to})

@@ -58,7 +58,7 @@ def _resolvers(settings: Settings) -> dict[str, Callable[..., Any]]:
     return {
         "me": resolvers.me,
         "landingKpis": partial(resolvers.landing_kpis, default_range_days=settings.default_range_days),
-        "territoryActivity": partial(resolvers.territory_activity, default_range_days=settings.default_range_days),
+        "geoActivity": partial(resolvers.geo_activity, default_range_days=settings.default_range_days),
         "activityTrends": activity.activity_trends,
         "activityEvidence": activity.activity_evidence,
         # Resolved lazily: an unconfigured flag store must not break the other fields.

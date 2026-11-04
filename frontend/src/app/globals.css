@@ -132,7 +132,7 @@
   --elev-card: 0 1px 2px oklch(0.2 0.02 55 / 6%), 0 4px 16px -6px oklch(0.2 0.02 55 / 10%);
   --elev-lift: 0 2px 4px oklch(0.2 0.02 55 / 8%), 0 14px 32px -12px oklch(0.45 0.15 40 / 28%);
 
-  /* Three.js scene colours (read by the territory visual; scenes cannot use CSS vars directly) */
+  /* Map colours (read by the globe and the flat map; canvas and WebGL cannot use CSS vars directly) */
   --scene-bg: oklch(0.975 0.006 70);
   --scene-tile: oklch(0.93 0.008 70);
   --scene-tile-locked: oklch(0.95 0.004 70);

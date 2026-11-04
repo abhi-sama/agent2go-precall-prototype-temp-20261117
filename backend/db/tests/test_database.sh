@@ -28,7 +28,8 @@ expect "$(query_as msl-t01-01 MSL "count(*) FROM call_activity WHERE territory_i
 expect "$(query_as msl-t01-01 MSL "count(*) FROM question_tag")" "400" "MSL can read catalog"
 expect "$(query_as executive-region-01 Executive "count(*) FROM call_activity")" "0" "executive aggregate-only role cannot read source rows"
 expect "$(query_as executive-region-01 Executive "app.can_read_aggregate()")" "t" "executive has aggregate permission"
-direct_login=$(psql "postgresql://app_user:app_user@localhost:55432/agent2go" -X -qAt -v ON_ERROR_STOP=1 <<'SQL' | tail -n 1
+APP_DSN=$(printf '%s' "$DATABASE_URL" | sed -E 's#//[^@]+@#//app_user:app_user@#')
+direct_login=$(psql "$APP_DSN" -X -qAt -v ON_ERROR_STOP=1 <<'SQL' | tail -n 1
 BEGIN;
 SELECT app.set_request_identity('msl-t01-01', 'MSL', 'test-correlation');
 SELECT count(*) FROM call_activity WHERE territory_id <> 'T01-01';
@@ -36,6 +37,18 @@ COMMIT;
 SQL
 )
 expect "$direct_login" "0" "non-owner app_user connection enforces RLS"
+
+# Territory geography: scoped like every other table, and the aggregate functions give the
+# aggregate-only Executive counts of their own scope without any row access.
+expect "$(query_as msl-t01-01 MSL "count(*) FROM territory_geography")" "1" "MSL sees only own territory geography"
+expect "$(query_as executive-region-01 Executive "count(*) FROM territory_geography")" "6" "executive sees geography of own scope"
+expect "$(query_as executive-region-01 Executive "count(*) FROM app.geo_territories('2026-01-01','2026-11-03') WHERE territory_id NOT LIKE 'T01-%'")" "0" "aggregate function never returns out-of-scope territories"
+expect "$(query_as executive-region-01 Executive "count(*) FROM app.geo_countries('2026-01-01','2026-11-03')")" "2" "executive region 1 spans two countries"
+expect "$(query_as executive-region-01 Executive "min(distinct_calls) > 0 FROM app.geo_territories('2026-01-01','2026-11-03')")" "t" "executive gets aggregate counts without source rows"
+expect "$(query_as msl-t01-01 MSL "count(*) FROM app.geo_territories('2026-01-01','2026-11-03')")" "1" "MSL aggregate path is limited to own territory"
+expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) FROM call_activity c LEFT JOIN territory_geography g USING (territory_id) WHERE g.territory_id IS NULL")" "0" "every call territory has a real location"
+expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) FROM call_activity c JOIN territory_geography g USING (territory_id) WHERE c.st_cd <> g.subdivision_code")" "0" "call state agrees with territory location"
+expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) FROM hcp_raw_insights i JOIN territory_geography g USING (territory_id) WHERE i.insight_country <> g.country_code")" "0" "insight country agrees with territory location"
 director_outside=$(query_as director-region-01 Director "count(*) FROM call_activity WHERE territory_id LIKE 'T02-%'")
 director_inside=$(query_as director-region-01 Director "count(*) FROM call_activity WHERE territory_id LIKE 'T01-%'")
 if [ "$director_outside" != 0 ] || [ "$director_inside" -le 0 ]; then

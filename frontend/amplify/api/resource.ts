@@ -13,7 +13,7 @@ const dataDir = path.join(here, '..', 'data');
 export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'me' },
   { typeName: 'Query', fieldName: 'landingKpis' },
-  { typeName: 'Query', fieldName: 'territoryActivity' },
+  { typeName: 'Query', fieldName: 'geoActivity' },
   { typeName: 'Query', fieldName: 'activityTrends' },
   { typeName: 'Query', fieldName: 'activityEvidence' },
   { typeName: 'Query', fieldName: 'myFlags' },

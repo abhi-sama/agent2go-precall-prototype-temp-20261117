@@ -20,22 +20,46 @@ type Me {
 }
 
 """
-Per-territory activity for the landing-page territory visual. Only territories in the
-caller's effective scope are returned (no locked tiles: out-of-scope territory metadata
-is itself access-controlled). col/row place tiles on a schematic grid, not geography.
+One territory on the real-world map. Only territories in the caller's effective scope are
+returned: out-of-scope territory metadata is itself access-controlled, so it is never named or
+coloured. `distinctCalls` is null (and `suppressed` true) when an aggregate-only caller would
+otherwise see a small group.
 """
-type TerritoryActivity {
+type GeoTerritory {
   territoryId: ID!
   name: String!
   regionId: String!
   regionName: String!
-  col: Int!
-  row: Int!
-  inScope: Boolean!
+  "ISO 3166-1 alpha-2."
+  countryCode: String!
+  countryName: String!
+  "USPS code for the United States, the local code elsewhere (the call feed's st_cd)."
+  subdivisionCode: String!
+  subdivisionName: String!
+  latitude: Float!
+  longitude: Float!
   isOwn: Boolean!
-  distinctCalls: Int!
-  distinctEngagedHcps: Int!
-  responseCount: Int!
+  distinctCalls: Int
+  suppressed: Boolean!
+}
+
+"Distinct calls across a country's in-scope territories (not a sum of per-territory counts)."
+type GeoCountry {
+  countryCode: ID!
+  countryName: String!
+  territoryCount: Int!
+  distinctCalls: Int
+  suppressed: Boolean!
+}
+
+"Counts for the territory map, with the window they cover."
+type GeoActivity {
+  from: AWSDate!
+  to: AWSDate!
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+  territories: [GeoTerritory!]!
+  countries: [GeoCountry!]!
 }
 
 """
@@ -146,7 +170,7 @@ input FlagInput {
 type Query {
   me: Me!
   landingKpis(from: AWSDate, to: AWSDate): LandingKpis!
-  territoryActivity(from: AWSDate, to: AWSDate): [TerritoryActivity!]!
+  geoActivity(from: AWSDate, to: AWSDate): GeoActivity!
   "Monthly distinct calls, distinct engaged HCPs and channel mix for the last `months` months (default 12)."
   activityTrends(months: Int): ActivityTrends!
   "The distinct calls or HCPs behind one chart point (a month, optionally one channel)."

@@ -26,21 +26,36 @@ export const LANDING_KPIS_QUERY = /* GraphQL */ `
   }
 `
 
-/** Extension of the foundation contract (added during integration) for the territory visual. */
-export const TERRITORY_ACTIVITY_QUERY = /* GraphQL */ `
-  query TerritoryActivity($from: AWSDate, $to: AWSDate) {
-    territoryActivity(from: $from, to: $to) {
-      territoryId
-      name
-      regionId
-      regionName
-      col
-      row
-      inScope
-      isOwn
-      distinctCalls
-      distinctEngagedHcps
-      responseCount
+/** Extension of the foundation contract (added during integration) for the territory map. */
+export const GEO_ACTIVITY_QUERY = /* GraphQL */ `
+  query GeoActivity($from: AWSDate, $to: AWSDate) {
+    geoActivity(from: $from, to: $to) {
+      from
+      to
+      dataThrough
+      scopeLabel
+      territories {
+        territoryId
+        name
+        regionId
+        regionName
+        countryCode
+        countryName
+        subdivisionCode
+        subdivisionName
+        latitude
+        longitude
+        isOwn
+        distinctCalls
+        suppressed
+      }
+      countries {
+        countryCode
+        countryName
+        territoryCount
+        distinctCalls
+        suppressed
+      }
     }
   }
 `

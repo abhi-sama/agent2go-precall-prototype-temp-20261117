@@ -11,10 +11,12 @@ import {
   type EvidenceRecord,
   type Flag,
   type IsoDate,
+  type GeoActivity,
+  type GeoCountry,
+  type GeoTerritory,
   type LandingKpis,
   type Me,
   type RequestContext,
-  type TerritoryActivity,
 } from "./types"
 
 export type MockScenario = "ok" | "empty" | "error" | "forbidden" | "slow" | "stale"
@@ -54,6 +56,9 @@ const MOCK_CHANNELS = [
 ] as const
 
 const monthEnd = (first: IsoDate): IsoDate => addDays(addMonths(first, 1), -1)
+
+/** Smallest group an aggregate-only viewer is shown (matches the API). */
+export const GEO_MIN_CELL = 5
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -133,30 +138,52 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       }
     },
 
-    async territoryActivity(ctx, partial): Promise<TerritoryActivity[]> {
-      const s = await gate(ctx, "territoryActivity")
+    async geoActivity(ctx, partial): Promise<GeoActivity> {
+      const s = await gate(ctx, "geoActivity")
       const user = findUser(options.getUserId())
       if (s === "forbidden" || user.persona === "admin") {
         throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
       }
+      if (user.territoryIds.length === 0) {
+        throw new DataError("NO_SCOPE", "No territory is assigned to your account.", ctx.correlationId)
+      }
       const range = resolveRange(partial)
-      return TERRITORIES.map((t) => {
-        const inScope = user.territoryIds.includes(t.id)
-        const m = inScope && s !== "empty" ? metricsFor(t, range) : { calls: 0, hcps: 0, responses: 0 }
+      // Like the API: only in-scope territories exist in the response, and an aggregate-only
+      // persona (executive) never sees a small group.
+      const aggregateOnly = user.persona === "executive"
+      const inScope = TERRITORIES.filter((t) => user.territoryIds.includes(t.id))
+      const calls = new Map(inScope.map((t) => [t.id, s === "empty" ? 0 : metricsFor(t, range).calls]))
+      const hide = (n: number) => aggregateOnly && n < GEO_MIN_CELL
+
+      const territories: GeoTerritory[] = inScope.map((t) => ({
+        territoryId: t.id,
+        name: t.name,
+        regionId: t.regionId,
+        regionName: REGIONS.find((r) => r.id === t.regionId)?.name ?? t.regionId,
+        countryCode: t.countryCode,
+        countryName: t.countryName,
+        subdivisionCode: t.subdivisionCode,
+        subdivisionName: t.subdivisionName,
+        latitude: t.latitude,
+        longitude: t.longitude,
+        isOwn: user.persona === "msl",
+        distinctCalls: hide(calls.get(t.id)!) ? null : calls.get(t.id)!,
+        suppressed: hide(calls.get(t.id)!),
+      }))
+      const countries: GeoCountry[] = [...new Set(inScope.map((t) => t.countryCode))].sort().map((code) => {
+        const members = inScope.filter((t) => t.countryCode === code)
+        const total = members.reduce((n, t) => n + calls.get(t.id)!, 0)
+        // Hide a country total when any part of it is hidden, so a hidden part cannot be subtracted back out.
+        const suppressed = hide(total) || members.some((t) => hide(calls.get(t.id)!))
         return {
-          territoryId: t.id,
-          name: t.name,
-          regionId: t.regionId,
-          regionName: REGIONS.find((r) => r.id === t.regionId)?.name ?? t.regionId,
-          col: t.col,
-          row: t.row,
-          inScope,
-          isOwn: user.persona === "msl" && inScope,
-          distinctCalls: m.calls,
-          distinctEngagedHcps: m.hcps,
-          responseCount: m.responses,
+          countryCode: code,
+          countryName: members[0].countryName,
+          territoryCount: members.length,
+          distinctCalls: suppressed ? null : total,
+          suppressed,
         }
       })
+      return { from: range.from, to: range.to, dataThrough: dataThrough(s), scopeLabel: user.scopeLabel, territories, countries }
     },
 
     async activityTrends(ctx, months = 12): Promise<ActivityTrends> {

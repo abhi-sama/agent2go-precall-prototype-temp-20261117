@@ -45,6 +45,8 @@ export const ALLOWED_FIELDS: ReadonlySet<string> = new Set([
   "reduced_motion",
   "webgl",
   "stale",
+  "view",
+  "country_code",
 ])
 
 const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/g

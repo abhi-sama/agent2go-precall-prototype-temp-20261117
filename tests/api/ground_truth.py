@@ -38,3 +38,26 @@ def region_territories(db: psycopg.Connection, region: str) -> list[str]:
         (region,),
     ).fetchall()
     return sorted(r[0] for r in rows)
+
+
+def calls_by_territory(db: psycopg.Connection, territories: list[str], frm: str, to: str) -> dict[str, int]:
+    rows = db.execute(
+        """SELECT g.territory_id, count(DISTINCT c.crm_call_id)
+           FROM territory_geography g
+           LEFT JOIN call_activity c ON c.territory_id = g.territory_id AND c.call_dt BETWEEN %s AND %s
+           WHERE g.territory_id = ANY(%s) GROUP BY g.territory_id""",
+        (frm, to, territories),
+    ).fetchall()
+    return dict(rows)
+
+
+def calls_by_country(db: psycopg.Connection, territories: list[str], frm: str, to: str) -> dict[str, int]:
+    """Distinct calls per country, counted over the country's territories at once."""
+    rows = db.execute(
+        """SELECT g.country_code, count(DISTINCT c.crm_call_id)
+           FROM territory_geography g
+           LEFT JOIN call_activity c ON c.territory_id = g.territory_id AND c.call_dt BETWEEN %s AND %s
+           WHERE g.territory_id = ANY(%s) GROUP BY g.country_code""",
+        (frm, to, territories),
+    ).fetchall()
+    return dict(rows)

@@ -29,7 +29,8 @@ test("a seeded MSL signs in with email and password and sees own-territory KPIs"
   await expect(page.getByTestId("persona-switch")).toContainText(msl.fullName)
   await expect.poll(() => kpi(page, "calls")).toBeGreaterThan(0)
   expect(await kpi(page, "hcps")).toBeLessThanOrEqual(await kpi(page, "calls"))
-  await expect(page.getByTestId("territory-visual")).toBeVisible()
+  await expect(page.getByTestId("territory-map")).toBeVisible()
+  await expect(page.getByTestId("territory-map")).toHaveAttribute("data-lit", "T01-01")
 
   await page.getByTestId("sign-out").click()
   await expect(page).toHaveURL(/\/login/)

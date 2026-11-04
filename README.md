@@ -45,7 +45,7 @@ The decisions behind this are in [docs/adr/](docs/adr/).
 
 | Path | What |
 |---|---|
-| `frontend/` | Next.js App Router app (TypeScript, Tailwind, shadcn/ui, React Three Fiber, ECharts) |
+| `frontend/` | Next.js App Router app (TypeScript, Tailwind, shadcn/ui, react-globe.gl (three.js), ECharts) |
 | `frontend/amplify/` | Amplify Gen2 backend: Cognito (persona groups) and the AppSync API whose resolvers call the BE Lambda |
 | `backend/lambdas/api/` | BE API Lambda: token verification, claims-win identity, RLS-scoped resolvers |
 | `backend/libs/a2g_logging/` | Structured JSON logging with allowlist redaction, for every Python service |

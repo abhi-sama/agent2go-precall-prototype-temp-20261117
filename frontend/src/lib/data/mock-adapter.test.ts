@@ -29,17 +29,32 @@ describe("mock adapter", () => {
     const dirA = make("u-dir-ne")
     const dir = await dirA.landingKpis(ctx, range)
     expect(dir.distinctCalls).toBeGreaterThan(msl.distinctCalls)
-    const tiles = await dirA.territoryActivity!(ctx, range)
-    expect(tiles).toHaveLength(24)
-    expect(tiles.filter((t) => t.inScope)).toHaveLength(6)
-    expect(tiles.filter((t) => t.inScope).reduce((n, t) => n + t.distinctCalls, 0)).toBe(dir.distinctCalls)
+    const geo = await dirA.geoActivity(ctx, range)
+    expect(geo.territories).toHaveLength(6)
+    expect(geo.territories.reduce((n, t) => n + (t.distinctCalls ?? 0), 0)).toBe(dir.distinctCalls)
+    expect(geo.countries.reduce((n, c) => n + (c.distinctCalls ?? 0), 0)).toBe(dir.distinctCalls)
+    expect(geo.countries.map((c) => c.countryCode)).toEqual(["CA", "US"])
+    expect(geo).toMatchObject({ from: range.from, to: range.to })
   })
 
-  it("out-of-scope territories carry no data", async () => {
-    const tiles = await make("u-msl-ne-01").territoryActivity!(ctx, range)
-    for (const t of tiles.filter((x) => !x.inScope)) {
-      expect([t.distinctCalls, t.distinctEngagedHcps, t.responseCount]).toEqual([0, 0, 0])
-    }
+  it("the map holds only in-scope territories, with real locations", async () => {
+    const geo = await make("u-msl-ne-01").geoActivity(ctx, range)
+    expect(geo.territories.map((t) => [t.territoryId, t.subdivisionCode, t.countryCode, t.isOwn])).toEqual([["NE-01", "MA", "US", true]])
+    expect(geo.countries).toEqual([{ countryCode: "US", countryName: "United States", territoryCount: 1, distinctCalls: geo.territories[0].distinctCalls, suppressed: false }])
+    expect(JSON.stringify(geo)).not.toMatch(/NE-02|SE-0|Toronto/)
+  })
+
+  it("the executive sees every country, but small groups are hidden from aggregate-only viewers", async () => {
+    const exec = make("u-exec-all")
+    const geo = await exec.geoActivity(ctx, range)
+    expect(geo.territories).toHaveLength(24)
+    expect(geo.countries.map((c) => c.countryCode)).toEqual(["BR", "CA", "DE", "FR", "GB", "JP", "US"])
+    expect(geo.territories.filter((t) => t.countryCode === "US")).toHaveLength(18)
+    const oneDay = await exec.geoActivity(ctx, { from: "2026-11-03", to: "2026-11-03" })
+    expect(oneDay.territories.every((t) => t.suppressed && t.distinctCalls === null)).toBe(true)
+    expect(oneDay.countries.every((c) => c.suppressed && c.distinctCalls === null)).toBe(true)
+    const record = await make("u-dir-ne").geoActivity(ctx, { from: "2026-11-03", to: "2026-11-03" })
+    expect(record.territories.some((t) => t.suppressed)).toBe(false)
   })
 
   it("longer ranges give more calls", async () => {
@@ -56,8 +71,9 @@ describe("mock adapter", () => {
     await expect(make("u-msl-ne-01", "forbidden").landingKpis(ctx, range)).rejects.toBeInstanceOf(DataError)
   })
 
-  it("administrators get no clinical KPIs", async () => {
+  it("administrators get no clinical KPIs and no map", async () => {
     await expect(make("u-admin-sec").landingKpis(ctx, range)).rejects.toMatchObject({ code: "FORBIDDEN" })
+    await expect(make("u-admin-sec").geoActivity(ctx, range)).rejects.toMatchObject({ code: "FORBIDDEN" })
   })
 
   it("parses scenario only from known values", () => {

@@ -5,6 +5,8 @@
  *                      from: AWSDate!, to: AWSDate!, dataThrough: AWSDateTime, scopeLabel: String! }
  *   type Me { userId: ID!, fullName: String!, email: String!, persona: String!, scopeLabel: String! }
  *   type Query { me: Me!, landingKpis(from: AWSDate, to: AWSDate): LandingKpis! }
+ *
+ * `geoActivity` extends the contract for the territory map (schema.graphql has the full types).
  */
 
 export const PERSONAS = ["msl", "director", "executive", "admin"] as const
@@ -45,24 +47,43 @@ export interface RequestContext {
 }
 
 /**
- * Per-territory activity for the 3D territory visual (`territoryActivity` query, added to the
- * contract during integration). The AppSync API returns only in-scope territories; the mock may
- * also return locked out-of-scope tiles.
+ * Territory map data (`geoActivity` query). The API returns only territories in the caller's
+ * effective scope, so there is nothing to lock or hide on the client: whatever arrives may be shown.
  */
-export interface TerritoryActivity {
+export interface GeoTerritory {
   territoryId: string
+  /** The territory's primary city. */
   name: string
   regionId: string
   regionName: string
-  /** Layout slot in the schematic map, not geography. */
-  col: number
-  row: number
-  /** False means the viewer's scope excludes it: drawn as a locked tile, with no metrics. */
-  inScope: boolean
+  /** ISO 3166-1 alpha-2. */
+  countryCode: string
+  countryName: string
+  /** USPS code for the United States, the local code elsewhere. */
+  subdivisionCode: string
+  subdivisionName: string
+  latitude: number
+  longitude: number
   isOwn: boolean
-  distinctCalls: number
-  distinctEngagedHcps: number
-  responseCount: number
+  /** Null when `suppressed`: an aggregate-only viewer is never shown a small group. */
+  distinctCalls: number | null
+  suppressed: boolean
+}
+
+/** Distinct calls across a country's in-scope territories (counted once, not summed per territory). */
+export interface GeoCountry {
+  countryCode: string
+  countryName: string
+  territoryCount: number
+  distinctCalls: number | null
+  suppressed: boolean
+}
+
+export interface GeoActivity extends DateRange {
+  dataThrough: IsoDateTime | null
+  scopeLabel: string
+  territories: GeoTerritory[]
+  countries: GeoCountry[]
 }
 
 /** One calendar month of the caller's activity. Counts only: there is no target, rank or score. */

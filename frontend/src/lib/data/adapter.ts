@@ -5,11 +5,11 @@ import type {
   DateRange,
   Flag,
   FlagInput,
+  GeoActivity,
   IsoDate,
   LandingKpis,
   Me,
   RequestContext,
-  TerritoryActivity,
 } from "./types"
 
 /**
@@ -22,8 +22,8 @@ export interface DataAdapter {
   me(ctx: RequestContext): Promise<Me>
   /** `range` omitted lets the backend choose its default window. */
   landingKpis(ctx: RequestContext, range?: Partial<DateRange>): Promise<LandingKpis>
-  /** Optional; see `TerritoryActivity` (not in the contract). */
-  territoryActivity?(ctx: RequestContext, range?: Partial<DateRange>): Promise<TerritoryActivity[]>
+  /** Distinct calls per territory and country, for the globe and the flat map. See `GeoActivity`. */
+  geoActivity(ctx: RequestContext, range?: Partial<DateRange>): Promise<GeoActivity>
   /** Monthly distinct calls, distinct HCPs and channel mix for the last `months` months. */
   activityTrends(ctx: RequestContext, months?: number): Promise<ActivityTrends>
   /** The distinct calls or HCPs behind one chart point: a month, optionally one channel. */

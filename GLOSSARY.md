@@ -59,6 +59,11 @@ _Avoid_: entitlement row, territory assignment (roster sense)
 Everything a user is authorized for at a moment: their persona's permissions plus their effective scope.
 _Avoid_: access rights, ACL
 
+**Territory map**:
+The landing-page view that colours the viewer's own scope by distinct calls on real geography: a 3D globe with a marker per country (Executives), then a flat map of a country's states or territories, then one territory.
+Every territory sits in one real US state or one real country.
+_Avoid_: territory visual, heat map
+
 **Scope**:
 The set of territories a user's in-effect scope assignments cover, including descendants in the hierarchy.
 _Avoid_: visibility, coverage (coverage means engaged HCPs over a target population)
