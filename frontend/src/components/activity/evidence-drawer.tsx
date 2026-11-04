@@ -117,7 +117,7 @@ function EvidenceView({
                 type="button"
                 aria-pressed={metric === m}
                 onClick={() => onStateChange({ ...state, metric: m, channel: m === "HCPS" ? null : channel })}
-                className={cn("min-h-10 rounded-lg px-3 text-sm font-medium", metric === m ? "bg-background shadow-sm" : "text-muted-foreground")}
+                className={cn("min-h-11 rounded-lg px-4 text-sm font-medium", metric === m ? "bg-background shadow-sm" : "text-muted-foreground")}
               >
                 {m === "CALLS" ? "Calls" : "HCPs"}
               </button>

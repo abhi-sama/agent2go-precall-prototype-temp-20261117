@@ -4,9 +4,14 @@ import type { Feature, Polygon, MultiPolygon } from "geojson"
 import * as React from "react"
 import Globe, { type GlobeMethods } from "react-globe.gl"
 import { MeshPhongMaterial } from "three"
+import { angleBetween, declutter } from "./declutter"
 import type { MapColors } from "./map-colors"
 
 type CountryShape = Feature<Polygon | MultiPolygon, { name: string }>
+
+const DEFAULT_ALTITUDE = 1.9
+const CAMERA_FOV = 50
+const MARKER_PX = 44
 
 export interface GlobeCountry {
   code: string
@@ -28,14 +33,6 @@ export interface GlobeViewProps {
   onReady?: () => void
 }
 
-/** Great-circle angle in radians between two lat/lng points given in degrees. */
-function angleBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const rad = Math.PI / 180
-  const cos =
-    Math.sin(a.lat * rad) * Math.sin(b.lat * rad) + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos((a.lng - b.lng) * rad)
-  return Math.acos(Math.min(1, Math.max(-1, cos)))
-}
-
 /**
  * Interactive 3D globe (react-globe.gl, three.js) drawn from the bundled country shapes: no
  * texture or tile download. Drag to rotate (mouse or touch). Each country with activity gets a
@@ -52,6 +49,16 @@ export default function GlobeView({ shapes, countries, colors, focus, onSelectCo
   React.useEffect(() => {
     select.current = onSelectCountry
   })
+
+  // Markers are 44pt tap targets, so neighbours such as DE / FR / GB would overlap at the default zoom. Nudge them apart
+  // by the angle 44pt spans on this globe (the camera sits at altitude 1.9, 50 degree field of view); outlines stay put.
+  const markers = React.useMemo(() => {
+    if (size.height <= 0) return countries
+    const globeRadiusPx = size.height / (2 * (1 + DEFAULT_ALTITUDE) * Math.tan((CAMERA_FOV / 2) * (Math.PI / 180)))
+    const minAngle = Math.min(0.6, (MARKER_PX * 1.3) / globeRadiusPx)
+    const moved = declutter(countries, minAngle)
+    return countries.map((c, i) => ({ ...c, lat: moved[i].lat, lng: moved[i].lng }))
+  }, [countries, size.height])
 
   React.useEffect(() => {
     const el = wrap.current
@@ -82,7 +89,7 @@ export default function GlobeView({ shapes, countries, colors, focus, onSelectCo
     if (!g || countries.length === 0) return
     const lat = countries.reduce((n, c) => n + c.lat, 0) / countries.length
     const lng = countries.reduce((n, c) => n + c.lng, 0) / countries.length
-    g.pointOfView({ lat: Math.max(-35, Math.min(55, lat)), lng, altitude: 1.9 }, 0)
+    g.pointOfView({ lat: Math.max(-35, Math.min(55, lat)), lng, altitude: DEFAULT_ALTITUDE }, 0)
     // Only on first measure; later data changes must not yank the camera.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.width > 0])
@@ -137,7 +144,7 @@ export default function GlobeView({ shapes, countries, colors, focus, onSelectCo
             const code = (d as CountryShape).properties.name
             if (colorByCode.has(code)) select.current(code)
           }}
-          htmlElementsData={countries}
+          htmlElementsData={markers}
           htmlLat="lat"
           htmlLng="lng"
           htmlAltitude={0.06}

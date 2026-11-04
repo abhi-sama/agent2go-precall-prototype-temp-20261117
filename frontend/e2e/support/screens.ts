@@ -1,0 +1,188 @@
+import { expect, type Page } from "@playwright/test"
+
+/**
+ * Every screen (and meaningful screen state) merged to main, checked at every viewport in `viewports.ts` by
+ * `responsive.spec.ts`. A later ticket adds its screens by appending entries here; nothing else changes.
+ *
+ * - `userId`: the seeded persona (fixtures.ts) the screen is opened as; omit for the default MSL.
+ * - `path`: route, optionally with `?scenario=` for mock-adapter states.
+ * - `ready`: wait until the screen has finished loading (data on screen, not skeletons).
+ * - `prepare`: drive the screen into the state under test (open a drawer, run a search). Optional.
+ */
+export interface ScreenSpec {
+  /** Unique, kebab-case: used in test titles and screenshot file names. */
+  name: string
+  path: string
+  userId?: string
+  ready: (page: Page) => Promise<void>
+  prepare?: (page: Page) => Promise<void>
+}
+
+const heading = (name: string, level = 1) => (page: Page) =>
+  expect(page.getByRole("heading", { level, name })).toBeVisible()
+const testId = (id: string) => (page: Page) => expect(page.getByTestId(id).first()).toBeVisible()
+
+/** Waits until the 3D globe's markers stop moving (the camera is placed a frame or two after mount, slower under load). */
+async function globeSettled(page: Page) {
+  const read = () => page.evaluate(() => [...document.querySelectorAll("[data-testid^=globe-marker-]")].map((el) => { const r = el.getBoundingClientRect(); return `${el.textContent}:${Math.round(r.left)},${Math.round(r.top)}` }).join("|"))
+  let previous = ""
+  await expect.poll(async () => { const now = await read(); const stable = now !== "" && now === previous; previous = now; return stable }, { intervals: [300], timeout: 15_000 }).toBe(true)
+}
+
+export const SCREENS: ScreenSpec[] = [
+  { name: "login", path: "/login", ready: async (page) => { await expect(page.locator("main, form").first()).toBeVisible() } },
+  {
+    name: "msl-landing",
+    path: "/msl",
+    ready: async (page) => {
+      await heading("My territory")(page)
+      await testId("kpi-calls")(page)
+      await expect(page.getByTestId("territory-map")).toBeVisible()
+      await testId("semantic-search")(page)
+    },
+  },
+  {
+    name: "msl-landing-hcp-profile",
+    path: "/msl",
+    ready: testId("hcp-search-input"),
+    prepare: async (page) => {
+      await page.getByTestId("hcp-search-input").fill("call system")
+      await page.getByTestId("hcp-search-submit").click()
+      await page.getByTestId("hcp-result-HCP-0001").click()
+      await expect(page.getByTestId("hcp-profile")).toBeVisible()
+    },
+  },
+  {
+    name: "msl-landing-semantic-search",
+    path: "/msl",
+    ready: testId("semantic-search"),
+    prepare: async (page) => {
+      await page.getByLabel("Search insight responses").fill("evidence access")
+      await page.getByRole("button", { name: "Search insights" }).click()
+      await expect(page.getByTestId("semantic-search").locator("li").first()).toBeVisible()
+    },
+  },
+  {
+    name: "msl-landing-filters",
+    path: "/msl",
+    ready: testId("filter-bar"),
+    prepare: async (page) => {
+      await page.locator("#filter-question").selectOption("Q-0001")
+      await expect(page.getByTestId("distribution-Q-0001")).toBeVisible()
+    },
+  },
+  {
+    name: "msl-activity",
+    path: "/msl/activity",
+    ready: async (page) => {
+      await heading("My activity")(page)
+      for (const id of ["chart-calls", "chart-hcps", "chart-channels"]) await testId(id)(page)
+    },
+  },
+  {
+    name: "msl-activity-evidence",
+    path: "/msl/activity",
+    ready: testId("evidence-open-calls"),
+    prepare: async (page) => {
+      await page.getByTestId("evidence-open-calls").click()
+      await expect(page.getByTestId("evidence-table")).toBeVisible()
+    },
+  },
+  {
+    name: "msl-activity-flag-form",
+    path: "/msl/activity",
+    ready: testId("flag-open"),
+    prepare: async (page) => {
+      await page.getByTestId("flag-open").click()
+      await expect(page.getByTestId("flag-form")).toBeVisible()
+    },
+  },
+  {
+    name: "director-landing",
+    path: "/director",
+    userId: "u-dir-ne",
+    ready: async (page) => {
+      await heading("My region")(page)
+      await testId("director-overview")(page)
+      await testId("team-heatmap")(page)
+      await testId("mix-ranked")(page)
+    },
+  },
+  {
+    name: "director-landing-targets",
+    path: "/director?scenario=targets",
+    userId: "u-dir-ne",
+    ready: async (page) => { await testId("director-overview")(page); await testId("coverage-available")(page) },
+  },
+  {
+    name: "executive-landing",
+    path: "/executive",
+    userId: "u-exec-all",
+    ready: async (page) => {
+      await testId("kpi-calls")(page)
+      await expect(page.getByTestId("territory-map")).toHaveAttribute("data-renderer", "globe")
+      await expect(page.getByTestId("globe")).toBeVisible()
+      await globeSettled(page)
+    },
+  },
+  {
+    name: "executive-country-map",
+    path: "/executive",
+    userId: "u-exec-all",
+    ready: testId("country-option-BR"),
+    prepare: async (page) => {
+      await page.getByTestId("country-option-BR").click()
+      await expect(page.getByTestId("territory-map")).toHaveAttribute("data-view", "country", { timeout: 15_000 })
+      await expect(page.getByTestId("flat-map-canvas")).toBeVisible()
+    },
+  },
+  {
+    name: "admin",
+    path: "/admin",
+    userId: "u-admin-sec",
+    ready: async (page) => {
+      await heading("Administration")(page)
+      await expect(page.getByRole("heading", { level: 2, name: "Role permission matrix" })).toBeVisible()
+      await testId("access-audit-filters")(page)
+    },
+  },
+  { name: "admin-governance", path: "/admin/governance", userId: "u-admin-sec", ready: heading("Hierarchy and coverage") },
+  ...["Access timeline", "Catalog and responses"].map((tab): ScreenSpec => ({
+    name: `admin-governance-${tab.toLowerCase().replace(/\s+/g, "-")}`,
+    path: "/admin/governance",
+    userId: "u-admin-sec",
+    ready: heading("Hierarchy and coverage"),
+    prepare: async (page) => {
+      await page.getByRole("tab", { name: tab }).click()
+      await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true")
+    },
+  })),
+  { name: "chat", path: "/chat", ready: async (page) => { await heading("Ask the agent")(page); await testId("chat-input")(page) } },
+  {
+    name: "chat-answer",
+    path: "/chat",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+    },
+  },
+  {
+    name: "chat-citation",
+    path: "/chat",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await page.getByTestId("citation").first().click()
+      await expect(page.getByTestId("citation-sheet")).toBeVisible()
+    },
+  },
+  { name: "design-system", path: "/design", ready: async (page) => { await heading("Design system")(page); await testId("echart")(page) } },
+  // Error and empty states share the shell; one MSL state each keeps the matrix quick.
+  { name: "msl-landing-empty", path: "/msl?scenario=empty", ready: testId("state-empty") },
+  { name: "msl-landing-error", path: "/msl?scenario=error", ready: testId("state-error") },
+  { name: "role-gate", path: "/executive", ready: testId("role-gate") },
+]

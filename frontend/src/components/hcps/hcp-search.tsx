@@ -23,7 +23,7 @@ const PROFILE_FIELDS: readonly { key: "specialty" | "discipline" | "type" | "ins
 
 function Fact({ field }: { field: HcpField }) {
   if (field.state === "MISSING") {
-    return <span className="inline-flex items-center gap-2 text-muted-foreground"><Badge variant="outline">Missing</Badge>Not available</span>
+    return <span className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground"><Badge variant="outline">Missing</Badge>Not available</span>
   }
   // An empty source value is deliberately not styled as a missing one.
   return <span>{field.value === "" ? "Empty value" : field.value}</span>
