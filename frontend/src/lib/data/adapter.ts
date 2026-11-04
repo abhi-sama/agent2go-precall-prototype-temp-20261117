@@ -19,6 +19,10 @@ import type {
   Flag,
   FlagInput,
   GeoActivity,
+  ExecutiveDrilldown,
+  ExecutiveDrilldownInput,
+  ExecutiveOverview,
+  ExecutiveOverviewInput,
   HcpProfile,
   HcpSearchResult,
   HcpTimeline,
@@ -66,6 +70,10 @@ export interface DataAdapter extends GovernanceAdapter {
   directorOverview(ctx: RequestContext, range?: Partial<DateRange>): Promise<DirectorOverview>
   /** 2 to 6 in-scope territories over one identical window and one set of definitions. */
   territoryComparison(ctx: RequestContext, territoryIds: string[], range?: Partial<DateRange>): Promise<TerritoryComparison>
+  /** Aggregate-only enterprise overview for an Executive: explicit scope only, small groups withheld. */
+  executiveOverview(ctx: RequestContext, input?: ExecutiveOverviewInput): Promise<ExecutiveOverview>
+  /** The calls or responses behind one chart point. Refused (FORBIDDEN) without explicit record-level permission. */
+  executiveDrilldown(ctx: RequestContext, input: ExecutiveDrilldownInput): Promise<ExecutiveDrilldown>
   /** The caller's own flags, newest first. */
   myFlags(ctx: RequestContext): Promise<Flag[]>
   /** Raise a flag. Flagging the same open item again returns the existing flag. */

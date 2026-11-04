@@ -1,0 +1,19 @@
+# The Executive overview is aggregate-only, scoped by explicit assignments, with small groups withheld
+
+The Executive's overview (`executiveOverview`) and record drill-down (`executiveDrilldown`) are BE Lambda fields on the approved path (ADR 0001). Both are refused to every persona but Executive.
+
+## Decisions
+
+- **Scope is an explicit executive assignment.** `app.executive_scope_territories()` resolves only in-effect `user_scope_assignments` of type `executive`, plus descendants in the hierarchy. A primary, temporary or administrative assignment grants no executive scope, and nothing is read from roster labels (`medical_roster.region_name`). An Executive with no in-effect executive assignment gets `NoScope`; an expired or future-dated one grants nothing.
+- **Aggregate numbers come from SECURITY DEFINER functions, not RLS.** An Executive holds `aggregate.read` and no `source.records.read`, so RLS returns no source rows. Migration 009 adds `exec_cells`, `exec_reporting`, `exec_loads`, `exec_channel_mix`, `exec_hcp_depth` and `exec_coverage`. Each starts from the executive scope function, requires `aggregate.read` and the Executive persona, and returns counts, never rows or identifiers. `exec_cells` computes totals, months, regions, territories and territory-months in one query so every level uses identical definitions.
+- **Small-group disclosure (`MIN_CELL = 5`).** A count between 1 and 4 is withheld: the response carries `suppressed: true` and no value. Zero identifies nobody and is shown. When exactly one component of a shown total is withheld, the smallest other positive component is withheld as well (complementary suppression), so it cannot be recovered by subtraction. Territories are suppressed within their region, and a withheld region hides all of its territories. Engaged HCPs are measured on the same call rows, so a unit whose calls are withheld has its HCP count withheld too (an HCP count is a lower bound on calls). Withheld units are unranked. The rule is deterministic code (`executive.suppress_flags`, mirrored by the mock in `disclosure.ts`).
+- **Record-level permission is `source.records.read`.** It is granted through a role, separately from `aggregate.read` and from scope. An Executive holding it is no longer aggregate-only: nothing is suppressed for them (`accessLevel: RECORD_DRILLDOWN`) and `executiveDrilldown` opens. Without it the drill-down is `Forbidden`. It also needs the territory or region to be in the Executive's explicit scope: an out-of-scope id and a nonexistent id get the same `Forbidden`. Permission never widens scope, and scope never grants permission.
+- **One window, one definition set.** Regions and territories are ranked under a single window and `definitionVersion` (`executive-overview-v1`), by one metric chosen from a fixed list. Months after data-through are left out, not shown as zero. Reporting completeness is territory-months with a recorded call over territories x months data-through has reached.
+- **Coverage** follows ADR 0008: withheld without an approved target population, and withheld (`SUPPRESSED`) when that population is itself a small group.
+- **Logging** carries ids, counts and enums only (territory count, suppressed-cell count, rank metric), never names, HCP ids or response text.
+
+## Consequences
+
+- `landingKpis` stays refused for Executives (record-level counts would read as zero); the Executive landing uses `executiveOverview` instead.
+- A suppressed cell protects individuals, not totals: complementary suppression covers each partition (months, regions, territories within a region, channels, call-depth bands) separately. Differencing across two different partitions of the same total is out of scope for this rule.
+- Follow-ups: an audit event per drill-down (a write path for aggregate-persona reads), exports of the aggregate view, and the cross-region themes of ticket 13.

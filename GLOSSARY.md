@@ -92,6 +92,18 @@ _Avoid_: active flag
 Permission to see counts and distributions with small-group suppression, without individual records.
 _Avoid_: summary access
 
+**Small-group suppression**:
+Withholding any count between 1 and 4 from an aggregate-only view, and the next-smallest value in the same total, so no individual and no withheld value can be worked out. Withheld is never shown as zero.
+_Avoid_: masking, redaction
+
+**Executive scope**:
+The territories an Executive is explicitly authorized for: in-effect scope assignments of type executive and their descendants. Never inferred from roster labels or from other assignment types.
+_Avoid_: regional access
+
+**Record-level permission**:
+The explicit grant (`source.records.read`) that lets an Executive open the records behind an aggregate. Separate from aggregate access and from scope.
+_Avoid_: drill-down right
+
 **Catalog visibility**:
 Permission to see catalog questions, granted separately from permission to see HCP responses; seeing a question never grants seeing its responses.
 

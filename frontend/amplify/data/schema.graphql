@@ -280,6 +280,168 @@ type TerritoryComparison {
   disclosures: [Disclosure!]!
 }
 
+"""
+A count that may be withheld. `value` is null exactly when `suppressed` is true: the group is too small to
+show, or showing it would let a withheld group be worked out by subtraction.
+"""
+type SuppressedCount {
+  value: Int
+  suppressed: Boolean!
+}
+
+enum ExecutiveAccessLevel {
+  AGGREGATE_ONLY
+  RECORD_DRILLDOWN
+}
+
+enum ExecutiveRankBy {
+  CALLS
+  RESPONSES
+  ENGAGED_HCPS
+  CALLS_PER_TERRITORY
+  COMPLETENESS
+}
+
+enum ExecutiveUnitLevel {
+  REGION
+  TERRITORY
+}
+
+enum ExecutiveFreshnessStatus {
+  CURRENT
+  PARTIAL
+  NO_DATA
+}
+
+enum ExecutiveDrilldownKind {
+  CALLS
+  RESPONSES
+}
+
+type DisclosureRule {
+  minCell: Int!
+  text: String!
+  suppressedCells: Int!
+  "False when the viewer holds record-level permission, so nothing is withheld."
+  applied: Boolean!
+}
+
+type ExecutiveKpis {
+  calls: SuppressedCount!
+  responses: SuppressedCount!
+  engagedHcps: SuppressedCount!
+  regionsInScope: Int!
+  territoriesInScope: Int!
+  "Percent of territory-months with at least one recorded call."
+  reportingCompleteness: Float
+}
+
+type ExecutiveFreshness {
+  status: ExecutiveFreshnessStatus!
+  callsLoadedThrough: AWSDateTime
+  responsesLoadedThrough: AWSDateTime
+  sourceLagDays: Int
+  monthsShown: Int!
+}
+
+type ExecutiveMonth {
+  month: AWSDate!
+  isPartial: Boolean!
+  calls: SuppressedCount!
+  responses: SuppressedCount!
+  engagedHcps: SuppressedCount!
+  territoriesReporting: Int!
+  territoriesInScope: Int!
+  reportingCompleteness: Float!
+}
+
+type ExecutiveUnit {
+  "Null for a unit whose ranking value is withheld."
+  rank: Int
+  id: ID!
+  name: String!
+  level: ExecutiveUnitLevel!
+  regionId: ID!
+  regionName: String!
+  territoriesInScope: Int!
+  calls: SuppressedCount!
+  responses: SuppressedCount!
+  engagedHcps: SuppressedCount!
+  callsPerTerritory: Float
+  reportingCompleteness: Float
+}
+
+type ExecutiveDepthBand {
+  band: String!
+  hcps: SuppressedCount!
+}
+
+type ExecutiveChannel {
+  channel: String!
+  calls: SuppressedCount!
+}
+
+type ExecutiveCoverage {
+  status: String!
+  percentage: Float
+  territoriesWithTargets: Int!
+  territoriesInScope: Int!
+}
+
+type ExecutiveEngagement {
+  engagedHcps: SuppressedCount!
+  callsPerEngagedHcp: Float
+  depth: [ExecutiveDepthBand!]!
+  channels: [ExecutiveChannel!]!
+  coverage: ExecutiveCoverage!
+}
+
+"Aggregate-only enterprise view over the viewer's explicitly authorized regions."
+type ExecutiveOverview {
+  from: AWSDate!
+  to: AWSDate!
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+  accessLevel: ExecutiveAccessLevel!
+  drilldownAllowed: Boolean!
+  definitionVersion: String!
+  definitions: [OverviewDefinition!]!
+  disclosure: DisclosureRule!
+  rankBy: ExecutiveRankBy!
+  kpis: ExecutiveKpis!
+  freshness: ExecutiveFreshness!
+  months: [ExecutiveMonth!]!
+  regions: [ExecutiveUnit!]!
+  territories: [ExecutiveUnit!]!
+  engagement: ExecutiveEngagement!
+  notes: [Disclosure!]!
+}
+
+type ExecutiveRecord {
+  recordId: ID!
+  kind: String!
+  territoryId: ID!
+  hcpId: ID
+  hcpName: String
+  "The channel of a call, or the catalog question id of a response."
+  detail: String
+  responseText: String
+  interactionDate: AWSDate
+  loadedAt: AWSDateTime
+}
+
+"Supporting records behind one chart point. Only for an Executive with explicit record-level permission."
+type ExecutiveDrilldown {
+  scopeId: ID!
+  kind: ExecutiveDrilldownKind!
+  month: AWSDate!
+  total: Int!
+  truncated: Boolean!
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+  records: [ExecutiveRecord!]!
+}
+
 enum FlagKind {
   SUMMARY
   IDENTIFIER
@@ -732,6 +894,10 @@ type Query {
   directorOverview(from: AWSDate, to: AWSDate): DirectorOverview!
   "2 to 6 in-scope territories compared over one identical window and one set of definitions."
   territoryComparison(territoryIds: [ID!]!, from: AWSDate, to: AWSDate): TerritoryComparison!
+  "Aggregate-only enterprise overview for an Executive: explicit scope only, small groups withheld."
+  executiveOverview(from: AWSDate, to: AWSDate, rankBy: ExecutiveRankBy): ExecutiveOverview!
+  "The calls or responses behind one chart point. Refused without explicit record-level permission."
+  executiveDrilldown(scopeId: ID!, kind: ExecutiveDrilldownKind!, month: AWSDate!, limit: Int): ExecutiveDrilldown!
   "The caller's own flags, newest first."
   myFlags: [Flag!]!
   adminAccessOverview: AdminAccessOverview!

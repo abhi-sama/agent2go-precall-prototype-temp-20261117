@@ -152,6 +152,33 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   {
+    name: "executive-overview",
+    path: "/executive",
+    userId: "u-exec-all",
+    ready: async (page) => {
+      await testId("executive-overview")(page)
+      await testId("trend-columns")(page)
+      await testId("ranked-regions")(page)
+      await testId("depth")(page)
+    },
+  },
+  {
+    name: "executive-overview-records",
+    path: "/executive?scenario=records",
+    userId: "u-exec-all",
+    ready: async (page) => { await testId("executive-overview")(page); await testId("drill-open")(page) },
+  },
+  {
+    name: "executive-drilldown",
+    path: "/executive?scenario=records",
+    userId: "u-exec-all",
+    ready: testId("drill-open"),
+    prepare: async (page) => {
+      await page.getByTestId("ranked-regions").getByTestId("drill-open").first().click()
+      await expect(page.getByTestId("drill-row").first()).toBeVisible()
+    },
+  },
+  {
     name: "executive-country-map",
     path: "/executive",
     userId: "u-exec-all",

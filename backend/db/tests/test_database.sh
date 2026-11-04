@@ -57,6 +57,13 @@ expect "$(query_as msl-t01-01 MSL "count(*) FROM app.geo_territories('2026-01-01
 expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) FROM call_activity c LEFT JOIN territory_geography g USING (territory_id) WHERE g.territory_id IS NULL")" "0" "every call territory has a real location"
 expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) FROM call_activity c JOIN territory_geography g USING (territory_id) WHERE c.st_cd <> g.subdivision_code")" "0" "call state agrees with territory location"
 expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) FROM hcp_raw_insights i JOIN territory_geography g USING (territory_id) WHERE i.insight_country <> g.country_code")" "0" "insight country agrees with territory location"
+# Executive overview: scope is explicit executive assignments only, counts only, never rows.
+expect "$(query_as executive-region-01 Executive "count(*) FROM app.executive_scope_territories()")" "7" "executive scope is the assigned region and its territories"
+expect "$(query_as executive-region-01 Executive "count(*) FROM app.exec_units() WHERE territory_id NOT LIKE 'T01-%'")" "0" "executive units never leave the assigned region"
+expect "$(query_as executive-region-01 Executive "calls > 0 FROM app.exec_cells('2026-08-01','2026-10-31') WHERE level = 'TOTAL'")" "t" "executive gets aggregate totals without source rows"
+expect "$(query_as director-region-01 Director "count(*) FROM app.executive_scope_territories()")" "0" "a director has no executive scope"
+expect "$(query_as msl-t01-01 MSL "calls FROM app.exec_cells('2026-08-01','2026-10-31') WHERE level = 'TOTAL'")" "0" "an MSL gets nothing from the executive aggregate path"
+expect "$(query_as executive-region-01 Executive "count(*) FROM call_activity")" "0" "executive still reads no call rows"
 director_outside=$(query_as director-region-01 Director "count(*) FROM call_activity WHERE territory_id LIKE 'T02-%'")
 director_inside=$(query_as director-region-01 Director "count(*) FROM call_activity WHERE territory_id LIKE 'T01-%'")
 if [ "$director_outside" != 0 ] || [ "$director_inside" -le 0 ]; then

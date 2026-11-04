@@ -709,3 +709,124 @@ export interface BriefSummary {
 export interface BriefItemInput { itemId?: string | null; text: string; detail?: string | null }
 export interface BriefEditInput { briefId: string; objective?: string; prompts?: BriefItemInput[]; agenda?: BriefItemInput[] }
 export interface GenerateBriefInput { hcpId: string; objective: string; regeneratesBriefId?: string | null }
+// --- Executive overview (ticket 12): aggregate-only, small groups withheld --------------------------
+
+/** A count that may be withheld: `value` is null exactly when `suppressed` is true. */
+export interface SuppressedCount {
+  value: number | null
+  suppressed: boolean
+}
+
+export type ExecutiveAccessLevel = "AGGREGATE_ONLY" | "RECORD_DRILLDOWN"
+export const EXECUTIVE_RANK_BY = ["CALLS", "RESPONSES", "ENGAGED_HCPS", "CALLS_PER_TERRITORY", "COMPLETENESS"] as const
+export type ExecutiveRankBy = (typeof EXECUTIVE_RANK_BY)[number]
+export type ExecutiveFreshnessStatus = "CURRENT" | "PARTIAL" | "NO_DATA"
+
+export interface ExecutiveKpis {
+  calls: SuppressedCount
+  responses: SuppressedCount
+  engagedHcps: SuppressedCount
+  regionsInScope: number
+  territoriesInScope: number
+  /** Percent (0 to 100) of territory-months with at least one recorded call. */
+  reportingCompleteness: number | null
+}
+
+export interface ExecutiveMonth {
+  month: IsoDate
+  isPartial: boolean
+  calls: SuppressedCount
+  responses: SuppressedCount
+  engagedHcps: SuppressedCount
+  territoriesReporting: number
+  territoriesInScope: number
+  reportingCompleteness: number
+}
+
+export interface ExecutiveUnit {
+  /** Null when the ranking value is withheld. */
+  rank: number | null
+  id: string
+  name: string
+  level: "REGION" | "TERRITORY"
+  regionId: string
+  regionName: string
+  territoriesInScope: number
+  calls: SuppressedCount
+  responses: SuppressedCount
+  engagedHcps: SuppressedCount
+  callsPerTerritory: number | null
+  reportingCompleteness: number | null
+}
+
+export interface ExecutiveEngagement {
+  engagedHcps: SuppressedCount
+  callsPerEngagedHcp: number | null
+  depth: { band: string; hcps: SuppressedCount }[]
+  channels: { channel: string; calls: SuppressedCount }[]
+  coverage: { status: "AVAILABLE" | "NO_TARGET_POPULATION" | "SUPPRESSED"; percentage: number | null; territoriesWithTargets: number; territoriesInScope: number }
+}
+
+export interface ExecutiveOverview {
+  from: IsoDate
+  to: IsoDate
+  dataThrough: string | null
+  scopeLabel: string
+  accessLevel: ExecutiveAccessLevel
+  drilldownAllowed: boolean
+  definitionVersion: string
+  definitions: OverviewDefinition[]
+  disclosure: { minCell: number; text: string; suppressedCells: number; applied: boolean }
+  rankBy: ExecutiveRankBy
+  kpis: ExecutiveKpis
+  freshness: {
+    status: ExecutiveFreshnessStatus
+    callsLoadedThrough: string | null
+    responsesLoadedThrough: string | null
+    sourceLagDays: number | null
+    monthsShown: number
+  }
+  months: ExecutiveMonth[]
+  regions: ExecutiveUnit[]
+  territories: ExecutiveUnit[]
+  engagement: ExecutiveEngagement
+  notes: Disclosure[]
+}
+
+export interface ExecutiveOverviewInput {
+  from?: IsoDate
+  to?: IsoDate
+  rankBy?: ExecutiveRankBy
+}
+
+export type ExecutiveDrilldownKind = "CALLS" | "RESPONSES"
+
+export interface ExecutiveRecord {
+  recordId: string
+  kind: "CALL" | "RESPONSE"
+  territoryId: string
+  hcpId: string | null
+  hcpName: string | null
+  detail: string | null
+  responseText: string | null
+  interactionDate: IsoDate | null
+  loadedAt: string | null
+}
+
+export interface ExecutiveDrilldown {
+  scopeId: string
+  kind: ExecutiveDrilldownKind
+  month: IsoDate
+  total: number
+  truncated: boolean
+  dataThrough: string | null
+  scopeLabel: string
+  records: ExecutiveRecord[]
+}
+
+export interface ExecutiveDrilldownInput {
+  scopeId: string
+  kind: ExecutiveDrilldownKind
+  month: IsoDate
+  limit?: number
+}

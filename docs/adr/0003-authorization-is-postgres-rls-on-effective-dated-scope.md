@@ -15,8 +15,8 @@ They cannot each reimplement it.
 
 - Policies wrap row-independent checks in scalar subqueries so they run once per statement (`005_rls_performance.sql`).
   Calling the SECURITY DEFINER helper per row made one landing query take about 15 s on the medium seed.
-- Executive landing KPIs need an aggregate path with small-group suppression (ticket #13).
-  Until then the API refuses record-level KPIs to Executives with `Forbidden` rather than returning zeros, which would misreport "no access" as "no activity".
+- Executives get their numbers from the aggregate path with small-group suppression (ADR 0009, ticket #13).
+  The record-level landing KPIs stay refused to them with `Forbidden` rather than returning zeros, which would misreport "no access" as "no activity".
 
 ## Landing metric definitions
 

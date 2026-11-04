@@ -3,6 +3,7 @@ import { log } from "@/lib/log/logger"
 import type { DataAdapter } from "./adapter"
 import { createMockGovernance } from "./governance"
 import { buildComparison, buildOverview, tooLong } from "./mock-director"
+import { buildExecutiveDrilldown, buildExecutiveOverview, defaultExecutiveRange, executiveWindowTooLong, type ExecutiveInput } from "./mock-executive"
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
 import { mockCitation, readRun, scriptRun } from "./mock-chat"
 import { createMockBriefs } from "./mock-briefs"
@@ -15,6 +16,8 @@ import {
   type ActivityTrends,
   type DateRange,
   type DirectorOverview,
+  type ExecutiveDrilldown,
+  type ExecutiveOverview,
   type TerritoryComparison,
   type EvidenceRecord,
   type Flag,
@@ -39,10 +42,13 @@ import {
   type TopicAlert,
 } from "./types"
 
-/** `targets` is `ok` plus an approved target population for two territories, so coverage can be shown. */
-export type MockScenario = "ok" | "empty" | "error" | "forbidden" | "slow" | "stale" | "targets"
+/**
+ * `targets` is `ok` plus an approved target population for two territories, so coverage can be shown.
+ * `records` is `ok` plus explicit record-level permission for an Executive, so nothing is withheld and drill-down opens.
+ */
+export type MockScenario = "ok" | "empty" | "error" | "forbidden" | "slow" | "stale" | "targets" | "records"
 
-const SCENARIOS: readonly MockScenario[] = ["ok", "empty", "error", "forbidden", "slow", "stale", "targets"]
+const SCENARIOS: readonly MockScenario[] = ["ok", "empty", "error", "forbidden", "slow", "stale", "targets", "records"]
 
 /** `?scenario=` is honoured only in local builds, so tests and demos can force each UI state. */
 export function readScenario(search: string | undefined): MockScenario {
@@ -141,6 +147,32 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       scopeLabel: user.scopeLabel,
       metricsFor,
       empty: s === "empty",
+      withTargets: s === "targets",
+    }
+  }
+
+  function executiveInput(ctx: RequestContext, s: MockScenario, range?: Partial<DateRange>, rankBy: ExecutiveInput["rankBy"] = "CALLS"): ExecutiveInput {
+    const user = findUser(options.getUserId())
+    if (s === "forbidden" || user.persona !== "executive") {
+      throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+    }
+    if (user.territoryIds.length === 0) throw new DataError("NO_SCOPE", "No territory is assigned to your account.", ctx.correlationId)
+    const through = dataThrough(s)
+    const fallback = defaultExecutiveRange(through.slice(0, 10))
+    const resolved: DateRange = { from: range?.from ?? fallback.from, to: range?.to ?? fallback.to }
+    if (resolved.from > resolved.to || executiveWindowTooLong(resolved)) {
+      throw new DataError("BAD_REQUEST", "That request was not accepted.", ctx.correlationId)
+    }
+    return {
+      territories: TERRITORIES.filter((x) => user.territoryIds.includes(x.id)),
+      range: resolved,
+      throughDay: through.slice(0, 10),
+      dataThrough: through,
+      scopeLabel: user.scopeLabel,
+      metricsFor,
+      empty: s === "empty",
+      records: s === "records",
+      rankBy,
       withTargets: s === "targets",
     }
   }
@@ -326,6 +358,22 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
         throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
       }
       return buildComparison(input, ids)
+    },
+
+    async executiveOverview(ctx, input): Promise<ExecutiveOverview> {
+      const s = await gate(ctx, "executiveOverview")
+      return buildExecutiveOverview(executiveInput(ctx, s, input, input?.rankBy ?? "CALLS"))
+    },
+
+    async executiveDrilldown(ctx, input): Promise<ExecutiveDrilldown> {
+      const s = await gate(ctx, "executiveDrilldown")
+      const exec = executiveInput(ctx, s)
+      // Record-level permission is separate from aggregate access: no grant, no records.
+      if (!exec.records) throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      // One refusal for "outside your scope" and "does not exist", as the BE gives.
+      const result = buildExecutiveDrilldown(exec, input)
+      if (!result) throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      return result
     },
 
     async activityEvidence(ctx, query): Promise<ActivityEvidence> {

@@ -209,3 +209,35 @@ export const MY_BRIEFS_QUERY = /* GraphQL */ `
 export const SAVE_BRIEF_EDITS_MUTATION = /* GraphQL */ `
   mutation SaveBriefEdits($input: BriefEditInput!) { saveBriefEdits(input: $input) {${BRIEF_FIELDS}} }
 `
+const COUNT = "{ value suppressed }"
+const EXECUTIVE_UNIT_FIELDS = `rank id name level regionId regionName territoriesInScope calls ${COUNT} responses ${COUNT} engagedHcps ${COUNT} callsPerTerritory reportingCompleteness`
+export const EXECUTIVE_OVERVIEW_QUERY = /* GraphQL */ `
+  query ExecutiveOverview($from: AWSDate, $to: AWSDate, $rankBy: ExecutiveRankBy) {
+    executiveOverview(from: $from, to: $to, rankBy: $rankBy) {
+      from to dataThrough scopeLabel accessLevel drilldownAllowed definitionVersion rankBy
+      definitions { key label text }
+      disclosure { minCell text suppressedCells applied }
+      kpis { calls ${COUNT} responses ${COUNT} engagedHcps ${COUNT} regionsInScope territoriesInScope reportingCompleteness }
+      freshness { status callsLoadedThrough responsesLoadedThrough sourceLagDays monthsShown }
+      months { month isPartial calls ${COUNT} responses ${COUNT} engagedHcps ${COUNT} territoriesReporting territoriesInScope reportingCompleteness }
+      regions { ${EXECUTIVE_UNIT_FIELDS} }
+      territories { ${EXECUTIVE_UNIT_FIELDS} }
+      engagement {
+        engagedHcps ${COUNT} callsPerEngagedHcp
+        depth { band hcps ${COUNT} }
+        channels { channel calls ${COUNT} }
+        coverage { status percentage territoriesWithTargets territoriesInScope }
+      }
+      notes { code message }
+    }
+  }
+`
+
+export const EXECUTIVE_DRILLDOWN_QUERY = /* GraphQL */ `
+  query ExecutiveDrilldown($scopeId: ID!, $kind: ExecutiveDrilldownKind!, $month: AWSDate!, $limit: Int) {
+    executiveDrilldown(scopeId: $scopeId, kind: $kind, month: $month, limit: $limit) {
+      scopeId kind month total truncated dataThrough scopeLabel
+      records { recordId kind territoryId hcpId hcpName detail responseText interactionDate loadedAt }
+    }
+  }
+`

@@ -18,6 +18,8 @@ export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'activityEvidence' },
   { typeName: 'Query', fieldName: 'directorOverview' },
   { typeName: 'Query', fieldName: 'territoryComparison' },
+  { typeName: 'Query', fieldName: 'executiveOverview' },
+  { typeName: 'Query', fieldName: 'executiveDrilldown' },
   { typeName: 'Query', fieldName: 'myFlags' },
   { typeName: 'Query', fieldName: 'adminAccessOverview' },
   { typeName: 'Query', fieldName: 'accessAudit' },

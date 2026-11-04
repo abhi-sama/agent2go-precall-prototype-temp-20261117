@@ -14,6 +14,8 @@ import {
   SAVE_BRIEF_EDITS_MUTATION,
   DIRECTOR_OVERVIEW_QUERY,
   TERRITORY_COMPARISON_QUERY,
+  EXECUTIVE_DRILLDOWN_QUERY,
+  EXECUTIVE_OVERVIEW_QUERY,
   FLAG_ISSUE_MUTATION,
   GEO_ACTIVITY_QUERY,
   LANDING_KPIS_QUERY,
@@ -73,6 +75,8 @@ import {
   type ConfirmFollowUpTaskInput,
   type TopicAlertRule,
   type TopicAlert,
+  type ExecutiveDrilldown,
+  type ExecutiveOverview,
 } from "./types"
 
 export interface GraphQLResponse<T> {
@@ -199,6 +203,24 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
         items?.map((i) => ({ ...(i.itemId ? { itemId: i.itemId } : {}), text: i.text, ...(i.detail ? { detail: i.detail } : {}) }))
       const payload = { briefId: input.briefId, ...(input.objective !== undefined ? { objective: input.objective } : {}), ...(input.prompts ? { prompts: clean(input.prompts) } : {}), ...(input.agenda ? { agenda: clean(input.agenda) } : {}) }
       return (await run<{ saveBriefEdits: PreCallBrief }>(transport, SAVE_BRIEF_EDITS_MUTATION, { input: payload }, ctx)).saveBriefEdits
+    },
+    async executiveOverview(ctx, input) {
+      const data = await run<{ executiveOverview: ExecutiveOverview }>(
+        transport,
+        EXECUTIVE_OVERVIEW_QUERY,
+        { from: input?.from ?? null, to: input?.to ?? null, rankBy: input?.rankBy ?? null },
+        ctx,
+      )
+      return data.executiveOverview
+    },
+    async executiveDrilldown(ctx, input) {
+      const data = await run<{ executiveDrilldown: ExecutiveDrilldown }>(
+        transport,
+        EXECUTIVE_DRILLDOWN_QUERY,
+        { scopeId: input.scopeId, kind: input.kind, month: input.month, limit: input.limit ?? null },
+        ctx,
+      )
+      return data.executiveDrilldown
     },
     async myFlags(ctx) {
       const data = await run<{ myFlags: Flag[] }>(transport, MY_FLAGS_QUERY, undefined, ctx)
