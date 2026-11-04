@@ -1,0 +1,257 @@
+{
+  "generated_from": "deterministic-v1",
+  "users": [
+    {
+      "user_id": "msl-t01-01",
+      "email": "msl.t01-01@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T01-01"
+    },
+    {
+      "user_id": "msl-t01-02",
+      "email": "msl.t01-02@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T01-02"
+    },
+    {
+      "user_id": "msl-t01-03",
+      "email": "msl.t01-03@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T01-03"
+    },
+    {
+      "user_id": "msl-t01-04",
+      "email": "msl.t01-04@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T01-04"
+    },
+    {
+      "user_id": "msl-t01-05",
+      "email": "msl.t01-05@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T01-05"
+    },
+    {
+      "user_id": "msl-t01-06",
+      "email": "msl.t01-06@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T01-06"
+    },
+    {
+      "user_id": "msl-t02-01",
+      "email": "msl.t02-01@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T02-01"
+    },
+    {
+      "user_id": "msl-t02-02",
+      "email": "msl.t02-02@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T02-02"
+    },
+    {
+      "user_id": "msl-t02-03",
+      "email": "msl.t02-03@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T02-03"
+    },
+    {
+      "user_id": "msl-t02-04",
+      "email": "msl.t02-04@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T02-04"
+    },
+    {
+      "user_id": "msl-t02-05",
+      "email": "msl.t02-05@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T02-05"
+    },
+    {
+      "user_id": "msl-t02-06",
+      "email": "msl.t02-06@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T02-06"
+    },
+    {
+      "user_id": "msl-t03-01",
+      "email": "msl.t03-01@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T03-01"
+    },
+    {
+      "user_id": "msl-t03-02",
+      "email": "msl.t03-02@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T03-02"
+    },
+    {
+      "user_id": "msl-t03-03",
+      "email": "msl.t03-03@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T03-03"
+    },
+    {
+      "user_id": "msl-t03-04",
+      "email": "msl.t03-04@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T03-04"
+    },
+    {
+      "user_id": "msl-t03-05",
+      "email": "msl.t03-05@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T03-05"
+    },
+    {
+      "user_id": "msl-t03-06",
+      "email": "msl.t03-06@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T03-06"
+    },
+    {
+      "user_id": "msl-t04-01",
+      "email": "msl.t04-01@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T04-01"
+    },
+    {
+      "user_id": "msl-t04-02",
+      "email": "msl.t04-02@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T04-02"
+    },
+    {
+      "user_id": "msl-t04-03",
+      "email": "msl.t04-03@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T04-03"
+    },
+    {
+      "user_id": "msl-t04-04",
+      "email": "msl.t04-04@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T04-04"
+    },
+    {
+      "user_id": "msl-t04-05",
+      "email": "msl.t04-05@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T04-05"
+    },
+    {
+      "user_id": "msl-t04-06",
+      "email": "msl.t04-06@example.test",
+      "cognito_group": "MSL",
+      "persona": "MSL",
+      "territory_id": "T04-06"
+    },
+    {
+      "user_id": "director-region-01",
+      "email": "director.region-01@example.test",
+      "cognito_group": "Director",
+      "persona": "Director",
+      "territory_id": "REGION-01"
+    },
+    {
+      "user_id": "executive-region-01",
+      "email": "executive.region-01@example.test",
+      "cognito_group": "Executive",
+      "persona": "Executive",
+      "territory_id": "REGION-01"
+    },
+    {
+      "user_id": "director-region-02",
+      "email": "director.region-02@example.test",
+      "cognito_group": "Director",
+      "persona": "Director",
+      "territory_id": "REGION-02"
+    },
+    {
+      "user_id": "executive-region-02",
+      "email": "executive.region-02@example.test",
+      "cognito_group": "Executive",
+      "persona": "Executive",
+      "territory_id": "REGION-02"
+    },
+    {
+      "user_id": "director-region-03",
+      "email": "director.region-03@example.test",
+      "cognito_group": "Director",
+      "persona": "Director",
+      "territory_id": "REGION-03"
+    },
+    {
+      "user_id": "executive-region-03",
+      "email": "executive.region-03@example.test",
+      "cognito_group": "Executive",
+      "persona": "Executive",
+      "territory_id": "REGION-03"
+    },
+    {
+      "user_id": "director-region-04",
+      "email": "director.region-04@example.test",
+      "cognito_group": "Director",
+      "persona": "Director",
+      "territory_id": "REGION-04"
+    },
+    {
+      "user_id": "executive-region-04",
+      "email": "executive.region-04@example.test",
+      "cognito_group": "Executive",
+      "persona": "Executive",
+      "territory_id": "REGION-04"
+    },
+    {
+      "user_id": "admin-region-01",
+      "email": "admin.region-01@example.test",
+      "cognito_group": "Administrator",
+      "persona": "Administrator",
+      "territory_id": "REGION-01"
+    },
+    {
+      "user_id": "admin-region-02",
+      "email": "admin.region-02@example.test",
+      "cognito_group": "Administrator",
+      "persona": "Administrator",
+      "territory_id": "REGION-02"
+    },
+    {
+      "user_id": "admin-region-03",
+      "email": "admin.region-03@example.test",
+      "cognito_group": "Administrator",
+      "persona": "Administrator",
+      "territory_id": "REGION-03"
+    },
+    {
+      "user_id": "admin-region-04",
+      "email": "admin.region-04@example.test",
+      "cognito_group": "Administrator",
+      "persona": "Administrator",
+      "territory_id": "REGION-04"
+    }
+  ]
+}
