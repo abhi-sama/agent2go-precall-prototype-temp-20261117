@@ -23,6 +23,19 @@ async function generate(page: Page) {
 }
 
 test.describe("Pre-call brief", () => {
+  test("exports a server-authorized printable snapshot with scope, dates, citations and generation time", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.print = () => { document.documentElement.dataset.printed = "true" }
+    })
+    await generate(page)
+    await page.getByTestId("brief-export").click()
+    await expect(page.getByTestId("brief-print-document")).toContainText("Scope")
+    await expect(page.getByTestId("brief-print-document")).toContainText("Record date range")
+    await expect(page.getByTestId("brief-print-document")).toContainText("Generated")
+    await expect(page.getByTestId("brief-print-document")).toContainText("Source citations")
+    await expect.poll(() => page.locator("html").getAttribute("data-printed")).toBe("true")
+  })
+
   test("select an HCP, add an objective, generate: every statement is source-linked and suggestions are labelled generated", async ({ page }) => {
     await generate(page)
     await expect(page.getByTestId("brief-hcp-name")).toContainText("Call system HCP 0001")

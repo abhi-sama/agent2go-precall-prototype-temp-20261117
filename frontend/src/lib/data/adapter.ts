@@ -12,6 +12,7 @@ import type {
   AdminAccessOverview,
   AdminDataQuality,
   BriefEditInput,
+  BriefExport,
   BriefSummary,
   GenerateBriefInput,
   PreCallBrief,
@@ -121,4 +122,6 @@ export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter 
   myBriefs(ctx: RequestContext): Promise<BriefSummary[]>
   /** Save edits to the objective, prompts and agenda. Generated items stay marked generated. */
   saveBriefEdits(ctx: RequestContext, input: BriefEditInput): Promise<PreCallBrief>
+  /** Re-check access, record the access-audit event, then return a printable saved-brief snapshot. */
+  exportBrief(ctx: RequestContext, briefId: string): Promise<BriefExport>
 }

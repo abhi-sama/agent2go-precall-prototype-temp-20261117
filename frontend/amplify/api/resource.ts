@@ -73,6 +73,7 @@ export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'myBriefs' },
   { typeName: 'Mutation', fieldName: 'generateBrief' },
   { typeName: 'Mutation', fieldName: 'saveBriefEdits' },
+  { typeName: 'Mutation', fieldName: 'exportBrief' },
 ] as const;
 
 /**

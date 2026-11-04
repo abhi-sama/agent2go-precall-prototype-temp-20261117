@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { createGraphQLAdapter } from "./graphql-adapter"
 import { createMockAdapter, type MockScenario } from "./mock-adapter"
 import { resetMockBriefs } from "./mock-briefs"
-import { GENERATE_BRIEF_MUTATION, MY_BRIEFS_QUERY, PRE_CALL_BRIEF_QUERY, SAVE_BRIEF_EDITS_MUTATION } from "./operations"
+import { EXPORT_BRIEF_MUTATION, GENERATE_BRIEF_MUTATION, MY_BRIEFS_QUERY, PRE_CALL_BRIEF_QUERY, SAVE_BRIEF_EDITS_MUTATION } from "./operations"
 
 const ctx = { correlationId: "test" }
 const make = (userId: string, scenario: MockScenario = "ok") =>
@@ -63,6 +63,17 @@ describe("mock pre-call briefs", () => {
     const own = await adapter.myBriefs(ctx)
     expect(own.some((b) => !b.accessible && b.hcpId === null && b.objective === null)).toBe(true)
   })
+
+  it("exports a fresh saved snapshot with dates and citations only after the mock access check", async () => {
+    const adapter = make(MSL)
+    const brief = await adapter.generateBrief(ctx, { hcpId: "HCP-0001", objective: "Discuss access evidence" })
+    const exported = await adapter.exportBrief(ctx, brief.briefId)
+    expect(exported).toMatchObject({ briefId: brief.briefId, scopeLabel: brief.scopeLabel, generatedAt: brief.generatedAt })
+    expect(exported.dateRangeFrom).toBe("2026-08-15")
+    expect(exported.dateRangeTo).toBe("2026-10-30")
+    expect(exported.citations).toHaveLength(brief.evidence.length)
+    await expect(make("u-msl-se-03").exportBrief(ctx, brief.briefId)).rejects.toMatchObject({ code: "NOT_FOUND" })
+  })
 })
 
 describe("GraphQL brief operations", () => {
@@ -70,14 +81,16 @@ describe("GraphQL brief operations", () => {
     const calls: { query: string; variables?: Record<string, unknown> }[] = []
     const adapter = createGraphQLAdapter(async (request) => {
       calls.push(request)
-      return { data: { generateBrief: { briefId: "b" }, preCallBrief: { briefId: "b" }, myBriefs: [], saveBriefEdits: { briefId: "b" } } as never }
+      return { data: { generateBrief: { briefId: "b" }, preCallBrief: { briefId: "b" }, myBriefs: [], saveBriefEdits: { briefId: "b" }, exportBrief: { briefId: "b" } } as never }
     })
     await adapter.generateBrief(ctx, { hcpId: "H", objective: "obj" })
     await adapter.preCallBrief(ctx, "b")
     await adapter.myBriefs(ctx)
     await adapter.saveBriefEdits(ctx, { briefId: "b", prompts: [{ itemId: null, text: "t", detail: null }] })
-    expect(calls.map((c) => c.query)).toEqual([GENERATE_BRIEF_MUTATION, PRE_CALL_BRIEF_QUERY, MY_BRIEFS_QUERY, SAVE_BRIEF_EDITS_MUTATION])
+    await adapter.exportBrief(ctx, "b")
+    expect(calls.map((c) => c.query)).toEqual([GENERATE_BRIEF_MUTATION, PRE_CALL_BRIEF_QUERY, MY_BRIEFS_QUERY, SAVE_BRIEF_EDITS_MUTATION, EXPORT_BRIEF_MUTATION])
     expect(calls[0].variables).toEqual({ hcpId: "H", objective: "obj" })
     expect(calls[3].variables).toEqual({ input: { briefId: "b", prompts: [{ text: "t" }] } })
+    expect(calls[4].variables).toEqual({ briefId: "b" })
   })
 })

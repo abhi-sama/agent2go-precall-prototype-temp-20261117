@@ -148,6 +148,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "preCallBrief": lambda *a: briefs.get_brief(*a, store=_brief_store(settings)),
         "myBriefs": lambda *a: briefs.my_briefs(*a, store=_brief_store(settings)),
         "saveBriefEdits": lambda *a: briefs.save_brief_edits(*a, store=_brief_store(settings)),
+        "exportBrief": lambda *a: briefs.export_brief(*a, store=_brief_store(settings)),
     }
 
 

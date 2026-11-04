@@ -879,6 +879,28 @@ type BriefSummary {
   stale: Boolean!
 }
 
+"""A print-ready snapshot created only after the current HCP access check succeeds."""
+type BriefExport {
+  briefId: ID!
+  hcpName: String!
+  objective: String!
+  scopeLabel: String!
+  "Oldest and newest dates among the source records included in this export."
+  dateRangeFrom: AWSDate
+  dateRangeTo: AWSDate
+  dataThrough: AWSDateTime
+  generatedAt: AWSDateTime!
+  exportedAt: AWSDateTime!
+  facts: [BriefFact!]!
+  engagement: [BriefStatement!]!
+  perspectives: [BriefStatement!]!
+  followUps: [BriefStatement!]!
+  prompts: [BriefItem!]!
+  agenda: [BriefItem!]!
+  missing: [BriefMissing!]!
+  citations: [BriefEvidence!]!
+}
+
 input BriefItemInput { itemId: ID text: String! detail: String }
 input BriefEditInput { briefId: ID! objective: String prompts: [BriefItemInput!] agenda: [BriefItemInput!] }
 
@@ -1164,6 +1186,8 @@ type Mutation {
   generateBrief(hcpId: ID!, objective: String!, regeneratesBriefId: ID): PreCallBrief!
   "Save the MSL's edits to the objective, discussion prompts and agenda. Generated items stay marked generated."
   saveBriefEdits(input: BriefEditInput!): PreCallBrief!
+  "Create a printable brief snapshot after re-checking access and recording the export audit event."
+  exportBrief(briefId: ID!): BriefExport!
   "Raise a flag. Raising the same open flag again returns the existing one."
   flagIssue(input: FlagInput!): Flag!
   approveIdentityMapping(input: IdentityMappingInput!): IdentityMatch!

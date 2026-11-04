@@ -709,6 +709,27 @@ export interface BriefSummary {
 export interface BriefItemInput { itemId?: string | null; text: string; detail?: string | null }
 export interface BriefEditInput { briefId: string; objective?: string; prompts?: BriefItemInput[]; agenda?: BriefItemInput[] }
 export interface GenerateBriefInput { hcpId: string; objective: string; regeneratesBriefId?: string | null }
+
+/** A server-authorized, printable brief snapshot. Its fields come from the saved brief, not unsaved browser edits. */
+export interface BriefExport {
+  briefId: string
+  hcpName: string
+  objective: string
+  scopeLabel: string
+  dateRangeFrom: IsoDate | null
+  dateRangeTo: IsoDate | null
+  dataThrough: IsoDateTime | null
+  generatedAt: IsoDateTime
+  exportedAt: IsoDateTime
+  facts: BriefFact[]
+  engagement: BriefStatement[]
+  perspectives: BriefStatement[]
+  followUps: BriefStatement[]
+  prompts: BriefItem[]
+  agenda: BriefItem[]
+  missing: BriefMissing[]
+  citations: BriefEvidence[]
+}
 // --- Executive overview (ticket 12): aggregate-only, small groups withheld --------------------------
 
 /** A count that may be withheld: `value` is null exactly when `suppressed` is true. */

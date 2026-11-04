@@ -59,9 +59,10 @@ class Store:
 class Cursor:
     def __init__(self) -> None:
         self.rows: list[Any] = []
+        self.statements: list[tuple[Any, Any]] = []
 
-    def execute(self, *_a, **_k) -> None:
-        pass
+    def execute(self, *args, **kwargs) -> None:
+        self.statements.append((args, kwargs))
 
     def fetchone(self):
         return None
@@ -124,6 +125,23 @@ def test_reopening_after_access_was_lost_is_denied_and_listed_without_detail(wor
     (row,) = briefs.my_briefs(Cursor(), None, "u1", {}, store=store)
     assert row["accessible"] is False
     assert row["hcpId"] is None and row["hcpName"] is None and row["objective"] is None
+
+
+def test_export_rechecks_access_returns_print_fields_and_records_an_id_only_audit_event(world):
+    cur = Cursor()
+    out = briefs.export_brief(cur, None, "u1", {"briefId": BRIEF_ID}, store=Store(saved()), now=lambda: NOW)
+    assert out["scopeLabel"] == "T01-01"
+    assert out["dateRangeFrom"] == out["dateRangeTo"] == "2026-11-03"
+    assert out["generatedAt"] == "2026-11-04T09:30:00Z"
+    assert out["exportedAt"] == "2026-11-04T10:00:00Z"
+    assert out["citations"] == [saved()["evidence"][0]]
+    audit = cur.statements[-1][0]
+    assert "INSERT INTO audit_events" in audit[0]
+    assert audit[1] == ("u1", "brief.exported", "pre_call_brief", BRIEF_ID, "allowed")
+
+    world["allowed"] = False
+    with pytest.raises(Forbidden):
+        briefs.export_brief(Cursor(), None, "u1", {"briefId": BRIEF_ID}, store=Store(saved()), now=lambda: NOW)
 
 
 def test_another_users_brief_is_indistinguishable_from_an_unknown_one(world):

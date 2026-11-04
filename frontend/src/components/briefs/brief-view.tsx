@@ -1,19 +1,19 @@
 "use client"
 
-import { CalendarClock, Check, ClipboardList, Database, FileText, Pencil, Plus, RefreshCw, Save, Trash2, Undo2 } from "lucide-react"
+import { CalendarClock, Check, ClipboardList, Database, FileText, Pencil, Plus, Printer, RefreshCw, Save, Trash2, Undo2 } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 import { CitationSheet } from "@/components/chat/citation-sheet"
-import { AiSummary, CitationChip, ExportButton, SourceFact, Suggestion } from "@/components/provenance/provenance"
+import { AiSummary, CitationChip, SourceFact, Suggestion } from "@/components/provenance/provenance"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { CitationItem } from "@/lib/chat/events"
 import { useDataAdapter } from "@/lib/data/data-provider"
-import { toDataError, type BriefEvidence, type BriefItem, type BriefStatement, type PreCallBrief } from "@/lib/data/types"
+import { toDataError, type BriefEvidence, type BriefExport, type BriefItem, type BriefStatement, type PreCallBrief } from "@/lib/data/types"
 import { newCorrelationId } from "@/lib/log/logger"
-import { buildProvenanceExport, downloadText, type ExportBlock } from "@/lib/provenance"
 import { cn } from "@/lib/utils"
 import { formatBriefDay, formatBriefTime } from "./format"
+import { BriefPrintDocument } from "./brief-print-document"
 
 const MAX_ITEMS = 12
 const MAX_TEXT = 600
@@ -232,6 +232,8 @@ export function BriefView({
   const [prompts, setPrompts] = React.useState<Draft[]>(() => brief.prompts.map(toDraft))
   const [agenda, setAgenda] = React.useState<Draft[]>(() => brief.agenda.map(toDraft))
   const [saving, setSaving] = React.useState(false)
+  const [exporting, setExporting] = React.useState(false)
+  const [printDocument, setPrintDocument] = React.useState<BriefExport | null>(null)
   const [citation, setCitation] = React.useState<CitationItem | null>(null)
   const evidence = React.useMemo(() => new Map(brief.evidence.map((e) => [e.evidenceId, e])), [brief.evidence])
 
@@ -246,6 +248,14 @@ export function BriefView({
     setPrompts(savedPrompts)
     setAgenda(savedAgenda)
   }
+
+  React.useEffect(() => {
+    if (!printDocument) return
+    const timer = window.setTimeout(() => {
+      window.print()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [printDocument])
 
   const save = async () => {
     if (!dirty || saving || !objectiveValid) return
@@ -268,35 +278,24 @@ export function BriefView({
     }
   }
 
-  const stub = brief.modelMode === "stub"
-
-  /** The brief as a file: facts, AI statements and suggestions stay in separate, labelled blocks. */
-  const exportBrief = () => {
-    const cite = (items: { evidenceIds: string[] }[]) => items.flatMap((i) => i.evidenceIds).filter((id, n, all) => all.indexOf(id) === n).flatMap((id) => (evidence.get(id) ? [evidence.get(id)!] : []))
-    const statements = (title: string, list: BriefStatement[]) =>
-      list.map((s) => `${title}: ${s.text} [${s.evidenceIds.map((id) => evidence.get(id)?.recordId).filter(Boolean).join(", ")}]`)
-    const items = (list: Draft[]) => cleaned(list).map((d) => (d.detail.trim() ? `${d.text.trim()} - ${d.detail.trim()}` : d.text.trim()))
-    const cited = cite([...brief.engagement, ...brief.perspectives, ...brief.followUps])
-    const blocks: ExportBlock[] = [
-      { kind: "fact", title: "Counted from your records", lines: brief.facts.map((f) => `${f.label}: ${f.value}`) },
-      {
-        kind: "ai",
-        title: "What the records show",
-        lines: [...statements("Previous engagement", brief.engagement), ...statements("Recorded perspectives", brief.perspectives), ...statements("Possible follow-ups", brief.followUps)],
-        citations: cited.map((e) => ({ recordId: e.recordId, label: e.label })),
-      },
-      { kind: "suggestion", title: "Discussion prompts", lines: items(prompts) },
-      { kind: "suggestion", title: "Suggested agenda", lines: items(agenda) },
-    ]
-    const text = buildProvenanceExport({
-      title: `Pre-call brief: ${brief.hcpName.value ?? "HCP"}`,
-      scope: brief.scopeLabel,
-      exportedAt: new Date().toISOString(),
-      dataThrough: brief.dataThrough,
-      blocks,
-    })
-    downloadText(`pre-call-brief-${brief.briefId}.md`, text)
+  const exportForPrint = async () => {
+    if (dirty || exporting) return
+    setExporting(true)
+    try {
+      const snapshot = await adapter.exportBrief({ correlationId: newCorrelationId() }, brief.briefId)
+      setPrintDocument(snapshot)
+      toast.success("Print dialog opened", { description: "The export was recorded in the access audit." })
+    } catch (err) {
+      const error = toDataError(err)
+      toast.error(error.code === "FORBIDDEN" ? "You no longer have access to this HCP" : "Brief could not be exported", {
+        description: error.code === "FORBIDDEN" ? "Nothing was exported." : "Try again after checking your connection.",
+      })
+    } finally {
+      setExporting(false)
+    }
   }
+
+  const stub = brief.modelMode === "stub"
 
   return (
     <article data-testid="brief" data-brief-id={brief.briefId} className="space-y-5 animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">
@@ -312,7 +311,9 @@ export function BriefView({
             <Badge variant="outline" data-testid="brief-model-mode">
               {stub ? "Written without a model (local stub)" : "Written by AI from your records"}
             </Badge>
-            <ExportButton testId="brief-export" onExport={exportBrief} label="Download brief" />
+            <Button data-testid="brief-export" variant="outline" onClick={exportForPrint} disabled={exporting || dirty} aria-describedby={dirty ? "brief-export-save-first" : undefined}>
+              <Printer aria-hidden /> {exporting ? "Preparing export…" : "Print / Save PDF"}
+            </Button>
           </div>
         </div>
 
@@ -329,6 +330,7 @@ export function BriefView({
           aria-invalid={!objectiveValid}
           className="mt-1 min-h-14 w-full resize-y rounded-lg border bg-background px-3 py-2 text-base focus-visible:ring-2 focus-visible:ring-ring md:text-sm"
         />
+        {dirty && <p id="brief-export-save-first" className="mt-1 text-sm text-muted-foreground">Save or discard your edits before exporting the saved brief.</p>}
 
         <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
           <div>
@@ -483,6 +485,7 @@ export function BriefView({
       )}
 
       <CitationSheet citation={citation} onClose={() => setCitation(null)} />
+      {printDocument && <BriefPrintDocument brief={printDocument} />}
     </article>
   )
 }

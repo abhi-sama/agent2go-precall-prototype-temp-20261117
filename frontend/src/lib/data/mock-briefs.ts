@@ -1,4 +1,4 @@
-import { DataError, type BriefEditInput, type BriefItem, type BriefSummary, type GenerateBriefInput, type HcpField, type PreCallBrief, type RequestContext } from "./types"
+import { DataError, type BriefEditInput, type BriefExport, type BriefItem, type BriefSummary, type GenerateBriefInput, type HcpField, type PreCallBrief, type RequestContext } from "./types"
 import type { FixtureUser } from "./fixtures"
 
 /**
@@ -170,6 +170,30 @@ export function createMockBriefs({ user, scenario, gate, now }: MockBriefDeps) {
       if (input.agenda) found.agenda = merge(input.agenda, found.agenda)
       found.updatedAt = now().toISOString()
       return present(found)
+    },
+    async exportBrief(ctx: RequestContext, briefId: string): Promise<BriefExport> {
+      await gate(ctx, "exportBrief")
+      const brief = present(find(briefId, ctx))
+      const dates = brief.evidence.flatMap((record) => (record.date ? [record.date] : [])).sort()
+      return {
+        briefId: brief.briefId,
+        hcpName: brief.hcpName.value ?? "HCP name not recorded",
+        objective: brief.objective,
+        scopeLabel: brief.scopeLabel,
+        dateRangeFrom: dates.at(0) ?? null,
+        dateRangeTo: dates.at(-1) ?? null,
+        dataThrough: brief.dataThrough,
+        generatedAt: brief.generatedAt,
+        exportedAt: now().toISOString(),
+        facts: brief.facts,
+        engagement: brief.engagement,
+        perspectives: brief.perspectives,
+        followUps: brief.followUps,
+        prompts: brief.prompts,
+        agenda: brief.agenda,
+        missing: brief.missing,
+        citations: brief.evidence,
+      }
     },
   }
 }

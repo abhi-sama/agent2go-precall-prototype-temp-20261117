@@ -10,6 +10,7 @@ import {
   ADMIN_DATA_QUALITY_QUERY,
   CREATE_SCOPE_ASSIGNMENT_MUTATION,
   GENERATE_BRIEF_MUTATION,
+  EXPORT_BRIEF_MUTATION,
   MY_BRIEFS_QUERY,
   PRE_CALL_BRIEF_QUERY,
   SAVE_BRIEF_EDITS_MUTATION,
@@ -46,6 +47,7 @@ import {
   type ActivityTrends,
   type ChatEventPage,
   type BriefSummary,
+  type BriefExport,
   type ChatRun,
   type PreCallBrief,
   type AccessAuditEvent,
@@ -206,6 +208,9 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
         items?.map((i) => ({ ...(i.itemId ? { itemId: i.itemId } : {}), text: i.text, ...(i.detail ? { detail: i.detail } : {}) }))
       const payload = { briefId: input.briefId, ...(input.objective !== undefined ? { objective: input.objective } : {}), ...(input.prompts ? { prompts: clean(input.prompts) } : {}), ...(input.agenda ? { agenda: clean(input.agenda) } : {}) }
       return (await run<{ saveBriefEdits: PreCallBrief }>(transport, SAVE_BRIEF_EDITS_MUTATION, { input: payload }, ctx)).saveBriefEdits
+    },
+    async exportBrief(ctx, briefId) {
+      return (await run<{ exportBrief: BriefExport }>(transport, EXPORT_BRIEF_MUTATION, { briefId }, ctx)).exportBrief
     },
     async executiveOverview(ctx, input) {
       const data = await run<{ executiveOverview: ExecutiveOverview }>(

@@ -2,6 +2,78 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* A server-authorized pre-call export prints as a clean document, never as the interactive workspace. */
+.brief-print-document {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .brief-print-document,
+  .brief-print-document * {
+    visibility: visible;
+  }
+
+  .brief-print-document {
+    display: block;
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 12mm;
+    background: var(--print-background);
+    color: var(--print-foreground);
+    font: 10.5pt/1.45 var(--font-sans);
+  }
+
+  .brief-print-document header {
+    border-bottom: 1px solid var(--print-border);
+    padding-bottom: 5mm;
+  }
+
+  .brief-print-document h1 {
+    margin: 1mm 0 4mm;
+    font-size: 22pt;
+  }
+
+  .brief-print-document h2 {
+    margin: 6mm 0 2mm;
+    font-size: 13pt;
+  }
+
+  .brief-print-document p,
+  .brief-print-document li {
+    margin: 0 0 1.5mm;
+  }
+
+  .brief-print-document header dl,
+  .brief-print-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3mm 7mm;
+    margin: 0;
+  }
+
+  .brief-print-document dt {
+    color: var(--print-muted-foreground);
+    font-size: 8.5pt;
+    font-weight: 600;
+  }
+
+  .brief-print-document dd {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .brief-print-document section,
+  .brief-print-document li {
+    break-inside: avoid;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -78,6 +150,11 @@
  */
 :root {
   --radius: 0.875rem;
+  /* Print must stay legible even when the interactive workspace is in dark mode. */
+  --print-background: oklch(1 0 0);
+  --print-foreground: oklch(0.21 0.012 55);
+  --print-muted-foreground: oklch(0.43 0.015 55);
+  --print-border: oklch(0.87 0.008 55);
 
   /*
    * Style, mode and density are three independent switches on <html> (see docs/design/direction.md):

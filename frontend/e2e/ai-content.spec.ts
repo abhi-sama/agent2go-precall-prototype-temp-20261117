@@ -88,17 +88,18 @@ test("an exported answer keeps facts, the AI summary and suggestions in separate
   expect(text).toContain("Sources:")
 })
 
-test("an exported pre-call brief labels source facts, AI statements and suggestions", async ({ page }) => {
-  await page.addInitScript(() => window.localStorage.removeItem("a2g.local.userId"))
+test("a printable pre-call brief keeps source facts, recorded statements and suggestions separate", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.removeItem("a2g.local.userId")
+    window.print = () => { document.documentElement.dataset.printed = "true" }
+  })
   await page.goto("/msl/briefs?brief=br-20261103090000-aaaaaaaa")
   await expect(page.getByTestId("brief")).toBeVisible()
-  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("brief-export").click()])
-  const stream = await download.createReadStream()
-  let text = ""
-  for await (const chunk of stream) text += chunk
-  expect(text).toContain("## [SOURCE] Counted from your records")
-  expect(text).toContain("## [AI SUMMARY] What the records show")
-  expect(text).toContain("## [SUGGESTION] Discussion prompts")
+  await page.getByTestId("brief-export").click()
+  await expect(page.getByTestId("brief-print-document")).toContainText("Counted from source records")
+  await expect(page.getByTestId("brief-print-document")).toContainText("Previous engagement")
+  await expect(page.getByTestId("brief-print-document")).toContainText("Discussion prompts")
+  await expect.poll(() => page.locator("html").getAttribute("data-printed")).toBe("true")
 })
 
 test("printing keeps the AI wash and the dashed outline", async ({ page }) => {

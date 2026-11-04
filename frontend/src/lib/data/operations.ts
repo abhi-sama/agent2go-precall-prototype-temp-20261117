@@ -209,6 +209,15 @@ export const MY_BRIEFS_QUERY = /* GraphQL */ `
 export const SAVE_BRIEF_EDITS_MUTATION = /* GraphQL */ `
   mutation SaveBriefEdits($input: BriefEditInput!) { saveBriefEdits(input: $input) {${BRIEF_FIELDS}} }
 `
+const BRIEF_EXPORT_FIELDS = `
+  briefId hcpName objective scopeLabel dateRangeFrom dateRangeTo dataThrough generatedAt exportedAt
+  facts{label value evidenceIds}
+  engagement{statementId text evidenceIds} perspectives{statementId text evidenceIds} followUps{statementId text evidenceIds}
+  prompts{itemId text detail evidenceIds origin edited} agenda{itemId text detail evidenceIds origin edited}
+  missing{code message} citations{evidenceId dataset recordId label date}`
+export const EXPORT_BRIEF_MUTATION = /* GraphQL */ `
+  mutation ExportBrief($briefId: ID!) { exportBrief(briefId: $briefId) {${BRIEF_EXPORT_FIELDS}} }
+`
 const COUNT = "{ value suppressed }"
 const EXECUTIVE_UNIT_FIELDS = `rank id name level regionId regionName territoriesInScope calls ${COUNT} responses ${COUNT} engagedHcps ${COUNT} callsPerTerritory reportingCompleteness`
 export const EXECUTIVE_OVERVIEW_QUERY = /* GraphQL */ `

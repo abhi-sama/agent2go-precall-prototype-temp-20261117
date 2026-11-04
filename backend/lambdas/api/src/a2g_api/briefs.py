@@ -609,6 +609,69 @@ def get_brief(
     return result
 
 
+def _export_dates(evidence: list[Mapping[str, Any]]) -> tuple[str | None, str | None]:
+    """Return the included record-date bounds without trusting arbitrary persisted strings."""
+    dates: list[str] = []
+    for record in evidence:
+        value = record.get("date")
+        if not isinstance(value, str):
+            continue
+        try:
+            dates.append(dt.date.fromisoformat(value).isoformat())
+        except ValueError:
+            continue
+    return (min(dates), max(dates)) if dates else (None, None)
+
+
+def export_brief(
+    cur: psycopg.Cursor,
+    identity: Identity,
+    user_id: str,
+    args: Mapping[str, Any],
+    *,
+    store: BriefStore,
+    now: Callable[[], dt.datetime] = _now,
+) -> dict[str, Any]:
+    """Authorize a printable snapshot and record only its id-level audit trail.
+
+    ``present`` deliberately runs first: it owns the owner check and the current RLS-backed HCP
+    authorization check, so a territory change refuses export before any document or audit event exists.
+    """
+    brief_id = _brief_id(args)
+    item = store.get(user_id, brief_id)
+    if item is None:
+        raise NotFound("unknown_brief")
+    brief = present(cur, identity, user_id, item)
+    exported_at = _iso(now())
+    cur.execute(
+        "INSERT INTO audit_events(actor_user_id, action, resource_type, resource_id, outcome, correlation_id) "
+        "VALUES (%s, %s, %s, %s, %s, current_setting('app.correlation_id', true))",
+        (user_id, "brief.exported", "pre_call_brief", brief_id, "allowed"),
+    )
+    citations = brief["evidence"]
+    date_from, date_to = _export_dates(citations)
+    log.info("brief exported", brief_id=brief_id, user_id=user_id, citation_count=len(citations), outcome="allowed")
+    return {
+        "briefId": brief_id,
+        "hcpName": brief["hcpName"]["value"] or "HCP name not recorded",
+        "objective": brief["objective"],
+        "scopeLabel": brief["scopeLabel"],
+        "dateRangeFrom": date_from,
+        "dateRangeTo": date_to,
+        "dataThrough": brief["dataThrough"],
+        "generatedAt": brief["generatedAt"],
+        "exportedAt": exported_at,
+        "facts": brief["facts"],
+        "engagement": brief["engagement"],
+        "perspectives": brief["perspectives"],
+        "followUps": brief["followUps"],
+        "prompts": brief["prompts"],
+        "agenda": brief["agenda"],
+        "missing": brief["missing"],
+        "citations": citations,
+    }
+
+
 def my_briefs(
     cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, store: BriefStore
 ) -> list[dict[str, Any]]:

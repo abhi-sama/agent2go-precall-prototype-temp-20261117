@@ -31,7 +31,23 @@ GENERATE = "mutation G($hcpId: ID!, $objective: String!, $regen: ID) { generateB
 OPEN = "query O($briefId: ID!) { preCallBrief(briefId: $briefId) { %s } }" % BRIEF_FIELDS
 LIST = "query { myBriefs { briefId hcpId hcpName { value state } objective generatedAt dataThrough accessible stale } }"
 EDIT = "mutation E($input: BriefEditInput!) { saveBriefEdits(input: $input) { %s } }" % BRIEF_FIELDS
+EXPORT = """
+mutation Export($briefId: ID!) {
+  exportBrief(briefId: $briefId) {
+    briefId hcpName objective scopeLabel dateRangeFrom dateRangeTo dataThrough generatedAt exportedAt
+    facts { label value evidenceIds }
+    engagement { statementId text evidenceIds }
+    perspectives { statementId text evidenceIds }
+    followUps { statementId text evidenceIds }
+    prompts { itemId text detail evidenceIds origin edited }
+    agenda { itemId text detail evidenceIds origin edited }
+    missing { code message }
+    citations { evidenceId dataset recordId label date }
+  }
+}
+"""
 CITATION = "query C($d: String!, $r: ID!) { chatCitation(dataset: $d, recordId: $r) { dataset recordId title fields { label value } } }"
+AUDIT = "query Audit($filter: AccessAuditFilter) { accessAudit(filter: $filter) { actorUserId action resourceType resourceId outcome } }"
 
 TABLE = "a2g-precall-briefs"
 FE = "111111111111"
@@ -75,6 +91,36 @@ def clean_briefs():
 
 def statements(brief: dict) -> list[dict]:
     return [*brief["engagement"], *brief["perspectives"], *brief["followUps"], *brief["prompts"]]
+
+
+def test_export_rechecks_access_returns_print_data_and_writes_the_access_audit(msl, db):
+    brief = ok(generate(msl), "generateBrief")
+    exported = ok(msl.query(EXPORT, {"briefId": brief["briefId"]}), "exportBrief")
+    assert exported["scopeLabel"] == brief["scopeLabel"]
+    assert exported["generatedAt"] == brief["generatedAt"] and exported["exportedAt"]
+    assert exported["dateRangeFrom"] <= exported["dateRangeTo"]
+    assert exported["citations"] == brief["evidence"]
+    assert exported["engagement"] == brief["engagement"]
+    audit = ok(
+        Persona.sign_in("admin-region-01").query(
+            AUDIT,
+            {"filter": {"actorUserId": "msl-t01-01", "action": "brief.exported", "resourceType": "pre_call_brief", "outcome": "allowed"}},
+        ),
+        "accessAudit",
+    )
+    assert any(event["resourceId"] == brief["briefId"] for event in audit)
+
+    (moved_id,) = db.execute(
+        """INSERT INTO user_scope_assignments(user_id, territory_id, assignment_type, effective_from)
+           VALUES ('msl-t01-01', 'T02-01', 'temporary', now() - interval '1 minute') RETURNING assignment_id"""
+    ).fetchone()
+    try:
+        db.execute("UPDATE user_scope_assignments SET effective_to = now() WHERE user_id='msl-t01-01' AND territory_id='T01-01' AND effective_to IS NULL")
+        denied = msl.query(EXPORT, {"briefId": brief["briefId"]})
+        assert "Forbidden" in denied.error_types
+    finally:
+        db.execute("DELETE FROM user_scope_assignments WHERE assignment_id = %s", (moved_id,))
+        db.execute("UPDATE user_scope_assignments SET effective_to = NULL WHERE user_id='msl-t01-01' AND territory_id='T01-01'")
 
 
 def test_every_statement_links_to_a_source_call_or_response_record(msl, db):
