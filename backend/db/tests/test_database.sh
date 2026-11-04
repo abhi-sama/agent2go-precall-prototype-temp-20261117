@@ -113,11 +113,19 @@ expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) FROM users WHERE identi
 expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) FROM medical_roster WHERE start_date ~ '^[0-9]{2}:[0-9]{2}:'")" "1" "time-only roster date is planted"
 expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) FROM hcp_raw_insights i JOIN question_tag q ON q.qstn_ext_id=i.qstn_ext_id WHERE i.qstn_tag_status <> q.qstn_tag_status")" "6000" "catalog-response status differences are planted"
 
+# Insight variety: every answer type is present, with conditional follow-ups and real qualitative text.
+expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(DISTINCT qstn_type) FROM question_tag")" "9" "question catalog spans nine answer types"
+expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) >= 2000 FROM (SELECT DISTINCT rspns_txt FROM hcp_raw_insights WHERE qstn_type='open_text') t")" "t" "at least 2000 distinct qualitative answers"
+expect "$(psql "$DATABASE_URL" -X -qAtc "SELECT count(*) FROM hcp_raw_insights c WHERE c.qstn_pid IS NOT NULL AND c.qstn_pid <> 'Q-NOT-IN-CATALOG' AND NOT EXISTS (SELECT 1 FROM hcp_raw_insights p WHERE p.insight_intrctn_dtl_sfdc_id=c.insight_intrctn_dtl_sfdc_id AND p.qstn_ext_id=c.qstn_pid)")" "0" "every follow-up has its parent in the same interaction"
+
 # Generator is deterministic: content checksum and manifest checksum survive a full re-seed.
 before_checksum=$(psql "$DATABASE_URL" -X -qAtc "SELECT md5(string_agg(concat_ws('|',crm_call_id,territory_id,prd_nm),',' ORDER BY source_row_id)) FROM call_activity")
+insight_sql="SELECT md5(string_agg(concat_ws('|',uniq_rspns_id,cust_mdm_id,qstn_ext_id,rspns_txt,followup_rspns,date_of_interaction),',' ORDER BY source_row_id)) FROM hcp_raw_insights"
+before_insights=$(psql "$DATABASE_URL" -X -qAtc "$insight_sql")
 before_manifest=$(shasum -a 256 "$ROOT/seed-users.json" | awk '{print $1}')
 python3 "$ROOT/seed/generate.py" >/dev/null
 after_checksum=$(psql "$DATABASE_URL" -X -qAtc "SELECT md5(string_agg(concat_ws('|',crm_call_id,territory_id,prd_nm),',' ORDER BY source_row_id)) FROM call_activity")
 after_manifest=$(shasum -a 256 "$ROOT/seed-users.json" | awk '{print $1}')
 expect "$after_checksum" "$before_checksum" "deterministic call seed"
+expect "$(psql "$DATABASE_URL" -X -qAtc "$insight_sql")" "$before_insights" "deterministic insight seed"
 expect "$after_manifest" "$before_manifest" "deterministic user manifest"

@@ -166,7 +166,7 @@ def test_the_agent_write_role_can_only_put_or_update():
 def test_logs_hold_no_question_answer_name_email_or_hcp_text(msl, msl_run, db):
     user = seeded_user("msl-t01-01")
     hcp_names = [r[0] for r in db.execute("SELECT DISTINCT cust_full_nm FROM call_activity WHERE territory_id = 'T01-01' LIMIT 20")]
-    hcp_text = [r[0] for r in db.execute("SELECT DISTINCT rspns_txt FROM hcp_raw_insights WHERE territory_id = 'T01-01' LIMIT 20")]
+    hcp_text = [r[0] for r in db.execute("SELECT DISTINCT rspns_txt FROM hcp_raw_insights WHERE territory_id = 'T01-01' AND qstn_type = 'open_text' LIMIT 20")]
     logs = be_lambda_logs(since="30m") + "\n" + agent_logs(since="30m")
     assert "chat run" in logs, "chat services logged nothing"
     for secret in [FIRST_Q, msl_run.text, msl.id_token, user["email"], user["full_name"], *hcp_names, *hcp_text]:

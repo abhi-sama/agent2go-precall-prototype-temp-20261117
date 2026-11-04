@@ -18,6 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from geography import BY_TERRITORY, GEOGRAPHY, city_for  # noqa: E402
+from insights import HI_COLUMNS, QT_COLUMNS, generate as generate_insight_data  # noqa: E402
 
 DSN = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:55432/agent2go")
 ROOT = Path(__file__).resolve().parents[1]
@@ -113,13 +114,8 @@ def seed_entitlements(seed_users: list[dict[str, str]]) -> None:
     sql("INSERT INTO embeddings(source_table,source_record_id,territory_id,content_hash,embedding) VALUES ('question_tag','Q-0001',NULL,'seed-question-1',array_fill(0.01::real, ARRAY[1536])::vector)")
 
 def seed_questions() -> None:
-    rows = []
-    for i in range(1, 401):
-        parent = None if i <= 100 else f"Q-{((i - 1) % 100) + 1:04}"
-        if i == 100: parent = "Q-NOT-IN-CATALOG"  # planted orphan parent
-        molecule, tumor, study = MOLECULES[i % 4], TUMORS[i % 4], STUDIES[i % 4]
-        rows.append((f"TAG-{i:04}", f"Question Tag {i}", "2025-01-01T00:00:00", "seed", "2026-01-01T00:00:00", "seed", False, "seed", "Oncology insight", f"How does {molecule} fit in {tumor} discussion {i}?", "2025-01-01T00:00:00", None, "Active", "Oncology", None, "normal", f"Q-{i:04}", parent, "open_text", "clinical", molecule, tumor, "MSL pulse", tumor, study, "Follow-up" if parent else None, "2026-11-03T12:00:00Z", "QUEST-20261103", "synthetic", f"question-{i}", "2026-11-03T12:00:00", "2025-01-01T00:00:00", None))
-    copy_rows("question_tag", ["qstn_tag_sfdc_id","qstn_tag_nm","src_created_dt","src_created_by","src_updt_dt","src_updt_by","src_delete_flag","ownerid","insight_nm","qstn_txt","qstn_tag_strt_dt","qstn_tag_end_dt","qstn_tag_status","tag_nm","pid","priority_tag","qstn_ext_id","qstn_pid","qstn_type","report_tag","molecule_type","tumor_type","survey_type","qstn_indicator","study_name","follow_up_qstn_tag","sys_inserted_datetime","batch_id","source_name","dbt_scd_id","dbt_updated_at","dbt_valid_from","dbt_valid_to"], rows)
+    questions, _ = generate_insight_data()
+    copy_rows("question_tag", QT_COLUMNS, ([row[c] for c in QT_COLUMNS] for row in questions))
 
 def seed_calls() -> None:
     rows = []
@@ -141,21 +137,8 @@ def seed_calls() -> None:
     copy_rows("call_activity", ["atnde_type","addr","call_chnl","call_dt","crm_call_id","clm_flag","call_type","call_dur","exs_inac_call_flag","exs_jnt_msl_sls_call_flag","jnt_smad_vist","exs_lb_flag","exs_lgcy_call_atnde_id","exs_lgcy_call_id","exs_mtg_type","exs_non_npi_cust_id","exs_snacks","exs_type_of_vist","is_par_call_flag","is_smpld_call_flag","par_call_id","call_sta","cust_src_id","crm_med_disc_id","derived_disease_state","reason_for_visit","crm_prd_id","prd_nm","territory_id","territory_name","team_nm","crm_call_user_id","rep_nm","rep_email_id","cust_mdm_id","cust_full_nm","cust_sub_typ","cust_cdtl","npi_id","addr_ln_1","city","st_cd","pstl_cd","mdm_corp_prnt_id","mdm_corp_prnt_nm","hq_corp_prnt_id","hq_corp_prnt_nm","sys_inserted_datetime"], rows)
 
 def seed_insights() -> None:
-    rows = []
-    for i in range(60000):
-        territory = TERRITORIES[i % len(TERRITORIES)]
-        region = REGIONS[i % len(TERRITORIES) // 6]
-        canonical_hcp = f"HCP-{(i % 3000) + 1:04}"
-        hcp = "LEGACY-HCP-0001" if canonical_hcp == "HCP-0001" else canonical_hcp
-        question = f"Q-{(i % 400) + 1:04}"
-        status = "Retired" if i % 10 == 0 else "Active"  # catalog-vs-response status difference
-        unique = "RESP-000001" if i == 59999 else f"RESP-{i + 1:06}"
-        d = TODAY - timedelta(days=i % 365)
-        geo = BY_TERRITORY[territory]
-        name = "Insight directory HCP 0001" if canonical_hcp == "HCP-0001" else "Synthetic HCP " + hcp
-        follow_up = f"Explore {MOLECULES[i % 4]} evidence and access" if i % 9 == 0 else None
-        rows.append((f"INT-{i + 1:06}",f"RAW-{i + 1:06}","seed",None,None,d.isoformat(),STUDIES[i % 4],"field","in-person",region,"2026-01-01T00:00:00",region,geo.country_code,geo.country_name,territory,territory,territory + " Oncology",region,region + " Region","Oncology",hcp,name,"medical oncology","Synthetic Cancer Center","oncology","HCP",None,"Oncology insight",None,None,f"INS-{i + 1:06}",f"How does {MOLECULES[i % 4]} fit in {TUMORS[i % 4]} discussion?",f"Recorded perspective {i % 17}: evidence and access are important.",question,"2025-01-01T00:00:00",None,status,"Oncology",None,"normal",None,"open_text",MOLECULES[i % 4],"treatment landscape","MSL pulse",TUMORS[i % 4],STUDIES[i % 4],None,None,None,follow_up,None,unique,"2026-11-03T12:00:00Z",None,None,None,None,False))
-    copy_rows("hcp_raw_insights", ["insight_intrctn_dtl_sfdc_id","response_id","insight_submitter_info","submitter_name","submitter_email","date_of_interaction","clinical_trial","type_of_visit","meeting_format","insight_region","src_created_dt","region_nm","insight_country","country_nm","insight_msl_territory","territory_id","territory_name","parent_territory_id","parent_territory_name","team_nm","cust_mdm_id","cust_nm","hcp_speciality","hcp_institution","hcp_discipline","hcp_type","internal_meeting_attendees","insight_name","insight_clinicaltrial_site","site_nm","insight_intrctn_rspns_sfdc_id","qstn_txt","rspns_txt","qstn_ext_id","qstn_tag_strt_dt","qstn_tag_end_dt","qstn_tag_status","tag_nm","pid","priority_tag","qstn_pid","qstn_type","molecule_type","landscape_type","survey_type","qstn_indicator","study_name","derived_rspns_text","follow_up_qstn_tag","followup_qid","followup_qstn","followup_rspns","uniq_rspns_id","sys_inserted_datetime","mdm_corp_prnt_id","mdm_corp_prnt_nm","hq_corp_prnt_id","hq_corp_prnt_nm","excluded_rspns_flag"], rows)
+    _, responses = generate_insight_data()
+    copy_rows("hcp_raw_insights", HI_COLUMNS, ([row[c] for c in HI_COLUMNS] for row in responses))
 
 def embedding(text: str) -> str:
     values = [0.0] * 1536
@@ -166,13 +149,19 @@ def embedding(text: str) -> str:
     return "[" + ",".join(str(value / magnitude if magnitude else 0) for value in values) + "]"
 
 def seed_insight_embeddings() -> None:
-    # Representative vectors cover every territory while keeping local reset quick.
+    # A representative sample of real free-text answers, 25 per territory, so semantic search has
+    # something to find in every scope while a local reset stays quick.
+    _, responses = generate_insight_data()
+    per_territory: dict[str, list[dict]] = {}
+    for row in responses:
+        if row["qstn_type"] == "open_text":
+            per_territory.setdefault(row["territory_id"], []).append(row)
     rows = []
-    for i in range(0, 60000, 125):
-        territory = TERRITORIES[i % len(TERRITORIES)]
-        response_id = f"RESP-{i + 1:06}"
-        text = f"How does {MOLECULES[i % 4]} fit in {TUMORS[i % 4]} discussion Recorded perspective {i % 17}: evidence and access are important"
-        rows.append(("hcp_raw_insights", response_id, territory, f"seed-insight-{response_id}", embedding(text), "local", "local-open-source"))
+    for territory in TERRITORIES:
+        pool = per_territory[territory]
+        for row in pool[:: max(1, len(pool) // 25)][:25]:
+            response_id = row["uniq_rspns_id"]
+            rows.append(("hcp_raw_insights", response_id, territory, f"seed-insight-{response_id}", embedding(row["qstn_txt"] + " " + row["rspns_txt"]), "local", "local-open-source"))
     copy_rows("embeddings", ["source_table", "source_record_id", "territory_id", "content_hash", "embedding", "embedding_provider", "embedding_model"], rows)
 
 def seed_hcp_crosswalk() -> None:

@@ -555,17 +555,52 @@ def insight_discovery(cur: psycopg.Cursor, identity: Identity, user_id: str, arg
     clauses, params = _insight_where(filters)
     where = ["h.date_of_interaction BETWEEN %(frm)s AND %(to)s", "h.excluded_rspns_flag IS NOT TRUE", *clauses]
     params.update({"frm": frm, "to": to})
+    # Distributions are drawn per question and per answer type. Free text is not a distribution (themes cover
+    # it), a select-all answer counts once per chosen option, a ranking counts its first choice, and numbers
+    # and dates fall into at most five ranges / months so one bar never stands for one respondent.
     cur.execute(
         f"""
         WITH filtered AS (
-          SELECT h.qstn_ext_id, h.qstn_txt, h.qstn_pid, coalesce(nullif(btrim(h.rspns_txt), ''), 'No response recorded') AS response, h.uniq_rspns_id
-          FROM hcp_raw_insights h WHERE {' AND '.join(where)}
+          SELECT h.qstn_ext_id, h.qstn_txt, h.qstn_pid, h.qstn_type, btrim(h.rspns_txt) AS rspns, h.uniq_rspns_id
+          FROM hcp_raw_insights h
+          WHERE {' AND '.join(where)} AND h.qstn_type IS DISTINCT FROM 'open_text'
+        ), spans AS (
+          SELECT qstn_ext_id,
+                 min(rspns::numeric) AS lo,
+                 greatest(1, ceil((max(rspns::numeric) - min(rspns::numeric) + 1) / 5.0)) AS width
+          FROM filtered WHERE qstn_type = 'numeric' AND rspns ~ '^-?[0-9]+(\\.[0-9]+)?$' GROUP BY qstn_ext_id
+        ), answers AS (
+          SELECT f.qstn_ext_id, f.qstn_txt, f.qstn_pid, f.uniq_rspns_id,
+                 CASE
+                   WHEN coalesce(opt.value, '') = '' THEN 'No response recorded'
+                   WHEN f.qstn_type = 'ranking' THEN 'Ranked first: ' || split_part(opt.value, ' > ', 1)
+                   WHEN f.qstn_type = 'numeric' AND s.lo IS NOT NULL AND opt.value ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN
+                        (s.lo + floor((opt.value::numeric - s.lo) / s.width) * s.width)::bigint::text || ' to '
+                        || (s.lo + floor((opt.value::numeric - s.lo) / s.width) * s.width + s.width - 1)::bigint::text
+                   WHEN f.qstn_type = 'date' AND opt.value ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$' THEN left(opt.value, 7)
+                   ELSE opt.value
+                 END AS response
+          FROM filtered f
+          LEFT JOIN spans s ON s.qstn_ext_id = f.qstn_ext_id
+          CROSS JOIN LATERAL unnest(CASE WHEN f.qstn_type = 'multi_select' THEN string_to_array(f.rspns, ';') ELSE ARRAY[f.rspns] END) AS opt(value)
         ), grouped AS (
           SELECT qstn_ext_id, min(qstn_txt) AS qstn_txt, min(qstn_pid) AS qstn_pid, response, count(DISTINCT uniq_rspns_id) AS response_count
-          FROM filtered GROUP BY qstn_ext_id, response
+          FROM answers GROUP BY qstn_ext_id, response
+        ), denominators AS (
+          SELECT qstn_ext_id, min(qstn_type) AS qstn_type, count(DISTINCT uniq_rspns_id) AS denominator FROM filtered GROUP BY qstn_ext_id
+        ), per_type AS (
+          SELECT qstn_ext_id, row_number() OVER (PARTITION BY qstn_type ORDER BY denominator DESC, qstn_ext_id) AS type_rank, denominator FROM denominators
+        ), ranked_questions AS (
+          -- the best-answered question of every answer type first, then the second best of each, so the page shows variety
+          SELECT qstn_ext_id, row_number() OVER (ORDER BY type_rank, denominator DESC, qstn_ext_id) AS question_rank FROM per_type
+        ), ranked AS (
+          SELECT g.*, d.denominator, q.question_rank,
+                 row_number() OVER (PARTITION BY g.qstn_ext_id ORDER BY g.response_count DESC, g.response) AS answer_rank
+          FROM grouped g JOIN denominators d USING (qstn_ext_id) JOIN ranked_questions q USING (qstn_ext_id)
         )
-        SELECT qstn_ext_id, qstn_txt, qstn_pid, response, response_count, sum(response_count) OVER (PARTITION BY qstn_ext_id) AS denominator
-        FROM grouped ORDER BY qstn_ext_id, response_count DESC, response LIMIT 120
+        SELECT qstn_ext_id, qstn_txt, qstn_pid, response, response_count, denominator
+        FROM ranked WHERE question_rank <= 24 AND answer_rank <= 8
+        ORDER BY question_rank, response_count DESC, response
         """,
         params,
     )
@@ -583,18 +618,33 @@ def insight_discovery(cur: psycopg.Cursor, identity: Identity, user_id: str, arg
     )
     questions = [{"questionId": row[0], "questionText": row[1], "topic": row[2], "molecule": row[3], "tumorType": row[4], "study": row[5], "survey": row[6], "status": row[7] or "Unknown", "effectiveFrom": row[8].isoformat() if row[8] else None, "effectiveTo": row[9].isoformat() if row[9] else None, "applicability": row[10]} for row in cur.fetchall()]
     log.info("insight discovery computed", user_id=user_id, territory_count=effective, distribution_count=len(distributions), question_count=len(questions), range_days=(to - frm).days + 1)
+    # Themes are derived from free-text answers only: a "Yes", a 4 or a date is not a perspective.
+    # This is a transparent keyword baseline (first match wins, specific emerging topics first).
     cur.execute(
-        """WITH source AS (
-             SELECT lower(coalesce(rspns_txt, '')) AS response, qstn_ext_id, qstn_txt, uniq_rspns_id
-             FROM hcp_raw_insights WHERE excluded_rspns_flag IS NOT TRUE AND date_of_interaction BETWEEN %(frm)s AND %(to)s
+        r"""WITH source AS (
+             SELECT lower(rspns_txt) AS response, btrim(rspns_txt) AS original, qstn_ext_id, qstn_txt, uniq_rspns_id
+             FROM hcp_raw_insights WHERE excluded_rspns_flag IS NOT TRUE AND qstn_type = 'open_text' AND nullif(btrim(rspns_txt), '') IS NOT NULL
+               AND date_of_interaction BETWEEN %(frm)s AND %(to)s
            ), classified AS (
-             SELECT CASE WHEN response LIKE '%%access%%' THEN 'Access considerations'
-                         WHEN response LIKE '%%evidence%%' THEN 'Evidence questions'
-                         ELSE 'Recorded perspectives' END AS theme, qstn_ext_id, qstn_txt, response, uniq_rspns_id
+             SELECT CASE
+                      WHEN response ~ '(ctdna|liquid biopsy|\ymrd\y|circulating tumor|cell-free)' THEN 'ctDNA monitoring (emerging)'
+                      WHEN response ~ '(\yild\y|pneumonitis|interstitial|pulmonolog|ct schedule|pulmonary)' THEN 'Pulmonary surveillance (emerging)'
+                      WHEN response ~ '(neoadjuvant|adjuvant|early-stage|early stage|perioperative|curative)' THEN 'Earlier-stage use (emerging)'
+                      WHEN response ~ '(prior auth|payer|reimburs|denial|denied|copay|coverage|appeal|insurance|formulary|authoriz|approval|340b|buy-and-bill|infusion chair)' THEN 'Access and reimbursement'
+                      WHEN response ~ '(biomarker|testing|\yngs\y|\yihc\y|pd-l1|turnaround|assay|reflex|her2-low|trop2|tissue|biops)' THEN 'Biomarker testing'
+                      WHEN response ~ '(guideline|nccn|esmo|\yasco\y|pathway|compendi)' THEN 'Guidelines and pathways'
+                      WHEN response ~ '(crossover|comparator|endpoint|subgroup|trial design|powered|enrol|eligibility|randomi|head-to-head)' THEN 'Trial design and evidence gaps'
+                      WHEN response ~ '(tolerab|toxicit|adverse|nausea|neutropenia|diarrhea|rash|dose reduc|discontinu|side effect|safety|\ytox|cytopeni|irae|antiemetic)' THEN 'Safety and tolerability'
+                      WHEN response ~ '(sequenc|after progression|second.line|first.line|third.line|switch)' THEN 'Treatment sequencing'
+                      WHEN response ~ '(compet|alternative|compared|versus|\yvs\y|colleagues)' THEN 'Competitor comparisons'
+                      WHEN response ~ '(candidate|performance status|ecog|frail|elderly|comorbid|brain met|patient selection|which patients)' THEN 'Patient selection'
+                      WHEN response ~ '(unmet|resistance|few options|limited options|quality of life|\yqol\y)' THEN 'Unmet need'
+                      WHEN response ~ '(response|durab|\ypfs\y|survival|efficacy|benefit|remission|\yos\y|mature|f/u|outcome|results impress)' THEN 'Efficacy and durability'
+                      ELSE 'Other perspectives' END AS theme, qstn_ext_id, qstn_txt, original, uniq_rspns_id
              FROM source
            )
-           SELECT theme, count(DISTINCT uniq_rspns_id), min(response), min(qstn_ext_id), min(qstn_txt)
-           FROM classified GROUP BY theme ORDER BY count(DISTINCT uniq_rspns_id) DESC, theme LIMIT 6""",
+           SELECT theme, count(DISTINCT uniq_rspns_id), (array_agg(original ORDER BY uniq_rspns_id))[1], (array_agg(uniq_rspns_id ORDER BY uniq_rspns_id))[1], (array_agg(qstn_txt ORDER BY uniq_rspns_id))[1]
+           FROM classified GROUP BY theme ORDER BY theme = 'Other perspectives', count(DISTINCT uniq_rspns_id) DESC, theme LIMIT 12""",
         {"frm": frm, "to": to},
     )
     themes = [{"name": name, "responseCount": int(count), "excerpt": excerpt[:280], "recordId": record_id, "questionText": question} for name, count, excerpt, record_id, question in cur.fetchall()]

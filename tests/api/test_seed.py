@@ -13,7 +13,7 @@ def test_seed_volume(db):
     assert scalar(db, "SELECT count(*) FROM question_tag") == 400
     assert scalar(db, "SELECT count(DISTINCT child_territory_id) FROM territory_scope_relationships") == 24
     assert scalar(db, "SELECT count(DISTINCT parent_territory_id) FROM territory_scope_relationships WHERE parent_territory_id LIKE 'REGION-%%'") == 4
-    assert scalar(db, "SELECT count(*) FROM medical_roster") == 60
+    assert scalar(db, "SELECT count(*) FROM medical_roster") == 62  # 60 staff + two planted duplicate-email candidates
     assert scalar(db, "SELECT count(*) FROM users") == 36
 
 
@@ -107,3 +107,86 @@ def test_insight_country_agrees_with_the_territory_location(db):
            WHERE i.insight_country IS DISTINCT FROM g.country_code OR i.country_nm IS DISTINCT FROM g.country_name""",
     ) == 0
     assert scalar(db, "SELECT count(DISTINCT insight_country) FROM hcp_raw_insights") >= 5
+
+
+# --- Insight data variety (ticket 27): every answer type, conditional follow-ups, planted signal.
+
+def test_questions_span_every_answer_type(db):
+    types = {r[0]: r[1] for r in db.execute("SELECT qstn_type, count(*) FROM question_tag GROUP BY 1").fetchall()}
+    assert set(types) == {"open_text", "single_choice", "multi_select", "yes_no", "likert_5", "rating_0_10", "numeric", "date", "ranking"}
+    assert all(n >= 8 for n in types.values())
+    answered = {r[0] for r in db.execute("SELECT DISTINCT qstn_type FROM hcp_raw_insights").fetchall()}
+    assert answered == set(types), "every question type has stored answers"
+
+
+def test_response_rows_carry_the_catalog_question_type_and_metadata(db):
+    assert scalar(
+        db,
+        """SELECT count(*) FROM hcp_raw_insights h JOIN question_tag q USING (qstn_ext_id)
+           WHERE h.qstn_type IS DISTINCT FROM q.qstn_type OR h.qstn_txt IS DISTINCT FROM q.qstn_txt
+              OR h.molecule_type IS DISTINCT FROM q.molecule_type OR h.survey_type IS DISTINCT FROM q.survey_type""",
+    ) == 0
+
+
+def test_scaled_numeric_and_date_answers_parse(db):
+    assert scalar(db, "SELECT count(*) FROM hcp_raw_insights WHERE qstn_type = 'likert_5' AND rspns_txt NOT IN ('1','2','3','4','5')") == 0
+    assert scalar(db, "SELECT count(*) FROM hcp_raw_insights WHERE qstn_type = 'rating_0_10' AND rspns_txt !~ '^([0-9]|10)$'") == 0
+    assert scalar(db, "SELECT count(*) FROM hcp_raw_insights WHERE qstn_type = 'yes_no' AND rspns_txt NOT IN ('Yes','No','Unsure')") == 0
+    assert scalar(db, "SELECT count(*) FROM hcp_raw_insights WHERE qstn_type = 'numeric' AND rspns_txt !~ '^[0-9]+$'") == 0
+    assert scalar(db, "SELECT count(*) FROM hcp_raw_insights WHERE qstn_type = 'date' AND rspns_txt !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'") == 0
+    assert scalar(db, "SELECT count(*) FROM hcp_raw_insights WHERE qstn_type = 'date' AND rspns_txt::date IS NULL") == 0
+
+
+def test_qualitative_answers_are_varied_and_do_not_repeat_often(db):
+    assert scalar(db, "SELECT count(DISTINCT rspns_txt) FROM hcp_raw_insights WHERE qstn_type = 'open_text'") >= 2000
+    assert scalar(db, "SELECT max(n) FROM (SELECT count(*) AS n FROM hcp_raw_insights WHERE qstn_type = 'open_text' GROUP BY rspns_txt) t") <= 4
+    assert scalar(db, "SELECT count(*) FROM hcp_raw_insights WHERE rspns_txt ILIKE 'Recorded perspective%%'") == 0
+
+
+def test_follow_ups_sit_in_the_parents_interaction_and_agree_with_it(db):
+    # Every follow-up row (other than the planted orphan) has exactly one parent answer in the same interaction and for the same HCP.
+    assert scalar(
+        db,
+        """SELECT count(*) FROM hcp_raw_insights c WHERE c.qstn_pid IS NOT NULL AND c.qstn_pid <> 'Q-NOT-IN-CATALOG'
+           AND (SELECT count(*) FROM hcp_raw_insights p WHERE p.insight_intrctn_dtl_sfdc_id = c.insight_intrctn_dtl_sfdc_id
+                AND p.qstn_ext_id = c.qstn_pid AND p.cust_mdm_id = c.cust_mdm_id AND p.date_of_interaction = c.date_of_interaction) <> 1""",
+    ) == 0
+    assert scalar(db, "SELECT count(*) FROM hcp_raw_insights WHERE qstn_pid IS NOT NULL AND qstn_pid <> 'Q-NOT-IN-CATALOG'") > 8000
+    # A parent's follow-up fields name the child row that exists in its interaction, with the same question and answer.
+    assert scalar(
+        db,
+        """SELECT count(*) FROM hcp_raw_insights p WHERE p.followup_qid IS NOT NULL AND NOT EXISTS (
+             SELECT 1 FROM hcp_raw_insights c WHERE c.insight_intrctn_dtl_sfdc_id = p.insight_intrctn_dtl_sfdc_id AND c.qstn_ext_id = p.followup_qid
+               AND c.qstn_pid = p.qstn_ext_id AND c.rspns_txt = p.followup_rspns AND c.qstn_txt = p.followup_qstn)""",
+    ) == 0
+    # "No" / "Unsure" to 'started a patient recently' triggers a barrier question; "Yes" never does.
+    assert scalar(
+        db,
+        """SELECT count(*) FROM hcp_raw_insights c JOIN hcp_raw_insights p ON p.insight_intrctn_dtl_sfdc_id = c.insight_intrctn_dtl_sfdc_id AND p.qstn_ext_id = c.qstn_pid
+           WHERE c.qstn_txt LIKE 'What is the main barrier to starting patients%%' AND p.rspns_txt = 'Yes'""",
+    ) == 0
+    assert scalar(
+        db,
+        """SELECT count(*) FROM hcp_raw_insights c JOIN hcp_raw_insights p ON p.insight_intrctn_dtl_sfdc_id = c.insight_intrctn_dtl_sfdc_id AND p.qstn_ext_id = c.qstn_pid
+           WHERE c.qstn_txt LIKE 'What is the main reason for your low score%%' AND p.qstn_type = 'likert_5' AND p.rspns_txt::int > 2""",
+    ) == 0
+
+
+def test_emerging_topics_grow_in_the_last_90_days(db):
+    rows = db.execute(
+        r"""SELECT (date '2026-11-03' - date_of_interaction) < 90 AS recent, count(*) FILTER (WHERE rspns_txt ~* 'ctdna|liquid biopsy|\mmrd\M'), count(*)
+           FROM hcp_raw_insights WHERE qstn_type = 'open_text' GROUP BY 1"""
+    ).fetchall()
+    share = {recent: hits / total for recent, hits, total in rows}
+    assert share[True] > 4 * share[False]
+
+
+def test_the_tracker_panel_shifts_perspective_over_time(db):
+    rows = db.execute(
+        """SELECT CASE WHEN date_of_interaction < '2026-02-01' THEN 1 WHEN date_of_interaction < '2026-08-01' THEN 2 ELSE 3 END AS wave, avg(rspns_txt::numeric)
+           FROM hcp_raw_insights WHERE qstn_ext_id IN ('Q-0005','Q-0006','Q-0007','Q-0008')
+             AND cust_mdm_id IN (SELECT cust_mdm_id FROM hcp_raw_insights WHERE qstn_ext_id IN ('Q-0005','Q-0006','Q-0007','Q-0008') GROUP BY 1 HAVING count(*) = 3)
+           GROUP BY 1 ORDER BY 1"""
+    ).fetchall()
+    means = [float(m) for _, m in rows]
+    assert len(means) == 3 and means[0] + 0.6 < means[1] < means[2] - 0.4, means

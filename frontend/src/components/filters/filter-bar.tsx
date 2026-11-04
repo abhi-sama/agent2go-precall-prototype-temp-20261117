@@ -147,14 +147,14 @@ export function FilterBar({ range, onRangeChange, defaultRange, onReset, selects
             </>
           )}
           {selects?.map((s) => (
-            <div key={s.id} className="flex flex-col gap-1.5">
+            <div key={s.id} className="flex min-w-0 max-w-full flex-col gap-1.5">
               <Label htmlFor={`filter-${s.id}`} className="text-xs">{s.label}</Label>
               <select
                 id={`filter-${s.id}`}
                 value={s.value}
                 disabled={disabled}
                 onChange={(e) => s.onChange(e.target.value)}
-                className="h-11 min-w-44 rounded-lg border border-input bg-background px-3 text-sm"
+                className="h-11 w-full min-w-44 max-w-[min(100%,22rem)] truncate rounded-lg border border-input bg-background px-3 text-sm"
               >
                 {s.options.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>

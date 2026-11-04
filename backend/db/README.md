@@ -20,3 +20,7 @@ token subject to a user (matched mappings only). `005_rls_performance.sql` rewri
 policies so scope is evaluated once per statement instead of once per row. In the integrated local stack
 (`backend/infra/scripts/up.sh`) the same migrations and seed run against the BE account's floci RDS
 instance, and the provisioner records each seeded user's Cognito subject in `users.identity_subject`.
+
+The insight seed is multi-type and deterministic (qualitative, choice, yes/no, Likert, 0-10, numeric, date, ranking, with conditional
+follow-ups and planted themes, emerging topics and a perspective shift). See `docs/synthetic-insight-data.md`;
+`python3 -m unittest discover -s backend/db/tests` runs the generator-level proofs without a database.
