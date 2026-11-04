@@ -7,6 +7,7 @@ import { SourceFact } from "@/components/provenance/provenance"
 import { ErrorState } from "@/components/state/states"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { CitationItem } from "@/lib/chat/events"
+import { buildFactCsv, downloadText } from "@/lib/provenance"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
 
@@ -23,13 +24,7 @@ function CitationBody({ citation }: { citation: CitationItem }) {
 
   React.useEffect(() => {
     if (exported.status !== "success") return
-    const csv = ["field,value", ...exported.data.fields.map((field) => `${JSON.stringify(field.label)},${JSON.stringify(field.value)}`)].join("\n")
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }))
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `${exported.data.recordId}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
+    downloadText(`${exported.data.recordId}.csv`, buildFactCsv(exported.data.fields), "text/csv;charset=utf-8")
   }, [exported])
   if (record.status === "loading") return <Skeleton data-testid="citation-loading" className="h-40 w-full rounded-2xl" />
   if (record.status === "error") {

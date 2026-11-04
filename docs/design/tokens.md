@@ -20,7 +20,7 @@ A boot script in the root layout applies saved choices before first paint.
 | Surface and text | `--background`, `--foreground`, `--card`, `--popover`, `--secondary`, `--muted`, `--muted-foreground`, `--border`, `--input`, `--ring`, `--sidebar*` |
 | Accent | `--primary` (orange-600 light, orange-500 dark), `--primary-foreground`, `--accent-text` (small orange text), `--accent` (hover wash) |
 | Navigation | `--nav-active`, `--nav-active-foreground` |
-| Meaning | `--fact*` (computed from source data), `--ai*` (AI-written), `--suggest*` (proposals), `--success`, `--warning`, `--destructive` |
+| Meaning | `--fact*` (computed from source data; `--fact-soft` is the neutral muted surface, no tint), `--ai*` (AI-written; orange wash, see `direction.md`), `--suggest*` (proposals), `--success`, `--warning`, `--destructive` |
 | Chart | `--chart-1` to `--chart-6` (categorical, fixed order), `--chart-other`, `--chart-grid`; sequential ramps come from `sequentialFill` |
 | Scene | `--scene-bg`, `--scene-tile`, `--scene-tile-locked` (map and globe) |
 | Shape and depth | `--radius` and the `rounded-*` scale derived from it, `--elev-card`, `--elev-lift` |

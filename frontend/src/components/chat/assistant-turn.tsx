@@ -3,10 +3,11 @@
 import { AlertTriangle, BarChart3, FileText, Loader2 } from "lucide-react"
 import * as React from "react"
 import { VisualCard } from "@/components/chat/visual-card"
-import { AiSummary, SourceFact, Suggestion } from "@/components/provenance/provenance"
+import { AiSummary, CitationChip, ExportButton, SourceFact, Suggestion, type ProvenanceCitation } from "@/components/provenance/provenance"
 import { Badge } from "@/components/ui/badge"
 import { useCountUp } from "@/hooks/use-count-up"
 import { citationNumber, citationsForFact, type AssistantTurn, type CitationItem, type FactItem } from "@/lib/chat/events"
+import { buildProvenanceExport, downloadText, type ExportBlock } from "@/lib/provenance"
 import { cn } from "@/lib/utils"
 
 const TOOL_LABELS: Record<string, string> = {
@@ -21,7 +22,7 @@ const TOOL_LABELS: Record<string, string> = {
 function KpiTile({ f, turn, onOpenCitation }: { f: FactItem; turn: AssistantTurn; onOpenCitation: (citation: CitationItem) => void }) {
   const shown = useCountUp(f.value, 600)
   return (
-    <div data-testid={`fact-${f.factId}`} data-value={f.value} className="rounded-xl border border-fact/20 bg-background/70 p-3">
+    <div data-testid={`fact-${f.factId}`} data-value={f.value} className="rounded-lg border border-border bg-background p-3">
       <dt className="text-xs font-semibold text-muted-foreground">{f.label}</dt>
       <dd className="mt-1 text-3xl font-semibold tracking-tight tabular-nums" aria-label={f.value.toLocaleString("en-US")}>
         {shown.toLocaleString("en-US")}
@@ -64,6 +65,26 @@ function CitedParagraph({ text, turn, onOpenCitation }: { text: string; turn: As
   })}</>
 }
 
+/** The answer as a file. Facts, the AI summary and suggestions stay in separate, labelled blocks. */
+function exportTurn(turn: AssistantTurn, through: string | null) {
+  const blocks: ExportBlock[] = [
+    {
+      kind: "fact",
+      title: "Computed from your data",
+      lines: turn.facts.map((f) => `${f.label}: ${f.value.toLocaleString("en-US")} (${f.scope}, ${f.period})`),
+    },
+    {
+      kind: "ai",
+      title: "Answer",
+      lines: turn.text.split(/\n{2,}/).filter(Boolean),
+      citations: turn.citations.map((c, i) => ({ number: i + 1, recordId: c.recordId, label: c.label })),
+    },
+    { kind: "suggestion", title: "You could ask next", lines: turn.suggestions },
+  ]
+  const text = buildProvenanceExport({ title: "MSL Agent answer", exportedAt: new Date().toISOString(), dataThrough: through, blocks })
+  downloadText(`msl-agent-answer-${turn.runId}.md`, text)
+}
+
 /**
  * One assistant answer. The three kinds of content are kept apart on purpose:
  *  - Source facts: numbers computed by SQL under the user's access, each with the records behind it.
@@ -87,6 +108,15 @@ export function AssistantTurnView({
   const through = formatThrough(turn.dataThrough)
   const paragraphs = turn.text.split(/\n{2,}/).filter(Boolean)
   const activeTools = turn.tools.filter((t) => TOOL_LABELS[t.name])
+  const hasAi = Boolean(turn.text) || (running && turn.facts.length === 0 && activeTools.length === 0)
+  // Every AI summary carries the records behind it as chips that open them; answers with no prose list them as plain sources.
+  const aiCitations: ProvenanceCitation[] = turn.citations.map((c) => ({
+    key: `${c.dataset}:${c.recordId}`,
+    label: c.recordId,
+    detail: c.label,
+    number: citationNumber(turn.citations, c),
+    onOpen: () => onOpenCitation(c),
+  }))
 
   return (
     <div data-testid="assistant-turn" data-status={turn.status} className="flex flex-col gap-3">
@@ -123,9 +153,10 @@ export function AssistantTurnView({
         </section>
       )}
 
-      {(turn.text || (running && turn.facts.length === 0 && activeTools.length === 0)) && (
+      {hasAi && (
         <AiSummary
           title={turn.mode === "stub" ? undefined : "Answer"}
+          citations={aiCitations}
           meta={
             turn.mode === "stub" ? (
               <Badge data-testid="stub-badge" variant="outline" className="border-warning/50 text-warning">
@@ -170,24 +201,19 @@ export function AssistantTurnView({
         </p>
       )}
 
-      {turn.citations.length > 0 && (
+      {!hasAi && turn.citations.length > 0 && (
         <section aria-label="Sources" data-testid="citations" className="flex flex-col gap-2">
-          <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Sources you can open</h4>
+          <h4 className="text-xs font-semibold text-muted-foreground">Sources you can open</h4>
           <ul className="flex flex-wrap gap-2">
             {turn.citations.map((c) => (
               <li key={`${c.dataset}:${c.recordId}`}>
-                <button
-                  type="button"
-                  data-testid="citation"
-                  onClick={() => onOpenCitation(c)}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-fact/30 bg-fact-soft px-3 text-left text-sm hover:bg-fact/10 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                >
+                <CitationChip data-testid="citation" aria-label={`Open source: ${c.label}`} onOpen={() => onOpenCitation(c)} className="min-h-11 gap-2 rounded-lg px-3 text-left text-sm">
                   <FileText className="size-4 shrink-0 text-fact" aria-hidden />
                   <span className="flex flex-col leading-tight">
                     <span className="font-mono text-xs">{c.recordId}</span>
                     <span className="text-xs text-muted-foreground">{c.label}</span>
                   </span>
-                </button>
+                </CitationChip>
               </li>
             ))}
           </ul>
@@ -227,6 +253,12 @@ export function AssistantTurnView({
             ))}
           </ul>
         </Suggestion>
+      )}
+
+      {turn.status === "done" && (turn.text || turn.facts.length > 0) && (
+        <div className="flex justify-end">
+          <ExportButton onExport={() => exportTurn(turn, through)} label="Download answer" />
+        </div>
       )}
 
       {turn.status === "done" && turn.saved !== null && (

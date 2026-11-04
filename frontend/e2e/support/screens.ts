@@ -363,6 +363,50 @@ export const SCREENS: ScreenSpec[] = [
       })
     },
   },
+  // AI-content look (ticket D3): facts, AI summaries and suggestions in the appearances where the washes are hardest to tell apart.
+  {
+    name: "chat-answer-black-clinical",
+    path: "/chat",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.evaluate(() => {
+        const root = document.documentElement
+        root.classList.add("dark")
+        root.dataset.mode = "black"
+        root.dataset.style = "clinical"
+      })
+      await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.locator('[data-provenance="ai"]').getByTestId("citation").first()).toBeVisible()
+    },
+  },
+  {
+    name: "director-insights-themes-charcoal-warm",
+    path: "/director/insights",
+    userId: "u-dir-ne",
+    ready: testId("theme-card"),
+    prepare: async (page) => {
+      await page.evaluate(() => {
+        const root = document.documentElement
+        root.classList.add("dark")
+        root.dataset.style = "warm"
+      })
+    },
+  },
+  {
+    name: "precall-brief-black-clinical",
+    path: "/msl/briefs?brief=br-20261103090000-aaaaaaaa",
+    ready: testId("brief"),
+    prepare: async (page) => {
+      await page.evaluate(() => {
+        const root = document.documentElement
+        root.classList.add("dark")
+        root.dataset.mode = "black"
+        root.dataset.style = "clinical"
+      })
+    },
+  },
   {
     name: "precall-brief-new",
     path: "/msl/briefs",

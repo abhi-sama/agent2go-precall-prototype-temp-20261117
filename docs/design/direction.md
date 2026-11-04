@@ -62,9 +62,20 @@ Primitives in `globals.css`: `--ease-out`, `--ease-in-out`, `--ease-drawer`, `--
 
 ## AI content
 
-AI-written content is marked with a sparkle **AI summary** badge on a soft orange-tinted card, with citations visible beside the claim.
-Suggestions get a dashed outline and the word "Suggestion". Source facts (counts, dates, record ids) stay plain, with no tint.
-The existing tokens `--ai`, `--ai-soft`, `--suggest`, `--suggest-soft`, `--fact`, `--fact-soft` stay; the AI card ticket retints `--ai-soft` toward orange.
+One component family, `frontend/src/components/provenance/provenance.tsx`, marks the three kinds of content everywhere they appear: chat answers, pre-call briefs, theme cards, territory summaries, and exports. Words and labels live in `frontend/src/lib/provenance.ts`.
+
+| Kind | Component | Look | Always carries |
+|---|---|---|---|
+| Source fact | `SourceFact` | Plain card, hairline edge, no tint | "Source" label, database icon |
+| AI summary | `AiSummary` | Soft orange wash (`--ai-soft`), solid orange-tinted edge | Sparkle "AI summary" badge, and citation chips (`citations` prop) that open the source record, 44px on touch |
+| Suggestion | `Suggestion` | Dashed teal outline | Lightbulb, the word "Suggestion" |
+
+Rules: never carry colour alone (icon, label and outline differ); AI never introduces a figure that is not in the source facts beside it; every AI summary shows the records behind it.
+`--ai` / `--ai-soft` are orange in light, warm charcoal and true black (6:1 or better on the wash); `--fact-soft` is neutral on purpose. Both styles share the look; radius, elevation and density come from tokens.
+
+**Exports** use the same words. `buildProvenanceExport` writes `[SOURCE]`, `[AI SUMMARY]` and `[SUGGESTION]` headings with a one-line key and the sources of each AI block (chat answers and pre-call briefs have a Download action). The source-row CSV has a `kind` column. `@media print` keeps the wash and the dashed outline (`print-color-adjust: exact`) and avoids splitting a block across pages.
+
+New AI surface? Use `AiSummary` with `citations`; do not hand-roll a tinted card.
 
 ## Navigation and chat
 
@@ -80,7 +91,7 @@ The AI chat is a slide-in right panel that keeps the current filters as context,
 ## What ticket #45 built, and what follow-ups apply
 
 Built here (foundation): style, mode and density tokens; the appearance provider with persona defaults and the settings control; Inter with tabular figures; motion primitives; the validated chart palette and shared chart components; the sonner toaster; the audit fixes and high-priority motion fixes.
-Left to follow-up tickets, per-feature: the collapsible sidebar rebuild, the right-hand chat panel, empty-state scenes and onboarding, the brand mark, the AI-content card, springy cards and parallax on landing scenes.
+Left to follow-up tickets, per-feature: the collapsible sidebar rebuild, the right-hand chat panel, empty-state scenes and onboarding, the brand mark, springy cards and parallax on landing scenes.
 
 ## Decisions recorded from the grilling
 

@@ -2,6 +2,7 @@
 
 import { Stethoscope } from "lucide-react"
 import * as React from "react"
+import { toast } from "sonner"
 import { DistributionBars } from "@/components/charts/distribution-bars"
 import { EChart } from "@/components/charts/echart"
 import { Heatmap } from "@/components/charts/heatmap"
@@ -90,12 +91,19 @@ export function DesignSystemShowcase() {
 
       <section aria-labelledby="ds-prov" className="flex flex-col gap-3">
         <h2 id="ds-prov" className="text-xl font-semibold">Fact, AI summary, suggestion</h2>
-        <p className="max-w-2xl text-sm text-muted-foreground">Each type differs by label, icon and border, not colour alone.</p>
+        <p className="max-w-2xl text-sm text-muted-foreground">Facts are plain. AI summaries sit on a soft orange card with a sparkle badge and citation chips that open the source record. Suggestions have a dashed outline. Each differs by label, icon and outline, not colour alone.</p>
         <div className="grid gap-4 lg:grid-cols-3">
           <SourceFact title="Calls this quarter" meta={<><CitationChip>call:C-10442</CitationChip><CitationChip>call:C-10457</CitationChip></>}>
             41 distinct calls reached 29 HCPs. Counted from the call log, once per call.
           </SourceFact>
-          <AiSummary title="Emerging theme" meta={<span>Based on 18 responses · data through Nov 2</span>}>
+          <AiSummary
+            title="Emerging theme"
+            citations={[
+              { key: "r1", label: "RESP-0114", detail: "Recorded HCP response", onOpen: () => toast("A citation opens its source record in a side sheet") },
+              { key: "r2", label: "RESP-0207", detail: "Recorded HCP response", onOpen: () => toast("A citation opens its source record in a side sheet") },
+            ]}
+            meta={<span>Based on 18 responses · data through Nov 2</span>}
+          >
             Several HCPs asked about sequencing after progression. Treat as a pattern to verify, not a conclusion.
           </AiSummary>
           <Suggestion

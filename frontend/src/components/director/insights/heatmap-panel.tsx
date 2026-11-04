@@ -5,6 +5,7 @@ import { MessageSquareText, Rows3, Table2 } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { EChart } from "@/components/charts/echart"
+import { AiSummary } from "@/components/provenance/provenance"
 import { EmptyState, ErrorState } from "@/components/state/states"
 import { buttonVariants } from "@/components/ui/button"
 import { useDocumentTheme } from "@/hooks/use-document-theme"
@@ -271,23 +272,27 @@ function CardGroups({ cards, grouped }: { cards: ThemeCard[]; grouped: boolean }
 
 function ThemeCardView({ card }: { card: ThemeCard }) {
   return (
-    <article data-testid="theme-card" data-topic={card.topic} className="flex min-w-0 flex-col gap-3 rounded-2xl border border-ai/25 bg-card p-4 ring-1 ring-ai/10 transition-shadow hover:shadow-md">
-      <header className="flex items-start justify-between gap-2">
-        <h5 className="min-w-0 text-base font-semibold leading-snug">{card.topic}</h5>
-        <DerivedBadge />
-      </header>
-      <p className="text-sm text-muted-foreground">
-        <strong className="text-foreground tabular-nums">{num(card.responses)}</strong> responses ({pctText(card.share)} of {num(card.facetResponses)}) · {num(card.distinctHcps)} HCPs · {card.territoryCount} territories
-      </p>
-      {card.evidence.map((e) => (
-        <figure key={e.recordId} className="flex flex-col gap-2">
-          <blockquote className="border-l-2 border-ai/50 pl-3 text-sm italic text-muted-foreground">“{e.excerpt}”</blockquote>
-          <figcaption className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <EvidenceChip recordId={e.recordId} />
-            <span>{e.territoryId}{e.interactionDate ? ` · ${e.interactionDate}` : ""}</span>
-          </figcaption>
-        </figure>
-      ))}
-    </article>
+    <AiSummary
+      data-testid="theme-card"
+      data-topic={card.topic}
+      title={card.topic}
+      className="h-full transition-shadow hover:shadow-lift"
+      meta={<DerivedBadge />}
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-muted-foreground">
+          <strong className="text-foreground tabular-nums">{num(card.responses)}</strong> responses ({pctText(card.share)} of {num(card.facetResponses)}) · {num(card.distinctHcps)} HCPs · {card.territoryCount} territories
+        </p>
+        {card.evidence.map((e) => (
+          <figure key={e.recordId} className="flex flex-col gap-2">
+            <blockquote className="border-l-2 border-ai/50 pl-3 italic text-muted-foreground">“{e.excerpt}”</blockquote>
+            <figcaption className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <EvidenceChip recordId={e.recordId} />
+              <span>{e.territoryId}{e.interactionDate ? ` · ${e.interactionDate}` : ""}</span>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+    </AiSummary>
   )
 }

@@ -3,6 +3,7 @@
 import { FileText, Minus, MoveDownRight, MoveUpRight, CircleHelp } from "lucide-react"
 import * as React from "react"
 import { CitationSheet } from "@/components/chat/citation-sheet"
+import { CitationChip } from "@/components/provenance/provenance"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { Badge } from "@/components/ui/badge"
 import type { CitationItem } from "@/lib/chat/events"
@@ -34,23 +35,23 @@ export function useOpenCitation() {
 export function EvidenceChip({ recordId, label }: { recordId: string; label?: string }) {
   const open = useOpenCitation()
   return (
-    <button
-      type="button"
+    <CitationChip
       data-testid="evidence-chip"
       data-record-id={recordId}
       aria-label={`Open source record ${recordId}`}
-      onClick={() => open({ recordId, dataset: "hcp_raw_insights", label: label ?? "Recorded HCP response" })}
-      className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-fact/30 bg-fact-soft px-2.5 font-mono text-xs text-fact transition-colors hover:bg-fact/10 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none pointer-coarse:min-h-11"
+      onOpen={() => open({ recordId, dataset: "hcp_raw_insights", label: label ?? "Recorded HCP response" })}
+      className="min-h-9 gap-1.5 rounded-lg px-2.5 font-mono"
     >
       <FileText className="size-3.5 shrink-0" aria-hidden />
       {recordId}
-    </button>
+    </CitationChip>
   )
 }
 
+/** States the method: grouped from free text by keyword. The AI look comes from the card around it, not this pill. */
 export function DerivedBadge() {
   return (
-    <Badge variant="outline" data-testid="derived-badge" className="border-ai/40 text-ai">
+    <Badge variant="outline" data-testid="derived-badge">
       Derived
     </Badge>
   )

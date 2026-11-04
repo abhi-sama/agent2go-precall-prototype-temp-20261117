@@ -4,13 +4,14 @@ import { CalendarClock, Check, ClipboardList, Database, FileText, Pencil, Plus, 
 import * as React from "react"
 import { toast } from "sonner"
 import { CitationSheet } from "@/components/chat/citation-sheet"
-import { AiSummary, SourceFact, Suggestion } from "@/components/provenance/provenance"
+import { AiSummary, CitationChip, ExportButton, SourceFact, Suggestion } from "@/components/provenance/provenance"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { CitationItem } from "@/lib/chat/events"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { toDataError, type BriefEvidence, type BriefItem, type BriefStatement, type PreCallBrief } from "@/lib/data/types"
 import { newCorrelationId } from "@/lib/log/logger"
+import { buildProvenanceExport, downloadText, type ExportBlock } from "@/lib/provenance"
 import { cn } from "@/lib/utils"
 import { formatBriefDay, formatBriefTime } from "./format"
 
@@ -56,16 +57,14 @@ function Citations({
         const record = evidence.get(id)
         if (!record) return null
         return (
-          <button
+          <CitationChip
             key={id}
-            type="button"
             data-testid={`cite-${record.recordId}`}
-            onClick={() => onOpen({ dataset: record.dataset, recordId: record.recordId, label: record.label })}
-            className="inline-flex min-h-8 items-center gap-1 rounded-md border bg-background px-2 text-xs text-foreground/80 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11 pointer-coarse:px-3"
+            onOpen={() => onOpen({ dataset: record.dataset, recordId: record.recordId, label: record.label })}
           >
             <FileText className="size-3" aria-hidden />
             {record.label}
-          </button>
+          </CitationChip>
         )
       })}
     </span>
@@ -271,6 +270,34 @@ export function BriefView({
 
   const stub = brief.modelMode === "stub"
 
+  /** The brief as a file: facts, AI statements and suggestions stay in separate, labelled blocks. */
+  const exportBrief = () => {
+    const cite = (items: { evidenceIds: string[] }[]) => items.flatMap((i) => i.evidenceIds).filter((id, n, all) => all.indexOf(id) === n).flatMap((id) => (evidence.get(id) ? [evidence.get(id)!] : []))
+    const statements = (title: string, list: BriefStatement[]) =>
+      list.map((s) => `${title}: ${s.text} [${s.evidenceIds.map((id) => evidence.get(id)?.recordId).filter(Boolean).join(", ")}]`)
+    const items = (list: Draft[]) => cleaned(list).map((d) => (d.detail.trim() ? `${d.text.trim()} - ${d.detail.trim()}` : d.text.trim()))
+    const cited = cite([...brief.engagement, ...brief.perspectives, ...brief.followUps])
+    const blocks: ExportBlock[] = [
+      { kind: "fact", title: "Counted from your records", lines: brief.facts.map((f) => `${f.label}: ${f.value}`) },
+      {
+        kind: "ai",
+        title: "What the records show",
+        lines: [...statements("Previous engagement", brief.engagement), ...statements("Recorded perspectives", brief.perspectives), ...statements("Possible follow-ups", brief.followUps)],
+        citations: cited.map((e) => ({ recordId: e.recordId, label: e.label })),
+      },
+      { kind: "suggestion", title: "Discussion prompts", lines: items(prompts) },
+      { kind: "suggestion", title: "Suggested agenda", lines: items(agenda) },
+    ]
+    const text = buildProvenanceExport({
+      title: `Pre-call brief: ${brief.hcpName.value ?? "HCP"}`,
+      scope: brief.scopeLabel,
+      exportedAt: new Date().toISOString(),
+      dataThrough: brief.dataThrough,
+      blocks,
+    })
+    downloadText(`pre-call-brief-${brief.briefId}.md`, text)
+  }
+
   return (
     <article data-testid="brief" data-brief-id={brief.briefId} className="space-y-5 animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">
       <header className="rounded-2xl border bg-card p-5 shadow-card sm:p-6">
@@ -285,6 +312,7 @@ export function BriefView({
             <Badge variant="outline" data-testid="brief-model-mode">
               {stub ? "Written without a model (local stub)" : "Written by AI from your records"}
             </Badge>
+            <ExportButton testId="brief-export" onExport={exportBrief} label="Download brief" />
           </div>
         </div>
 
