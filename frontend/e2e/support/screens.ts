@@ -53,6 +53,22 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   {
+    name: "msl-landing-hcp-deep-timeline",
+    path: "/msl",
+    ready: testId("hcp-search-input"),
+    prepare: async (page) => {
+      await page.getByTestId("hcp-search-input").fill("call system")
+      await page.getByTestId("hcp-search-submit").click()
+      await page.getByTestId("hcp-result-HCP-0001").click()
+      const chain = page.getByTestId("response-insight-mock-deep-1")
+      await expect(chain).toBeVisible()
+      for (let index = 1; index <= 10; index += 1) {
+        await page.getByTestId(`response-toggle-insight-mock-deep-${index}`).click()
+      }
+      await expect(page.getByTestId("response-insight-mock-deep-10")).toHaveAttribute("data-depth", "9")
+    },
+  },
+  {
     name: "msl-landing-semantic-search",
     path: "/msl",
     ready: testId("semantic-search"),

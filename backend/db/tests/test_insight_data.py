@@ -172,6 +172,41 @@ class QualitativeTest(unittest.TestCase):
 
 
 class FollowUpTest(unittest.TestCase):
+    def test_hcp_question_and_answer_sets_are_unique(self):
+        by_hcp = defaultdict(list)
+        for r in rows():
+            by_hcp[r["cust_mdm_id"]].append((r["qstn_ext_id"], r["rspns_txt"]))
+        signatures = Counter(tuple(sorted(items)) for items in by_hcp.values())
+        self.assertEqual(len(by_hcp), insights.N_HCPS)
+        self.assertEqual(len(signatures), insights.N_HCPS, "no two HCPs share a complete Q&A signature")
+
+    def test_follow_up_depth_distribution_is_mostly_nine_or_more(self):
+        by_inter = defaultdict(list)
+        for r in rows():
+            by_inter[r["insight_intrctn_dtl_sfdc_id"]].append(r)
+
+        depths = Counter()
+        for inter in by_inter.values():
+            by_question = {r["qstn_ext_id"]: r for r in inter}
+            children = defaultdict(list)
+            for r in inter:
+                if r["qstn_pid"] in by_question:
+                    children[r["qstn_pid"]].append(r["qstn_ext_id"])
+
+            def depth(question_id):
+                return 1 + max((depth(child) for child in children[question_id]), default=0)
+
+            # A root is any response whose catalog parent is not present here.
+            roots = [qid for qid, r in by_question.items() if r["qstn_pid"] not in by_question]
+            depths[max((depth(qid) for qid in roots), default=1)] += 1
+
+        total = sum(depths.values())
+        deep = sum(count for level, count in depths.items() if level >= 9)
+        report = f"depth distribution: {dict(sorted(depths.items()))}"
+        self.assertGreater(total, 5000, report)
+        self.assertGreater(deep / total, 0.50, report)
+        self.assertGreater(sum(count for level, count in depths.items() if level >= 12), 100, report)
+
     def test_follow_ups_exist_only_inside_the_parents_interaction(self):
         by_inter = defaultdict(list)
         for r in rows():
@@ -203,7 +238,7 @@ class FollowUpTest(unittest.TestCase):
             for r in inter:
                 concept, program = ext_to_concept(r["qstn_ext_id"])
                 for child in (c for c in CONCEPTS if c.parent == concept.key):
-                    if child.key == "fu_start_barrier" and program == 3:
+                    if child.key == "fu_start_barrier":
                         continue
                     if triggered(child, r["rspns_txt"]):
                         qid_ = f"Q-{CONCEPTS.index(child) * 4 + program + 1:04}"

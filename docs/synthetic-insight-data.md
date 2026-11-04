@@ -33,7 +33,10 @@ Every answer is text in `rspns_txt`; the type follows `qstn_type`. `derived_rspn
 ## Conditional follow-ups
 
 39 concepts (156 questions) are follow-ups: `question_tag.qstn_pid` names the parent. A follow-up row exists only in the
-interaction whose parent answer triggered it, for the same HCP and date, for example:
+interaction whose parent answer triggered it, for the same HCP and date. Most ordinary interactions include a
+conditional `started_recently` route: a `Yes` retains an outcomes-to-access chain up to 12 nodes, while `No` or
+`Unsure` retains a testing-to-guidelines chain up to 10 nodes. Smaller branches close naturally when their condition
+does not apply. For example:
 
 - `Started a patient on {drug} recently?` = `No` / `Unsure` -> "What is the main barrier to starting patients?" (a choice and a free-text one).
 - Likert <= 2 or 0-10 score <= 6 -> "What is the main reason for your low score?"; score >= 9 -> "What drives your high score?".

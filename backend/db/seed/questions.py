@@ -257,6 +257,41 @@ _CHILDREN: list[Concept] = [
                   [0.35, 0.2, 0.3, 0.15], landscape=BIOMARKER_L, p={"a_opts": {"Cost": 1.0}}), "pct_tested", ("le", 60)),
 ]
 
+
+# The source data represents a conversation as a question graph, not a flat survey.
+# These two routes make that concrete: a recent start opens an outcomes-to-access
+# conversation, while a deferred start opens a testing-to-guidelines conversation.
+# Every transition after the first is conditional on a valid recorded answer.  This
+# deliberately permits a clinician to close one of the separate, shorter branches
+# early while the principal conversation retains the context of each prior answer.
+_DEEP_ROUTE_PARENTS: dict[str, tuple[str, tuple]] = {
+    # Started recently -> outcomes, recommendation, and access: 12 nodes including root.
+    "fu_outcome_satisfaction": ("fu_started_count", ("valid", None)),
+    "fu_rank_recommend": ("fu_outcome_satisfaction", ("valid", None)),
+    "fu_concerns": ("fu_rank_recommend", ("valid", None)),
+    "fu_peer_to_peer": ("fu_concerns", ("valid", None)),
+    "fu_denials": ("fu_peer_to_peer", ("valid", None)),
+    "fu_denial_reason": ("fu_denials", ("valid", None)),
+    "fu_payers": ("fu_denial_reason", ("valid", None)),
+    "fu_access_barrier": ("fu_payers", ("valid", None)),
+    "fu_ae_confidence": ("fu_access_barrier", ("valid", None)),
+    "fu_tolerated": ("fu_ae_confidence", ("valid", None)),
+    # No or unsure start -> testing, monitoring, and guideline context: 10 nodes including root.
+    "fu_testing_cause": ("fu_main_barrier", ("valid", None)),
+    "fu_pct_ctdna": ("fu_testing_cause", ("valid", None)),
+    "fu_turnaround_delay": ("fu_pct_ctdna", ("valid", None)),
+    "fu_slow_results": ("fu_turnaround_delay", ("valid", None)),
+    "fu_incomplete_testing": ("fu_slow_results", ("valid", None)),
+    "fu_guideline_help": ("fu_incomplete_testing", ("valid", None)),
+    "fu_pct_earlier": ("fu_guideline_help", ("valid", None)),
+    "fu_pft": ("fu_pct_earlier", ("valid", None)),
+}
+
+_CHILDREN = [
+    _with(child, *_DEEP_ROUTE_PARENTS[child.key]) if child.key in _DEEP_ROUTE_PARENTS else child
+    for child in _CHILDREN
+]
+
 # Q-0100 is the planted orphan (its parent id is not in the catalog), so concept 24 (Q-0097..Q-0100)
 # must be a follow-up concept. All other concepts keep their authored order around it.
 _ROOTS = _ROOTS_A + _ROOTS_B
@@ -293,6 +328,10 @@ def render(template: str, program: int) -> str:
 def triggered(child: Concept, parent_answer: str) -> bool:
     """Does the parent's stored answer text trigger the child concept?"""
     kind, arg = child.trigger
+    if kind == "valid":
+        # A recorded answer selects the next contextual question in a deep route.
+        # It still keeps the entire route inside the parent interaction.
+        return bool(parent_answer.strip())
     if kind == "in":
         return parent_answer in arg
     if kind == "has":

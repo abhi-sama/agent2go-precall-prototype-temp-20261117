@@ -330,23 +330,32 @@ _ORPHAN_CONCEPT = CONCEPTS[24]
 assert _ORPHAN_CONCEPT.key == "fu_start_barrier"
 
 
-def _answer_with_children(concept: Concept, ctx: Ctx, pools: Pools, out: list[Resp]) -> None:
+def _answer_with_children(concept: Concept, ctx: Ctx, pools: Pools, out: list[Resp], *, parent: Resp | None = None) -> Resp:
     answer = _structured(concept, ctx)
-    resp = Resp(concept, ctx.program, answer)
+    resp = Resp(concept, ctx.program, answer, parent=parent)
     out.append(resp)
     if _access_flag(concept, answer):
         ctx.access_signal = True
     for child in CHILDREN_OF.get(concept.key, []):
-        if child is _ORPHAN_CONCEPT and ctx.program == 3:
-            continue  # Q-0100's declared parent is not in the catalog: the parent never triggers it
+        if child is _ORPHAN_CONCEPT:
+            continue  # This catalog anomaly is seeded only as an orphan response, never as a real child.
         if not triggered(child, answer):
             continue
-        sub = Resp(child, ctx.program, _open_answer(child, ctx, pools) if child.qtype == "open_text" else _structured(child, ctx), parent=resp)
-        if _access_flag(child, sub.answer):
-            ctx.access_signal = True
-        out.append(sub)
+        # Recurse rather than stopping at one generation: the catalog deliberately
+        # contains conditional conversations that can retain 8-12 turns of context.
+        if child.qtype == "open_text":
+            sub = Resp(child, ctx.program, _open_answer(child, ctx, pools), parent=resp)
+            out.append(sub)
+            if _access_flag(child, sub.answer):
+                ctx.access_signal = True
+            for grandchild in CHILDREN_OF.get(child.key, []):
+                if triggered(grandchild, sub.answer):
+                    _answer_with_children(grandchild, ctx, pools, out, parent=sub)
+        else:
+            sub = _answer_with_children(child, ctx, pools, out, parent=resp)
         if resp.followup is None:
             resp.followup = sub
+    return resp
 
 
 def build_interaction(hcp: Hcp, when: date, program: int, rng: Rng, pools: Pools, *, wave: int | None = None, leaf_only: int = 0) -> Interaction:
@@ -370,9 +379,17 @@ def build_interaction(hcp: Hcp, when: date, program: int, rng: Rng, pools: Pools
         return inter
     # Panel HCPs answer the tracker questions only in their three waves, so the shift is clean.
     roots = [c for c in _STRUCTURED_ROOTS if not (hcp.panel and c.tracker)]
-    for concept in rng.shuffled(roots)[: rng.weighted([2, 3, 4], [0.3, 0.45, 0.25])]:
+    # Most ordinary interactions include one complete conditional route.  The
+    # companion roots keep the fixture broad enough for all analytic answer types.
+    anchor = BY_KEY["started_recently"]
+    companions = [c for c in roots if c.key != anchor.key]
+    if rng.chance(0.56):
+        selected = [anchor, *rng.shuffled(companions)[: rng.weighted([1, 2], [0.62, 0.38])]]
+    else:
+        selected = rng.shuffled(companions)[: rng.weighted([2, 3, 4], [0.3, 0.45, 0.25])]
+    for concept in selected:
         _answer_with_children(concept, ctx, pools, out)
-    for _ in range(rng.weighted([0, 1, 2], [0.5, 0.42, 0.08])):
+    for _ in range(rng.weighted([1, 2, 3], [0.3, 0.6, 0.1])):
         theme = _draw_theme(ctx)
         hosts = _OPEN_HOSTS[theme] if not rng.chance(0.3) else _GENERIC
         concept = rng.choice([h for h in hosts if not (hcp.panel and h.tracker)])
