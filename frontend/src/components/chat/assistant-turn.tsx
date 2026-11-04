@@ -2,6 +2,7 @@
 
 import { AlertTriangle, BarChart3, FileText, Loader2 } from "lucide-react"
 import * as React from "react"
+import { AnswerFeedback } from "@/components/chat/answer-feedback"
 import { VisualCard } from "@/components/chat/visual-card"
 import { AiSummary, CitationChip, ExportButton, SourceFact, Suggestion, type ProvenanceCitation } from "@/components/provenance/provenance"
 import { Badge } from "@/components/ui/badge"
@@ -266,6 +267,8 @@ export function AssistantTurnView({
           {turn.saved ? "Saved to your conversation history." : "This answer could not be saved to your history."}
         </p>
       )}
+
+      {turn.status === "done" && turn.text !== "" && <AnswerFeedback runId={turn.runId} />}
     </div>
   )
 }

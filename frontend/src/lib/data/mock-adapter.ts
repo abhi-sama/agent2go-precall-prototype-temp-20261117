@@ -2,6 +2,7 @@ import { addDays, addMonths, daysInRange, todayIso, weekdaysInRange } from "@/li
 import { log } from "@/lib/log/logger"
 import type { DataAdapter } from "./adapter"
 import { createMockDirectorInsights, mockHcpTerritory } from "./mock-director-insights"
+import { createMockEvals } from "./mock-evals"
 import { createMockGovernance } from "./governance"
 import { buildComparison, buildOverview, tooLong } from "./mock-director"
 import { buildExecutiveDrilldown, buildExecutiveOverview, defaultExecutiveRange, executiveWindowTooLong, type ExecutiveInput } from "./mock-executive"
@@ -214,6 +215,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
   return {
     kind: "mock",
     ...createMockGovernance({ getUser: () => findUser(options.getUserId()), gate, now }),
+    ...createMockEvals({ getUser: () => findUser(options.getUserId()), gate, now }),
     ...createMockBriefs({ user: () => findUser(options.getUserId()), scenario, gate, now }),
     ...createMockDirectorInsights({ getUser: () => findUser(options.getUserId()), gate, now }),
 

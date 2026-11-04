@@ -17,6 +17,9 @@ from .config import (
     BRIEF_READER_ROLE_ARN,
     BRIEFS_TABLE,
     CHAT_FUNCTION,
+    EVAL_FUNCTION,
+    EVAL_ROLE_ARN,
+    EVAL_TABLE,
     FE_ACCOUNT,
     FLAGS_ROLE_ARN,
     FLAGS_TABLE,
@@ -78,6 +81,9 @@ def deploy(fe: dict, db: dict) -> str:
         # FE DynamoDB briefs: reopened and edited through a narrow FE-account role (docs/adr/0009).
         "A2G_BRIEFS_TABLE": BRIEFS_TABLE,
         "A2G_BRIEFS_ROLE_ARN": BRIEF_READER_ROLE_ARN,
+        # FE DynamoDB evaluation runs and ratings, through a narrow FE-account role (docs/adr/0013).
+        "A2G_EVAL_TABLE": EVAL_TABLE,
+        "A2G_EVAL_ROLE_ARN": EVAL_ROLE_ARN,
         "A2G_SAVED_VIEWS_TABLE": fe["saved_views_table"],
         "A2G_SAVED_VIEWS_ENDPOINT": "http://floci:4566",
         "A2G_SAVED_VIEWS_ACCESS_KEY": FE_ACCOUNT,
@@ -88,15 +94,23 @@ def deploy(fe: dict, db: dict) -> str:
         lam, CHAT_FUNCTION, "a2g_api.chat_worker.handler", code, arch,
         {**shared, "A2G_AGENT_URL": AGENT_INTERNAL_URL}, timeout=300,
     )
+    # The eval worker runs a whole golden suite (a few minutes) and stores it in FE DynamoDB.
+    _upsert(
+        lam, EVAL_FUNCTION, "a2g_api.eval_worker.handler", code, arch,
+        {**shared, "A2G_AGENT_URL": AGENT_INTERNAL_URL}, timeout=900, role=API_FUNCTION,
+    )
     arn = _upsert(
         lam, API_FUNCTION, "a2g_api.handler.handler", code, arch,
         # The API function also calls the agent to write a brief (AppSync cuts a resolver off at 30 s).
-        {**shared, "A2G_CHAT_WORKER_FUNCTION": CHAT_FUNCTION, "A2G_AGENT_URL": AGENT_INTERNAL_URL}, timeout=30,
+        {**shared, "A2G_CHAT_WORKER_FUNCTION": CHAT_FUNCTION, "A2G_EVAL_WORKER_FUNCTION": EVAL_FUNCTION,
+         "A2G_AGENT_URL": AGENT_INTERNAL_URL}, timeout=30,
     )
     return arn
 
 
-def _upsert(lam, name: str, handler: str, code: bytes, arch: str, variables: dict[str, str], timeout: int) -> str:
+def _upsert(
+    lam, name: str, handler: str, code: bytes, arch: str, variables: dict[str, str], timeout: int, role: str | None = None
+) -> str:
     env = {"Variables": variables}
     try:
         lam.get_function(FunctionName=name)
@@ -115,7 +129,7 @@ def _upsert(lam, name: str, handler: str, code: bytes, arch: str, variables: dic
             FunctionName=name,
             Runtime="python3.12",
             Handler=handler,
-            Role=f"arn:aws:iam::{BE_ACCOUNT}:role/{name}",
+            Role=f"arn:aws:iam::{BE_ACCOUNT}:role/{role or name}",
             Code={"ZipFile": code},
             Architectures=[arch],
             Timeout=timeout,

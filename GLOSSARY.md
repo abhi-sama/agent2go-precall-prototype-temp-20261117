@@ -234,3 +234,30 @@ _Avoid_: bug, error
 **Metric definition**:
 The governed, versioned definition of a reported number, with owner and approval.
 _Avoid_: KPI formula
+
+## Evaluation
+
+**Golden question**:
+A fixed question with a known right behaviour, asked of the agent as a persona; quantitative ones have a count computed in SQL, leak probes ask for data the persona must not get.
+_Avoid_: test prompt
+
+**Eval subject**:
+The one seeded user a persona's golden suite is asked as, so every answer is judged against a known scope.
+_Avoid_: test user
+
+**Evaluation run**:
+One pass of a persona's suite with every answer scored, kept with its history; any leak fails it.
+_Avoid_: test run
+
+**Leak probe**:
+A golden question that asks for out-of-scope data; retrieving any of it fails the run.
+_Avoid_: attack
+
+**Detector self-test**:
+A run of the leak probes against a deliberately leaky stand-in, proving the detector fails a leaking run.
+_Avoid_: canary test
+
+**Human rating**:
+A person's thumb and optional note on one live answer, shown beside that answer's automated scores.
+_Avoid_: feedback flag (a flag reports an incorrect record; a rating judges an answer)
+

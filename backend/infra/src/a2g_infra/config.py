@@ -37,6 +37,8 @@ API_FUNCTION = "a2g-be-api"
 API_FUNCTION_ARN = f"arn:aws:lambda:{REGION}:{BE_ACCOUNT}:function:{API_FUNCTION}"
 #: Long-running worker that streams one chat run from the agent into Postgres (docs/adr/0007).
 CHAT_FUNCTION = "a2g-be-chat"
+#: Worker that runs one golden evaluation suite (docs/adr/0013). It runs under the API Lambda's execution role.
+EVAL_FUNCTION = "a2g-be-eval"
 
 #: FE-account resources the agent's narrow write tool uses (frontend/amplify/storage/resource.ts; docs/adr/0005).
 FE_CHAT_TABLE = "a2g-chat-turns"
@@ -57,6 +59,10 @@ FLAGS_ROLE_ARN = f"arn:aws:iam::{FE_ACCOUNT}:role/a2g-be-flags"
 BRIEFS_TABLE = "a2g-precall-briefs"
 BRIEF_WRITER_ROLE_ARN = f"arn:aws:iam::{FE_ACCOUNT}:role/a2g-agent-brief-writer"
 BRIEF_READER_ROLE_ARN = f"arn:aws:iam::{FE_ACCOUNT}:role/a2g-be-briefs"
+
+#: FE DynamoDB evaluation runs and ratings, and the narrow role the BE Lambdas assume (docs/adr/0013).
+EVAL_TABLE = "a2g-eval"
+EVAL_ROLE_ARN = f"arn:aws:iam::{FE_ACCOUNT}:role/a2g-be-eval"
 
 AMPLIFY_STACK = "amplify-agent2go-local-sandbox"
 CDK_QUALIFIER = "hnb659fds"

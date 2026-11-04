@@ -295,6 +295,10 @@ class MslAgent:
                 [*ctx.tool_results, *(m.content for m in invocation.messages if m.role == "user")]
             )
             unverified = unverified_numbers(answer, allowed)
+        # Every figure the deterministic tools returned, so an evaluator can check the answer against what was
+        # computed rather than against the few figures shown as source facts (docs/adr/0013).
+        figures = sorted(allowed_numbers(ctx.tool_results))[:400]
+        yield ag_ui.custom("computed_figures", {"figures": figures})
         yield ag_ui.custom(
             "number_check",
             {
@@ -324,7 +328,9 @@ class MslAgent:
             model_mode=self.mode,
             unverified_numbers=unverified,
         )
-        saved = await asyncio.to_thread(self._writer.save_turn, turn)
+        # Evaluation runs (thread ids start with ``eval-``) ask as a seeded subject; their turns are not that
+        # person's conversation history, so they are not saved.
+        saved = False if invocation.thread_id.startswith("eval-") else await asyncio.to_thread(self._writer.save_turn, turn)
         yield ag_ui.custom("conversation_saved", {"saved": saved})
 
         log.info(

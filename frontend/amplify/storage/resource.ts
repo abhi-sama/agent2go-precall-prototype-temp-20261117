@@ -134,3 +134,41 @@ export function defineBriefStore(stack: Stack, options: BriefStoreOptions) {
   );
   return { table, writer, reader };
 }
+
+/** Fixed names: the BE API Lambda and the eval worker are configured with them (A2G_EVAL_TABLE / A2G_EVAL_ROLE_ARN). */
+export const EVAL_TABLE_NAME = 'a2g-eval';
+export const EVAL_ROLE_NAME = 'a2g-be-eval';
+
+export interface EvalStoreOptions {
+  beAccountId: string;
+  localEmulator: boolean;
+}
+
+/**
+ * FE DynamoDB table for the AI evaluation panel (docs/adr/0013): golden-suite runs, their scored results and
+ * people's thumbs on live answers. One narrow role, assumed by the BE API Lambda's execution role (the eval
+ * worker runs under the same role): it can add items and read by partition key. It cannot read by key, scan,
+ * update or delete, so a stored run is never edited after the fact.
+ *
+ * Item shape: pk `EVAL#RUNS` / sk `RUN#<runId>`; pk `EVAL#RUN#<runId>` / sk `Q#<index>#<questionId>`;
+ * pk `EVAL#RATINGS` / sk `RATING#<chatRunId>`.
+ */
+export function defineEvalStore(stack: Stack, options: EvalStoreOptions) {
+  const table = new dynamodb.Table(stack, 'EvalResults', {
+    tableName: EVAL_TABLE_NAME,
+    partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+    sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
+    billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+    removalPolicy: options.localEmulator ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN,
+  });
+
+  const role = new iam.Role(stack, 'BeEvalRole', {
+    roleName: EVAL_ROLE_NAME,
+    assumedBy: new iam.ArnPrincipal(`arn:aws:iam::${options.beAccountId}:role/${BE_API_ROLE_NAME}`),
+    description: 'Assumed by the BE API Lambda and eval worker to store evaluation runs and ratings. Nothing else.',
+  });
+  role.addToPolicy(
+    new iam.PolicyStatement({ actions: ['dynamodb:PutItem', 'dynamodb:Query'], resources: [table.tableArn] }),
+  );
+  return { table, role };
+}

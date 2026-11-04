@@ -1,4 +1,5 @@
 import type { ChatContext, DirectorInsightsAdapter } from "./director-insights"
+import type { EvalsAdapter } from "./evals"
 import type { GovernanceAdapter } from "./governance"
 import type {
   ActivityEvidence,
@@ -54,7 +55,7 @@ import type {
  * worker, via `createGraphQLAdapter`) both implement it, so swapping is a one-line change in
  * `getDataAdapter()`.
  */
-export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter {
+export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter, EvalsAdapter {
   readonly kind: "mock" | "appsync"
   me(ctx: RequestContext): Promise<Me>
   /** `range` omitted lets the backend choose its default window. */

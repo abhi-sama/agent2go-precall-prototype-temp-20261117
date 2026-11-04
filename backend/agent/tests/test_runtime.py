@@ -87,7 +87,7 @@ async def test_streams_facts_then_text_then_suggestions(settings, repository) ->
     assert order[:2] == ["RUN_STARTED", "model_mode"]
     assert order.index("source_facts") < order.index("TEXT_MESSAGE_START")
     assert order[-1] == "RUN_FINISHED"
-    assert order[-4:-1] == ["number_check", "suggestions", "conversation_saved"]
+    assert order[-5:-1] == ["computed_figures", "number_check", "suggestions", "conversation_saved"]
     assert [e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT"] == ["You had ", "2 calls."]
 
     facts = next(e for e in events if e.get("name") == "source_facts")["value"]["facts"]
@@ -178,3 +178,22 @@ async def test_http_contract_streams_sse(settings, repository) -> None:
     ]
     assert events[0]["type"] == "RUN_STARTED" and events[-1]["type"] == "RUN_FINISHED"
     assert bad.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_evaluation_threads_are_not_saved_as_conversation_history(settings, repository) -> None:
+    """The eval panel asks as a seeded subject; those turns must not appear in that person's history."""
+    agent, writer = runtime(settings, repository, [("tool", "get_activity_summary", {}), "You had 2 calls."])
+    invocation = make_invocation().model_copy(update={"thread_id": "eval-20261104120000-ab12cd34-00"})
+    events = await collect(agent, invocation)
+    assert writer.turns == []
+    assert next(e for e in events if e.get("name") == "conversation_saved")["value"] == {"saved": False}
+    assert events[-1]["type"] == "RUN_FINISHED"
+
+
+@pytest.mark.asyncio
+async def test_computed_figures_list_what_the_tools_returned(settings, repository) -> None:
+    agent, _ = runtime(settings, repository, [("tool", "get_activity_summary", {}), "You had 2 calls."])
+    events = await collect(agent, make_invocation())
+    figures = next(e for e in events if e.get("name") == "computed_figures")["value"]["figures"]
+    assert "2" in figures and all(isinstance(f, str) for f in figures)

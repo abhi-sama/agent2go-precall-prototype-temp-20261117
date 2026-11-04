@@ -1111,6 +1111,170 @@ type TerritorySummaries {
 enum ChatIntent { FREE TERRITORY_SUMMARY }
 input ChatContextInput { view: String, territoryId: String, questionId: String, from: AWSDate, to: AWSDate, intent: ChatIntent }
 
+# --- AI evaluation panel (ticket 18, docs/adr/0013) -------------------------------------------------
+
+enum EvalPersona { msl director executive admin }
+enum EvalSource { AGENT LEAKY_CANARY }
+enum EvalRunStatus { RUNNING SCORING COMPLETE ERROR }
+enum EvalVerdict { PASS FAIL }
+enum EvalQuestionKind { QUANTITATIVE QUALITATIVE LEAK_PROBE }
+enum EvalChange { IMPROVED REGRESSED UNCHANGED ADDED REMOVED }
+enum AnswerRating { UP DOWN }
+
+"""One golden question. Expected numbers are computed in SQL at run time, never stored."""
+type EvalSuiteQuestion { questionId: ID! kind: EvalQuestionKind! title: String! prompt: String! }
+"""The golden questions for one persona, always asked as one fixed seeded eval subject."""
+type EvalSuite {
+  persona: EvalPersona!
+  label: String!
+  subjectLabel: String!
+  "Changes when a question is added, removed or reworded."
+  fingerprint: String!
+  questions: [EvalSuiteQuestion!]!
+}
+
+"""
+One run of a suite. Scores are 0 to 1 and null when they do not apply. Any leak fails the run.
+"""
+type EvalRunSummary {
+  runId: ID!
+  persona: EvalPersona!
+  personaLabel: String!
+  subjectLabel: String!
+  source: EvalSource!
+  scorer: String!
+  status: EvalRunStatus!
+  errorCode: String
+  startedAt: AWSDateTime!
+  finishedAt: AWSDateTime
+  durationMs: Int
+  "Questions answered so far while the run is in progress."
+  answered: Int!
+  questionCount: Int
+  passedCount: Int
+  failedCount: Int
+  faithfulness: Float
+  citationCorrectness: Float
+  exactCountRate: Float
+  leakCount: Int!
+  probeCount: Int
+  verdict: EvalVerdict
+  failureReasons: [String!]!
+  suiteFingerprint: String!
+}
+
+"""The automated scores for one answer, with the evidence behind them."""
+type EvalResult {
+  questionId: ID!
+  kind: EvalQuestionKind!
+  title: String!
+  prompt: String!
+  verdict: EvalVerdict!
+  faithfulness: Float
+  citations: Float
+  exactness: Float
+  "The count the SQL says the answer should state, for quantitative questions."
+  expected: Int
+  leaked: Boolean!
+  "What kind of out-of-scope data was found: CITATION, RECORD_ID, HCP_NAME, TERRITORY_FACT, AGGREGATE, EMAIL, SECRET."
+  leakKinds: [String!]!
+  reasons: [String!]!
+  answerExcerpt: String
+  citationsCited: Int
+  citationsReadable: Int
+  numbersClaimed: Int
+  numbersUnverified: Int
+  quotesChecked: Int
+  quotesFound: Int
+  agentNumberCheck: String
+  agentError: String
+  durationMs: Int
+}
+
+"""Thumbs from live answers for a persona, with the automated scores of those same answers."""
+type EvalRatingsSummary {
+  total: Int!
+  up: Int!
+  down: Int!
+  withNote: Int!
+  faithfulness: Float
+  citationCorrectness: Float
+}
+
+type EvalRun {
+  runId: ID!
+  persona: EvalPersona!
+  personaLabel: String!
+  subjectLabel: String!
+  source: EvalSource!
+  scorer: String!
+  status: EvalRunStatus!
+  errorCode: String
+  startedAt: AWSDateTime!
+  finishedAt: AWSDateTime
+  durationMs: Int
+  answered: Int!
+  questionCount: Int
+  passedCount: Int
+  failedCount: Int
+  faithfulness: Float
+  citationCorrectness: Float
+  exactCountRate: Float
+  leakCount: Int!
+  probeCount: Int
+  verdict: EvalVerdict
+  failureReasons: [String!]!
+  suiteFingerprint: String!
+  results: [EvalResult!]!
+  "Human ratings of this persona's live answers, shown beside the automated scores."
+  humanRatings: EvalRatingsSummary!
+}
+
+type EvalMetricDelta { metric: String! label: String! base: Float head: Float delta: Float }
+type EvalQuestionDiff {
+  questionId: ID!
+  title: String!
+  kind: EvalQuestionKind!
+  change: EvalChange!
+  base: EvalResult
+  head: EvalResult
+}
+type EvalDiffCounts { improved: Int! regressed: Int! unchanged: Int! added: Int! removed: Int! }
+type EvalRunDiff {
+  base: EvalRunSummary!
+  head: EvalRunSummary!
+  "True when the two runs asked different questions."
+  suiteChanged: Boolean!
+  verdictChange: EvalChange!
+  metrics: [EvalMetricDelta!]!
+  counts: EvalDiffCounts!
+  questions: [EvalQuestionDiff!]!
+}
+
+"""A person's thumb and optional note on one live answer, with that answer's automated scores beside it."""
+type AnswerRatingRecord {
+  ratingId: ID!
+  chatRunId: ID!
+  persona: EvalPersona!
+  userId: ID!
+  rating: AnswerRating!
+  note: String
+  ratedAt: AWSDateTime!
+  faithfulness: Float
+  citationCorrectness: Float
+  citationsCited: Int!
+  numbersUnverified: Int!
+  agentNumberCheck: String
+}
+type EvalRatings { summary: EvalRatingsSummary! items: [AnswerRatingRecord!]! }
+
+input StartEvalRunInput {
+  persona: EvalPersona!
+  "AGENT asks the real agent. LEAKY_CANARY is the detector self-test: it runs only the leak probes against a deliberately leaky stand-in."
+  source: EvalSource
+}
+input RateAnswerInput { runId: ID! rating: AnswerRating! note: String }
+
 type Query {
   me: Me!
   landingKpis(from: AWSDate, to: AWSDate, filters: InsightFiltersInput): LandingKpis!
@@ -1179,9 +1343,23 @@ type Query {
   preCallBrief(briefId: ID!): PreCallBrief!
   "The caller's saved briefs, newest first."
   myBriefs: [BriefSummary!]!
+  "The golden-question suites, one per persona. Administrators only."
+  evalSuites: [EvalSuite!]!
+  "Evaluation runs, newest first. Administrators only."
+  evalRuns(persona: EvalPersona, limit: Int): [EvalRunSummary!]!
+  "One run with every scored answer and the human ratings beside it. Administrators only."
+  evalRun(runId: ID!): EvalRun!
+  "Two completed runs of the same persona, compared question by question. Administrators only."
+  evalRunDiff(baseRunId: ID!, headRunId: ID!): EvalRunDiff!
+  "Thumbs and notes people gave live answers, with those answers' automated scores. Administrators only."
+  evalRatings(persona: EvalPersona, limit: Int): EvalRatings!
 }
 
 type Mutation {
+  "Start a golden suite run for one persona. Returns at once; poll evalRun. Administrators only."
+  startEvalRun(input: StartEvalRunInput!): EvalRunSummary!
+  "Thumbs up or down, with an optional note, on the caller's own finished chat answer. Latest rating wins."
+  rateAnswer(input: RateAnswerInput!): AnswerRatingRecord!
   "Generate and save a source-linked pre-call brief for an authorized HCP and the MSL's call objective."
   generateBrief(hcpId: ID!, objective: String!, regeneratesBriefId: ID): PreCallBrief!
   "Save the MSL's edits to the objective, discussion prompts and agenda. Generated items stay marked generated."

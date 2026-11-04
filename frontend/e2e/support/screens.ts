@@ -335,6 +335,46 @@ export const SCREENS: ScreenSpec[] = [
       await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true")
     },
   })),
+  {
+    name: "admin-evals",
+    path: "/admin/evals",
+    userId: "u-admin-sec",
+    ready: async (page) => {
+      await heading("AI evaluation")(page)
+      await testId("run-scores")(page)
+      await testId("results")(page)
+    },
+  },
+  ...(
+    [
+      ["History", "run-history"],
+      ["Compare runs", "diff-view"],
+      ["Human ratings", "ratings-panel"],
+    ] as const
+  ).map(
+    ([tab, id]): ScreenSpec => ({
+      name: `admin-evals-${tab.toLowerCase().replace(/\s+/g, "-")}`,
+      path: "/admin/evals",
+      userId: "u-admin-sec",
+      ready: heading("AI evaluation"),
+      prepare: async (page) => {
+        await page.getByRole("tab", { name: tab }).click()
+        await expect(page.getByTestId(id)).toBeVisible()
+      },
+    }),
+  ),
+  {
+    name: "admin-evals-leak-failure",
+    path: "/admin/evals",
+    userId: "u-admin-sec",
+    ready: heading("AI evaluation"),
+    prepare: async (page) => {
+      await page.getByTestId("run-self-test").click()
+      await expect(page.getByTestId("run-failure-reasons")).toContainText("Out-of-scope data was retrieved", { timeout: 30_000 })
+      await page.getByTestId("result-leak-emails").getByRole("button").first().click()
+      await expect(page.getByTestId("result-detail-leak-emails")).toBeVisible()
+    },
+  },
   { name: "chat", path: "/chat", ready: async (page) => { await heading("Ask the agent")(page); await testId("chat-input")(page) } },
   {
     name: "chat-answer",
@@ -344,6 +384,19 @@ export const SCREENS: ScreenSpec[] = [
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
       await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+    },
+  },
+  {
+    name: "chat-answer-feedback",
+    path: "/chat",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await page.getByTestId("rate-down").click()
+      await expect(page.getByTestId("rating-saved")).toBeVisible()
+      await expect(page.getByTestId("rating-note-input")).toBeVisible()
     },
   },
   {

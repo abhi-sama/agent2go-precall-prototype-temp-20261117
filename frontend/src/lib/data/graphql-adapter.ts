@@ -1,5 +1,6 @@
 import type { DataAdapter } from "./adapter"
 import { createGraphQLDirectorInsights } from "./director-insights"
+import { createGraphQLEvals } from "./evals"
 import { createGraphQLGovernance } from "./governance"
 import {
   ACTIVITY_EVIDENCE_QUERY,
@@ -138,6 +139,7 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
   return {
     kind: "appsync",
     ...createGraphQLGovernance((query, variables, ctx) => run(transport, query, variables, ctx)),
+    ...createGraphQLEvals((query, variables, ctx) => run(transport, query, variables, ctx)),
     ...createGraphQLDirectorInsights((query, variables, ctx) => run(transport, query, variables, ctx)),
     async me(ctx) {
       const data = await run<{ me: Me }>(transport, ME_QUERY, undefined, ctx)

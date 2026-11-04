@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, briefs, chat, director, director_insights, executive, flags, hierarchy, post_call, resolvers
+from . import activity, briefs, chat, director, director_insights, eval_panel, eval_store, executive, flags, hierarchy, post_call, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .embeddings import provider_from_config
@@ -67,6 +67,18 @@ def _brief_store(settings: Settings) -> briefs.DynamoBriefStore:
             raise Unavailable("briefs_unconfigured")
         _brief_store_cache = briefs.DynamoBriefStore(settings.briefs_table, settings.briefs_role_arn)
     return _brief_store_cache
+
+
+_eval_store_cache: eval_store.DynamoEvalStore | None = None
+
+
+def _eval_store(settings: Settings) -> eval_store.DynamoEvalStore:
+    global _eval_store_cache
+    if _eval_store_cache is None:
+        if not (settings.eval_table and settings.eval_role_arn):
+            raise Unavailable("eval_unconfigured")
+        _eval_store_cache = eval_store.DynamoEvalStore(settings.eval_table, settings.eval_role_arn)
+    return _eval_store_cache
 
 
 def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..., Any]]:
@@ -149,6 +161,16 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "myBriefs": lambda *a: briefs.my_briefs(*a, store=_brief_store(settings)),
         "saveBriefEdits": lambda *a: briefs.save_brief_edits(*a, store=_brief_store(settings)),
         "exportBrief": lambda *a: briefs.export_brief(*a, store=_brief_store(settings)),
+        # The evaluation panel. Resolved lazily too, so an unconfigured eval table breaks only these fields.
+        "evalSuites": eval_panel.eval_suites,
+        "startEvalRun": lambda *a: eval_panel.start_eval_run(
+            *a, store=_eval_store(settings), worker_function=settings.eval_worker_function, correlation_id=correlation_id
+        ),
+        "evalRuns": lambda *a: eval_panel.eval_runs(*a, store=_eval_store(settings)),
+        "evalRun": lambda *a: eval_panel.eval_run(*a, store=_eval_store(settings)),
+        "evalRunDiff": lambda *a: eval_panel.eval_run_diff(*a, store=_eval_store(settings)),
+        "evalRatings": lambda *a: eval_panel.eval_ratings(*a, store=_eval_store(settings)),
+        "rateAnswer": lambda *a: eval_panel.rate_answer(*a, store=_eval_store(settings)),
     }
 
 
