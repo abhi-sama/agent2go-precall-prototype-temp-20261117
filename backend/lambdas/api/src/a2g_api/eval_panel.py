@@ -49,6 +49,14 @@ _SUMMARY_KEYS = (
     "faithfulness",
     "citationCorrectness",
     "exactCountRate",
+    "directionRate",
+    "visualMatchRate",
+    "visualCoverage",
+    "themeCoverage",
+    "chainCount",
+    "chainDepth",
+    "chainsCorrect",
+    "categories",
     "leakCount",
     "probeCount",
     "verdict",
@@ -81,7 +89,15 @@ def _suite_view(suite: Suite) -> dict[str, Any]:
         "subjectLabel": suite.subject_label,
         "fingerprint": suite_fingerprint(suite.questions),
         "questions": [
-            {"questionId": q.question_id, "kind": q.kind, "title": q.title, "prompt": q.prompt}
+            {
+                "questionId": q.question_id,
+                "kind": q.kind,
+                "category": q.category,
+                "chainId": q.chain,
+                "turn": q.turn or None,
+                "title": q.title,
+                "prompt": q.prompt,
+            }
             for q in suite.questions
         ],
     }
@@ -113,6 +129,7 @@ def _present_run(item: Mapping[str, Any], *, now: dt.datetime | None = None) -> 
         "answered": item.get("answered", 0),
         "suiteFingerprint": item.get("suiteFingerprint", ""),
         "failureReasons": [],
+        "categories": [],
         "leakCount": 0,
     }
     for key in _SUMMARY_KEYS:
@@ -125,12 +142,18 @@ def _present_run(item: Mapping[str, Any], *, now: dt.datetime | None = None) -> 
 
 def _present_result(item: Mapping[str, Any]) -> dict[str, Any]:
     keys = (
-        "questionId", "kind", "title", "prompt", "verdict", "faithfulness", "citations", "exactness", "expected",
-        "leaked", "leakKinds", "reasons", "answerExcerpt", "citationsCited", "citationsReadable",
-        "numbersClaimed", "numbersUnverified", "quotesChecked", "quotesFound", "agentNumberCheck", "agentError",
-        "durationMs",
+        "questionId", "kind", "category", "chainId", "turn", "title", "prompt", "verdict", "faithfulness", "citations",
+        "exactness", "expected", "expectedText", "direction", "visual", "visualMatch", "coverage", "uncertainty",
+        "visualsDrawn", "factsShown", "leaked", "leakKinds", "reasons", "answerExcerpt", "citationsCited",
+        "citationsReadable", "numbersClaimed", "numbersUnverified", "quotesChecked", "quotesFound",
+        "agentNumberCheck", "agentError", "durationMs",
     )  # fmt: skip
     out = {k: item.get(k) for k in keys}
+    out["category"] = item.get("category") or {"LEAK_PROBE": "LEAK_PROBE", "QUALITATIVE": "QUALITATIVE_THEME"}.get(
+        str(item.get("kind")), "EXACT_COUNT"
+    )
+    out["visualNotes"] = list(item.get("visualNotes") or [])
+    out["unverifiedSample"] = list(item.get("unverifiedSample") or [])
     out["leakKinds"] = list(item.get("leakKinds") or [])
     out["reasons"] = list(item.get("reasons") or [])
     out["leaked"] = bool(item.get("leaked"))
@@ -253,6 +276,9 @@ _DELTA_METRICS = (
     ("faithfulness", "Faithfulness"),
     ("citationCorrectness", "Citation correctness"),
     ("exactCountRate", "Exact counts"),
+    ("directionRate", "Trend and comparison direction"),
+    ("visualMatchRate", "Chart numbers match SQL"),
+    ("themeCoverage", "Theme coverage"),
     ("leakCount", "Leaks"),
     ("passedCount", "Questions passed"),
 )

@@ -6,6 +6,8 @@ import datetime as dt
 
 import pytest
 
+from eval_ideal import ideal
+
 from a2g_api import eval_panel
 from a2g_api.errors import BadRequest, Forbidden, NotFound, Unavailable
 from a2g_api.eval_runner import LeakyCanaryRuntime, new_run_id, result_item, start_item, suite_fingerprint
@@ -121,16 +123,7 @@ def finished_run(store, persona, run_id, *, leak=False, wrong=False, drop=None, 
         questions = questions + [extra]
     scores = []
     for i, q in enumerate(questions):
-        if q.kind == "LEAK_PROBE":
-            cap = Capture(text="CALL-77777" if leak else "That is outside your scope.", error=None)
-            ev = Evidence(foreign_record_ids=["CALL-77777"] if leak else [], foreign_territories=tuple(q.probe.territories))
-        elif q.kind == "QUANTITATIVE":
-            n = 13 if wrong else 12
-            cap = Capture(text=f"{n} calls.", facts=[{"label": "x", "value": 12, "scope": "s", "period": "p"}])
-            ev = Evidence(expected=12)
-        else:
-            cap = Capture(text="HCPs raised access.", citations=[{"dataset": "hcp_raw_insights", "record_id": "R1", "label": "r"}])
-            ev = Evidence(visible_citations={("hcp_raw_insights", "R1")})
+        cap, ev = ideal(q, wrong=leak if q.kind == "LEAK_PROBE" else wrong)
         score = score_question(q, cap, ev)
         scores.append(score)
         store.put(result_item(run_id, i, q, cap, score))

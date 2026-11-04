@@ -32,6 +32,7 @@ Then, as their blockers land:
 | 15 | #16 | Admin hierarchy: tree validation, transfers and temporary coverage, catalog vs response visibility | #15 |
 | 17 | #18 | Admin governance: status reconciliation, metric definitions, retention queues, issue assistant | #3, #17 |
 | 18 | #19 | AI evaluation panel: golden suites, automatic scoring, leak probes, history, human ratings | #3, #6 |
+| 32 | #62 | Chatbot answer-quality suite: 40+ golden questions per persona (exact counts, percentages, trends, comparisons, themes, 9-12 turn chains, leak probes), scored against SQL | #59, #60, #61, #19 |
 | 19 | #20 | Authorization verification grid across API, chat, caches and exports | #6, #7, #13, #16 |
 | 20 | #21 | iPad PWA with encrypted offline briefs and sync queue | #6, #10 |
 | 21 | #22 | 3D analytics visuals beyond the landing page | #12 |

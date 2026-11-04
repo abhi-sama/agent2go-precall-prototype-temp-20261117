@@ -43,6 +43,7 @@ class ActivityResult:
     #: False when the caller asked for a territory their scope does not cover (so no rows exist for them).
     territory_in_scope: bool | None = None
     product_filter: str | None = None
+    specialty_filter: str | None = None
     calls: int = 0
     engaged_hcps: int = 0
     responses: int = 0
@@ -177,6 +178,7 @@ class ScopedReadRepository(Protocol):
         period_to: dt.date | None,
         territory_id: str | None,
         product: str | None,
+        specialty: str | None = None,
     ) -> ActivityResult: ...
 
     def search_responses(
@@ -283,6 +285,7 @@ class PostgresScopedRepository:
         period_to: dt.date | None,
         territory_id: str | None,
         product: str | None,
+        specialty: str | None = None,
     ) -> ActivityResult:
         if territory_id is not None and not _TERRITORY.match(territory_id):
             return ActivityResult(status="bad_request", detail="invalid_territory_id")
@@ -305,6 +308,8 @@ class PostgresScopedRepository:
                 "territory": territory_id,
                 "product": product,
                 "product_like": _like(product) if product else None,
+                "specialty": specialty,
+                "specialty_like": _like(specialty) if specialty else None,
             }
             # RLS already restricts call_activity / hcp_raw_insights to the caller's scope; the
             # optional territory and product filters only narrow it further.
@@ -314,10 +319,12 @@ class PostgresScopedRepository:
                   (SELECT count(DISTINCT crm_call_id) FROM call_activity
                      WHERE call_dt BETWEEN %(frm)s AND %(to)s
                        AND (%(territory)s::text IS NULL OR territory_id = %(territory)s)
+                       AND (%(specialty)s::text IS NULL OR cust_sub_typ ILIKE %(specialty_like)s ESCAPE '\\')
                        AND (%(product)s::text IS NULL OR prd_nm ILIKE %(product_like)s ESCAPE '\\')),
                   (SELECT count(DISTINCT cust_mdm_id) FROM call_activity
                      WHERE call_dt BETWEEN %(frm)s AND %(to)s
                        AND (%(territory)s::text IS NULL OR territory_id = %(territory)s)
+                       AND (%(specialty)s::text IS NULL OR cust_sub_typ ILIKE %(specialty_like)s ESCAPE '\\')
                        AND (%(product)s::text IS NULL OR prd_nm ILIKE %(product_like)s ESCAPE '\\')),
                   (SELECT count(DISTINCT uniq_rspns_id) FROM hcp_raw_insights
                      WHERE date_of_interaction BETWEEN %(frm)s AND %(to)s
@@ -335,6 +342,7 @@ class PostgresScopedRepository:
                 WHERE call_dt BETWEEN %(frm)s AND %(to)s
                   AND crm_call_id IS NOT NULL
                   AND (%(territory)s::text IS NULL OR territory_id = %(territory)s)
+                  AND (%(specialty)s::text IS NULL OR cust_sub_typ ILIKE %(specialty_like)s ESCAPE '\\')
                   AND (%(product)s::text IS NULL OR prd_nm ILIKE %(product_like)s ESCAPE '\\')
                 GROUP BY crm_call_id
                 ORDER BY min(call_dt) DESC, crm_call_id
@@ -357,6 +365,7 @@ class PostgresScopedRepository:
             territory_filter=territory_id,
             territory_in_scope=in_scope,
             product_filter=product,
+            specialty_filter=specialty,
             calls=calls,
             engaged_hcps=hcps,
             responses=responses,
@@ -732,6 +741,7 @@ class FixtureScopedRepository:
         period_to: dt.date | None,
         territory_id: str | None,
         product: str | None,
+        specialty: str | None = None,
     ) -> ActivityResult:
         if identity.persona == "Executive":
             return ActivityResult(status="aggregate_only")

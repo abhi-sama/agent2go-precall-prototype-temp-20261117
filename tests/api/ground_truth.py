@@ -61,3 +61,28 @@ def calls_by_country(db: psycopg.Connection, territories: list[str], frm: str, t
         (frm, to, territories),
     ).fetchall()
     return dict(rows)
+
+
+def answer_share(db: psycopg.Connection, territories: list[str], question_id: str, answer: str, frm: str, to: str) -> tuple[int, int]:
+    """(responses with this answer, responses to the question) over the window, each response counted once."""
+    num, den = db.execute(
+        """SELECT count(DISTINCT uniq_rspns_id) FILTER (WHERE btrim(rspns_txt) = %s), count(DISTINCT uniq_rspns_id)
+           FROM hcp_raw_insights
+           WHERE qstn_ext_id = %s AND territory_id = ANY(%s) AND date_of_interaction BETWEEN %s AND %s
+             AND excluded_rspns_flag IS NOT TRUE AND uniq_rspns_id IS NOT NULL""",
+        (answer, question_id, territories, frm, to),
+    ).fetchone()
+    return num, den
+
+
+def topic_matches(db: psycopg.Connection, territories: list[str], topic: str, frm: str, to: str) -> int:
+    like = f"%{topic}%"
+    (n,) = db.execute(
+        """SELECT count(DISTINCT uniq_rspns_id) FROM hcp_raw_insights
+           WHERE territory_id = ANY(%s) AND date_of_interaction BETWEEN %s AND %s AND excluded_rspns_flag IS NOT TRUE
+             AND uniq_rspns_id IS NOT NULL
+             AND (qstn_txt ILIKE %s OR rspns_txt ILIKE %s OR molecule_type ILIKE %s OR landscape_type ILIKE %s
+                  OR study_name ILIKE %s OR survey_type ILIKE %s)""",
+        (territories, frm, to, *([like] * 6)),
+    ).fetchone()
+    return n

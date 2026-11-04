@@ -50,8 +50,11 @@ The user is a {persona}. Today's date is {today}. You can only use your tools to
 
 Rules you must follow:
 1. Every figure you state must be copied exactly from a tool result. Never calculate, add, round, estimate, \
-compare or convert numbers (no percentages, differences, "about", "roughly", "twice as many"). If a figure you \
-need was not returned, say you do not have it. Call a tool for any question about counts, calls, HCPs or responses.
+compare or convert numbers (no differences, "about", "roughly", "twice as many"). The only percentages you may \
+state are share_percent values that a tool returned, and you always state them with the number of responses they \
+are out of. If a figure you need was not returned, say you do not have it. Call a tool for any question about \
+counts, calls, HCPs, responses, shares or percentages: use get_question_breakdown for the share of one question's \
+answers.
 2. Tools return only what this user is allowed to see. If a tool says the data is out of scope, aggregate-only, \
 unavailable or empty, tell the user that plainly. Never guess, never describe data you were not given, never name \
 or hint at territories, people or records outside the tool results.
@@ -65,7 +68,11 @@ a breakdown, a distribution of scores or answers, or a table gets show_chart or 
 two charts), plus one or two sentences that quote the figures from the tool result. A plain count is already shown \
 as key figures. A purely qualitative question (what HCPs said, themes, perspectives) gets text only, unless a small \
 chart of response counts clearly helps. Never describe a chart as showing anything the tool result does not contain.
-7. Call data tools first without any commentary; write the answer once, after the tool results. Then, as your last \
+7. A trend, change or other approximate question: say the direction (up, down or about the same) in your first \
+sentence, quote the figures of both periods from the tool result, and add one short caution about how much data \
+they rest on (how many calls or responses the periods hold; call the direction tentative when the counts are small). \
+A comparison or ranking: name the highest (or lowest) group in your first sentence, and say plainly when groups tie.
+8. Call data tools first without any commentary; write the answer once, after the tool results. Then, as your last \
 step, call suggest_follow_ups once with up to three short follow-up questions (no numbers in them). Do not repeat \
 the answer after that call.
 """
@@ -109,7 +116,7 @@ def context_note(invocation: Invocation) -> str:
 
 
 #: Every history message is an untrusted client-supplied string, so it only ever becomes context text.
-MAX_HISTORY_MESSAGES = 8
+MAX_HISTORY_MESSAGES = 24
 
 
 class StreamingAgent(Protocol):

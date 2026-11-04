@@ -1,4 +1,4 @@
-import type { EvalChange, EvalPersona, EvalQuestionKind, EvalRunSummary } from "@/lib/data/evals"
+import type { EvalChange, EvalPersona, EvalQuestionKind, EvalResult, EvalRunSummary } from "@/lib/data/evals"
 
 export const PERSONA_LABEL: Record<EvalPersona, string> = { msl: "MSL", director: "Director", executive: "Executive", admin: "Administrator" }
 
@@ -27,4 +27,12 @@ export function isFinished(run: Pick<EvalRunSummary, "status">): boolean {
 }
 
 /** Scores are met or not by the same bars the captain set: counts exact, faithfulness and citations at least 90%. */
-export const BAR = { faithfulness: 0.9, citationCorrectness: 0.9, exactCountRate: 1 } as const
+export const BAR = { faithfulness: 0.9, citationCorrectness: 0.9, exactCountRate: 1, directionRate: 0.9, visualMatchRate: 1, themeCoverage: 0.9 } as const
+/** A follow-up conversation has to reach this many turns to count as deep. */
+export const CHAIN_DEPTH_BAR = 8
+
+/** "Turn 3 of 9" for a chain turn, from the other results of the same run. */
+export function turnLabel(result: Pick<EvalResult, "chainId" | "turn">, all: readonly Pick<EvalResult, "chainId">[]): string | null {
+  if (!result.chainId || !result.turn) return null
+  return `Turn ${result.turn} of ${all.filter((r) => r.chainId === result.chainId).length}`
+}

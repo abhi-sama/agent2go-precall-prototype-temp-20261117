@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from . import chart_data
 from .chart_data import GROUP_LABELS, METRIC_DEFINITIONS, METRIC_LABELS, METRIC_UNITS
-from .repository import ChartResult
+from .repository import ChartResult, QuestionBreakdownResult
 
 VisualKind = Literal["bar", "line", "distribution", "heatmap", "timeline", "table"]
 ChartType = Literal["auto", "line", "bar", "timeline", "heatmap", "table"]
@@ -240,6 +240,35 @@ def distribution_visual(visual_id: str, result: ChartResult) -> Visual:
         definition="Recorded answers, each response counted once; the share is of all answers of this type shown.",
         data_through=_through(result),
         total=result.total,
+        points=points,
+    )
+
+
+def question_visual(visual_id: str, result: QuestionBreakdownResult, scope: str) -> Visual:
+    """How HCPs answered one catalog question: each answer's count and its share of the question's responses."""
+    period = _period_text(result.period_from, result.period_to) if result.period_from and result.period_to else ""
+    points = [
+        VisualPoint(
+            key=bar.label,
+            label=bar.label,
+            value=bar.responses,
+            share_pct=_share("responses", bar.responses, result.responses),
+        )
+        for bar in result.bars
+    ]
+    return Visual(
+        visual_id=visual_id,
+        kind="distribution",
+        title=f"How HCPs answered {result.question_id}",
+        subtitle=f"{period} · {scope}",
+        metric="responses",
+        unit="responses",
+        period=period,
+        scope=scope,
+        definition="Each answer's recorded responses and its share of all responses to this question. "
+        "On a select-all question one response can count under several options, so shares can add to more than 100.",
+        data_through=result.data_through.isoformat() if result.data_through else None,
+        total=result.responses,
         points=points,
     )
 

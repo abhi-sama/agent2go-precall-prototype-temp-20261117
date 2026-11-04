@@ -238,8 +238,20 @@ _Avoid_: KPI formula
 ## Evaluation
 
 **Golden question**:
-A fixed question with a known right behaviour, asked of the agent as a persona; quantitative ones have a count computed in SQL, leak probes ask for data the persona must not get.
+A fixed question with a known right behaviour, asked of the agent as a persona; quantitative ones have a count, share, direction or leader computed in SQL, leak probes ask for data the persona must not get.
 _Avoid_: test prompt
+
+**Question type**:
+Which of seven kinds a golden question is (exact count, percentage, trend, comparison, qualitative theme, follow-up chain, leak probe); run scores are reported per type so one weak type is not hidden by the rest.
+_Avoid_: question category, question class
+
+**Follow-up chain**:
+A golden conversation of 9 to 12 turns where each turn leans on the earlier ones ("and September?", "go back to my first question"); every turn is scored on its own and the chain is correct only if all of them are.
+_Avoid_: thread, dialogue
+
+**Ground truth**:
+What a correct answer says, recounted from raw rows in hand-written SQL under the eval subject's own access, never taken from the agent's queries.
+_Avoid_: expected output, fixture
 
 **Eval subject**:
 The one seeded user a persona's golden suite is asked as, so every answer is judged against a known scope.

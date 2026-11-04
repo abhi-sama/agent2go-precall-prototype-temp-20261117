@@ -1122,11 +1122,22 @@ enum EvalSource { AGENT LEAKY_CANARY }
 enum EvalRunStatus { RUNNING SCORING COMPLETE ERROR }
 enum EvalVerdict { PASS FAIL }
 enum EvalQuestionKind { QUANTITATIVE QUALITATIVE LEAK_PROBE }
+"""The ticket's question types. A follow-up chain is one conversation of 9 to 12 turns; each turn is a result."""
+enum EvalCategory { EXACT_COUNT PERCENTAGE TREND COMPARISON QUALITATIVE_THEME FOLLOW_UP_CHAIN LEAK_PROBE }
 enum EvalChange { IMPROVED REGRESSED UNCHANGED ADDED REMOVED }
 enum AnswerRating { UP DOWN }
 
 """One golden question. Expected numbers are computed in SQL at run time, never stored."""
-type EvalSuiteQuestion { questionId: ID! kind: EvalQuestionKind! title: String! prompt: String! }
+type EvalSuiteQuestion {
+  questionId: ID!
+  kind: EvalQuestionKind!
+  category: EvalCategory!
+  "The conversation a follow-up belongs to, and its 1-based turn number."
+  chainId: String
+  turn: Int
+  title: String!
+  prompt: String!
+}
 """The golden questions for one persona, always asked as one fixed seeded eval subject."""
 type EvalSuite {
   persona: EvalPersona!
@@ -1140,6 +1151,8 @@ type EvalSuite {
 """
 One run of a suite. Scores are 0 to 1 and null when they do not apply. Any leak fails the run.
 """
+type EvalCategoryScore { category: EvalCategory! total: Int! passed: Int! rate: Float! }
+
 type EvalRunSummary {
   runId: ID!
   persona: EvalPersona!
@@ -1160,6 +1173,20 @@ type EvalRunSummary {
   faithfulness: Float
   citationCorrectness: Float
   exactCountRate: Float
+  "Trend direction and which-is-highest answers that agree with SQL."
+  directionRate: Float
+  "Charts and key figures whose every number equals a recount of the database."
+  visualMatchRate: Float
+  "Questions that needed a chart or key figures and got one."
+  visualCoverage: Float
+  "Qualitative answers that cover their theme."
+  themeCoverage: Float
+  "Follow-up conversations asked, the most turns any of them reached, and how many stayed correct throughout."
+  chainCount: Int
+  chainDepth: Int
+  chainsCorrect: Int
+  "Pass counts per question type, so exact counts, percentages, trends, themes, chains and leaks are reported separately."
+  categories: [EvalCategoryScore!]!
   leakCount: Int!
   probeCount: Int
   verdict: EvalVerdict
@@ -1171,14 +1198,35 @@ type EvalRunSummary {
 type EvalResult {
   questionId: ID!
   kind: EvalQuestionKind!
+  category: EvalCategory!
+  chainId: String
+  turn: Int
   title: String!
   prompt: String!
   verdict: EvalVerdict!
   faithfulness: Float
   citations: Float
   exactness: Float
-  "The count the SQL says the answer should state, for quantitative questions."
-  expected: Int
+  "The figure the SQL says the answer should state (a count, or a share in percent), for quantitative questions."
+  expected: Float
+  "What a correct answer says, in words: the count, the share and its denominator, the direction, or the leader."
+  expectedText: String
+  "1 when the direction or leader matches SQL, 0 when not."
+  direction: Float
+  "1 when a required chart or key figures were shown, 0 when missing."
+  visual: Float
+  "1 when every plotted number equals a database recount, 0 when one does not."
+  visualMatch: Float
+  "1 when a qualitative answer covers its theme."
+  coverage: Float
+  "1 when an approximate answer says how sure it is."
+  uncertainty: Float
+  visualsDrawn: Int
+  factsShown: Int
+  "Why a chart or key figure was judged not to match SQL."
+  visualNotes: [String!]
+  "Figures in the answer that no tool returned, which is why it failed faithfulness."
+  unverifiedSample: [String!]
   leaked: Boolean!
   "What kind of out-of-scope data was found: CITATION, RECORD_ID, HCP_NAME, TERRITORY_FACT, AGGREGATE, EMAIL, SECRET."
   leakKinds: [String!]!
@@ -1224,6 +1272,20 @@ type EvalRun {
   faithfulness: Float
   citationCorrectness: Float
   exactCountRate: Float
+  "Trend direction and which-is-highest answers that agree with SQL."
+  directionRate: Float
+  "Charts and key figures whose every number equals a recount of the database."
+  visualMatchRate: Float
+  "Questions that needed a chart or key figures and got one."
+  visualCoverage: Float
+  "Qualitative answers that cover their theme."
+  themeCoverage: Float
+  "Follow-up conversations asked, the most turns any of them reached, and how many stayed correct throughout."
+  chainCount: Int
+  chainDepth: Int
+  chainsCorrect: Int
+  "Pass counts per question type, so exact counts, percentages, trends, themes, chains and leaks are reported separately."
+  categories: [EvalCategoryScore!]!
   leakCount: Int!
   probeCount: Int
   verdict: EvalVerdict

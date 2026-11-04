@@ -219,3 +219,43 @@ async def test_follow_ups_cannot_replace_the_answer(settings, repository) -> Non
     assert "".join(e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT") == "You had 2 calls."
     assert next(e for e in events if e.get("name") == "suggestions")["value"] == ["Which territories can I see?"]
     assert writer.turns[0].assistant_text == "You had 2 calls."
+
+
+# -- shares of one question's answers (ticket #32): percentages come from the query, with their denominator ---------------
+
+
+@pytest.mark.asyncio
+async def test_a_question_breakdown_returns_shares_and_draws_the_answers(settings, repository) -> None:
+    steps = [("tool", "get_question_breakdown", {"question_id": "Q-0013"}), "Yes was 55.2% of 29 responses."]
+    agent, writer = runtime(settings, repository, steps)
+    events = await collect(agent, make_invocation())
+
+    [visual] = ready(events)
+    assert visual["kind"] == "distribution" and visual["total"] == 29
+    assert [(p["label"], p["value"], p["share_pct"]) for p in visual["points"]] == [
+        ("Yes", 16, 55.2),
+        ("No", 10, 34.5),
+        ("Unsure", 3, 10.3),
+    ]
+    # A percentage the tool returned is a verified figure.
+    assert next(e["value"] for e in events if e.get("name") == "number_check")["count"] == 0
+
+
+def test_the_model_reads_shares_and_the_denominator_in_the_tool_result(repository) -> None:
+    from msl_agent.schemas import Identity
+    from msl_agent.tools import RunContext
+
+    identity = Identity(user_id="msl-t01-01", persona="MSL", correlation_id="t")
+    ctx = RunContext(identity=identity, repository=repository, run_id="r")
+    result = json.loads(ctx.question(repository.question_breakdown(identity, question_id="Q-0013", period_from=None, period_to=None, territory_id=None)))
+    assert [a["share_percent"] for a in result["answers"]] == [55.2, 34.5, 10.3]
+    assert result["percent_of"] == "29 responses" and "never compute" in result["instruction"]
+
+
+@pytest.mark.asyncio
+async def test_a_made_up_percentage_is_reported_as_unverified(settings, repository) -> None:
+    steps = [("tool", "get_question_breakdown", {"question_id": "Q-0013"}), "Yes was 71.3% of 29 responses."]
+    agent, _ = runtime(settings, repository, steps)
+    events = await collect(agent, make_invocation())
+    check = next(e["value"] for e in events if e.get("name") == "number_check")
+    assert check["status"] == "unverified" and check["count"] == 1

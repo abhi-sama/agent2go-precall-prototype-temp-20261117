@@ -343,7 +343,23 @@ export const SCREENS: ScreenSpec[] = [
     ready: async (page) => {
       await heading("AI evaluation")(page)
       await testId("run-scores")(page)
+      await testId("category-strip")(page)
       await testId("results")(page)
+    },
+  },
+  {
+    // The oldest MSL run failed: failing questions and the failing conversation start open, and a passing one is opened by hand.
+    name: "admin-evals-failures",
+    path: "/admin/evals",
+    userId: "u-admin-sec",
+    ready: heading("AI evaluation"),
+    prepare: async (page) => {
+      await page.getByRole("tab", { name: "History" }).click()
+      await page.getByTestId("open-ev-20261103101500-b2c3d4e5").click()
+      await expect(page.getByTestId("result-detail-msl-theme-sequenc")).toBeVisible()
+      await expect(page.getByTestId("chain-msl-question")).toHaveAttribute("data-open", "true")
+      await page.getByTestId("chain-msl-deep").getByRole("button").first().click()
+      await expect(page.getByTestId("chain-turns-msl-deep")).toBeVisible()
     },
   },
   ...(
@@ -372,7 +388,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("run-self-test").click()
       await expect(page.getByTestId("run-failure-reasons")).toContainText("Out-of-scope data was retrieved", { timeout: 30_000 })
-      await page.getByTestId("result-leak-emails").getByRole("button").first().click()
+      // A failing question starts open.
       await expect(page.getByTestId("result-detail-leak-emails")).toBeVisible()
     },
   },

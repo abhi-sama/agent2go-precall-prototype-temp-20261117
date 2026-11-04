@@ -337,3 +337,38 @@ def test_hostile_text_is_only_ever_a_bound_parameter(repo) -> None:
         answer_type=None,
     )
     assert res.status == "ok" and res.total == 0
+
+
+# -- shares of one question and the specialty filter (ticket #32) -------------------------------------------------------
+
+
+@pytest.mark.parametrize("user_id,persona", USERS)
+def test_question_shares_equal_a_recount(repo, owner, user_id, persona) -> None:
+    scope = scope_of(owner, user_id, persona)
+    start, end = dt.date(2025, 11, 4), dt.date(2026, 11, 3)
+    result = repo.question_breakdown(
+        identity(user_id, persona), question_id="Q-0145", period_from=start, period_to=end, territory_id=None
+    )
+    assert result.status == "ok" and result.responses > 0
+    rows = owner.execute(
+        """SELECT DISTINCT uniq_rspns_id, btrim(rspns_txt) FROM hcp_raw_insights
+           WHERE qstn_ext_id = 'Q-0145' AND date_of_interaction BETWEEN %s AND %s AND excluded_rspns_flag IS NOT TRUE
+             AND uniq_rspns_id IS NOT NULL AND (%s::text[] IS NULL OR territory_id = ANY(%s))""",
+        (start, end, None if scope is None else sorted(scope), None if scope is None else sorted(scope)),
+    ).fetchall()
+    assert result.responses == len(rows)
+    by_answer: dict[str, int] = defaultdict(int)
+    for _, answer in rows:
+        by_answer[answer] += 1
+    assert {b.label: b.responses for b in result.bars} == dict(by_answer)
+
+
+def test_the_specialty_filter_narrows_calls_and_hcps_only(repo, owner) -> None:
+    start, end = dt.date(2026, 7, 1), dt.date(2026, 9, 30)
+    me = identity("msl-t01-01", "MSL")
+    everyone = repo.activity_summary(me, period_from=start, period_to=end, territory_id=None, product=None)
+    onc = repo.activity_summary(me, period_from=start, period_to=end, territory_id=None, product=None, specialty="oncologist")
+    nobody = repo.activity_summary(me, period_from=start, period_to=end, territory_id=None, product=None, specialty="cardiologist")
+    assert onc.calls == everyone.calls > 0 and onc.engaged_hcps == everyone.engaged_hcps  # every seeded HCP is an oncologist
+    assert (nobody.calls, nobody.engaged_hcps) == (0, 0)
+    assert nobody.responses == everyone.responses, "responses carry no specialty filter"

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useDataAdapter } from "@/lib/data/data-provider"
-import { EVAL_PERSONAS, type EvalPersona, type EvalRun, type EvalRunSummary, type EvalSource } from "@/lib/data/evals"
+import { CATEGORY_LABEL, EVAL_CATEGORIES, EVAL_PERSONAS, type EvalPersona, type EvalRun, type EvalRunSummary, type EvalSource } from "@/lib/data/evals"
 import { toDataError } from "@/lib/data/types"
 import { useQuery } from "@/lib/data/use-query"
 import { newCorrelationId } from "@/lib/log/logger"
@@ -74,7 +74,8 @@ function SuiteCard({
   const adapter = useDataAdapter()
   const suites = useQuery("evalSuites", "suites", (ctx) => adapter.evalSuites(ctx))
   const suite = suites.status === "success" ? suites.data.find((s) => s.persona === persona) : undefined
-  const count = (kind: string) => suite?.questions.filter((q) => q.kind === kind).length ?? 0
+  const chains = new Set(suite?.questions.map((q) => q.chainId).filter(Boolean)).size
+  const byType = EVAL_CATEGORIES.map((c) => ({ c, n: suite?.questions.filter((q) => q.category === c).length ?? 0 })).filter((x) => x.n > 0)
   const disabled = busy || running
   return (
     <section data-testid="suite-card" aria-label="Golden suite" className="flex flex-col gap-4 rounded-2xl border bg-card p-4 sm:p-5 md:flex-row md:items-center md:justify-between">
@@ -82,7 +83,7 @@ function SuiteCard({
         <h2 className="text-lg font-semibold tracking-tight">Golden suite for {PERSONA_LABEL[persona]}</h2>
         {suite ? (
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            {suite.questions.length} questions: {count("QUANTITATIVE")} exact counts, {count("QUALITATIVE")} qualitative, {count("LEAK_PROBE")} leak probes. Asked as {suite.subjectLabel}, so every answer is read against exactly what that person may see.
+            {suite.questions.length} questions: {byType.map(({ c, n }) => `${n} ${c === "FOLLOW_UP_CHAIN" ? `follow-up turns in ${chains} conversations` : CATEGORY_LABEL[c].toLowerCase()}`).join(", ")}. Asked as {suite.subjectLabel}, so every answer is read against exactly what that person may see.
           </p>
         ) : suites.status === "error" ? (
           <p className="mt-1 text-sm text-destructive">The suite could not be loaded.</p>
@@ -169,7 +170,7 @@ export function EvalPanel() {
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">AI evaluation</h1>
         </div>
         <p className="max-w-3xl text-muted-foreground">
-          Run each persona&apos;s golden questions against the real agent. Every answer is scored automatically for faithfulness, citation correctness, exact counts and leaks. Any leak of out-of-scope data fails the run.
+          Run each persona&apos;s golden questions against the real agent. Every answer is scored automatically for faithfulness, citation correctness, exact counts and percentages, trend and comparison direction, chart numbers, theme coverage and leaks, across follow-up conversations up to 12 turns deep. Any leak of out-of-scope data fails the run.
         </p>
         <div>
           <ScopeLabel label={user.scopeLabel} />

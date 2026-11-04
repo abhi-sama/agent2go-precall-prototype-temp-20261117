@@ -17,8 +17,9 @@ test.describe("administrator", () => {
     await expect(page.getByTestId("score-faithfulness")).toContainText("100%")
     await expect(page.getByTestId("score-leaks")).toContainText("No out-of-scope data retrieved")
     await expect(page.getByTestId("run-header").getByTestId("verdict-badge")).toHaveAttribute("data-verdict", "PASS")
-    await page.getByTestId("result-msl-themes").getByRole("button").first().click()
-    await expect(page.getByTestId("answer-excerpt").first()).toContainText("Access is the main barrier")
+    await page.getByTestId("result-msl-theme-sequenc").getByRole("button").first().click()
+    await expect(page.getByTestId("result-detail-msl-theme-sequenc").getByTestId("answer-excerpt")).toContainText("Access is the main barrier")
+    await expect(page.getByTestId("result-detail-msl-theme-sequenc").getByTestId("expected-text")).toContainText("37")
     // Human thumbs sit beside the automated scores of the same persona.
     await expect(page.getByTestId("human-ratings-strip")).toContainText("1")
 
@@ -34,9 +35,9 @@ test.describe("administrator", () => {
     await expect(page.getByTestId("self-test-badge")).toBeVisible()
     await expect(page.getByTestId("run-failure-reasons")).toContainText("Out-of-scope data was retrieved", { timeout: 30_000 })
     await expect(page.getByTestId("run-header").getByTestId("verdict-badge")).toHaveAttribute("data-verdict", "FAIL")
-    await expect(page.getByTestId("score-leaks")).toHaveAttribute("data-value", "4")
-    await page.getByTestId("result-leak-emails").getByRole("button").first().click()
-    await expect(page.getByTestId("result-reasons")).toContainText("Revealed an email address")
+    await expect(page.getByTestId("score-leaks")).toHaveAttribute("data-value", "8")
+    // Failing questions start open.
+    await expect(page.getByTestId("result-detail-leak-emails").getByTestId("result-reasons")).toContainText("Revealed an email address")
   })
 
   test("history lists runs and two runs can be diffed", async ({ page }) => {
@@ -49,7 +50,7 @@ test.describe("administrator", () => {
     await expect(page.getByTestId("diff-view")).toBeVisible()
     await expect(page.getByTestId("diff-view").getByTestId("change-badge").first()).toHaveAttribute("data-change", "IMPROVED")
     await expect(page.getByTestId("metric-faithfulness")).toBeVisible()
-    await expect(page.getByTestId("diff-msl-themes")).toHaveAttribute("data-change", "IMPROVED")
+    await expect(page.getByTestId("diff-msl-theme-sequenc")).toHaveAttribute("data-change", "IMPROVED")
 
     // Swap the two runs: the same pair now reads as a regression.
     const base = await page.getByTestId("compare-base").inputValue()
@@ -57,6 +58,71 @@ test.describe("administrator", () => {
     await page.getByTestId("compare-base").selectOption(head)
     await page.getByTestId("compare-head").selectOption(base)
     await expect(page.getByTestId("diff-view").getByTestId("change-badge").first()).toHaveAttribute("data-change", "REGRESSED")
+  })
+
+  test("scores are reported by question type, and follow-up conversations expand and collapse", async ({ page }) => {
+    await page.goto("/admin/evals")
+    // One tile per question type, with passed over total.
+    const strip = page.getByTestId("category-strip")
+    await expect(strip).toBeVisible()
+    for (const category of ["EXACT_COUNT", "PERCENTAGE", "TREND", "COMPARISON", "QUALITATIVE_THEME", "FOLLOW_UP_CHAIN", "LEAK_PROBE"]) {
+      await expect(page.getByTestId(`category-${category}`)).toBeVisible()
+    }
+    await expect(page.getByTestId("category-FOLLOW_UP_CHAIN")).toHaveAttribute("data-total", "40")
+    await expect(page.getByTestId("category-EXACT_COUNT")).toContainText("12/12")
+    // The extra scores sit beside the first four, each against its bar.
+    await expect(page.getByTestId("score-direction")).toContainText("100%")
+    await expect(page.getByTestId("score-visual")).toContainText("100%")
+    await expect(page.getByTestId("score-chains")).toContainText("4 of 4 conversations stayed correct")
+    await expect(page.getByTestId("score-chains")).toHaveAttribute("data-value", "12")
+
+    // Four conversations of 9, 9, 10 and 12 turns; a passing one starts collapsed.
+    const chain = page.getByTestId("chain-msl-deep")
+    await expect(chain).toContainText("12 turns")
+    await expect(page.getByTestId("chain-turns-msl-deep")).toHaveCount(0)
+    await chain.getByRole("button").first().click()
+    await expect(page.getByTestId("chain-turns-msl-deep").locator("> li")).toHaveCount(12)
+    await page.getByTestId("result-msl-deep-t12").getByRole("button").first().click()
+    await expect(page.getByTestId("result-detail-msl-deep-t12")).toContainText("Finally, back to my first question")
+    await chain.getByRole("button").first().click()
+    await expect(page.getByTestId("chain-turns-msl-deep")).toHaveCount(0)
+
+    // Choosing a type scrolls to its group.
+    await page.getByTestId("category-LEAK_PROBE").click()
+    await expect(page.getByTestId("group-LEAK_PROBE")).toBeInViewport()
+  })
+
+  test("a failing run opens its failures: expected answer, what was said, why, and the whole conversation", async ({ page }) => {
+    await page.goto("/admin/evals")
+    await tab(page, "History").click()
+    await page.getByTestId("open-ev-20261103101500-b2c3d4e5").click()
+    await expect(page.getByTestId("run-header").getByTestId("verdict-badge")).toHaveAttribute("data-verdict", "FAIL")
+    await expect(page.getByTestId("run-failure-reasons")).toContainText("A chart or key figure does not match the database")
+
+    // Failing questions start open, with their reasons spelled out.
+    const theme = page.getByTestId("result-detail-msl-theme-sequenc")
+    await expect(theme.getByTestId("result-reasons")).toContainText("not backed by the data")
+    await expect(theme.getByTestId("unverified-sample")).toContainText("3,000")
+    await expect(theme.getByTestId("expected-text")).toContainText("37")
+    await expect(page.getByTestId("result-detail-msl-trend-calls").getByTestId("visual-notes")).toContainText("differ from SQL")
+
+    // A failing turn opens its conversation and offers a link to the whole of it.
+    await expect(page.getByTestId("chain-msl-question")).toHaveAttribute("data-open", "true")
+    const turn = page.getByTestId("result-detail-msl-question-t03")
+    await expect(turn.getByTestId("result-reasons")).toContainText("without the number it is out of")
+    await expect(turn.getByTestId("expected-text")).toContainText("14.3% (5 of 35)")
+    await page.getByTestId("chain-msl-question").getByRole("button").first().click()
+    await expect(page.getByTestId("chain-turns-msl-question")).toHaveCount(0)
+    await page.getByTestId("category-FOLLOW_UP_CHAIN").click()
+    await page.getByTestId("chain-msl-question").getByRole("button").first().click()
+    await page.getByTestId("conversation-msl-question-t03").click()
+    await expect(page.getByTestId("chain-msl-question")).toHaveAttribute("data-open", "true")
+  })
+
+  test("the executive suite expects 'not available' for every record-level question", async ({ page }) => {
+    await page.goto("/admin/evals")
+    await page.getByTestId("persona-executive").click()
+    await expect(page.getByTestId("suite-card")).toContainText("2 conversations")
   })
 
   test("human ratings sit next to the automated scores", async ({ page }) => {
@@ -92,6 +158,12 @@ test("iPad smoke: the panel fits portrait, with 44pt targets and no sideways scr
     const box = await page.getByTestId(id).boundingBox()
     expect(box?.height ?? 0, id).toBeGreaterThanOrEqual(44)
   }
+  for (const id of ["category-EXACT_COUNT", "category-FOLLOW_UP_CHAIN", "category-LEAK_PROBE"]) {
+    const box = await page.getByTestId(id).boundingBox()
+    expect(box?.height ?? 0, id).toBeGreaterThanOrEqual(44)
+  }
+  const chainButton = await page.getByTestId("chain-msl-deep").getByRole("button").first().boundingBox()
+  expect(chainButton?.height ?? 0).toBeGreaterThanOrEqual(44)
   for (const name of ["Results", "History", "Compare runs", "Human ratings"]) {
     const box = await tab(page, name).boundingBox()
     expect(box?.height ?? 0, name).toBeGreaterThanOrEqual(44)

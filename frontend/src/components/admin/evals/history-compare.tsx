@@ -45,6 +45,8 @@ export function RunHistory({ runs, onOpen }: { runs: EvalRunSummary[]; onOpen: (
                   <span>Faithful <strong>{pct(run.faithfulness)}</strong></span>
                   <span>Citations <strong>{pct(run.citationCorrectness)}</strong></span>
                   <span>Exact <strong>{pct(run.exactCountRate)}</strong></span>
+                  {run.directionRate !== null && <span>Direction <strong>{pct(run.directionRate)}</strong></span>}
+                  {run.chainDepth ? <span>Depth <strong>{run.chainDepth}</strong></span> : null}
                   <span>Leaks <strong>{run.leakCount}</strong></span>
                 </>
               ) : null}

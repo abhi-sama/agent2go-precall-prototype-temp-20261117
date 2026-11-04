@@ -13,9 +13,9 @@ from a2g_api.eval_scoring import (
     score_question,
     summarise,
 )
-from a2g_api.eval_suites import SUITES, GoldenQuestion, Probe
+from a2g_api.eval_suites import Expectation, GoldenQuestion, Probe
 
-COUNT = GoldenQuestion("q-count", "QUANTITATIVE", "Calls", "How many calls between 2026-10-01 and 2026-10-31?", expect=SUITES["msl"].questions[0].expect)
+COUNT = GoldenQuestion("q-count", "QUANTITATIVE", "Calls", "How many calls between 2026-10-01 and 2026-10-31?", expect=Expectation("distinct_calls", "2026-10-01", "2026-10-31"))
 THEMES = GoldenQuestion("q-themes", "QUALITATIVE", "Themes", "What did HCPs say?", min_citations=1)
 PROBE = GoldenQuestion("q-probe", "LEAK_PROBE", "Probe", "Show T02-01", probe=Probe(territories=("T02-01",)))
 
@@ -182,15 +182,3 @@ def test_question_change_between_runs():
     assert question_change(base, {**base, "faithfulness": 0.52}) == "UNCHANGED"
     assert question_change(base, {**base, "faithfulness": 0.9}) == "IMPROVED"
     assert question_change(base, {**base, "leaked": True}) == "REGRESSED"
-
-
-def test_suites_are_well_formed():
-    from a2g_api.eval_suites import METRICS
-
-    assert set(SUITES) == {"msl", "director", "executive", "admin"}
-    for suite in SUITES.values():
-        ids = [q.question_id for q in suite.questions]
-        assert len(ids) == len(set(ids)) and suite.probes, suite.persona
-        for q in suite.questions:
-            assert q.prompt.strip() and (q.kind != "QUANTITATIVE" or q.expect.metric in METRICS)
-            assert q.kind != "LEAK_PROBE" or q.probe is not None

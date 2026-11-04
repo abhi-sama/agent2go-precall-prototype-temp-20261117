@@ -26,7 +26,7 @@ log = get_logger(__name__)
 
 _ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 MAX_MESSAGE_CHARS = 2_000
-MAX_HISTORY = 8
+MAX_HISTORY = 24
 EVENTS_PAGE = 200
 
 Invoker = Callable[[str, dict[str, Any]], None]

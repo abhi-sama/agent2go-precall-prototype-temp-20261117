@@ -19,6 +19,7 @@ import concurrent.futures
 import datetime as dt
 import hashlib
 import re
+import threading
 import time
 import uuid
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -35,14 +36,17 @@ from .eval_scoring import (
     Capture,
     Evidence,
     QuestionScore,
+    _allowed_numbers,
     capture_from_events,
     quotes_in,
+    ready_visuals,
     score_question,
     summarise,
     unique_citations,
 )
 from .eval_store import RUNS_PK, EvalStore, run_pk
-from .eval_suites import Expectation, GoldenQuestion, Probe, Suite
+from .eval_suites import GoldenQuestion, Probe, Suite
+from .eval_truth import compute_truth, recount_visual
 from .settings import Settings
 
 log = get_logger(__name__)
@@ -50,8 +54,8 @@ log = get_logger(__name__)
 RUN_ID = re.compile(r"^ev-\d{14}-[0-9a-f]{8}$")
 SOURCES = ("AGENT", "LEAKY_CANARY")
 ANSWER_EXCERPT_CHARS = 1500
-AGENT_TIMEOUT_SECONDS = 150
-DEFAULT_WORKERS = 3
+AGENT_TIMEOUT_SECONDS = 170
+DEFAULT_WORKERS = 6
 _RECORD_TOKEN = re.compile(r"\b[A-Za-z]{2,10}-\d{3,10}\b")
 
 Runtime = AgentRuntime
@@ -75,29 +79,6 @@ def suite_fingerprint(questions: Sequence[GoldenQuestion]) -> str:
 
 
 # -- database evidence -------------------------------------------------------------------------------------------
-
-
-def expected_value(cur: psycopg.Cursor, expect: Expectation) -> int:
-    """The count, computed by hand-written SQL under whatever RLS the cursor is bound to."""
-    if expect.metric == "distinct_calls":
-        cur.execute(
-            "SELECT count(DISTINCT crm_call_id) FROM call_activity WHERE call_dt BETWEEN %s AND %s",
-            (expect.from_date, expect.to_date),
-        )
-    elif expect.metric == "engaged_hcps":
-        cur.execute(
-            "SELECT count(DISTINCT cust_mdm_id) FROM call_activity WHERE call_dt BETWEEN %s AND %s",
-            (expect.from_date, expect.to_date),
-        )
-    elif expect.metric == "responses":
-        cur.execute(
-            """SELECT count(DISTINCT uniq_rspns_id) FROM hcp_raw_insights
-               WHERE date_of_interaction BETWEEN %s AND %s AND excluded_rspns_flag IS NOT TRUE""",
-            (expect.from_date, expect.to_date),
-        )
-    else:  # pragma: no cover - suites are validated by tests
-        raise ValueError("unknown_metric")
-    return int(cur.fetchone()[0])
 
 
 def foreign_names(cur: psycopg.Cursor, territories: Sequence[str]) -> list[str]:
@@ -201,8 +182,9 @@ def quotes_readable(cur: psycopg.Cursor, quotes: Sequence[str]) -> set[str]:
     for quote in quotes:
         cur.execute(
             """SELECT 1 FROM hcp_raw_insights
-               WHERE strpos(lower(regexp_replace(rspns_txt, '\\s+', ' ', 'g')), %s) > 0 LIMIT 1""",
-            (quote,),
+               WHERE strpos(lower(regexp_replace(rspns_txt, '\\s+', ' ', 'g')), %(q)s) > 0
+                  OR strpos(lower(regexp_replace(qstn_txt, '\\s+', ' ', 'g')), %(q)s) > 0 LIMIT 1""",
+            {"q": quote},
         )
         if cur.fetchone():
             found.add(quote)
@@ -212,6 +194,31 @@ def quotes_readable(cur: psycopg.Cursor, quotes: Sequence[str]) -> set[str]:
 def answer_tokens(cap: Capture) -> list[str]:
     blob = " ".join([cap.text, str(cap.facts), str(cap.citations), str(cap.visuals)])
     return sorted(set(_RECORD_TOKEN.findall(blob)))
+
+
+def _gather_truth(cur: psycopg.Cursor, q: GoldenQuestion, cap: Capture, ev: Evidence) -> None:
+    """What the database says the answer should be, and whether every plotted number agrees with it.
+
+    Each recount runs in its own savepoint, so one bad query cannot poison the rest of the run.
+    """
+    if q.expect is not None:
+        try:
+            with cur.connection.transaction():
+                truth = compute_truth(cur, q.expect)
+            ev.truth = truth
+            ev.expected = truth.value  # type: ignore[assignment]
+        except Exception as exc:
+            log.error("eval truth failed", question_id=q.question_id, error_type=type(exc).__name__)
+            ev.truth_error = True
+    for visual in ready_visuals(cap):
+        try:
+            with cur.connection.transaction():
+                ok, reason = recount_visual(cur, visual)
+        except Exception as exc:
+            log.error("eval recount failed", question_id=q.question_id, error_type=type(exc).__name__)
+            ok, reason = False, "recount failed"
+        if reason != "not recountable":
+            ev.visual_checks.append((str(visual.get("title") or visual.get("kind")), ok, reason))
 
 
 # -- the deliberately leaky stand-in -------------------------------------------------------------------------------
@@ -257,7 +264,16 @@ class LeakyCanaryRuntime:
 # -- the run -----------------------------------------------------------------------------------------------------
 
 
-def _ask(runtime: Runtime, suite: Suite, run_id: str, index: int, question: GoldenQuestion, correlation_id: str) -> Capture:
+def _ask(
+    runtime: Runtime,
+    suite: Suite,
+    run_id: str,
+    index: int,
+    question: GoldenQuestion,
+    correlation_id: str,
+    history: Sequence[dict[str, str]] = (),
+    thread: str | None = None,
+) -> Capture:
     payload = {
         "identity": {
             "user_id": suite.subject_user_id,
@@ -267,9 +283,9 @@ def _ask(runtime: Runtime, suite: Suite, run_id: str, index: int, question: Gold
             "correlation_id": correlation_id,
         },
         # The ``eval-`` prefix keeps these turns out of the subject's saved conversation history.
-        "thread_id": f"eval-{run_id[3:]}-{index:02d}",
+        "thread_id": f"eval-{run_id[3:]}-{thread or f'{index:02d}'}",
         "run_id": f"{run_id}-{index:02d}",
-        "messages": [{"role": "user", "content": question.prompt}],
+        "messages": [*history, {"role": "user", "content": question.prompt}],
     }
     started = time.perf_counter()
     try:
@@ -280,6 +296,44 @@ def _ask(runtime: Runtime, suite: Suite, run_id: str, index: int, question: Gold
         cap = Capture(error="AGENT_UNAVAILABLE")
     cap.duration_ms = round((time.perf_counter() - started) * 1000)
     return cap
+
+
+def _units(questions: Sequence[GoldenQuestion]) -> list[list[int]]:
+    """Indexes of the questions grouped into units of work: one single question, or a whole chain in turn order."""
+    units: list[list[int]] = []
+    chains: dict[str, list[int]] = {}
+    for i, q in enumerate(questions):
+        if q.chain:
+            if q.chain not in chains:
+                chains[q.chain] = []
+                units.append(chains[q.chain])
+            chains[q.chain].append(i)
+        else:
+            units.append([i])
+    return units
+
+
+def _run_unit(
+    runtime: Runtime,
+    suite: Suite,
+    run_id: str,
+    questions: Sequence[GoldenQuestion],
+    unit: Sequence[int],
+    correlation_id: str,
+    on_done: Callable[[int, Capture], None],
+) -> None:
+    """Ask a single question, or walk one chain turn by turn the way a person would: each turn carries the
+    conversation so far, so a later turn that leans on an earlier one ("and September?", "go back to my first
+    question") only works if the agent keeps its context."""
+    history: list[dict[str, str]] = []
+    thread = f"c{unit[0]:02d}" if len(unit) > 1 else None
+    for i in unit:
+        cap = _ask(runtime, suite, run_id, i, questions[i], correlation_id, history, thread)
+        on_done(i, cap)
+        history += [
+            {"role": "user", "content": questions[i].prompt},
+            {"role": "assistant", "content": cap.text or "(no answer was produced)"},
+        ]
 
 
 def _summary_item(
@@ -371,21 +425,30 @@ def run_suite(
                     if source == "LEAKY_CANARY":
                         samples[q.question_id] = canary_sample(cur, q.probe.territories)
 
-        # 2. ask the agent as the subject, a few questions at a time
+        # 2. ask the agent as the subject, a few units of work at a time (a chain is one unit)
         runner = LeakyCanaryRuntime(suite, samples) if source == "LEAKY_CANARY" else runtime
         captures: dict[int, Capture] = {}
+        lock = threading.Lock()
+
+        def done(i: int, cap: Capture) -> None:
+            with lock:
+                captures[i] = cap
+                count = len(captures)
+            store.put(_summary_item(status="RUNNING", answered=count, **base))
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-            futures = {
-                pool.submit(_ask, runner, suite, run_id, i, q, correlation_id): i for i, q in enumerate(questions)
-            }
+            futures = [
+                pool.submit(_run_unit, runner, suite, run_id, questions, unit, correlation_id, done)
+                for unit in _units(questions)
+            ]
             for future in concurrent.futures.as_completed(futures):
-                captures[futures[future]] = future.result()
-                store.put(_summary_item(status="RUNNING", answered=len(captures), **base))
+                future.result()
         store.put(_summary_item(status="SCORING", answered=len(questions), **base))
 
-        # 3. evidence as the subject: what that persona may read
+        # 3. evidence as the subject: what that persona may read, and what the database says the answers should be
         evidence: dict[int, Evidence] = {}
         hidden_tokens: dict[int, list[str]] = {}
+        chain_figures: dict[str, set[str]] = {}
         with user_cursor(settings.db_dsn, suite.subject_user_id, suite.subject_persona, correlation_id) as cur:
             for i, q in enumerate(questions):
                 cap = captures[i]
@@ -396,16 +459,19 @@ def run_suite(
                 names = info.get("names", [])
                 readable_by_subject = readable_names(cur, names)
                 ev = Evidence(
-                    expected=expected_value(cur, q.expect) if q.expect else None,
                     visible_citations=visible,
                     cited_text=cited_text,
                     quotes_found_in_scope=quotes_readable(cur, quotes_in(cap.text)),
                     foreign_names=[n for n in names if n not in readable_by_subject],
                     foreign_numbers=set(info.get("numbers", set())),
                     foreign_territories=tuple(q.probe.territories) if q.probe else (),
+                    prior_figures=set(chain_figures.get(q.chain or "", set())),
                 )
+                _gather_truth(cur, q, cap, ev)
                 evidence[i] = ev
                 hidden_tokens[i] = [t for t in tokens if t not in readable]
+                if q.chain:
+                    chain_figures.setdefault(q.chain, set()).update(_allowed_numbers(q, cap))
 
         # 4. of the identifiers the subject cannot read, which exist at all (administrator view)
         with user_cursor(settings.db_dsn, admin_user_id, "Administrator", correlation_id) as cur:
@@ -467,21 +533,34 @@ def result_item(run_id: str, index: int, q: GoldenQuestion, cap: Capture, score:
         "index": index,
         "questionId": q.question_id,
         "kind": q.kind,
+        "category": q.category,
+        "chainId": q.chain,
+        "turn": q.turn or None,
         "title": q.title,
         "prompt": q.prompt,
         "verdict": score.verdict,
         "faithfulness": score.faithfulness,
         "citations": score.citations,
         "exactness": score.exactness,
+        "direction": score.direction,
+        "visual": score.visual,
+        "visualMatch": score.visual_match,
+        "coverage": score.coverage,
+        "uncertainty": score.uncertainty,
         "leaked": score.leaked,
         "leakKinds": score.leak_kinds,
         "reasons": score.reasons,
         "expected": d.get("expected"),
+        "expectedText": score.expected_text,
+        "visualsDrawn": len(ready_visuals(cap)),
+        "visualNotes": score.detail.get("visualNotes") or [],
+        "factsShown": len(cap.facts),
         "answerExcerpt": cap.text[:ANSWER_EXCERPT_CHARS],
         "citationsCited": d.get("citationsCited", 0),
         "citationsReadable": d.get("citationsReadable", 0),
         "numbersClaimed": d.get("numbersClaimed", 0),
         "numbersUnverified": d.get("numbersUnverified", 0),
+        "unverifiedSample": d.get("unverifiedSample") or [],
         "quotesChecked": d.get("quotesChecked", 0),
         "quotesFound": d.get("quotesFound", 0),
         "agentNumberCheck": d.get("agentNumberCheck"),
