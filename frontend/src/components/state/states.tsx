@@ -70,6 +70,7 @@ const ERROR_COPY: Record<DataError["code"], { title: string; body: string; locke
   FORBIDDEN: { title: "No access to this view", body: "Your role does not include this data. Nothing was loaded.", locked: true },
   BAD_REQUEST: { title: "That could not be sent", body: "The request was not accepted. Check what you entered and try again." },
   NO_SCOPE: { title: "No territory assigned", body: "Your account has no active territory assignment. Ask an administrator to check it.", locked: true },
+  NOT_FOUND: { title: "Not available", body: "That record is not available in your scope.", locked: true },
   UNAVAILABLE: { title: "Data is unavailable", body: "We could not reach the data service. Your access is unchanged." },
   TIMEOUT: { title: "That took too long", body: "The request timed out. Try again." },
   UNKNOWN: { title: "Something went wrong", body: "We could not load this. Try again." },

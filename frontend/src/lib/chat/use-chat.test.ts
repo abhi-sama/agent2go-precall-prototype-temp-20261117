@@ -1,0 +1,57 @@
+import { describe, expect, it } from "vitest"
+import { createMockAdapter } from "@/lib/data/mock-adapter"
+import { historyOf, type ChatTurn } from "./use-chat"
+import { newTurn } from "./events"
+
+describe("historyOf", () => {
+  it("passes only finished answers, newest few, as alternating messages", () => {
+    const turn = (id: string, status: "done" | "running" | "error", text: string): ChatTurn => ({
+      id,
+      question: `q-${id}`,
+      answer: { ...newTurn(id), status, text },
+    })
+    const history = historyOf([turn("1", "done", "a1"), turn("2", "error", "x"), turn("3", "done", "a3"), turn("4", "running", "")])
+    expect(history).toEqual([
+      { role: "user", content: "q-1" },
+      { role: "assistant", content: "a1" },
+      { role: "user", content: "q-3" },
+      { role: "assistant", content: "a3" },
+    ])
+  })
+})
+
+describe("mock chat", () => {
+  const adapter = (userId: string) => createMockAdapter({ getUserId: () => userId, latencyMs: 0, getScenario: () => "ok" })
+  const ctx = { correlationId: "c1" }
+  const eventsOf = async (userId: string, question: string) => {
+    const a = adapter(userId)
+    const runId = `run-${Math.random().toString(16).slice(2, 10)}`
+    await a.startChatRun(ctx, { threadId: "t", runId, message: question, history: [] })
+    await new Promise((r) => setTimeout(r, 0))
+    // Jump ahead: ask for events long after the run started.
+    const real = Date.now
+    Date.now = () => real() + 60_000
+    try {
+      const page = await createMockAdapter({ getUserId: () => userId, latencyMs: 0, now: () => new Date(Date.now()) }).chatEvents(ctx, runId, 0)
+      return page
+    } finally {
+      Date.now = real
+    }
+  }
+
+  it("streams facts for an in-scope question", async () => {
+    const page = await eventsOf("u-msl-ne-01", "How many calls did I have?")
+    expect(page.done).toBe(true)
+    const types = page.events.map((e) => JSON.parse(e.data).type)
+    expect(types[0]).toBe("RUN_STARTED")
+    expect(types.at(-1)).toBe("RUN_FINISHED")
+    expect(page.events.some((e) => e.data.includes('"source_facts"'))).toBe(true)
+  })
+
+  it("returns no facts for a territory outside scope", async () => {
+    const page = await eventsOf("u-msl-ne-01", "How many calls in SE-03?")
+    expect(page.events.some((e) => e.data.includes('"source_facts"'))).toBe(false)
+    const text = page.events.map((e) => JSON.parse(e.data)).filter((e) => e.type === "TEXT_MESSAGE_CONTENT").map((e) => e.delta).join("")
+    expect(text).toContain("outside your scope")
+  })
+})

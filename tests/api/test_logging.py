@@ -13,7 +13,7 @@ import re
 from harness import be_lambda_logs, invoke_be_lambda, seeded_user
 
 # floci prefixes each captured line with its own logger tag and "[lambda:<name>] ".
-RECORD = re.compile(r"\[lambda:a2g-be-api[^\]]*\] (\{\"ts\".*)$", re.MULTILINE)
+RECORD = re.compile(r"\[lambda:a2g-be-[a-z]+[^\]]*\] (\{\"ts\".*)$", re.MULTILINE)
 
 
 def test_be_logs_hold_no_sensitive_values(msl, db):

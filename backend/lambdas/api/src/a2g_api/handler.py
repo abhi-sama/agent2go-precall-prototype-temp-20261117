@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, flags, resolvers
+from . import activity, chat, flags, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .identity import JwksCache, resolve_identity
@@ -54,8 +54,13 @@ def _flag_store(settings: Settings) -> flags.FlagStore:
     return _store
 
 
-def _resolvers(settings: Settings) -> dict[str, Callable[..., Any]]:
+def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..., Any]]:
     return {
+        "startChatRun": partial(
+            chat.start_chat_run, worker_function=settings.chat_worker_function, correlation_id=correlation_id
+        ),
+        "chatEvents": chat.chat_events,
+        "chatCitation": chat.chat_citation,
         "me": resolvers.me,
         "landingKpis": partial(resolvers.landing_kpis, default_range_days=settings.default_range_days),
         "geoActivity": partial(resolvers.geo_activity, default_range_days=settings.default_range_days),
@@ -77,7 +82,7 @@ def handler(event: Mapping[str, Any], context: Any = None) -> Any:
         persona = None
         try:
             settings, jwks = _config()
-            resolver = _resolvers(settings).get(field)
+            resolver = _resolvers(settings, cid).get(field)
             if resolver is None:
                 raise BadRequest("unknown_field")
             identity = resolve_identity(event, settings, jwks)

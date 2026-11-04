@@ -83,12 +83,19 @@ def _amplify_outputs(fe: dict, users: list[dict]) -> dict:
     }
 
 
-def write(fe: dict, db: dict, fn_arn: str, users: list[dict]) -> None:
+def write(fe: dict, db: dict, fn_arn: str, users: list[dict], store: dict, agent: dict) -> None:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     state = {
         "endpoint": ENDPOINT,
         "fe": {k: v for k, v in fe.items() if k != "outputs"},
-        "be": {"api_function_arn": fn_arn, "db_port": db["port"], "owner_dsn": db["owner_dsn"], "app_dsn": db["app_dsn_host"]},
+        "be": {
+            "api_function_arn": fn_arn,
+            "db_port": db["port"],
+            "owner_dsn": db["owner_dsn"],
+            "app_dsn": db["app_dsn_host"],
+            "agent_url": agent["url"],
+        },
+        "fe_store": store,
         "local_password": LOCAL_PASSWORD,
         "users": users,
     }

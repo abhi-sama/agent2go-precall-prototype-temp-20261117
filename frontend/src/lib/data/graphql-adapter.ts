@@ -2,22 +2,28 @@ import type { DataAdapter } from "./adapter"
 import {
   ACTIVITY_EVIDENCE_QUERY,
   ACTIVITY_TRENDS_QUERY,
+  CHAT_CITATION_QUERY,
+  CHAT_EVENTS_QUERY,
   FLAG_ISSUE_MUTATION,
   GEO_ACTIVITY_QUERY,
   LANDING_KPIS_QUERY,
   ME_QUERY,
   MY_FLAGS_QUERY,
+  START_CHAT_RUN_MUTATION,
 } from "./operations"
 import {
   DataError,
   type ActivityEvidence,
   type ActivityTrends,
+  type ChatEventPage,
+  type ChatRun,
   type DateRange,
   type Flag,
   type GeoActivity,
   type LandingKpis,
   type Me,
   type RequestContext,
+  type SourceRecord,
 } from "./types"
 
 export interface GraphQLResponse<T> {
@@ -41,6 +47,9 @@ function classify(errors: NonNullable<GraphQLResponse<unknown>["errors"]>, corre
   }
   if (text.includes("forbidden") || text.includes("access")) {
     return new DataError("FORBIDDEN", "You do not have access to this data.", correlationId)
+  }
+  if (text.includes("notfound") || text.includes("not_found")) {
+    return new DataError("NOT_FOUND", "That record is not available in your scope.", correlationId)
   }
   if (text.includes("badrequest") || text.includes("bad_request")) {
     return new DataError("BAD_REQUEST", "That request was not accepted.", correlationId)
@@ -122,6 +131,23 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
         ctx,
       )
       return data.flagIssue
+    },
+    async startChatRun(ctx, input) {
+      const data = await run<{ startChatRun: ChatRun }>(
+        transport,
+        START_CHAT_RUN_MUTATION,
+        { threadId: input.threadId, runId: input.runId, message: input.message, history: input.history },
+        ctx,
+      )
+      return data.startChatRun
+    },
+    async chatEvents(ctx, runId, after) {
+      const data = await run<{ chatEvents: ChatEventPage }>(transport, CHAT_EVENTS_QUERY, { runId, after }, ctx)
+      return data.chatEvents
+    },
+    async chatCitation(ctx, dataset, recordId) {
+      const data = await run<{ chatCitation: SourceRecord }>(transport, CHAT_CITATION_QUERY, { dataset, recordId }, ctx)
+      return data.chatCitation
     },
   }
 }

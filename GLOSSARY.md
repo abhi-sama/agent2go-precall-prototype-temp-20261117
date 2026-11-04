@@ -155,6 +155,10 @@ _Avoid_: updated date, refresh date
 A user's report that a summary, an identifier or a territory assignment is wrong, with a review status of open, in review, resolved or dismissed.
 _Avoid_: feedback, ticket, complaint
 
+**Citation**:
+A pointer from an answer to one source record (a call or a recorded response) that the viewer can open; it opens only if the viewer's scope covers the record.
+_Avoid_: reference, footnote
+
 **Data through**:
 The latest load time all in-scope sources are loaded through; a load date, not an interaction date.
 _Avoid_: last updated, as-of date

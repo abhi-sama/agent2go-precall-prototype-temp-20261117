@@ -1,45 +1,33 @@
 # MSL Agent Runtime
 
-This is the AgentCore Runtime-compatible service for ticket #3. It exposes `GET /ping` and
-`POST /invocations` on port 8080. Invocations return an SSE stream of AG-UI events.
+The AgentCore Runtime-compatible service behind chat (ticket #3, [ADR 0007](../../docs/adr/0007-chat-runs-stream-through-a-polled-event-log.md)).
+It exposes `GET /ping` and `POST /invocations` on port 8080; an invocation returns an SSE stream of AG-UI events.
 
-## Local model path
-
-Run `./scripts/run-local.sh`. The script reads `ANTHROPIC_API_KEY` at runtime from
-`~/.config/agent2go/keys.env` and never copies it into this repository. With a non-empty key it
-starts this lane's `floci-a2g-agent` on port 4568 and a LiteLLM proxy on port 4000. The default
-Bedrock model is `anthropic.claude-sonnet-5-5-v1:0`, mapped to `claude-sonnet-5-5`; the cheap
-live-test mapping is `anthropic.claude-haiku-5-5-v1:0` to `claude-haiku-5-5`. With no key it starts
-floci's default Bedrock stub; Strands still calls `ConverseStream` through floci.
-
-```bash
-cd backend/agent
-./scripts/run-local.sh
-uv run uvicorn msl_agent.app:app --host 0.0.0.0 --port 8080
+```
+POST /invocations  {identity, thread_id, run_id, messages[]}
+  RUN_STARTED, CUSTOM model_mode,
+  [TOOL_CALL_START, CUSTOM source_facts, CUSTOM citations, TOOL_CALL_END]*,
+  TEXT_MESSAGE_START, TEXT_MESSAGE_CONTENT*, TEXT_MESSAGE_END,
+  CUSTOM number_check, CUSTOM suggestions, CUSTOM conversation_saved, RUN_FINISHED   (or RUN_ERROR)
 ```
 
-The runtime uses `strands.models.BedrockModel(streaming=True)`, which selects Bedrock
-`ConverseStream`; this is necessary because floci proxies only `Converse` and `ConverseStream`.
+| Module | Role |
+|---|---|
+| `repository.py` | Read tools' SQL. Connects as `app_user` and binds the caller with `app.set_request_identity` before any query, so RLS limits every result. |
+| `tools.py` | Strands tools (`get_activity_summary`, `search_recorded_responses`, `get_my_scope`, `suggest_follow_ups`); they record facts and citations as they run. |
+| `agent.py` | Runs the Strands agent over Bedrock ConverseStream and turns its events into AG-UI events. |
+| `numbers.py` | Checks that figures in the answer came from tool results. |
+| `writes.py` | The narrow write tool: assumes the FE role and puts one turn in FE DynamoDB. The model cannot call it. |
+
+The stack (`backend/infra/scripts/up.sh`) builds and runs this as a container next to floci.
+Bedrock calls go to floci, which proxies to LiteLLM and Claude when a key is present and answers with its stub when not.
 
 ## Tests
 
 ```bash
-cd backend/agent
-uv sync --all-groups
-uv run pytest
+cd backend/agent && uv sync --all-groups && uv run pytest
 ```
 
-`test_stub_ag_ui` is deterministic and always runs. The live floci -> LiteLLM -> Claude test
-skips with an explicit message when the key is empty. To enable it after starting the local stack:
-
-```bash
-BEDROCK_MODEL_ID=anthropic.claude-haiku-5-5-v1:0 \
-  RUN_LIVE_FLOCI_TESTS=1 uv run pytest tests/test_live_floci.py
-```
-
-## Contract gaps
-
-Until `backend/db/` is merged, the read tool uses a synthetic fixture through the same repository
-interface. The Postgres adapter already establishes `app.set_request_identity(user_id, persona,
-correlation_id)` within the transaction before querying the future `agent_scope_call_facts` view.
-The DynamoDB conversation-write tool is intentionally only a typed interface in this ticket.
+Unit tests use a scripted model.
+`test_stub_floci.py` starts a throwaway floci (no key needed) and runs the real agent against its Bedrock stub; it skips without Docker.
+End-to-end behaviour with Claude is proved through the API by `tests/api/test_chat.py`.

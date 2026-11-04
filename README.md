@@ -38,7 +38,16 @@ browser ──(Cognito ID token, x-user-full-name, x-user-email, x-correlation-i
                                                     Postgres 16 + pgvector, RLS on every table
 ```
 
-Chat follows the same route to the AgentCore Runtime agent (`backend/agent`), which calls Bedrock (ticket #3).
+Chat follows the same route and continues to the agent (`backend/agent`, the AgentCore Runtime stand-in), which calls Bedrock ConverseStream through floci, LiteLLM and Claude:
+
+```
+startChatRun ─▶ BE API Lambda ──async──▶ chat worker Lambda ──POST /invocations (SSE)──▶ Strands agent
+ (AppSync)        records the run          appends each AG-UI event to chat_run_events    ├─ read tools: SQL under RLS
+chatEvents  ◀─── reads events (polling: stand-in for an AppSync subscription)             ├─ Bedrock ConverseStream ─▶ floci ─▶ LiteLLM ─▶ Claude
+                                                                                          └─ write tool: assume FE role ─▶ FE DynamoDB (chat history)
+```
+
+With no `ANTHROPIC_API_KEY` in `~/.config/agent2go/keys.env`, `up.sh` leaves LiteLLM out and floci answers with its Bedrock stub; chat still works and says so.
 The decisions behind this are in [docs/adr/](docs/adr/).
 
 ## Repository layout
@@ -50,7 +59,7 @@ The decisions behind this are in [docs/adr/](docs/adr/).
 | `backend/lambdas/api/` | BE API Lambda: token verification, claims-win identity, RLS-scoped resolvers |
 | `backend/libs/a2g_logging/` | Structured JSON logging with allowlist redaction, for every Python service |
 | `backend/db/` | Migrations (source schema, application schema, RLS), deterministic synthetic seed, seed-users manifest |
-| `backend/agent/` | Strands agent speaking AG-UI, AgentCore Runtime contract |
+| `backend/agent/` | Strands agent speaking AG-UI (AgentCore Runtime contract): RLS read tools, number guard, narrow DynamoDB write tool |
 | `backend/infra/` | Local stack: floci compose file and the provisioner (`a2g-provision`) |
 | `tests/api/` | API-as-persona harness and tests: seeded users sign in and call AppSync |
 | `docs/` | Requirements, ADRs, feature map |
@@ -60,7 +69,9 @@ The decisions behind this are in [docs/adr/](docs/adr/).
 - `up.sh` is idempotent and reseeds the database deterministically on every run (`--skip-seed` keeps it).
   It deploys the Amplify Gen2 stack into floci CloudFormation, builds and deploys the BE Lambda, and creates one Cognito user per entry in `backend/db/seed-users.json`.
   It then writes `frontend/.env.local`, `frontend/amplify_outputs.json` and `backend/infra/.state/outputs.json`, all gitignored.
-- Ports: floci `4566`, BE Postgres via the RDS proxy on `7001`, web `3210`, stack e2e `3211`.
+- Ports: floci `4566`, BE Postgres via the RDS proxy on `7001`, agent `8080`, web `3210`, stack e2e `3211`.
+  A second stack can run beside the default one: every container name and port is an `A2G_*` variable in `backend/infra/docker-compose.yml` (see `A2G_PROJECT`, `A2G_FLOCI_PORT`, `A2G_RDS_PORT_FIRST`, `A2G_AGENT_PORT`).
+  The model is `A2G_BEDROCK_MODEL_ID` (default `anthropic.claude-sonnet-5-5-v1:0`; use `anthropic.claude-haiku-5-5-v1:0` for cheap test runs).
 - Where floci differs from AWS, the local stand-in is documented in [ADR 0004](docs/adr/0004-floci-local-stack-and-amplify-deploy-path.md).
 
 ## Logging

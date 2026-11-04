@@ -23,7 +23,7 @@ import time
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import amplify, cognito, database, lambda_api, outputs
+from . import agent_stack, amplify, cognito, database, lambda_api, outputs
 from .config import ENDPOINT
 
 log = get_logger("a2g_infra.provision")
@@ -52,16 +52,19 @@ def main() -> None:
     configure(service="a2g-infra")
     with correlation(None):
         wait_for_floci()
-        print("1/5 BE: Postgres (RDS, pgvector) + migrations + seed")
+        print("1/6 BE: Postgres (RDS, pgvector) + migrations + seed")
         db = database.provision(reseed=not args.skip_seed)
-        print("2/5 FE: Amplify Gen2 backend -> floci CloudFormation (Cognito, AppSync)")
+        print("2/6 FE: Amplify Gen2 backend -> floci CloudFormation (Cognito, AppSync)")
         fe = amplify.deploy()
-        print("3/5 BE: API Lambda")
+        print("3/6 FE: conversation store + the agent's narrow write role (deployed with the Amplify backend)")
+        store = agent_stack.fe_store()
+        print("4/6 BE: agent container (AgentCore Runtime stand-in)")
+        agent = agent_stack.deploy_agent(db=db, store=store)
+        print("5/6 BE: API Lambda + chat worker")
         fn_arn = lambda_api.deploy(fe=fe, db=db)
-        print("4/5 FE: seeded Cognito users + login-to-user mapping")
+        print("6/6 FE: seeded Cognito users + login-to-user mapping, outputs")
         users = cognito.seed_users(fe=fe, db=db)
-        print("5/5 outputs")
-        outputs.write(fe=fe, db=db, fn_arn=fn_arn, users=users)
+        outputs.write(fe=fe, db=db, fn_arn=fn_arn, users=users, store=store, agent=agent)
         log.info("local stack provisioned", count=len(users))
         print(json.dumps({"graphql": fe["graphql_url_host"], "userPoolId": fe["user_pool_id"], "users": len(users)}))
 

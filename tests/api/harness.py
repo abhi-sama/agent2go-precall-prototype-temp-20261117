@@ -52,6 +52,21 @@ query GeoActivity($from: AWSDate, $to: AWSDate) {
   }
 }
 """
+START_CHAT = """
+mutation StartChat($threadId: ID!, $runId: ID!, $message: String!, $history: [ChatMessageInput!]) {
+  startChatRun(threadId: $threadId, runId: $runId, message: $message, history: $history) { runId status }
+}
+"""
+CHAT_EVENTS = """
+query ChatEvents($runId: ID!, $after: Int) {
+  chatEvents(runId: $runId, after: $after) { events { seq data } done status }
+}
+"""
+CHAT_CITATION = """
+query ChatCitation($dataset: String!, $recordId: ID!) {
+  chatCitation(dataset: $dataset, recordId: $recordId) { dataset recordId title fields { label value } dataThrough }
+}
+"""
 
 
 @cache
@@ -164,6 +179,66 @@ class Persona:
         return self.query(LANDING_KPIS, {"from": frm, "to": to})
 
 
+@dataclass
+class ChatRun:
+    """Everything the panel would receive for one question, read through the API as the persona."""
+
+    run_id: str
+    thread_id: str
+    events: list[dict[str, Any]]
+    #: (seq, arrival time in seconds since the run started) for every event, to observe streaming.
+    arrivals: list[tuple[int, float]]
+
+    def custom(self, name: str) -> list[Any]:
+        return [e["value"] for e in self.events if e.get("type") == "CUSTOM" and e.get("name") == name]
+
+    @property
+    def types(self) -> list[str]:
+        return [e["type"] for e in self.events]
+
+    @property
+    def deltas(self) -> list[str]:
+        return [e["delta"] for e in self.events if e["type"] == "TEXT_MESSAGE_CONTENT"]
+
+    @property
+    def text(self) -> str:
+        return "".join(self.deltas)
+
+    @property
+    def facts(self) -> list[dict[str, Any]]:
+        return [f for value in self.custom("source_facts") for f in value["facts"]]
+
+    @property
+    def citations(self) -> list[dict[str, Any]]:
+        return [c for value in self.custom("citations") for c in value]
+
+
+def _persona_chat(self: Persona, message: str, history: list[dict] | None = None, timeout: float = 120) -> ChatRun:
+    thread_id, run_id = str(uuid.uuid4()), str(uuid.uuid4())
+    started = self.query(START_CHAT, {"threadId": thread_id, "runId": run_id, "message": message, "history": history})
+    assert not started.errors, started.errors
+    t0, after, events, arrivals = time.monotonic(), 0, [], []
+    while time.monotonic() - t0 < timeout:
+        page = self.query(CHAT_EVENTS, {"runId": run_id, "after": after})
+        assert not page.errors, page.errors
+        body = page.data["chatEvents"]
+        for item in body["events"]:
+            after = item["seq"]
+            events.append(json.loads(item["data"]))
+            arrivals.append((item["seq"], time.monotonic() - t0))
+        if body["done"]:
+            return ChatRun(run_id, thread_id, events, arrivals)
+        time.sleep(0.2)
+    raise AssertionError(f"chat run {run_id} did not finish within {timeout}s; got {[e['type'] for e in events]}")
+
+
+Persona.chat = _persona_chat  # type: ignore[attr-defined]
+
+
+def fe_dynamodb():
+    return _client("dynamodb", "111111111111")
+
+
 def invoke_be_lambda(event: dict[str, Any]) -> dict[str, Any]:
     """Invoke the BE API Lambda directly, as AppSync does in AWS (with request headers)."""
     lam = _client("lambda", "222222222222")
@@ -182,4 +257,15 @@ def be_lambda_logs(since: str = "10m") -> str:
     container = os.environ.get("A2G_FLOCI_CONTAINER", "floci")
     out = subprocess.run(["docker", "logs", "--since", since, container], capture_output=True, text=True, check=True)
     lines = (out.stdout + out.stderr).splitlines()
-    return "\n".join(line for line in lines if "[lambda:a2g-be-api" in line)
+    return "\n".join(line for line in lines if "[lambda:a2g-be-" in line)
+
+
+def agent_logs(since: str = "10m") -> str:
+    """Everything the agent container logged."""
+    out = subprocess.run(
+        ["docker", "logs", "--since", since, os.environ.get("A2G_AGENT_CONTAINER", "msl-agent")],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return out.stdout + out.stderr

@@ -2,16 +2,22 @@
 # FE account 111111111111 is floci's default account, so unsigned browser-facing calls
 # (Cognito sign-in, AppSync with a Bearer token) land in it. BE account 222222222222
 # is reached by signing with that account id as the access key id.
-name: agent2go
+# Every name and port below can be overridden (A2G_* variables) so a second stack can run next to the
+# default one without touching its containers. down.sh only removes containers carrying this stack's label.
+name: ${A2G_PROJECT:-agent2go}
 
 services:
   floci:
     image: floci/floci:2.4.0
-    container_name: floci
+    container_name: ${A2G_FLOCI_CONTAINER:-floci}
     ports:
-      - "127.0.0.1:4566:4566"
+      - "127.0.0.1:${A2G_FLOCI_PORT:-4566}:4566"
       # RDS proxy ports (BE Postgres). Only the first few are needed locally.
-      - "127.0.0.1:7001-7010:7001-7010"
+      - "127.0.0.1:${A2G_RDS_PORT_FIRST:-7001}-${A2G_RDS_PORT_LAST:-7010}:${A2G_RDS_PORT_FIRST:-7001}-${A2G_RDS_PORT_LAST:-7010}"
+    networks:
+      default:
+        # Lambda and agent containers reach floci by this name whatever the container is called.
+        aliases: [floci]
     volumes:
       # Lambda, RDS and the AppSync resolver runtimes run as sibling containers.
       - /var/run/docker.sock:/var/run/docker.sock
@@ -21,8 +27,61 @@ services:
       FLOCI_HOSTNAME: floci
       QUARKUS_HTTP_HOST: 0.0.0.0
       FLOCI_SERVICES_RDS_DEFAULT_POSTGRES_IMAGE: pgvector/pgvector:pg16
-      FLOCI_SERVICES_RDS_PROXY_MAX_PORT: "7010"
+      FLOCI_SERVICES_RDS_PROXY_BASE_PORT: "${A2G_RDS_PORT_FIRST:-7001}"
+      FLOCI_SERVICES_RDS_PROXY_MAX_PORT: "${A2G_RDS_PORT_LAST:-7010}"
       FLOCI_STORAGE_MODE: memory
+      # floci launches its AppSync sidecars under fixed container names, shared by every floci on the
+      # Docker host, so two stacks would steal each other's. Give this stack its own: the GraphQL sidecar
+      # is a service below, and the JS-runtime sidecar gets a stack-specific name.
+      FLOCI_SERVICES_APPSYNC_GRAPHQL_URL: http://graphql:8181
+      FLOCI_SERVICES_APPSYNC_JS_RUNTIME_CONTAINER_NAME: ${A2G_JS_RUNTIME_CONTAINER:-floci-aws-appsync-js-runtime}
       # Label every sibling container floci starts, so down.sh removes only this stack's.
       FLOCI_DOCKER_EXTRA_LABELS_0__KEY: io.agent2go.stack
-      FLOCI_DOCKER_EXTRA_LABELS_0__VALUE: local
+      FLOCI_DOCKER_EXTRA_LABELS_0__VALUE: ${A2G_STACK_LABEL:-local}
+      # Bedrock Runtime (Converse/ConverseStream) is proxied to LiteLLM -> Claude when a key is
+      # present; with no key floci answers with its built-in stub. up.sh picks the backend.
+      FLOCI_SERVICES_BEDROCK_RUNTIME_BACKEND: ${A2G_BEDROCK_BACKEND:-stub}
+      FLOCI_SERVICES_BEDROCK_RUNTIME_PROXY_URL: http://litellm:4000/v1
+      FLOCI_SERVICES_BEDROCK_RUNTIME_PROXY_MODEL_MAPPING: anthropic.claude-sonnet-5-5-v1:0=claude-sonnet-5-5,anthropic.claude-haiku-5-5-v1:0=claude-haiku-5-5
+
+  graphql:
+    image: floci/floci-sidecar-graphql:0.2.0
+    container_name: ${A2G_GRAPHQL_CONTAINER:-floci-aws-graphql}
+
+  # LiteLLM turns floci's OpenAI-style proxy calls into Anthropic API calls. Only started (profile
+  # "llm") when ANTHROPIC_API_KEY is non-empty. The key file is mounted read-only and sourced at
+  # container start: the key is never copied into the repo, the compose file or an env var of this project.
+  litellm:
+    profiles: ["llm"]
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: ${A2G_LITELLM_CONTAINER:-litellm}
+    entrypoint: ["/bin/sh", "-c", "set -a; . /run/a2g-keys.env; exec docker/prod_entrypoint.sh --config /app/config.yaml --port 4000"]
+    volumes:
+      - ../agent/litellm-config.yaml:/app/config.yaml:ro
+      - ${A2G_KEYS_FILE:-${HOME}/.config/agent2go/keys.env}:/run/a2g-keys.env:ro
+
+  # The Strands agent (AgentCore Runtime stand-in). Started by the provisioner once the BE database
+  # and the FE conversation table exist, because it needs their coordinates (profile "agent").
+  agent:
+    profiles: ["agent"]
+    build:
+      context: ..
+      dockerfile: agent/Dockerfile
+    container_name: ${A2G_AGENT_CONTAINER:-msl-agent}
+    ports:
+      - "127.0.0.1:${A2G_AGENT_PORT:-8080}:8080"
+    environment:
+      A2G_ENV: local
+      # Normally the stack's own floci; a lane that must leave a shared floci untouched points this at a
+      # separate floci that proxies Bedrock (Bedrock needs no AppSync).
+      BEDROCK_ENDPOINT_URL: ${A2G_BEDROCK_ENDPOINT:-http://floci:4566}
+      BEDROCK_MODEL_ID: ${A2G_BEDROCK_MODEL_ID:-anthropic.claude-sonnet-5-5-v1:0}
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_REGION: us-east-1
+      # The agent's own identity is the BE account; it assumes the narrow FE write role (ADR 0005).
+      AWS_ACCESS_KEY_ID: "222222222222"
+      AWS_SECRET_ACCESS_KEY: test
+      DATABASE_URL: ${A2G_AGENT_DATABASE_URL:-}
+      A2G_FE_WRITE_ROLE_ARN: ${A2G_FE_WRITE_ROLE_ARN:-}
+      A2G_FE_CHAT_TABLE: ${A2G_FE_CHAT_TABLE:-}
+      A2G_BEDROCK_BACKEND: ${A2G_BEDROCK_BACKEND:-stub}

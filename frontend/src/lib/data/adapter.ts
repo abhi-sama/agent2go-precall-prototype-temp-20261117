@@ -2,6 +2,9 @@ import type {
   ActivityEvidence,
   ActivityMetric,
   ActivityTrends,
+  ChatEventPage,
+  ChatMessageInput,
+  ChatRun,
   DateRange,
   Flag,
   FlagInput,
@@ -10,6 +13,7 @@ import type {
   LandingKpis,
   Me,
   RequestContext,
+  SourceRecord,
 } from "./types"
 
 /**
@@ -35,4 +39,17 @@ export interface DataAdapter {
   myFlags(ctx: RequestContext): Promise<Flag[]>
   /** Raise a flag. Flagging the same open item again returns the existing flag. */
   flagIssue(ctx: RequestContext, input: FlagInput): Promise<Flag>
+
+  /**
+   * Start a streamed chat answer. The caller picks `runId` so it can poll straight away. The mutation
+   * returns once the BE accepted the run; the answer arrives through `chatEvents`.
+   */
+  startChatRun(
+    ctx: RequestContext,
+    input: { threadId: string; runId: string; message: string; history: ChatMessageInput[] },
+  ): Promise<ChatRun>
+  /** Events with `seq > after`, in order. Stand-in for an AppSync subscription (docs/adr/0007). */
+  chatEvents(ctx: RequestContext, runId: string, after: number): Promise<ChatEventPage>
+  /** Open a cited source record; the BE returns it only if the caller's scope covers it. */
+  chatCitation(ctx: RequestContext, dataset: string, recordId: string): Promise<SourceRecord>
 }

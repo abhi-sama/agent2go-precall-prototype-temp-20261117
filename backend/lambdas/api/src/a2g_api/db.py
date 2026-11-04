@@ -59,3 +59,25 @@ def scoped_cursor(dsn: str, identity: Identity, correlation_id: str) -> Iterator
         log.error("database unavailable", error_type=type(exc).__name__)
         conn.close()
         raise Unavailable("db_operational") from exc
+
+
+@contextlib.contextmanager
+def user_cursor(dsn: str, user_id: str, persona: str, correlation_id: str) -> Iterator[psycopg.Cursor]:
+    """Like ``scoped_cursor`` for work that continues on behalf of an already-resolved caller.
+
+    The chat worker runs after the API Lambda verified the token and mapped the login to a user, so
+    it binds that user directly. It still connects as ``app_user``: every statement stays under RLS.
+    """
+    try:
+        conn = _connection(dsn)
+    except psycopg.Error as exc:
+        log.error("database connect failed", error_type=type(exc).__name__)
+        raise Unavailable("db_connect") from exc
+    try:
+        with conn.transaction(), conn.cursor() as cur:
+            cur.execute("SELECT app.set_request_identity(%s, %s, %s)", (user_id, persona, correlation_id))
+            yield cur
+    except psycopg.OperationalError as exc:
+        log.error("database unavailable", error_type=type(exc).__name__)
+        conn.close()
+        raise Unavailable("db_operational") from exc

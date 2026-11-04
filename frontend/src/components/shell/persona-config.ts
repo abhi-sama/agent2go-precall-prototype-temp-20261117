@@ -28,7 +28,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
       { label: "My activity", href: "/msl/activity", icon: Activity },
       { label: "Pre-call brief", href: null, icon: ClipboardList },
       { label: "Insights", href: null, icon: BarChart3 },
-      { label: "Ask the agent", href: null, icon: MessagesSquare },
+      { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],
   },
   director: {
@@ -39,7 +39,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
     nav: [
       { label: "My region", href: "/director", icon: Users },
       { label: "Themes", href: null, icon: BarChart3 },
-      { label: "Ask the agent", href: null, icon: MessagesSquare },
+      { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],
   },
   executive: {
@@ -50,6 +50,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
     nav: [
       { label: "Overview", href: "/executive", icon: LayoutDashboard },
       { label: "Trends", href: null, icon: BarChart3 },
+      { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],
   },
   admin: {
@@ -61,6 +62,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
       { label: "Overview", href: "/admin", icon: ShieldCheck },
       { label: "Data loads", href: null, icon: FileSearch },
       { label: "Evaluations", href: null, icon: ClipboardList },
+      { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],
   },
 }

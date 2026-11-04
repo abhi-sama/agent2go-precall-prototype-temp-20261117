@@ -35,6 +35,17 @@ APP_DB_PASSWORD = "app_user"
 
 API_FUNCTION = "a2g-be-api"
 API_FUNCTION_ARN = f"arn:aws:lambda:{REGION}:{BE_ACCOUNT}:function:{API_FUNCTION}"
+#: Long-running worker that streams one chat run from the agent into Postgres (docs/adr/0007).
+CHAT_FUNCTION = "a2g-be-chat"
+
+#: FE-account resources the agent's narrow write tool uses (frontend/amplify/storage/resource.ts; docs/adr/0005).
+FE_CHAT_TABLE = "a2g-chat-turns"
+FE_CHAT_WRITER_ROLE_ARN = f"arn:aws:iam::{FE_ACCOUNT}:role/a2g-agent-chat-writer"
+
+COMPOSE_FILE = INFRA / "docker-compose.yml"
+#: Host port of the agent container, and its name for containers on the compose network.
+AGENT_HOST_PORT = int(os.environ.get("A2G_AGENT_PORT", "8080"))
+AGENT_INTERNAL_URL = "http://agent:8080"
 
 #: FE DynamoDB flags table and the narrow FE-account role the BE Lambda assumes
 #: (frontend/amplify/storage/resource.ts defines both; docs/adr/0006).

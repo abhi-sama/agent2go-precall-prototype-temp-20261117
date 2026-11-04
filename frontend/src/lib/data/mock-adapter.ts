@@ -2,6 +2,7 @@ import { addDays, addMonths, daysInRange, todayIso, weekdaysInRange } from "@/li
 import { log } from "@/lib/log/logger"
 import type { DataAdapter } from "./adapter"
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
+import { mockCitation, readRun, scriptRun } from "./mock-chat"
 import {
   DataError,
   type ActivityEvidence,
@@ -335,6 +336,26 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       }
       MOCK_FLAGS.set(user.userId, [flag, ...flags])
       return flag
+    },
+
+    async startChatRun(ctx, input) {
+      const s = await gate(ctx, "startChatRun")
+      if (s === "forbidden") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      scriptRun(input.runId, findUser(options.getUserId()), input.message, now().getTime())
+      return { runId: input.runId, status: "RUNNING" }
+    },
+
+    async chatEvents(ctx, runId, after) {
+      const page = readRun(runId, after, now().getTime())
+      if (!page) throw new DataError("NOT_FOUND", "That run is not available.", ctx.correlationId)
+      return page
+    },
+
+    async chatCitation(ctx, dataset, recordId) {
+      await gate(ctx, "chatCitation")
+      const record = mockCitation(dataset, recordId, findUser(options.getUserId()))
+      if (!record) throw new DataError("NOT_FOUND", "That record is not available in your scope.", ctx.correlationId)
+      return record
     },
   }
 }

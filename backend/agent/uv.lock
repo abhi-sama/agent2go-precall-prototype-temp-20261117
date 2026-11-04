@@ -7,10 +7,21 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "a2g-logging"
+version = "0.1.0"
+source = { editable = "../libs/a2g_logging" }
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8" }]
+
+[[package]]
 name = "agent2go-agent"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "a2g-logging" },
     { name = "boto3" },
     { name = "fastapi" },
     { name = "psycopg", extra = ["binary"] },
@@ -29,6 +40,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "a2g-logging", editable = "../libs/a2g_logging" },
     { name = "boto3", specifier = ">=1.35" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },

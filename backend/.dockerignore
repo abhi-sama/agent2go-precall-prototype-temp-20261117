@@ -1,0 +1,9 @@
+# Build context for the agent image (backend/infra/docker-compose.yml): only agent/ and libs/ are needed.
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/tests
+db
+infra
+lambdas

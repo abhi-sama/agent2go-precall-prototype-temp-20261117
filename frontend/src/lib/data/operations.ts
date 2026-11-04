@@ -128,3 +128,41 @@ export const FLAG_ISSUE_MUTATION = /* GraphQL */ `
     }
   }
 `
+
+/** Chat (ticket 02). The answer streams back as AG-UI events read by polling `chatEvents`. */
+export const START_CHAT_RUN_MUTATION = /* GraphQL */ `
+  mutation StartChatRun($threadId: ID!, $runId: ID!, $message: String!, $history: [ChatMessageInput!]) {
+    startChatRun(threadId: $threadId, runId: $runId, message: $message, history: $history) {
+      runId
+      status
+    }
+  }
+`
+
+export const CHAT_EVENTS_QUERY = /* GraphQL */ `
+  query ChatEvents($runId: ID!, $after: Int) {
+    chatEvents(runId: $runId, after: $after) {
+      events {
+        seq
+        data
+      }
+      done
+      status
+    }
+  }
+`
+
+export const CHAT_CITATION_QUERY = /* GraphQL */ `
+  query ChatCitation($dataset: String!, $recordId: ID!) {
+    chatCitation(dataset: $dataset, recordId: $recordId) {
+      dataset
+      recordId
+      title
+      fields {
+        label
+        value
+      }
+      dataThrough
+    }
+  }
+`

@@ -10,6 +10,8 @@ echo "== BE API Lambda (unit)"
 (cd "$REPO/backend/lambdas/api" && uv run --quiet pytest -q)
 echo "== territory geography data (unit)"
 python3 -m unittest discover -s "$REPO/backend/db/tests" -q
+echo "== agent (unit; the floci stub fallback test starts a throwaway floci)"
+(cd "$REPO/backend/agent" && uv run --quiet pytest -q)
 echo "== database schema, RLS and seed (reseeds the database)"
 bash "$REPO/backend/db/tests/test_database.sh"
 echo "== restoring the login-to-user mapping the reseed cleared"

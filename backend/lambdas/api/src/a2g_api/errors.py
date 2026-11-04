@@ -37,6 +37,13 @@ class BadRequest(ApiError):
     public_message = "BadRequest: the request arguments are invalid."
 
 
+class NotFound(ApiError):
+    """Deliberately the same answer for a record that does not exist and one outside the caller's scope."""
+
+    code = "NOT_FOUND"
+    public_message = "NotFound: no such record in your scope."
+
+
 class Unavailable(ApiError):
     code = "UNAVAILABLE"
     public_message = "Unavailable: the data service is unavailable."

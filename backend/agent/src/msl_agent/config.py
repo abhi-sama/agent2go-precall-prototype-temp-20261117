@@ -10,7 +10,11 @@ DEFAULT_KEY_PATH = Path.home() / ".config" / "agent2go" / "keys.env"
 
 
 def read_anthropic_api_key(path: Path = DEFAULT_KEY_PATH) -> str | None:
-    """Read the key on demand without exporting, logging, or storing it in the repo."""
+    """Read the key on demand without exporting, logging, or storing it in the repo.
+
+    Only the host-side live tests and run-local.sh use this; the containerised runtime never sees
+    the key: LiteLLM does, and the agent reaches Claude only through floci's Bedrock proxy.
+    """
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except FileNotFoundError:
@@ -30,25 +34,26 @@ def read_anthropic_api_key(path: Path = DEFAULT_KEY_PATH) -> str | None:
 
 @dataclass(frozen=True)
 class Settings:
-    bedrock_endpoint: str
+    bedrock_endpoint: str | None
     bedrock_model_id: str
     aws_region: str
     database_url: str | None
+    #: "proxy" (floci -> LiteLLM -> Claude) or "stub" (floci's canned Bedrock answer, no key).
     floci_backend: str
-    use_stub_model: bool
+    fe_write_role_arn: str | None = None
+    fe_chat_table: str | None = None
+    max_output_tokens: int = 700
 
     @classmethod
-    def from_environment(cls, *, key_path: Path = DEFAULT_KEY_PATH) -> Settings:
-        # The key is deliberately read only to select proxy versus floci's stub backend.
-        # LiteLLM receives it at process start from scripts/run-local.sh; this process never
-        # logs it or puts it in a request. The internal stub is only for deterministic tests;
-        # actual no-key runtime calls floci's Bedrock stub through ConverseStream.
-        api_key_present = bool(read_anthropic_api_key(key_path))
+    def from_environment(cls) -> Settings:
+        backend = os.getenv("A2G_BEDROCK_BACKEND", "stub").lower()
         return cls(
-            bedrock_endpoint=os.getenv("BEDROCK_ENDPOINT_URL", "http://localhost:4568"),
+            # BedrockModel talks to floci. Unset means the SDK default (real Bedrock) in AWS.
+            bedrock_endpoint=os.getenv("BEDROCK_ENDPOINT_URL") or None,
             bedrock_model_id=os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-sonnet-5-5-v1:0"),
             aws_region=os.getenv("AWS_REGION", "us-east-1"),
             database_url=os.getenv("DATABASE_URL") or None,
-            floci_backend="proxy" if api_key_present else "stub",
-            use_stub_model=os.getenv("MSL_AGENT_TEST_STUB", "").lower() in {"1", "true"},
+            floci_backend="proxy" if backend == "proxy" else "stub",
+            fe_write_role_arn=os.getenv("A2G_FE_WRITE_ROLE_ARN") or None,
+            fe_chat_table=os.getenv("A2G_FE_CHAT_TABLE") or None,
         )

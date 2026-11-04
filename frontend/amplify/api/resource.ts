@@ -18,6 +18,9 @@ export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'activityEvidence' },
   { typeName: 'Query', fieldName: 'myFlags' },
   { typeName: 'Mutation', fieldName: 'flagIssue' },
+  { typeName: 'Query', fieldName: 'chatEvents' },
+  { typeName: 'Query', fieldName: 'chatCitation' },
+  { typeName: 'Mutation', fieldName: 'startChatRun' },
 ] as const;
 
 /**

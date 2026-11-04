@@ -167,6 +167,47 @@ input FlagInput {
   note: String
 }
 
+"""
+A chat run accepted by the BE. The answer arrives as AG-UI events read with `chatEvents`
+(the local stand-in for an AppSync subscription, docs/adr/0007).
+"""
+type ChatRun {
+  runId: ID!
+  status: String!
+}
+
+type ChatEvent {
+  seq: Int!
+  """One AG-UI event, JSON-encoded."""
+  data: String!
+}
+
+type ChatEventPage {
+  events: [ChatEvent!]!
+  """True once the run has ended and every event has been returned."""
+  done: Boolean!
+  status: String!
+}
+
+input ChatMessageInput {
+  role: String!
+  content: String!
+}
+
+type SourceField {
+  label: String!
+  value: String!
+}
+
+"""A source record cited by an answer, readable only if the caller's scope covers it."""
+type SourceRecord {
+  dataset: String!
+  recordId: ID!
+  title: String!
+  fields: [SourceField!]!
+  dataThrough: AWSDateTime
+}
+
 type Query {
   me: Me!
   landingKpis(from: AWSDate, to: AWSDate): LandingKpis!
@@ -177,9 +218,12 @@ type Query {
   activityEvidence(metric: ActivityMetric!, month: AWSDate!, channel: String, limit: Int): ActivityEvidence!
   "The caller's own flags, newest first."
   myFlags: [Flag!]!
+  chatEvents(runId: ID!, after: Int): ChatEventPage!
+  chatCitation(dataset: String!, recordId: ID!): SourceRecord!
 }
 
 type Mutation {
   "Raise a flag. Raising the same open flag again returns the existing one."
   flagIssue(input: FlagInput!): Flag!
+  startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!]): ChatRun!
 }

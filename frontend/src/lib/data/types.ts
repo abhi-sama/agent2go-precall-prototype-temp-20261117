@@ -175,6 +175,7 @@ export type DataErrorCode =
   | "FORBIDDEN"
   | "BAD_REQUEST"
   | "NO_SCOPE"
+  | "NOT_FOUND"
   | "UNAVAILABLE"
   | "TIMEOUT"
   | "UNKNOWN"
@@ -193,4 +194,31 @@ export class DataError extends Error {
 export function toDataError(err: unknown, correlationId?: string): DataError {
   if (err instanceof DataError) return err
   return new DataError("UNKNOWN", "Something went wrong while loading data.", correlationId)
+}
+
+/** A chat run the BE accepted; its answer is read with `chatEvents`. */
+export interface ChatRun {
+  runId: string
+  status: string
+}
+
+export interface ChatMessageInput {
+  role: "user" | "assistant"
+  content: string
+}
+
+/** One page of the run's AG-UI events. `data` is the event, JSON-encoded. */
+export interface ChatEventPage {
+  events: { seq: number; data: string }[]
+  /** True once the run has ended and every event has been returned. */
+  done: boolean
+  status: string
+}
+
+export interface SourceRecord {
+  dataset: string
+  recordId: string
+  title: string
+  fields: { label: string; value: string }[]
+  dataThrough: IsoDateTime | null
 }
