@@ -307,6 +307,73 @@ export interface ScopeAssignmentInput {
   effectiveTo?: IsoDateTime
 }
 
+export interface HcpField {
+  value: string | null
+  state: "PRESENT" | "MISSING"
+}
+
+export interface HcpSearchResult {
+  hcpId: string
+  name: HcpField
+  institution: HcpField
+  territory: HcpField
+}
+
+export interface HcpProfile {
+  hcpId: string
+  name: HcpField
+  specialty: HcpField
+  discipline: HcpField
+  type: HcpField
+  institution: HcpField
+  credentials: HcpField
+  territory: HcpField
+}
+
+export interface IngestionRun {
+  runId: string
+  sourceId: string
+  sourceName: string
+  /** completed, failed, running, or stale; stale is derived by the API. */
+  status: string
+  startedAt: IsoDateTime
+  completedAt: IsoDateTime | null
+  recordsLoaded: number
+  errorSummary: string | null
+}
+
+export interface QualityRecord {
+  recordId: string
+  sourceTable: string
+  sourceRecordId: string
+  label: string
+}
+
+export interface DataQualityIssue {
+  issueId: string
+  category: string
+  severity: string
+  title: string
+  summary: string
+  affectedCount: number
+  records: QualityRecord[]
+}
+
+export interface QuestionDependencyNode {
+  questionId: string
+  parentQuestionId: string | null
+  state: string
+}
+
+export interface AdminDataQuality {
+  ingestionRuns: IngestionRun[]
+  identities: { matched: number; unmatched: number }
+  duplicateKeyCount: number
+  recordGrain: { callProductRows: number; distinctCalls: number }
+  issues: DataQualityIssue[]
+  questionGraph: { missingParentCount: number; duplicateKeyCount: number; cycleCount: number; nodes: QuestionDependencyNode[] }
+}
+
 export type DataErrorCode =
   | "UNAUTHENTICATED"
   | "FORBIDDEN"

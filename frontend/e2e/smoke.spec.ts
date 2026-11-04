@@ -153,6 +153,38 @@ test("administrator can review governed access controls at the iPad viewport", a
   expect(addAssignment!.height).toBeGreaterThanOrEqual(44)
 })
 
+test("administrator sees seeded data-quality failures and their record links", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("a2g.local.userId", "u-admin-sec"))
+  await page.goto("/admin")
+  await expect(page.getByText("Pipeline status", { exact: true })).toBeVisible()
+  await expect(page.getByText("failed", { exact: true }).first()).toBeVisible()
+  await expect(page.getByText("stale", { exact: true }).first()).toBeVisible()
+  await expect(page.getByText("Question dependency graph", { exact: true })).toBeVisible()
+  const recordLink = page.getByRole("link", { name: "View record" }).first()
+  await recordLink.click()
+  await expect(page.locator("#quality-record-hcp_raw_insights-INT-000001")).toBeVisible()
+})
+
+test("administrator quality dashboard fits the required desktop and iPad viewport matrix", async ({ page }) => {
+  const matrix = [
+    [1280, 800], [1470, 956], [1512, 982], [1728, 1117], [1920, 1080], [2560, 1440],
+    [820, 1180], [1180, 820], [834, 1194], [1194, 834], [1024, 1366], [1366, 1024], [1032, 1376], [1376, 1032],
+  ] as const
+  await page.addInitScript(() => window.localStorage.setItem("a2g.local.userId", "u-admin-sec"))
+  for (const [width, height] of matrix) {
+    await page.setViewportSize({ width, height })
+    await page.goto("/admin")
+    await expect(page.getByText("Pipeline status", { exact: true })).toBeVisible()
+    await expect(page.getByText("Question dependency graph", { exact: true })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${width}x${height} should not overflow horizontally`).toBeTruthy()
+    if (Math.min(width, height) >= 820 && Math.max(width, height) <= 1376) {
+      const recordLink = await page.getByRole("link", { name: "View record" }).first().boundingBox()
+      expect(recordLink, `${width}x${height} record link`).not.toBeNull()
+      expect(recordLink!.height, `${width}x${height} record link`).toBeGreaterThanOrEqual(44)
+    }
+  }
+})
+
 test("a persona opening another persona's route gets a gate, not data", async ({ page }) => {
   await page.goto("/executive")
   await expect(page.getByTestId("role-gate")).toBeVisible()

@@ -9,6 +9,7 @@ import type {
   AccessAuditEvent,
   AccessAuditFilter,
   AdminAccessOverview,
+  AdminDataQuality,
   DateRange,
   Flag,
   FlagInput,
@@ -74,4 +75,5 @@ export interface DataAdapter extends GovernanceAdapter {
   insightDiscovery(ctx: RequestContext, filters?: InsightFilters): Promise<InsightDiscovery>
   savedViews(ctx: RequestContext): Promise<SavedView[]>
   saveView(ctx: RequestContext, input: Pick<SavedView, "name" | "reportKind" | "filters">): Promise<SavedView>
+  adminDataQuality(ctx: RequestContext): Promise<AdminDataQuality>
 }

@@ -6,6 +6,7 @@ import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } fr
 import { mockCitation, readRun, scriptRun } from "./mock-chat"
 import {
   type AccessAuditEvent, type AccessAuditFilter, type AdminAccessOverview,
+  type AdminDataQuality,
   DataError,
   type ActivityEvidence,
   type ActivityMonth,
@@ -425,6 +426,12 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       const view: SavedView = { savedViewId: `view-${saved.length + 1}`, name, reportKind: input.reportKind, filters: input.filters, createdAt: now().toISOString() }
       saved.unshift(view)
       return view
+    },
+    async adminDataQuality(ctx): Promise<AdminDataQuality> {
+      const s = await gate(ctx, "adminDataQuality")
+      const user = findUser(options.getUserId())
+      if (s === "forbidden" || user.persona !== "admin") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      return { ingestionRuns: [{ runId: "run-failed", sourceId: "question-tag", sourceName: "Question tag", status: "failed", startedAt: "2026-11-03T09:00:00Z", completedAt: "2026-11-03T09:01:00Z", recordsLoaded: 0, errorSummary: "Synthetic source delivery failure" }, { runId: "run-current", sourceId: "call-activity", sourceName: "Call Activity", status: "completed", startedAt: "2026-11-03T08:00:00Z", completedAt: "2026-11-03T08:30:00Z", recordsLoaded: 25000, errorSummary: null }, { runId: "run-stale", sourceId: "hcp-insights", sourceName: "HCP Raw Insights", status: "stale", startedAt: "2025-01-01T08:00:00Z", completedAt: "2025-01-01T08:30:00Z", recordsLoaded: 60000, errorSummary: null }], identities: { matched: 35, unmatched: 1 }, duplicateKeyCount: 1, recordGrain: { callProductRows: 25000, distinctCalls: 12500 }, issues: [{ issueId: "duplicate-response-keys", category: "duplicate_key", severity: "high", title: "Duplicate response keys", summary: "Responses share a uniq_rspns_id and need reconciliation before relying on row grain.", affectedCount: 1, records: [{ recordId: "hcp_raw_insights:INT-000001", sourceTable: "hcp_raw_insights", sourceRecordId: "INT-000001", label: "Response key RESP-000001" }, { recordId: "hcp_raw_insights:INT-060000", sourceTable: "hcp_raw_insights", sourceRecordId: "INT-060000", label: "Response key RESP-000001" }] }, { issueId: "missing-question-parents", category: "invalid_parent", severity: "high", title: "Questions with missing parents", summary: "These follow-up questions point to a parent that is not in the catalog.", affectedCount: 1, records: [{ recordId: "question_tag:Q-0100", sourceTable: "question_tag", sourceRecordId: "Q-0100", label: "Question Q-0100" }] }, { issueId: "unmatched-identities", category: "unresolved_identity", severity: "warning", title: "Unmatched login-to-user mappings", summary: "These logins have no approved matched identity.", affectedCount: 1, records: [{ recordId: "users:admin-region-04", sourceTable: "users", sourceRecordId: "admin-region-04", label: "Unmatched login admin-region-04" }] }], questionGraph: { missingParentCount: 1, duplicateKeyCount: 0, cycleCount: 0, nodes: [{ questionId: "Q-0100", parentQuestionId: "Q-NOT-IN-CATALOG", state: "missing_parent" }] } }
     },
   }
 }

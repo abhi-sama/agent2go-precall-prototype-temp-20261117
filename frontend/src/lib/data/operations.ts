@@ -130,3 +130,15 @@ export const APPROVE_IDENTITY_MAPPING_MUTATION = /* GraphQL */ `
 `
 export const SAVED_VIEWS_QUERY = /* GraphQL */ `query SavedViews { savedViews { savedViewId name reportKind createdAt filters { from to territoryId molecule landscape study survey questionId } } }`
 export const SAVE_VIEW_MUTATION = /* GraphQL */ `mutation SaveView($input: SaveViewInput!) { saveView(input: $input) { savedViewId name reportKind createdAt filters { from to territoryId molecule landscape study survey questionId } } }`
+export const ADMIN_DATA_QUALITY_QUERY = /* GraphQL */ `
+  query AdminDataQuality {
+    adminDataQuality {
+      ingestionRuns { runId sourceId sourceName status startedAt completedAt recordsLoaded errorSummary }
+      identities { matched unmatched }
+      duplicateKeyCount
+      recordGrain { callProductRows distinctCalls }
+      issues { issueId category severity title summary affectedCount records { recordId sourceTable sourceRecordId label } }
+      questionGraph { missingParentCount duplicateKeyCount cycleCount nodes { questionId parentQuestionId state } }
+    }
+  }
+`

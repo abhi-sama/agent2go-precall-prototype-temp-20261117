@@ -505,3 +505,209 @@ def save_view(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mappi
     view = store.save(user_id, input_)
     log.info("saved view stored", user_id=user_id, report_kind=view["reportKind"])
     return view
+def _quality_record(source_table: str, source_record_id: str, label: str) -> dict[str, str]:
+    return {
+        "recordId": f"{source_table}:{source_record_id}",
+        "sourceTable": source_table,
+        "sourceRecordId": source_record_id,
+        "label": label,
+    }
+
+
+def _question_dependency_graph(cur: psycopg.Cursor) -> dict[str, Any]:
+    """Validate catalog parent references without relying on pre-recorded issue rows."""
+    cur.execute(
+        """
+        WITH RECURSIVE duplicate_keys AS (
+          SELECT qstn_ext_id FROM question_tag
+          WHERE qstn_ext_id IS NOT NULL
+          GROUP BY qstn_ext_id HAVING count(*) > 1
+        ), missing_parents AS (
+          SELECT q.qstn_ext_id, q.qstn_pid FROM question_tag q
+          WHERE q.qstn_pid IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM question_tag p WHERE p.qstn_ext_id = q.qstn_pid)
+        ), walk AS (
+          SELECT q.qstn_ext_id AS start_id, q.qstn_ext_id AS current_id,
+                 ARRAY[q.qstn_ext_id]::text[] AS path, false AS is_cycle
+          FROM question_tag q WHERE q.qstn_ext_id IS NOT NULL
+          UNION ALL
+          SELECT w.start_id, parent.qstn_ext_id, w.path || parent.qstn_ext_id,
+                 parent.qstn_ext_id = ANY(w.path)
+          FROM walk w
+          JOIN question_tag current_q ON current_q.qstn_ext_id = w.current_id
+          JOIN question_tag parent ON parent.qstn_ext_id = current_q.qstn_pid
+          WHERE NOT w.is_cycle
+        ), cycle_keys AS (
+          SELECT DISTINCT node_id
+          FROM walk w CROSS JOIN LATERAL unnest(w.path) AS node_id
+          WHERE w.is_cycle
+        )
+        SELECT
+          (SELECT count(*) FROM missing_parents),
+          (SELECT count(*) FROM duplicate_keys),
+          (SELECT count(*) FROM cycle_keys),
+          coalesce((
+            SELECT json_agg(node ORDER BY node->>'questionId') FROM (
+              SELECT json_build_object('questionId', qstn_ext_id, 'parentQuestionId', qstn_pid, 'state', 'missing_parent') AS node
+              FROM missing_parents
+              UNION ALL
+              SELECT json_build_object('questionId', q.qstn_ext_id, 'parentQuestionId', q.qstn_pid, 'state', 'duplicate_key')
+              FROM question_tag q JOIN duplicate_keys d USING (qstn_ext_id)
+              UNION ALL
+              SELECT json_build_object('questionId', q.qstn_ext_id, 'parentQuestionId', q.qstn_pid, 'state', 'cycle')
+              FROM question_tag q JOIN cycle_keys c ON c.node_id = q.qstn_ext_id
+            ) nodes
+          ), '[]'::json)
+        """
+    )
+    missing, duplicates, cycles, nodes = cur.fetchone()
+    return {
+        "missingParentCount": int(missing),
+        "duplicateKeyCount": int(duplicates),
+        "cycleCount": int(cycles),
+        "nodes": nodes,
+    }
+
+
+def admin_data_quality(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
+    """Return deterministic ingestion and validation findings for Administrators only.
+
+    Record labels deliberately contain only table/key values. This keeps the governance
+    screen useful for investigation without putting names, emails, or response text in
+    an API payload or log line.
+    """
+    _require_admin(cur)
+    cur.execute(
+        """
+        SELECT r.run_id, r.source_id, s.source_name,
+               CASE WHEN r.status = 'failed' THEN 'failed'
+                    WHEN r.completed_at IS NULL THEN 'running'
+                    WHEN r.completed_at < now() - interval '30 days' THEN 'stale'
+                    ELSE r.status END,
+               r.started_at, r.completed_at, r.records_loaded, r.error_summary
+        FROM ingestion_runs r JOIN data_sources s USING (source_id)
+        ORDER BY r.started_at DESC
+        """
+    )
+    ingestion_runs = [
+        {
+            "runId": row[0], "sourceId": row[1], "sourceName": row[2], "status": row[3],
+            "startedAt": row[4].isoformat(), "completedAt": row[5].isoformat() if row[5] else None,
+            "recordsLoaded": int(row[6]), "errorSummary": row[7],
+        }
+        for row in cur.fetchall()
+    ]
+
+    cur.execute("SELECT count(*) FILTER (WHERE identity_status = 'matched'), count(*) FILTER (WHERE identity_status <> 'matched') FROM users")
+    matched, unmatched = (int(value) for value in cur.fetchone())
+    cur.execute("SELECT count(*), count(DISTINCT crm_call_id) FROM call_activity")
+    call_product_rows, distinct_calls = (int(value) for value in cur.fetchone())
+
+    cur.execute(
+        """
+        SELECT uniq_rspns_id, array_agg(insight_intrctn_dtl_sfdc_id ORDER BY insight_intrctn_dtl_sfdc_id), count(*)
+        FROM hcp_raw_insights WHERE uniq_rspns_id IS NOT NULL
+        GROUP BY uniq_rspns_id HAVING count(*) > 1 ORDER BY uniq_rspns_id
+        """
+    )
+    duplicate_groups = cur.fetchall()
+    duplicate_records = [
+        _quality_record("hcp_raw_insights", record_id, f"Response key {key}")
+        for key, record_ids, _count in duplicate_groups for record_id in record_ids[:20]
+    ]
+
+    cur.execute("SELECT user_id FROM users WHERE identity_status <> 'matched' ORDER BY user_id")
+    unresolved_records = [_quality_record("users", row[0], f"Unmatched login {row[0]}") for row in cur.fetchall()]
+
+    graph = _question_dependency_graph(cur)
+    missing_nodes = [node for node in graph["nodes"] if node["state"] == "missing_parent"]
+    orphan_records = [
+        _quality_record("question_tag", node["questionId"], f"Question {node['questionId']}")
+        for node in missing_nodes
+    ]
+    duplicate_question_records = [
+        _quality_record("question_tag", node["questionId"], f"Question {node['questionId']}")
+        for node in graph["nodes"] if node["state"] == "duplicate_key"
+    ]
+    cycle_records = [
+        _quality_record("question_tag", node["questionId"], f"Question {node['questionId']}")
+        for node in graph["nodes"] if node["state"] == "cycle"
+    ]
+
+    issues: list[dict[str, Any]] = []
+    if unresolved_records:
+        issues.append({
+            "issueId": "unmatched-identities", "category": "unresolved_identity", "severity": "warning",
+            "title": "Unmatched login-to-user mappings", "summary": "These logins have no approved matched identity.",
+            "affectedCount": len(unresolved_records), "records": unresolved_records,
+        })
+    if duplicate_groups:
+        issues.append({
+            "issueId": "duplicate-response-keys", "category": "duplicate_key", "severity": "high",
+            "title": "Duplicate response keys", "summary": "Responses share a uniq_rspns_id and need reconciliation before relying on row grain.",
+            "affectedCount": len(duplicate_groups), "records": duplicate_records,
+        })
+    if orphan_records:
+        issues.append({
+            "issueId": "missing-question-parents", "category": "invalid_parent", "severity": "high",
+            "title": "Questions with missing parents", "summary": "These follow-up questions point to a parent that is not in the catalog.",
+            "affectedCount": len(orphan_records), "records": orphan_records,
+        })
+    if duplicate_question_records:
+        issues.append({
+            "issueId": "duplicate-question-keys", "category": "duplicate_key", "severity": "high",
+            "title": "Duplicate question keys", "summary": "Catalog questions share an external question key.",
+            "affectedCount": len(duplicate_question_records), "records": duplicate_question_records,
+        })
+    if cycle_records:
+        issues.append({
+            "issueId": "cyclic-question-dependencies", "category": "dependency_cycle", "severity": "high",
+            "title": "Cyclic question dependencies", "summary": "These catalog questions form a parent-question cycle.",
+            "affectedCount": len(cycle_records), "records": cycle_records,
+        })
+
+    log.info(
+        "admin data quality computed", user_id=user_id, ingestion_runs=len(ingestion_runs),
+        issue_count=len(issues), duplicate_key_count=len(duplicate_groups), missing_parent_count=graph["missingParentCount"],
+    )
+    return {
+        "ingestionRuns": ingestion_runs,
+        "identities": {"matched": matched, "unmatched": unmatched},
+        "duplicateKeyCount": len(duplicate_groups),
+        "recordGrain": {"callProductRows": call_product_rows, "distinctCalls": distinct_calls},
+        "issues": issues,
+        "questionGraph": graph,
+    }
+def _hcp_field(value: Any) -> dict[str, Any]:
+    return {"value": value, "state": "MISSING" if value is None else "PRESENT"}
+
+
+def _require_hcp_search_access(cur: psycopg.Cursor, identity: Identity) -> None:
+    _assigned, effective, label = _scope(cur, identity)
+    _require_record_access(cur, label, effective)
+
+
+def _search_pattern(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 200:
+        raise BadRequest("search_query_required")
+    return "%" + value.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+def _profile(cur: psycopg.Cursor, hcp_id: str) -> tuple[Any, ...] | None:
+    cur.execute("""
+      WITH visible AS (SELECT x.hcp_id FROM hcp_identifier_crosswalk x JOIN call_activity c ON x.source_system='call_activity.cust_mdm_id' AND x.source_identifier=c.cust_mdm_id WHERE x.hcp_id=%(id)s UNION SELECT x.hcp_id FROM hcp_identifier_crosswalk x JOIN hcp_raw_insights i ON x.source_system='hcp_raw_insights.cust_mdm_id' AND x.source_identifier=i.cust_mdm_id WHERE x.hcp_id=%(id)s), calls AS (SELECT c.* FROM call_activity c JOIN hcp_identifier_crosswalk x ON x.source_system='call_activity.cust_mdm_id' AND x.source_identifier=c.cust_mdm_id JOIN visible v ON v.hcp_id=x.hcp_id), insights AS (SELECT i.* FROM hcp_raw_insights i JOIN hcp_identifier_crosswalk x ON x.source_system='hcp_raw_insights.cust_mdm_id' AND x.source_identifier=i.cust_mdm_id JOIN visible v ON v.hcp_id=x.hcp_id) SELECT v.hcp_id, COALESCE((SELECT min(cust_full_nm) FROM calls),(SELECT min(cust_nm) FROM insights)), (SELECT min(hcp_speciality) FROM insights), (SELECT min(hcp_discipline) FROM insights), (SELECT min(hcp_type) FROM insights), (SELECT min(hcp_institution) FROM insights), (SELECT min(cust_cdtl) FROM calls), (SELECT string_agg(territory_name, ', ' ORDER BY territory_name) FROM (SELECT DISTINCT territory_name FROM calls WHERE territory_name IS NOT NULL UNION SELECT DISTINCT territory_name FROM insights WHERE territory_name IS NOT NULL) t) FROM visible v
+    """, {"id": hcp_id})
+    return cur.fetchone()
+
+
+def hcp_profile(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
+    _require_hcp_search_access(cur, identity)
+    hcp_id = args.get("hcpId")
+    if not isinstance(hcp_id, str) or not hcp_id.strip() or len(hcp_id) > 200: raise BadRequest("invalid_hcp_id")
+    row = _profile(cur, hcp_id.strip())
+    if row is None: raise Forbidden("hcp_not_in_scope")
+    keys = ("hcpId", "name", "specialty", "discipline", "type", "institution", "credentials", "territory")
+    raw = dict(zip(keys, row, strict=True))
+    return {"hcpId": raw["hcpId"], **{key: _hcp_field(raw[key]) for key in keys[1:]}}
+
+

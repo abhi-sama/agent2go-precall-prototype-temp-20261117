@@ -422,6 +422,14 @@ input ResponseAccessInput { roleId: ID!, level: ResponseAccessLevel! }
 type CatalogQuestionRow { questionId: ID!, text: String, status: String, molecule: String, tumorType: String, study: String, survey: String }
 type QuestionResponse { responseId: ID!, territoryId: String, interactionDate: AWSDate, text: String }
 type QuestionResponses { questionId: ID!, total: Int!, responses: [QuestionResponse!]! }
+type IngestionRun { runId: ID! sourceId: ID! sourceName: String! status: String! startedAt: AWSDateTime! completedAt: AWSDateTime recordsLoaded: Int! errorSummary: String }
+type QualityRecord { recordId: ID! sourceTable: String! sourceRecordId: String! label: String! }
+type DataQualityIssue { issueId: ID! category: String! severity: String! title: String! summary: String! affectedCount: Int! records: [QualityRecord!]! }
+type QuestionDependencyNode { questionId: ID! parentQuestionId: String state: String! }
+type QuestionDependencyGraph { missingParentCount: Int! duplicateKeyCount: Int! cycleCount: Int! nodes: [QuestionDependencyNode!]! }
+type IdentityQuality { matched: Int! unmatched: Int! }
+type RecordGrainQuality { callProductRows: Int! distinctCalls: Int! }
+type AdminDataQuality { ingestionRuns: [IngestionRun!]! identities: IdentityQuality! duplicateKeyCount: Int! recordGrain: RecordGrainQuality! issues: [DataQualityIssue!]! questionGraph: QuestionDependencyGraph! }
 
 type Query {
   me: Me!
@@ -451,6 +459,7 @@ type Query {
   catalogQuestions(limit: Int): [CatalogQuestionRow!]!
   "Recorded responses to one question. Needs response access and scope; catalog visibility is irrelevant."
   questionResponses(questionId: ID!, limit: Int): QuestionResponses!
+  adminDataQuality: AdminDataQuality!
 }
 
 type Mutation {

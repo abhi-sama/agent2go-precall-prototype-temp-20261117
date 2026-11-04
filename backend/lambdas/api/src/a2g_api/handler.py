@@ -97,6 +97,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "setResponseAccess": hierarchy.set_response_access,
         "catalogQuestions": hierarchy.catalog_questions,
         "questionResponses": hierarchy.question_responses,
+        "adminDataQuality": resolvers.admin_data_quality,
     }
 
 

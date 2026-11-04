@@ -6,6 +6,7 @@ import {
   ACCESS_AUDIT_QUERY,
   ADMIN_ACCESS_OVERVIEW_QUERY,
   APPROVE_IDENTITY_MAPPING_MUTATION,
+  ADMIN_DATA_QUALITY_QUERY,
   CREATE_SCOPE_ASSIGNMENT_MUTATION,
   FLAG_ISSUE_MUTATION,
   GEO_ACTIVITY_QUERY,
@@ -29,6 +30,7 @@ import {
   type AccessAuditEvent,
   type AccessAuditFilter,
   type AdminAccessOverview,
+  type AdminDataQuality,
   type DateRange,
   type IdentityMatch,
   type Flag,
@@ -187,6 +189,10 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     async saveView(ctx, input) {
       const data = await run<{ saveView: SavedView }>(transport, SAVE_VIEW_MUTATION, { input }, ctx)
       return data.saveView
+    },
+    async adminDataQuality(ctx) {
+      const data = await run<{ adminDataQuality: AdminDataQuality }>(transport, ADMIN_DATA_QUALITY_QUERY, undefined, ctx)
+      return data.adminDataQuality
     },
   }
 }
