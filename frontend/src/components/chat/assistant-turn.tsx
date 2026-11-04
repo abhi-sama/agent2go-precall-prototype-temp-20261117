@@ -1,9 +1,10 @@
 "use client"
 
-import { AlertTriangle, FileText, Loader2 } from "lucide-react"
+import { AlertTriangle, BarChart3, FileText, Loader2 } from "lucide-react"
+import * as React from "react"
 import { AiSummary, SourceFact, Suggestion } from "@/components/provenance/provenance"
 import { Badge } from "@/components/ui/badge"
-import type { AssistantTurn, CitationItem } from "@/lib/chat/events"
+import { citationNumber, citationsForFact, type AssistantTurn, type CitationItem } from "@/lib/chat/events"
 import { cn } from "@/lib/utils"
 
 const TOOL_LABELS: Record<string, string> = {
@@ -18,6 +19,23 @@ function formatThrough(iso: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
 }
 
+function CitationLink({ citation, citations, onOpen }: { citation: CitationItem; citations: CitationItem[]; onOpen: (citation: CitationItem) => void }) {
+  const number = citationNumber(citations, citation)
+  if (number < 1) return null
+  return <button type="button" data-testid="inline-citation" onClick={() => onOpen(citation)} className="ml-1 inline-flex min-h-6 items-center rounded-md px-1 font-mono text-xs font-semibold text-fact underline decoration-fact/40 underline-offset-2 hover:bg-fact/10 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none" aria-label={`Open source ${number}: ${citation.label}`}>[{number}]</button>
+}
+
+/** Keep every deterministic claim in the streamed prose adjacent to its evidence. */
+function CitedParagraph({ text, turn, onOpenCitation }: { text: string; turn: AssistantTurn; onOpenCitation: (citation: CitationItem) => void }) {
+  return <>{text.split(/(?<=[.!?])\s+/).map((sentence, index) => {
+    const matchingFacts = turn.facts.filter((fact) => sentence.includes(fact.value.toLocaleString("en-US")) || sentence.includes(String(fact.value)))
+    // Qualitative claims may not repeat a number, but still need their retrieved records beside them.
+    const evidence = matchingFacts.length > 0 ? matchingFacts.flatMap((fact) => citationsForFact(fact, turn.citations)) : turn.citations
+    const unique = evidence.filter((citation, itemIndex) => evidence.findIndex((item) => item.dataset === citation.dataset && item.recordId === citation.recordId) === itemIndex)
+    return <React.Fragment key={`${sentence}-${index}`}>{index > 0 && " "}{sentence}{unique.map((citation) => <CitationLink key={`${citation.dataset}:${citation.recordId}`} citation={citation} citations={turn.citations} onOpen={onOpenCitation} />)}</React.Fragment>
+  })}</>
+}
+
 /**
  * One assistant answer. The three kinds of content are kept apart on purpose:
  *  - Source facts: numbers computed by SQL under the user's access, each with the records behind it.
@@ -29,11 +47,13 @@ export function AssistantTurnView({
   onAsk,
   onOpenCitation,
   canAsk,
+  aggregateOnly,
 }: {
   turn: AssistantTurn
   onAsk: (question: string) => void
   onOpenCitation: (citation: CitationItem) => void
   canAsk: boolean
+  aggregateOnly: boolean
 }) {
   const running = turn.status === "running"
   const through = formatThrough(turn.dataThrough)
@@ -68,6 +88,11 @@ export function AssistantTurnView({
                   {f.scope} · {f.period}
                 </p>
                 {f.citationIds.length > 0 && <p className="text-xs text-muted-foreground">{f.citationIds.length} source records</p>}
+                {citationsForFact(f, turn.citations).length > 0 && (
+                  <p className="mt-2 flex flex-wrap gap-1" aria-label={`Sources for ${f.label}`}>
+                    {citationsForFact(f, turn.citations).map((citation) => <CitationLink key={`${citation.dataset}:${citation.recordId}`} citation={citation} citations={turn.citations} onOpen={onOpenCitation} />)}
+                  </p>
+                )}
               </div>
             ))}
           </dl>
@@ -93,7 +118,7 @@ export function AssistantTurnView({
             ) : (
               paragraphs.map((p, i) => (
                 <p key={i}>
-                  {p}
+                  <CitedParagraph text={p} turn={turn} onOpenCitation={onOpenCitation} />
                   {running && i === paragraphs.length - 1 && <span aria-hidden className="ml-0.5 inline-block h-4 w-1.5 translate-y-0.5 animate-pulse bg-ai motion-reduce:animate-none" />}
                 </p>
               ))
@@ -112,6 +137,12 @@ export function AssistantTurnView({
       {turn.status === "error" && (
         <p data-testid="chat-error" role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm">
           {turn.error ?? "The agent could not complete this answer."}
+        </p>
+      )}
+
+      {aggregateOnly && turn.status === "done" && (
+        <p data-testid="aggregate-only-note" className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
+          Your aggregate-only access does not grant source-row access. Records and exports are unavailable in chat.
         </p>
       )}
 
@@ -136,6 +167,18 @@ export function AssistantTurnView({
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {turn.facts.length > 1 && (
+        <section data-testid="chat-fact-chart" aria-label="Computed fact comparison" className="rounded-xl border bg-card p-3">
+          <div className="mb-3 flex items-center gap-2 text-sm font-medium"><BarChart3 className="size-4 text-fact" aria-hidden />Computed comparison</div>
+          <div className="flex flex-col gap-2">
+            {turn.facts.map((fact) => {
+              const max = Math.max(...turn.facts.map((item) => item.value), 1)
+              return <div key={fact.factId} className="grid grid-cols-[minmax(7rem,1fr)_3rem] items-center gap-3 text-xs"><span className="truncate text-muted-foreground">{fact.label}</span><span className="text-right font-medium tabular-nums">{fact.value.toLocaleString("en-US")}</span><div className="col-span-2 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-fact" style={{ width: `${Math.max(3, (fact.value / max) * 100)}%` }} /></div></div>
+            })}
+          </div>
         </section>
       )}
 

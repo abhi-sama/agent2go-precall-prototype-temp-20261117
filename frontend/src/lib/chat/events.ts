@@ -24,6 +24,16 @@ export interface CitationItem {
   label: string
 }
 
+/** A citation keeps one display number for the complete answer. */
+export function citationNumber(citations: CitationItem[], citation: CitationItem): number {
+  return citations.findIndex((item) => item.dataset === citation.dataset && item.recordId === citation.recordId) + 1
+}
+
+export function citationsForFact(fact: FactItem, citations: CitationItem[]): CitationItem[] {
+  const ids = new Set(fact.citationIds)
+  return citations.filter((citation) => ids.has(citation.recordId))
+}
+
 export type TurnStatus = "running" | "done" | "error"
 
 export interface NumberCheck {

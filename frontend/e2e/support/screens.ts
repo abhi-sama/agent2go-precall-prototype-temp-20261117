@@ -190,6 +190,19 @@ export const SCREENS: ScreenSpec[] = [
       await expect(page.getByTestId("citation-sheet")).toBeVisible()
     },
   },
+  {
+    name: "chat-rows",
+    path: "/chat",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await page.getByTestId("citation").first().click()
+      await page.getByTestId("show-rows").click()
+      await expect(page.getByTestId("chat-rows")).toBeVisible()
+    },
+  },
   { name: "design-system", path: "/design", ready: async (page) => { await heading("Design system")(page); await testId("echart")(page) } },
   // The other appearances (docs/design/direction.md): the same screens in true black and in the other style.
   {

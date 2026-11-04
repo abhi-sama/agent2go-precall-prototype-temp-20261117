@@ -88,7 +88,7 @@ export function ChatPanel() {
             <p data-testid="user-message" className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-3 text-primary-foreground">
               {t.question}
             </p>
-            <AssistantTurnView turn={t.answer} onAsk={submit} onOpenCitation={setOpen} canAsk={!running} />
+            <AssistantTurnView turn={t.answer} onAsk={submit} onOpenCitation={setOpen} canAsk={!running} aggregateOnly={me.status === "success" && me.data.persona === "executive"} />
           </article>
         ))}
         <div ref={bottom} />

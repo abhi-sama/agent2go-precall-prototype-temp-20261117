@@ -1,5 +1,7 @@
 "use client"
 
+import * as React from "react"
+import { Download, Rows3 } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { SourceFact } from "@/components/provenance/provenance"
 import { ErrorState } from "@/components/state/states"
@@ -10,9 +12,25 @@ import { useQuery } from "@/lib/data/use-query"
 
 function CitationBody({ citation }: { citation: CitationItem }) {
   const adapter = useDataAdapter()
+  const [showRows, setShowRows] = React.useState(false)
+  const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("asc")
+  const [exportRequest, setExportRequest] = React.useState(0)
   const record = useQuery("chatCitation", `${citation.dataset}:${citation.recordId}`, (ctx) =>
     adapter.chatCitation(ctx, citation.dataset, citation.recordId),
   )
+  const exported = useQuery("chatCitationExport", `${citation.dataset}:${citation.recordId}:${exportRequest}`, (ctx) =>
+    adapter.chatCitation(ctx, citation.dataset, citation.recordId, true), exportRequest > 0)
+
+  React.useEffect(() => {
+    if (exported.status !== "success") return
+    const csv = ["field,value", ...exported.data.fields.map((field) => `${JSON.stringify(field.label)},${JSON.stringify(field.value)}`)].join("\n")
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${exported.data.recordId}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }, [exported])
   if (record.status === "loading") return <Skeleton data-testid="citation-loading" className="h-40 w-full rounded-2xl" />
   if (record.status === "error") {
     return record.error.code === "NOT_FOUND" ? (
@@ -24,6 +42,7 @@ function CitationBody({ citation }: { citation: CitationItem }) {
     )
   }
   const r = record.data
+  const rows = [...r.fields].sort((a, b) => sortDirection === "asc" ? a.label.localeCompare(b.label) : b.label.localeCompare(a.label))
   return (
     <SourceFact title={r.title}>
       <dl data-testid="citation-fields" className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
@@ -36,6 +55,23 @@ function CitationBody({ citation }: { citation: CitationItem }) {
           </div>
         ))}
       </dl>
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button type="button" data-testid="show-rows" onClick={() => setShowRows((value) => !value)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-medium hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
+          <Rows3 className="size-4" aria-hidden />{showRows ? "Hide rows" : "Show rows"}
+        </button>
+        <button type="button" data-testid="export-rows" disabled={exportRequest > 0 && exported.status === "loading"} onClick={() => setExportRequest((request) => request + 1)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-medium hover:bg-accent disabled:opacity-50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
+          <Download className="size-4" aria-hidden />{exportRequest > 0 && exported.status === "loading" ? "Checking access…" : "Export row"}
+        </button>
+      </div>
+      {showRows && (
+        <div className="mt-3 overflow-x-auto rounded-xl border">
+          <table data-testid="chat-rows" className="w-full min-w-[28rem] text-left text-sm">
+            <caption className="caption-top px-3 py-2 text-left text-xs text-muted-foreground">Exact source row, re-checked against your current access.</caption>
+            <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase"><tr><th className="px-3 py-2 font-semibold" scope="col"><button type="button" onClick={() => setSortDirection((value) => value === "asc" ? "desc" : "asc")} className="min-h-11 text-left underline underline-offset-2">Field {sortDirection === "asc" ? "↑" : "↓"}</button></th><th className="px-3 py-2 font-semibold" scope="col">Value</th></tr></thead>
+            <tbody className="divide-y">{rows.map((field) => <tr key={field.label} data-testid="chat-row"><th scope="row" className="px-3 py-2 text-left font-medium">{field.label}</th><td className="px-3 py-2">{field.value}</td></tr>)}</tbody>
+          </table>
+        </div>
+      )}
     </SourceFact>
   )
 }

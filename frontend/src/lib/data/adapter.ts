@@ -82,7 +82,8 @@ export interface DataAdapter extends GovernanceAdapter {
   ): Promise<ChatRun>
   /** Events with `seq > after`, in order. Stand-in for an AppSync subscription (docs/adr/0007). */
   chatEvents(ctx: RequestContext, runId: string, after: number): Promise<ChatEventPage>
-  chatCitation(ctx: RequestContext, dataset: string, recordId: string): Promise<SourceRecord>
+  /** Re-checks record access. `auditExport` is true only for an explicit user export. */
+  chatCitation(ctx: RequestContext, dataset: string, recordId: string, auditExport?: boolean): Promise<SourceRecord>
   searchHcps(ctx: RequestContext, query: string, limit?: number): Promise<HcpSearchResult[]>
   hcpProfile(ctx: RequestContext, hcpId: string): Promise<HcpProfile>
   hcpTimeline(ctx: RequestContext, hcpId: string): Promise<HcpTimeline>

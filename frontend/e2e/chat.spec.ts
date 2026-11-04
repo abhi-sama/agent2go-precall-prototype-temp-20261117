@@ -36,6 +36,10 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await page.getByTestId("citation").first().click()
     await expect(page.getByTestId("citation-sheet")).toBeVisible()
     await expect(page.getByTestId("citation-fields")).toContainText("CALL-")
+    await expect(page.getByTestId("inline-citation").first()).toBeVisible()
+    await page.getByTestId("show-rows").click()
+    await expect(page.getByTestId("chat-rows")).toContainText("Territory")
+    expect(await page.getByTestId("chat-row").count()).toBeGreaterThan(0)
   })
 
   test("an out-of-scope territory returns no data", async ({ page }) => {
@@ -73,5 +77,6 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     await expect(page.getByTestId("ai-summary")).toContainText("not available for your role")
     await expect(page.getByTestId("source-facts")).toHaveCount(0)
+    await expect(page.getByTestId("aggregate-only-note")).toContainText("does not grant source-row access")
   })
 })

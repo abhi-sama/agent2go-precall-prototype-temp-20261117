@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import datetime as dt
 from typing import Any
 
 import pytest
@@ -71,6 +72,21 @@ def test_a_worker_that_cannot_start_fails_the_run() -> None:
     with pytest.raises(Unavailable):
         start(cur, boom)
     assert any("status = 'failed'" in s for s in cur.sql)
+
+
+def test_export_audit_is_written_only_after_the_record_access_lookup(monkeypatch) -> None:
+    class CitationCursor:
+        def __init__(self) -> None: self.sql: list[str] = []; self.params: list[Any] = []
+        def execute(self, sql: str, params: Any = None) -> None: self.sql.append(" ".join(sql.split())); self.params.append(params)
+        def fetchone(self) -> Any:
+            if "has_permission" in self.sql[-1]: return (True,)
+            if "FROM call_activity" in self.sql[-1]: return (dt.date(2026, 11, 3), "scientific", "field", 30, "T01-01", "HCP-1", ["Product"], None)
+            return None
+    cur = CitationCursor()
+    result = chat.chat_citation(cur, IDENTITY, "msl-t01-01", {"dataset": "call_activity", "recordId": "CALL-00001", "auditExport": True})
+    assert result["recordId"] == "CALL-00001"
+    assert "INSERT INTO audit_events" in cur.sql[-1]
+    assert cur.params[-1][1] == "chat_rows.exported"
 
 
 def test_parse_sse_keeps_only_well_formed_events() -> None:

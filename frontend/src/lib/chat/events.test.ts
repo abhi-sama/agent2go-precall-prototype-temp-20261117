@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { applyEvent, newTurn, parseEvent } from "./events"
+import { citationNumber, citationsForFact } from "./events"
 
 const fold = (events: object[]) =>
   events.reduce<ReturnType<typeof newTurn>>((turn, e) => applyEvent(turn, parseEvent(JSON.stringify(e))!), newTurn("r1"))
@@ -50,6 +51,15 @@ describe("applyEvent", () => {
     ])
     expect(turn.facts).toHaveLength(1)
     expect(turn.citations).toHaveLength(1)
+  })
+
+  it("keeps a deterministic citation number and maps facts to their records", () => {
+    const turn = fold([
+      { type: "CUSTOM", name: "source_facts", value: { facts: [{ fact_id: "f1", label: "x", value: 1, unit: "u", period: "p", scope: "s", citation_ids: ["C2"] }] } },
+      { type: "CUSTOM", name: "citations", value: [{ record_id: "C1", dataset: "call_activity", label: "first" }, { record_id: "C2", dataset: "call_activity", label: "second" }] },
+    ])
+    expect(citationNumber(turn.citations, turn.citations[1])).toBe(2)
+    expect(citationsForFact(turn.facts[0], turn.citations)).toEqual([turn.citations[1]])
   })
 
   it("a run error ends the turn with fixed text", () => {

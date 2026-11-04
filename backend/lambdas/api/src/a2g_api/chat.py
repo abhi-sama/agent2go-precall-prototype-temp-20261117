@@ -198,10 +198,18 @@ def chat_citation(cur: psycopg.Cursor, identity: Identity, user_id: str, args: M
             ("Recorded response", response),
         ]
         title = "Recorded HCP response"
-    return {
+    result = {
         "dataset": dataset,
         "recordId": record_id,
         "title": title,
         "fields": [{"label": label, "value": str(value)} for label, value in fields if value not in (None, "")],
         "dataThrough": loaded.isoformat() if loaded else None,
     }
+    # Export is deliberately a separate, explicit request from the client. It reuses the same
+    # RLS-scoped lookup above and records only ids/enums, never source text.
+    if args.get("auditExport") is True:
+        cur.execute(
+            "INSERT INTO audit_events(actor_user_id, action, resource_type, resource_id, outcome, correlation_id) VALUES (%s, %s, %s, %s, %s, current_setting('app.correlation_id', true))",
+            (user_id, "chat_rows.exported", dataset, record_id, "allowed"),
+        )
+    return result

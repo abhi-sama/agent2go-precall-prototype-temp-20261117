@@ -673,7 +673,8 @@ type Query {
   adminAccessOverview: AdminAccessOverview!
   accessAudit(filter: AccessAuditFilter): [AccessAuditEvent!]!
   chatEvents(runId: ID!, after: Int): ChatEventPage!
-  chatCitation(dataset: String!, recordId: ID!): SourceRecord!
+  "Opening and exporting both re-check RLS; export requests are recorded in the access audit."
+  chatCitation(dataset: String!, recordId: ID!, auditExport: Boolean = false): SourceRecord!
   searchHcps(query: String!, limit: Int): [HcpSearchResult!]!
   hcpProfile(hcpId: ID!): HcpProfile!
   hcpTimeline(hcpId: ID!): HcpTimeline!
