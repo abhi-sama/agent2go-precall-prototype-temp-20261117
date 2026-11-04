@@ -135,6 +135,7 @@ def deploy() -> dict:
         "graphql_url": graphql_url,
         # floci names itself by FLOCI_HOSTNAME; the browser and tests reach it on localhost.
         "graphql_url_host": graphql_url.replace("http://floci:4566", os.environ.get("A2G_FLOCI_ENDPOINT", "http://localhost:4566")),
+        "saved_views_table": data["saved_views_table"],
         "issuer": f"http://floci:4566/{pool_id}",
         "jwks_url_internal": f"http://floci:4566/{pool_id}/.well-known/jwks.json",
         "outputs": outs,

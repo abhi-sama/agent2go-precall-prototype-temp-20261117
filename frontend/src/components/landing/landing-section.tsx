@@ -2,7 +2,8 @@
 
 import { MessagesSquare, Stethoscope, Users } from "lucide-react"
 import * as React from "react"
-import { FilterBar } from "@/components/filters/filter-bar"
+import { AnalyticsFilterBar, QuestionDiscovery, ResponseDistributions } from "@/components/filters/insight-discovery"
+import { useSharedFilters } from "@/components/filters/filter-context"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { KpiCard } from "@/components/landing/kpi-card"
 import { ScopeLabel } from "@/components/shell/scope-label"
@@ -21,16 +22,18 @@ const DEFAULT_PRESET = "30d" as const
 export function LandingSection({ title, description, showMap = true }: { title: string; description: string; showMap?: boolean }) {
   const adapter = useDataAdapter()
   const { userId, ready, user } = useSession()
+  const { filters, setFilters } = useSharedFilters()
   const defaultRange = React.useMemo(() => presetRange(DEFAULT_PRESET), [])
-  const [range, setRange] = React.useState<DateRange>(defaultRange)
+  const range: DateRange = { from: filters.from ?? defaultRange.from, to: filters.to ?? defaultRange.to }
 
-  const key = `${userId}:${range.from}:${range.to}`
-  const kpis = useQuery("landingKpis", key, (ctx) => adapter.landingKpis(ctx, range), ready)
-  const geoQuery = useQuery("geoActivity", key, (ctx) => adapter.geoActivity(ctx, range), ready && showMap)
+  const key = `${userId}:${JSON.stringify(filters)}`
+  const kpis = useQuery("landingKpis", key, (ctx) => adapter.landingKpis(ctx, range, filters), ready)
+  const geoQuery = useQuery("geoActivity", key, (ctx) => adapter.geoActivity(ctx, range, filters), ready && showMap)
   // Keep the last map while a new range loads, so a drill-down is not lost; never across people.
   const [kept, setKept] = React.useState<{ userId: string; data: GeoActivity } | null>(null)
   if (geoQuery.status === "success" && kept?.data !== geoQuery.data) setKept({ userId, data: geoQuery.data })
   const geo = kept?.userId === userId ? kept.data : null
+  const discovery = useQuery("insightDiscovery", key, (ctx) => adapter.insightDiscovery(ctx, filters), ready)
 
   const loading = kpis.status === "loading"
   const allZero = kpis.status === "success" && kpis.data.distinctCalls === 0 && kpis.data.distinctEngagedHcps === 0 && kpis.data.responseCount === 0
@@ -58,7 +61,7 @@ export function LandingSection({ title, description, showMap = true }: { title: 
         </div>
       </header>
 
-      <FilterBar range={range} onRangeChange={setRange} defaultRange={defaultRange} disabled={loading} />
+      <AnalyticsFilterBar discovery={discovery.status === "success" ? discovery.data : undefined} loading={loading || discovery.status === "loading"} />
 
       {showMap &&
         (geo ? (
@@ -80,7 +83,7 @@ export function LandingSection({ title, description, showMap = true }: { title: 
       ) : allZero ? (
         <EmptyState
           actions={
-            <Button variant="outline" onClick={() => setRange(presetRange("90d"))}>
+            <Button variant="outline" onClick={() => setFilters((current) => ({ ...current, ...presetRange("90d") }))}>
               Show 90 days
             </Button>
           }
@@ -129,6 +132,12 @@ export function LandingSection({ title, description, showMap = true }: { title: 
         </div>
       )}
 
+      {discovery.status === "error" ? <ErrorState error={discovery.error} onRetry={discovery.refetch} /> : discovery.status === "success" && (
+        <div className="flex flex-col gap-10">
+          <ResponseDistributions discovery={discovery.data} />
+          <QuestionDiscovery discovery={discovery.data} />
+        </div>
+      )}
     </div>
   )
 }

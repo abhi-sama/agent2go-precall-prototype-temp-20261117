@@ -221,11 +221,93 @@ enum HcpFieldState { PRESENT MISSING }
 type HcpField { value: String state: HcpFieldState! }
 type HcpSearchResult { hcpId: ID! name: HcpField! institution: HcpField! territory: HcpField! }
 type HcpProfile { hcpId: ID! name: HcpField! specialty: HcpField! discipline: HcpField! type: HcpField! institution: HcpField! credentials: HcpField! territory: HcpField! }
+"""One shared filter state. Empty fields mean "all values I am authorized to see"."""
+input InsightFiltersInput {
+  from: AWSDate
+  to: AWSDate
+  territoryId: String
+  molecule: String
+  landscape: String
+  study: String
+  survey: String
+  questionId: String
+}
+
+type FilterOption {
+  value: String!
+  label: String!
+}
+
+type FilterOptions {
+  territories: [FilterOption!]!
+  molecules: [FilterOption!]!
+  landscapes: [FilterOption!]!
+  studies: [FilterOption!]!
+  surveys: [FilterOption!]!
+  questions: [FilterOption!]!
+}
+
+"""A response category is always scoped to exactly one question and denominator."""
+type ResponseDistribution {
+  questionId: ID!
+  questionText: String!
+  parentQuestionId: ID
+  response: String!
+  count: Int!
+  denominator: Int!
+  percentage: Float!
+}
+
+type CatalogQuestion {
+  questionId: ID!
+  questionText: String!
+  topic: String
+  molecule: String
+  tumorType: String
+  study: String
+  survey: String
+  status: String!
+  effectiveFrom: AWSDateTime
+  effectiveTo: AWSDateTime
+  applicability: String!
+}
+
+type InsightDiscovery {
+  scopeLabel: String!
+  options: FilterOptions!
+  distributions: [ResponseDistribution!]!
+  questions: [CatalogQuestion!]!
+}
+
+type SavedView {
+  savedViewId: ID!
+  name: String!
+  reportKind: String!
+  filters: InsightFilters!
+  createdAt: AWSDateTime!
+}
+
+type InsightFilters {
+  from: AWSDate
+  to: AWSDate
+  territoryId: String
+  molecule: String
+  landscape: String
+  study: String
+  survey: String
+  questionId: String
+}
+
+input SaveViewInput {
+  name: String!
+  reportKind: String!
+  filters: InsightFiltersInput!
+}
 
 type Query {
   me: Me!
-  landingKpis(from: AWSDate, to: AWSDate): LandingKpis!
-  geoActivity(from: AWSDate, to: AWSDate): GeoActivity!
+  landingKpis(from: AWSDate, to: AWSDate, filters: InsightFiltersInput): LandingKpis!
+  geoActivity(from: AWSDate, to: AWSDate, filters: InsightFiltersInput): GeoActivity!
   "Monthly distinct calls, distinct engaged HCPs and channel mix for the last `months` months (default 12)."
   activityTrends(months: Int): ActivityTrends!
   "The distinct calls or HCPs behind one chart point (a month, optionally one channel)."
@@ -238,6 +320,8 @@ type Query {
   chatCitation(dataset: String!, recordId: ID!): SourceRecord!
   searchHcps(query: String!, limit: Int): [HcpSearchResult!]!
   hcpProfile(hcpId: ID!): HcpProfile!
+  insightDiscovery(filters: InsightFiltersInput): InsightDiscovery!
+  savedViews: [SavedView!]!
 }
 
 type Mutation {
@@ -247,4 +331,5 @@ type Mutation {
   setRolePermissions(input: RolePermissionInput!): RolePermissionMatrix!
   createScopeAssignment(input: ScopeAssignmentInput!): ScopeAssignment!
   startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!]): ChatRun!
+  saveView(input: SaveViewInput!): SavedView!
 }

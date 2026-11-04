@@ -174,3 +174,17 @@ test("design system page renders both chart libraries", async ({ page }) => {
   await expect(page.getByTestId("echart")).toBeVisible()
   await expect(page.locator("[data-provenance]")).toHaveCount(3)
 })
+
+test("shared analytics filters, denominators, saved views and catalog dates work on iPad", async ({ page }) => {
+  await page.goto("/msl")
+  await expect(page.getByTestId("filter-bar")).toBeVisible()
+  await page.locator("#filter-question").selectOption("Q-0001")
+  await expect(page.getByTestId("distribution-Q-0001")).toBeVisible()
+  await expect(page.getByTestId("distribution-Q-0002")).toHaveCount(0)
+  await expect(page.getByTestId("distribution-Q-0001")).toContainText("Denominator:")
+  await expect(page.getByTestId("question-Q-0001")).toContainText("Effective")
+  await expect(page.getByTestId("question-Q-0001")).toContainText("Jan 1, 2025")
+  await page.getByLabel("Saved view name").fill("Breast review")
+  await page.getByRole("button", { name: "Save" }).click()
+  await expect(page.getByRole("button", { name: /Breast review/ })).toBeVisible()
+})

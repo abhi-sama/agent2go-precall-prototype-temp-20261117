@@ -21,6 +21,11 @@ import {
   type Me,
   type RequestContext,
   type RolePermissionMatrix, type ScopeAssignment, type ScopeAssignmentInput,
+  type HcpProfile,
+  type HcpSearchResult,
+  type InsightDiscovery,
+  type InsightFilters,
+  type SavedView,
 } from "./types"
 
 export type MockScenario = "ok" | "empty" | "error" | "forbidden" | "slow" | "stale"
@@ -107,6 +112,29 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     return d.toISOString()
   }
 
+  const saved: SavedView[] = []
+  const discoveryOptions: InsightDiscovery["options"] = {
+    territories: TERRITORIES.map((t) => ({ value: t.id, label: t.name })),
+    molecules: ["trastuzumab deruxtecan", "osimertinib", "pembrolizumab", "sacituzumab govitecan"].map((value) => ({ value, label: value })),
+    landscapes: [{ value: "treatment landscape", label: "Treatment landscape" }],
+    studies: ["DESTINY-Breast06", "FLAURA2", "KEYNOTE-671", "TROPiCS-02"].map((value) => ({ value, label: value })),
+    surveys: [{ value: "MSL pulse", label: "MSL pulse" }],
+    questions: [1, 2, 3, 4].map((n) => ({ value: `Q-${String(n).padStart(4, "0")}`, label: `Question ${n}: treatment discussion` })),
+  }
+  const rows = [
+    { questionId: "Q-0001", questionText: "How does trastuzumab deruxtecan fit in breast cancer discussion?", parentQuestionId: null, response: "Evidence and access are important.", count: 18, denominator: 32 },
+    { questionId: "Q-0001", questionText: "How does trastuzumab deruxtecan fit in breast cancer discussion?", parentQuestionId: null, response: "Need more practical guidance.", count: 9, denominator: 32 },
+    { questionId: "Q-0001", questionText: "How does trastuzumab deruxtecan fit in breast cancer discussion?", parentQuestionId: null, response: "No perspective recorded.", count: 5, denominator: 32 },
+    { questionId: "Q-0002", questionText: "How does osimertinib fit in lung cancer discussion?", parentQuestionId: "Q-0001", response: "Evidence and access are important.", count: 11, denominator: 20 },
+    { questionId: "Q-0002", questionText: "How does osimertinib fit in lung cancer discussion?", parentQuestionId: "Q-0001", response: "Need more practical guidance.", count: 9, denominator: 20 },
+  ]
+  const questions = [
+    { questionId: "Q-0001", questionText: "How does trastuzumab deruxtecan fit in breast cancer discussion?", topic: "Oncology", molecule: "trastuzumab deruxtecan", tumorType: "breast cancer", study: "DESTINY-Breast06", survey: "MSL pulse", status: "Active", effectiveFrom: "2025-01-01T00:00:00Z", effectiveTo: null, applicability: "Active for oncology insight collection" },
+    { questionId: "Q-0002", questionText: "How does osimertinib fit in lung cancer discussion?", topic: "Oncology", molecule: "osimertinib", tumorType: "non-small cell lung cancer", study: "FLAURA2", survey: "MSL pulse", status: "Active", effectiveFrom: "2025-01-01T00:00:00Z", effectiveTo: null, applicability: "Follow-up question; use with parent context" },
+    { questionId: "Q-0003", questionText: "How does pembrolizumab fit in gastric cancer discussion?", topic: "Oncology", molecule: "pembrolizumab", tumorType: "gastric cancer", study: "KEYNOTE-671", survey: "MSL pulse", status: "Retired", effectiveFrom: "2025-01-01T00:00:00Z", effectiveTo: "2026-09-30T00:00:00Z", applicability: "Historical only; no longer active" },
+  ]
+  const matches = (filters: InsightFilters | undefined, value: string | null | undefined, key: keyof InsightFilters) => !filters?.[key] || filters[key] === value
+
   return {
     kind: "mock",
 
@@ -116,7 +144,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       return { userId: u.userId, fullName: u.fullName, email: u.email, persona: u.persona, scopeLabel: u.scopeLabel }
     },
 
-    async landingKpis(ctx, partial): Promise<LandingKpis> {
+    async landingKpis(ctx, partial, filters): Promise<LandingKpis> {
       const s = await gate(ctx, "landingKpis")
       const user = findUser(options.getUserId())
       if (s === "forbidden" || user.persona === "admin") {
@@ -125,10 +153,10 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       if (user.territoryIds.length === 0) {
         throw new DataError("NO_SCOPE", "No territory is assigned to your account.", ctx.correlationId)
       }
-      const range = resolveRange(partial)
+      const range = resolveRange({ ...partial, from: filters?.from ?? partial?.from, to: filters?.to ?? partial?.to })
       const totals = { calls: 0, hcps: 0, responses: 0 }
       if (s !== "empty") {
-        for (const t of TERRITORIES.filter((x) => user.territoryIds.includes(x.id))) {
+        for (const t of TERRITORIES.filter((x) => user.territoryIds.includes(x.id) && (!filters?.territoryId || filters.territoryId === x.id))) {
           const m = metricsFor(t, range)
           totals.calls += m.calls
           totals.hcps += m.hcps
@@ -146,7 +174,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       }
     },
 
-    async geoActivity(ctx, partial): Promise<GeoActivity> {
+    async geoActivity(ctx, partial, filters): Promise<GeoActivity> {
       const s = await gate(ctx, "geoActivity")
       const user = findUser(options.getUserId())
       if (s === "forbidden" || user.persona === "admin") {
@@ -155,11 +183,11 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       if (user.territoryIds.length === 0) {
         throw new DataError("NO_SCOPE", "No territory is assigned to your account.", ctx.correlationId)
       }
-      const range = resolveRange(partial)
+      const range = resolveRange({ ...partial, from: filters?.from ?? partial?.from, to: filters?.to ?? partial?.to })
       // Like the API: only in-scope territories exist in the response, and an aggregate-only
       // persona (executive) never sees a small group.
       const aggregateOnly = user.persona === "executive"
-      const inScope = TERRITORIES.filter((t) => user.territoryIds.includes(t.id))
+      const inScope = TERRITORIES.filter((t) => user.territoryIds.includes(t.id) && (!filters?.territoryId || filters.territoryId === t.id))
       const calls = new Map(inScope.map((t) => [t.id, s === "empty" ? 0 : metricsFor(t, range).calls]))
       const hide = (n: number) => aggregateOnly && n < GEO_MIN_CELL
 
@@ -193,7 +221,6 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       })
       return { from: range.from, to: range.to, dataThrough: dataThrough(s), scopeLabel: user.scopeLabel, territories, countries }
     },
-
     async activityTrends(ctx, months = 12): Promise<ActivityTrends> {
       const s = await gate(ctx, "activityTrends")
       const user = findUser(options.getUserId())
@@ -349,8 +376,53 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     async createScopeAssignment(ctx,input: ScopeAssignmentInput): Promise<ScopeAssignment> { await gate(ctx,"createScopeAssignment"); const row={assignmentId:String(100+admin.scopeAssignments.length),userId:input.userId,displayName:input.userId,territoryId:input.territoryId,assignmentType:input.assignmentType,effectiveFrom:input.effectiveFrom,effectiveTo:input.effectiveTo??null,unresolvedTerritory:false}; admin.scopeAssignments.unshift(row); audit.unshift({eventId:row.assignmentId,actorUserId:options.getUserId(),action:"scope_assignment.created",resourceType:"user_scope_assignment",resourceId:row.assignmentId,outcome:"scheduled",occurredAt:new Date().toISOString()}); return row },
     async setRolePermissions(ctx,input): Promise<RolePermissionMatrix> { await gate(ctx,"setRolePermissions"); const row=admin.roleMatrix.find(x=>x.roleId===input.roleId)!; row.permissions=admin.availablePermissions.filter(x=>input.permissionCodes.includes(x.permissionCode)); return structuredClone(row) },
     async approveIdentityMapping(ctx,input) { await gate(ctx,"approveIdentityMapping"); const row=admin.identityMatches.find(x=>x.userId===input.userId)!; row.rosterSourceRowId=input.rosterSourceRowId;row.rosterName="Approved roster entry";row.identityStatus="matched";row.flag="matched";return structuredClone(row) },
-    async startChatRun(ctx, input): Promise<ChatRun> { const s=await gate(ctx,"startChatRun"); if(s==="forbidden") throw new DataError("FORBIDDEN","No access",ctx.correlationId); scriptRun(input.runId,findUser(options.getUserId()),input.message,now().getTime()); return {runId:input.runId,status:"RUNNING"} },
-    async chatEvents(ctx, runId, after): Promise<ChatEventPage> { const page=readRun(runId,after,now().getTime()); if(!page) throw new DataError("NOT_FOUND","Run unavailable",ctx.correlationId); return page },
-    async chatCitation(ctx, dataset, recordId): Promise<SourceRecord> { await gate(ctx,"chatCitation"); const record=mockCitation(dataset,recordId,findUser(options.getUserId())); if(!record) throw new DataError("NOT_FOUND","Source unavailable",ctx.correlationId); return record },
+    async startChatRun(ctx, input) {
+      const s = await gate(ctx, "startChatRun")
+      if (s === "forbidden") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      scriptRun(input.runId, findUser(options.getUserId()), input.message, now().getTime())
+      return { runId: input.runId, status: "RUNNING" }
+    },
+
+    async chatEvents(ctx, runId, after) {
+      const page = readRun(runId, after, now().getTime())
+      if (!page) throw new DataError("NOT_FOUND", "That run is not available.", ctx.correlationId)
+      return page
+    },
+
+    async chatCitation(ctx, dataset, recordId) {
+      await gate(ctx, "chatCitation")
+      const record = mockCitation(dataset, recordId, findUser(options.getUserId()))
+      if (!record) throw new DataError("NOT_FOUND", "That record is not available in your scope.", ctx.correlationId)
+      return record
+    },
+    async searchHcps(ctx, query): Promise<HcpSearchResult[]> { await gate(ctx, "searchHcps"); const user = findUser(options.getUserId()); return user.territoryIds.includes("NE-01") && query.toLowerCase().includes("call") ? [{ hcpId: "HCP-0001", name: { value: "Call system HCP 0001", state: "PRESENT" }, institution: { value: "Northeast Cancer Center", state: "PRESENT" }, territory: { value: "Boston Metro", state: "PRESENT" } }] : [] },
+    async hcpProfile(ctx, hcpId): Promise<HcpProfile> { await gate(ctx, "hcpProfile"); if (hcpId !== "HCP-0001" || !findUser(options.getUserId()).territoryIds.includes("NE-01")) throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId); const p = (v: string | null) => ({ value: v, state: v === null ? "MISSING" as const : "PRESENT" as const }); return { hcpId, name: p("Call system HCP 0001"), specialty: p("Medical oncology"), discipline: p("Oncology"), type: p("HCP"), institution: p("Northeast Cancer Center"), credentials: p(null), territory: p("Boston Metro") } },
+    async insightDiscovery(ctx, filters): Promise<InsightDiscovery> {
+      const s = await gate(ctx, "insightDiscovery")
+      const user = findUser(options.getUserId())
+      if (s === "forbidden") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      const distributions = s === "empty" ? [] : rows
+        .filter((row) => matches(filters, row.questionId, "questionId"))
+        .filter((row) => !filters?.molecule || (row.questionId === "Q-0001" ? filters.molecule === "trastuzumab deruxtecan" : filters.molecule === "osimertinib"))
+        .map((row) => ({ ...row, percentage: (row.count / row.denominator) * 100 }))
+      return {
+        scopeLabel: user.scopeLabel,
+        options: discoveryOptions,
+        distributions,
+        questions: questions.filter((q) => matches(filters, q.questionId, "questionId") && matches(filters, q.molecule, "molecule") && matches(filters, q.study, "study") && matches(filters, q.survey, "survey")),
+      }
+    },
+    async savedViews(ctx) {
+      await gate(ctx, "savedViews")
+      return saved.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    },
+    async saveView(ctx, input) {
+      await gate(ctx, "saveView")
+      const name = input.name.trim()
+      if (!name) throw new DataError("UNKNOWN", "Name your saved view before saving.", ctx.correlationId)
+      const view: SavedView = { savedViewId: `view-${saved.length + 1}`, name, reportKind: input.reportKind, filters: input.filters, createdAt: now().toISOString() }
+      saved.unshift(view)
+      return view
+    },
   }
 }

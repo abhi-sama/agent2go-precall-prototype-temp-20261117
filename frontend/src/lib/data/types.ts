@@ -41,6 +41,70 @@ export interface DateRange {
   to: IsoDate
 }
 
+/** Filter state shared by every analytics surface. Values are source identifiers, never labels. */
+export interface InsightFilters extends Partial<DateRange> {
+  territoryId?: string
+  molecule?: string
+  landscape?: string
+  study?: string
+  survey?: string
+  questionId?: string
+}
+
+export interface FilterOption {
+  value: string
+  label: string
+}
+
+export interface FilterOptions {
+  territories: FilterOption[]
+  molecules: FilterOption[]
+  landscapes: FilterOption[]
+  studies: FilterOption[]
+  surveys: FilterOption[]
+  questions: FilterOption[]
+}
+
+/** Rows are intentionally returned per question: unlike-looking prompts are never merged. */
+export interface ResponseDistribution {
+  questionId: string
+  questionText: string
+  parentQuestionId: string | null
+  response: string
+  count: number
+  denominator: number
+  percentage: number
+}
+
+export interface CatalogQuestion {
+  questionId: string
+  questionText: string
+  topic: string | null
+  molecule: string | null
+  tumorType: string | null
+  study: string | null
+  survey: string | null
+  status: string
+  effectiveFrom: IsoDateTime | null
+  effectiveTo: IsoDateTime | null
+  applicability: string
+}
+
+export interface InsightDiscovery {
+  scopeLabel: string
+  options: FilterOptions
+  distributions: ResponseDistribution[]
+  questions: CatalogQuestion[]
+}
+
+export interface SavedView {
+  savedViewId: string
+  name: string
+  reportKind: string
+  filters: InsightFilters
+  createdAt: IsoDateTime
+}
+
 export interface RequestContext {
   /** Sent with every call so FE and BE logs join up. */
   correlationId: string
@@ -169,6 +233,11 @@ export interface FlagInput {
   targetId: string
   note?: string | null
 }
+
+export type HcpFieldState = "PRESENT" | "MISSING"
+export interface HcpField { value: string | null; state: HcpFieldState }
+export interface HcpSearchResult { hcpId: string; name: HcpField; institution: HcpField; territory: HcpField }
+export interface HcpProfile { hcpId: string; name: HcpField; specialty: HcpField; discipline: HcpField; type: HcpField; institution: HcpField; credentials: HcpField; territory: HcpField }
 
 export interface IdentityMatch {
   userId: string

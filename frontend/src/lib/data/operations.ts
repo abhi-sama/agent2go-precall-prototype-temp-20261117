@@ -1,38 +1,21 @@
-/** GraphQL documents matching the foundation contract exactly. Used by the AppSync adapter. */
+/** GraphQL documents shared by the real AppSync adapter. */
 
-export const ME_QUERY = /* GraphQL */ `
-  query Me {
-    me {
-      userId
-      fullName
-      email
-      persona
-      scopeLabel
-    }
-  }
-`
+export const ME_QUERY = /* GraphQL */ `query Me { me { userId fullName email persona scopeLabel } }`
 
 export const LANDING_KPIS_QUERY = /* GraphQL */ `
-  query LandingKpis($from: AWSDate, $to: AWSDate) {
-    landingKpis(from: $from, to: $to) {
-      distinctCalls
-      distinctEngagedHcps
-      responseCount
-      from
-      to
-      dataThrough
-      scopeLabel
-    }
+  query LandingKpis($from: AWSDate, $to: AWSDate, $filters: InsightFiltersInput) {
+    landingKpis(from: $from, to: $to, filters: $filters) { distinctCalls distinctEngagedHcps responseCount from to dataThrough scopeLabel }
   }
 `
 
 export const SEARCH_HCPS_QUERY = `query SearchHcps($query:String!,$limit:Int){ searchHcps(query:$query,limit:$limit){ hcpId name{value state} institution{value state} territory{value state} } }`
 export const HCP_PROFILE_QUERY = `query HcpProfile($hcpId:ID!){ hcpProfile(hcpId:$hcpId){ hcpId name{value state} specialty{value state} discipline{value state} type{value state} institution{value state} credentials{value state} territory{value state} } }`
+export const START_CHAT_RUN_MUTATION = `mutation StartChatRun($threadId: ID!, $runId: ID!, $message: String!, $history: [ChatMessageInput!]) { startChatRun(threadId: $threadId, runId: $runId, message: $message, history: $history) { runId status } }`
 
 /** Extension of the foundation contract (added during integration) for the territory map. */
 export const GEO_ACTIVITY_QUERY = /* GraphQL */ `
-  query GeoActivity($from: AWSDate, $to: AWSDate) {
-    geoActivity(from: $from, to: $to) {
+  query GeoActivity($from: AWSDate, $to: AWSDate, $filters: InsightFiltersInput) {
+    geoActivity(from: $from, to: $to, filters: $filters) {
       from
       to
       dataThrough
@@ -65,57 +48,28 @@ export const GEO_ACTIVITY_QUERY = /* GraphQL */ `
 
 export const ACTIVITY_TRENDS_QUERY = /* GraphQL */ `
   query ActivityTrends($months: Int) {
-    activityTrends(months: $months) {
-      from
-      to
-      channels
-      totalDistinctCalls
-      totalDistinctEngagedHcps
-      dataThrough
+    activityTrends(months: $months) { from to channels totalDistinctCalls totalDistinctEngagedHcps dataThrough scopeLabel months { month distinctCalls distinctEngagedHcps isPartial channels { channel distinctCalls } } }
+  }
+`
+
+export const INSIGHT_DISCOVERY_QUERY = /* GraphQL */ `
+  query InsightDiscovery($filters: InsightFiltersInput) {
+    insightDiscovery(filters: $filters) {
       scopeLabel
-      months {
-        month
-        distinctCalls
-        distinctEngagedHcps
-        isPartial
-        channels {
-          channel
-          distinctCalls
-        }
-      }
+      options { territories { value label } molecules { value label } landscapes { value label } studies { value label } surveys { value label } questions { value label } }
+      distributions { questionId questionText parentQuestionId response count denominator percentage }
+      questions { questionId questionText topic molecule tumorType study survey status effectiveFrom effectiveTo applicability }
     }
   }
 `
 
 export const ACTIVITY_EVIDENCE_QUERY = /* GraphQL */ `
   query ActivityEvidence($metric: ActivityMetric!, $month: AWSDate!, $channel: String, $limit: Int) {
-    activityEvidence(metric: $metric, month: $month, channel: $channel, limit: $limit) {
-      metric
-      month
-      channel
-      total
-      truncated
-      latestInteractionDate
-      latestLoadedAt
-      dataThrough
-      scopeLabel
-      records {
-        recordId
-        kind
-        hcpId
-        hcpName
-        territoryId
-        channel
-        callCount
-        interactionDate
-        loadedAt
-      }
-    }
+    activityEvidence(metric: $metric, month: $month, channel: $channel, limit: $limit) { metric month channel total truncated latestInteractionDate latestLoadedAt dataThrough scopeLabel records { recordId kind hcpId hcpName territoryId channel callCount interactionDate loadedAt } }
   }
 `
 
 const FLAG_FIELDS = `flagId kind targetType targetId note status createdAt updatedAt scopeLabel dataThrough`
-
 export const MY_FLAGS_QUERY = /* GraphQL */ `
   query MyFlags {
     myFlags {
@@ -174,3 +128,5 @@ export const APPROVE_IDENTITY_MAPPING_MUTATION = /* GraphQL */ `
     }
   }
 `
+export const SAVED_VIEWS_QUERY = /* GraphQL */ `query SavedViews { savedViews { savedViewId name reportKind createdAt filters { from to territoryId molecule landscape study survey questionId } } }`
+export const SAVE_VIEW_MUTATION = /* GraphQL */ `mutation SaveView($input: SaveViewInput!) { saveView(input: $input) { savedViewId name reportKind createdAt filters { from to territoryId molecule landscape study survey questionId } } }`

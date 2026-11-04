@@ -1,4 +1,5 @@
 import { defineBackend } from '@aws-amplify/backend';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { auth } from './auth/resource';
 import { defineBeApi } from './api/resource';
 import { defineChatStore, defineFlagsStore } from './storage/resource';
@@ -11,6 +12,15 @@ const beApiLambdaArn =
   'arn:aws:lambda:us-east-1:222222222222:function:a2g-be-api';
 
 const apiStack = backend.createStack('MslAgentApi');
+// Operational state belongs to the FE account. The BE Lambda reaches this table only
+// after AppSync has authenticated the caller; its stored partition key is that verified user.
+const savedViews = new dynamodb.Table(apiStack, 'SavedViews', {
+  partitionKey: { name: 'ownerUserId', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'savedViewId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  encryption: dynamodb.TableEncryption.AWS_MANAGED,
+  pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+});
 const api = defineBeApi(apiStack, backend.auth.resources.userPool, {
   beApiLambdaArn,
   localEmulator: process.env.A2G_DEPLOY_TARGET === 'floci',
@@ -29,5 +39,6 @@ backend.addOutput({
     aws_region: apiStack.region,
     default_authorization_type: 'AMAZON_COGNITO_USER_POOLS',
     authorization_types: [],
+    saved_views_table: savedViews.tableName,
   },
 });

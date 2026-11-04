@@ -20,6 +20,10 @@ class Settings:
     chat_worker_function: str | None = None
     agent_url: str | None = None
     agent_runtime_arn: str | None = None
+    saved_views_table: str | None = None
+    saved_views_endpoint: str | None = None
+    saved_views_access_key: str | None = None
+    saved_views_region: str = "us-east-1"
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> Settings:
@@ -30,6 +34,9 @@ class Settings:
         if trust and env != "local":
             # The floci stand-in must never be switched on in a deployed account.
             raise RuntimeError("A2G_TRUST_APPSYNC_IDENTITY is only allowed when A2G_ENV=local")
+        local_access_key = e.get("A2G_SAVED_VIEWS_ACCESS_KEY")
+        if local_access_key and env != "local":
+            raise RuntimeError("A2G_SAVED_VIEWS_ACCESS_KEY is only allowed when A2G_ENV=local")
         return cls(
             env=env,
             issuer=issuer,
@@ -44,4 +51,8 @@ class Settings:
             # Local: the agent container's HTTP address. AWS: the AgentCore Runtime ARN (ticket #24).
             agent_url=(e.get("A2G_AGENT_URL") or "").rstrip("/") or None,
             agent_runtime_arn=e.get("A2G_AGENT_RUNTIME_ARN") or None,
+            saved_views_table=e.get("A2G_SAVED_VIEWS_TABLE"),
+            saved_views_endpoint=e.get("A2G_SAVED_VIEWS_ENDPOINT"),
+            saved_views_access_key=local_access_key,
+            saved_views_region=e.get("AWS_REGION", "us-east-1"),
         )

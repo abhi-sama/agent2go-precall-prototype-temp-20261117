@@ -26,10 +26,50 @@ from a2g_logging import get_logger
 
 from .errors import BadRequest, Forbidden, NoScope
 from .identity import Identity
+from .saved_views import SavedViews
 
 log = get_logger(__name__)
 
 MAX_RANGE_DAYS = 366 * 3
+MAX_HCP_SEARCH_RESULTS = 50
+FILTER_KEYS = ("from", "to", "territoryId", "molecule", "landscape", "study", "survey", "questionId")
+
+
+def _filters(args: Mapping[str, Any]) -> dict[str, str]:
+    """Accept only the fixed source-backed vocabulary; never dynamic SQL."""
+    raw = args.get("filters") or {}
+    if not isinstance(raw, Mapping):
+        raise BadRequest("invalid_filters")
+    result: dict[str, str] = {}
+    for key in FILTER_KEYS:
+        value = raw.get(key)
+        if value in (None, ""):
+            continue
+        value = str(value).strip()
+        if not value or len(value) > 200:
+            raise BadRequest("invalid_filters")
+        result[key] = value
+    return result
+
+
+def _insight_where(filters: Mapping[str, str], alias: str = "h") -> tuple[list[str], dict[str, str]]:
+    columns = {"territoryId": "territory_id", "molecule": "molecule_type", "landscape": "landscape_type", "study": "study_name", "survey": "survey_type", "questionId": "qstn_ext_id"}
+    clauses, params = [], {}
+    for key, column in columns.items():
+        if key in filters:
+            clauses.append(f"{alias}.{column} = %({key})s")
+            params[key] = filters[key]
+    return clauses, params
+
+
+def _catalog_where(filters: Mapping[str, str]) -> tuple[list[str], dict[str, str]]:
+    columns = {"molecule": "molecule_type", "study": "study_name", "survey": "survey_type", "questionId": "qstn_ext_id"}
+    clauses, params = [], {}
+    for key, column in columns.items():
+        if key in filters:
+            clauses.append(f"q.{column} = %({key})s")
+            params[key] = filters[key]
+    return clauses, params
 
 
 def _scope(cur: psycopg.Cursor, identity: Identity) -> tuple[list[str], int, str]:
@@ -112,8 +152,9 @@ def _data_through(cur: psycopg.Cursor) -> dt.datetime | None:
 
 
 def _range(args: Mapping[str, Any], data_through: dt.datetime | None, default_range_days: int) -> tuple[dt.date, dt.date]:
-    to = _parse_date(args.get("to"), "to") or (data_through.date() if data_through else dt.date.today())
-    frm = _parse_date(args.get("from"), "from") or (to - dt.timedelta(days=default_range_days - 1))
+    filters = _filters(args)
+    to = _parse_date(args.get("to") or filters.get("to"), "to") or (data_through.date() if data_through else dt.date.today())
+    frm = _parse_date(args.get("from") or filters.get("from"), "from") or (to - dt.timedelta(days=default_range_days - 1))
     if frm > to or (to - frm).days > MAX_RANGE_DAYS:
         raise BadRequest("invalid_range")
     return frm, to
@@ -191,11 +232,21 @@ def geo_activity(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Ma
         {"frm": frm, "to": to},
     )
     territory_rows = cur.fetchall()
+    filters = _filters(args)
+    if filters.get("territoryId"):
+        territory_rows = [row for row in territory_rows if row[0] == filters["territoryId"]]
     cur.execute(
         "SELECT country_code, country_name, territory_count, distinct_calls FROM app.geo_countries(%(frm)s, %(to)s)",
         {"frm": frm, "to": to},
     )
     country_rows = cur.fetchall()
+    if filters.get("territoryId"):
+        country_rows = [
+            (code, rows[0][5], len(rows), sum(int(row[11]) for row in rows))
+            for code, rows in {
+                code: [row for row in territory_rows if row[4] == code] for code in {row[4] for row in territory_rows}
+            }.items()
+        ]
     if not territory_rows and not is_admin:
         raise NoScope("no_effective_scope")
 
@@ -340,3 +391,82 @@ def set_role_permissions(cur, identity, user_id, args):
     if not rid or not codes: raise BadRequest("invalid_role_permissions")
     cur.execute("DELETE FROM role_permissions WHERE role_id=%s",(rid,)); cur.executemany("INSERT INTO role_permissions(role_id,permission_code) VALUES(%s,%s)",[(rid,x) for x in codes]); _audit(cur,user_id,"role_permissions.updated","role",rid,"applied")
     return _roles(cur,rid)[0]
+def search_hcps(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> list[dict[str, Any]]:
+    _require_hcp_search_access(cur, identity)
+    pattern = _search_pattern(args.get("query")); limit = args.get("limit", 20)
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_HCP_SEARCH_RESULTS: raise BadRequest("invalid_search_limit")
+    cur.execute("""SELECT DISTINCT x.hcp_id FROM hcp_identifier_crosswalk x JOIN call_activity c ON x.source_system='call_activity.cust_mdm_id' AND x.source_identifier=c.cust_mdm_id WHERE c.cust_full_nm ILIKE %(p)s ESCAPE '\\' OR c.territory_name ILIKE %(p)s ESCAPE '\\' UNION SELECT DISTINCT x.hcp_id FROM hcp_identifier_crosswalk x JOIN hcp_raw_insights i ON x.source_system='hcp_raw_insights.cust_mdm_id' AND x.source_identifier=i.cust_mdm_id WHERE i.cust_nm ILIKE %(p)s ESCAPE '\\' OR i.hcp_institution ILIKE %(p)s ESCAPE '\\' OR i.territory_name ILIKE %(p)s ESCAPE '\\'""", {"p": pattern})
+    results = []
+    for (hcp_id,) in cur.fetchall():
+        row = _profile(cur, hcp_id)
+        if row: results.append({"hcpId": row[0], "name": _hcp_field(row[1]), "institution": _hcp_field(row[5]), "territory": _hcp_field(row[7])})
+    return sorted(results, key=lambda item: (item["name"]["value"] or "", item["hcpId"]))[:limit]
+def _options(cur: psycopg.Cursor) -> dict[str, list[dict[str, str]]]:
+    """All option queries run under the same RLS cursor as the charts."""
+    queries = {
+        "territories": "SELECT DISTINCT territory_id, territory_id FROM hcp_raw_insights WHERE territory_id IS NOT NULL ORDER BY 2 LIMIT 80",
+        "molecules": "SELECT DISTINCT molecule_type, molecule_type FROM hcp_raw_insights WHERE molecule_type IS NOT NULL ORDER BY 2 LIMIT 80",
+        "landscapes": "SELECT DISTINCT landscape_type, landscape_type FROM hcp_raw_insights WHERE landscape_type IS NOT NULL ORDER BY 2 LIMIT 80",
+        "studies": "SELECT DISTINCT study_name, study_name FROM hcp_raw_insights WHERE study_name IS NOT NULL ORDER BY 2 LIMIT 80",
+        "surveys": "SELECT DISTINCT survey_type, survey_type FROM hcp_raw_insights WHERE survey_type IS NOT NULL ORDER BY 2 LIMIT 80",
+        "questions": "SELECT DISTINCT qstn_ext_id, qstn_ext_id || ': ' || left(qstn_txt, 110) FROM hcp_raw_insights WHERE qstn_ext_id IS NOT NULL ORDER BY 2 LIMIT 120",
+    }
+    result = {}
+    for name, query in queries.items():
+        cur.execute(query)
+        result[name] = [{"value": row[0], "label": row[1]} for row in cur.fetchall()]
+    return result
+
+
+def insight_discovery(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, default_range_days: int) -> dict[str, Any]:
+    _assigned, effective, label = _scope(cur, identity)
+    _require_record_access(cur, label, effective)
+    filters = _filters(args)
+    frm, to = _range(args, _data_through(cur), default_range_days)
+    clauses, params = _insight_where(filters)
+    where = ["h.date_of_interaction BETWEEN %(frm)s AND %(to)s", "h.excluded_rspns_flag IS NOT TRUE", *clauses]
+    params.update({"frm": frm, "to": to})
+    cur.execute(
+        f"""
+        WITH filtered AS (
+          SELECT h.qstn_ext_id, h.qstn_txt, h.qstn_pid, coalesce(nullif(btrim(h.rspns_txt), ''), 'No response recorded') AS response, h.uniq_rspns_id
+          FROM hcp_raw_insights h WHERE {' AND '.join(where)}
+        ), grouped AS (
+          SELECT qstn_ext_id, min(qstn_txt) AS qstn_txt, min(qstn_pid) AS qstn_pid, response, count(DISTINCT uniq_rspns_id) AS response_count
+          FROM filtered GROUP BY qstn_ext_id, response
+        )
+        SELECT qstn_ext_id, qstn_txt, qstn_pid, response, response_count, sum(response_count) OVER (PARTITION BY qstn_ext_id) AS denominator
+        FROM grouped ORDER BY qstn_ext_id, response_count DESC, response LIMIT 120
+        """,
+        params,
+    )
+    distributions = []
+    for qid, text, parent, response, count, denominator in cur.fetchall():
+        denom = int(denominator)
+        distributions.append({"questionId": qid, "questionText": text or qid, "parentQuestionId": parent, "response": response, "count": int(count), "denominator": denom, "percentage": round((int(count) / denom) * 100, 1) if denom else 0})
+    catalog_clauses, catalog_params = _catalog_where(filters)
+    catalog_where = " AND ".join(catalog_clauses) if catalog_clauses else "TRUE"
+    cur.execute(
+        f"""SELECT q.qstn_ext_id, q.qstn_txt, q.report_tag, q.molecule_type, q.tumor_type, q.study_name, q.survey_type, q.qstn_tag_status, q.qstn_tag_strt_dt, q.qstn_tag_end_dt,
+                   CASE WHEN q.qstn_tag_status ILIKE 'active' AND q.qstn_tag_strt_dt <= now() AND (q.qstn_tag_end_dt IS NULL OR q.qstn_tag_end_dt > now()) THEN 'Active for approved collection' ELSE 'Review status and effective dates before use' END
+            FROM question_tag q WHERE {catalog_where} ORDER BY q.qstn_tag_status, q.qstn_ext_id LIMIT 60""",
+        catalog_params,
+    )
+    questions = [{"questionId": row[0], "questionText": row[1], "topic": row[2], "molecule": row[3], "tumorType": row[4], "study": row[5], "survey": row[6], "status": row[7] or "Unknown", "effectiveFrom": row[8].isoformat() if row[8] else None, "effectiveTo": row[9].isoformat() if row[9] else None, "applicability": row[10]} for row in cur.fetchall()]
+    log.info("insight discovery computed", user_id=user_id, territory_count=effective, distribution_count=len(distributions), question_count=len(questions), range_days=(to - frm).days + 1)
+    return {"scopeLabel": label, "options": _options(cur), "distributions": distributions, "questions": questions}
+
+
+def saved_views(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, store: SavedViews) -> list[dict[str, Any]]:
+    views = store.list(user_id)
+    log.info("saved views listed", user_id=user_id, count=len(views))
+    return views
+
+
+def save_view(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, store: SavedViews) -> dict[str, Any]:
+    input_ = args.get("input")
+    if not isinstance(input_, dict):
+        raise BadRequest("invalid_saved_view")
+    view = store.save(user_id, input_)
+    log.info("saved view stored", user_id=user_id, report_kind=view["reportKind"])
+    return view

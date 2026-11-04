@@ -21,6 +21,7 @@ export interface FilterBarProps {
   range: DateRange
   onRangeChange: (range: DateRange) => void
   defaultRange: DateRange
+  onReset?: () => void
   /** Extra filters (territory, product, theme...) added by later tickets. Native selects: best on touch. */
   selects?: SelectFilter[]
   disabled?: boolean
@@ -31,7 +32,7 @@ export interface FilterBarProps {
  * Shared filter bar. Date presets are one tap; a custom range uses native date inputs so iPad shows
  * its own picker. Invalid ranges are explained inline and never emitted.
  */
-export function FilterBar({ range, onRangeChange, defaultRange, selects, disabled, className }: FilterBarProps) {
+export function FilterBar({ range, onRangeChange, defaultRange, onReset, selects, disabled, className }: FilterBarProps) {
   const activePreset = matchPreset(range)
   const [custom, setCustom] = React.useState(activePreset === null)
   const showCustom = custom || activePreset === null
@@ -101,8 +102,8 @@ export function FilterBar({ range, onRangeChange, defaultRange, selects, disable
             Custom
           </button>
         </div>
-        {!isDefault && (
-          <Button variant="ghost" size="sm" className="ml-auto" onClick={() => { setCustom(false); onRangeChange(defaultRange) }}>
+        {(!isDefault || selects?.some((select) => Boolean(select.value))) && (
+          <Button variant="ghost" size="sm" className="ml-auto" onClick={() => { setCustom(false); if (onReset) onReset(); else onRangeChange(defaultRange) }}>
             <RotateCcw aria-hidden /> Reset
           </Button>
         )}

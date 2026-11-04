@@ -25,6 +25,7 @@ from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .identity import JwksCache, resolve_identity
 from .settings import Settings
+from .saved_views import SavedViews
 
 configure(service="a2g-be-api")
 log = get_logger(__name__)
@@ -55,6 +56,14 @@ def _flag_store(settings: Settings) -> flags.FlagStore:
 
 
 def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..., Any]]:
+    # Do not require the FE operational table for unrelated resolver unit tests or
+    # legacy deployments; only the saved-view fields construct its client.
+    def list_views(cur, identity, user_id, args):
+        return resolvers.saved_views(cur, identity, user_id, args, store=SavedViews(settings))
+
+    def save_view(cur, identity, user_id, args):
+        return resolvers.save_view(cur, identity, user_id, args, store=SavedViews(settings))
+
     return {
         "startChatRun": partial(
             chat.start_chat_run, worker_function=settings.chat_worker_function, correlation_id=correlation_id
@@ -74,6 +83,11 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "approveIdentityMapping": resolvers.approve_identity_mapping,
         "setRolePermissions": resolvers.set_role_permissions,
         "createScopeAssignment": resolvers.create_scope_assignment,
+        "searchHcps": resolvers.search_hcps,
+        "hcpProfile": resolvers.hcp_profile,
+        "insightDiscovery": partial(resolvers.insight_discovery, default_range_days=settings.default_range_days),
+        "savedViews": list_views,
+        "saveView": save_view,
     }
 
 

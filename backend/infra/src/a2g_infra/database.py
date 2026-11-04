@@ -63,22 +63,25 @@ def provision(reseed: bool = True) -> dict:
                 break
             time.sleep(2)
     assert inst is not None
-    port = int(inst["Endpoint"]["Port"])
-    _wait_connectable(port)
+    # A worker can map floci's internal RDS proxy port to an isolated host port.
+    # Lambda containers still use the emulator's internal port through ``floci``.
+    internal_port = int(inst["Endpoint"]["Port"])
+    host_port = int(os.environ.get("A2G_RDS_PROXY_HOST_PORT", internal_port))
+    _wait_connectable(host_port)
 
     if reseed:
-        with psycopg.connect(_dsn("postgres", port), autocommit=True) as conn:
+        with psycopg.connect(_dsn("postgres", host_port), autocommit=True) as conn:
             conn.execute(f"DROP DATABASE IF EXISTS {DB_NAME} WITH (FORCE)")
             conn.execute(f"CREATE DATABASE {DB_NAME}")
-        owner = _dsn(DB_NAME, port)
+        owner = _dsn(DB_NAME, host_port)
         env = {**os.environ, "DATABASE_URL": owner}
         subprocess.run([str(DB_DIR / "scripts" / "migrate.sh")], env=env, check=True, stdout=subprocess.DEVNULL)
         subprocess.run(["python3", str(DB_DIR / "seed" / "generate.py")], env=env, check=True)
 
     return {
-        "port": port,
-        "owner_dsn": _dsn(DB_NAME, port),
-        "app_dsn_host": _dsn(DB_NAME, port, user=APP_DB_USER, password=APP_DB_PASSWORD),
+        "port": host_port,
+        "owner_dsn": _dsn(DB_NAME, host_port),
+        "app_dsn_host": _dsn(DB_NAME, host_port, user=APP_DB_USER, password=APP_DB_PASSWORD),
         # Lambda containers sit on the compose network and reach the RDS proxy via floci.
-        "app_dsn_internal": _dsn(DB_NAME, port, host=INTERNAL_HOST, user=APP_DB_USER, password=APP_DB_PASSWORD),
+        "app_dsn_internal": _dsn(DB_NAME, internal_port, host=INTERNAL_HOST, user=APP_DB_USER, password=APP_DB_PASSWORD),
     }

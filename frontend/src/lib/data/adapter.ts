@@ -14,6 +14,8 @@ import type {
   GeoActivity,
   HcpProfile,
   HcpSearchResult,
+  InsightDiscovery,
+  InsightFilters,
   IsoDate,
   IdentityMatch,
   LandingKpis,
@@ -23,6 +25,7 @@ import type {
   ScopeAssignment,
   ScopeAssignmentInput,
   SourceRecord,
+  SavedView,
 } from "./types"
 
 /**
@@ -34,9 +37,9 @@ export interface DataAdapter {
   readonly kind: "mock" | "appsync"
   me(ctx: RequestContext): Promise<Me>
   /** `range` omitted lets the backend choose its default window. */
-  landingKpis(ctx: RequestContext, range?: Partial<DateRange>): Promise<LandingKpis>
+  landingKpis(ctx: RequestContext, range?: Partial<DateRange>, filters?: InsightFilters): Promise<LandingKpis>
   /** Distinct calls per territory and country, for the globe and the flat map. See `GeoActivity`. */
-  geoActivity(ctx: RequestContext, range?: Partial<DateRange>): Promise<GeoActivity>
+  geoActivity(ctx: RequestContext, range?: Partial<DateRange>, filters?: InsightFilters): Promise<GeoActivity>
   /** Monthly distinct calls, distinct HCPs and channel mix for the last `months` months. */
   activityTrends(ctx: RequestContext, months?: number): Promise<ActivityTrends>
   /** The distinct calls or HCPs behind one chart point: a month, optionally one channel. */
@@ -54,8 +57,20 @@ export interface DataAdapter {
   setRolePermissions(ctx: RequestContext, input: { roleId: string; permissionCodes: string[] }): Promise<RolePermissionMatrix>
   approveIdentityMapping(ctx: RequestContext, input: { userId: string; rosterSourceRowId: string }): Promise<IdentityMatch>
   startChatRun(ctx: RequestContext, input: { threadId: string; runId: string; message: string; history: ChatMessageInput[] }): Promise<ChatRun>
+  /**
+   * Start a streamed chat answer. The caller picks `runId` so it can poll straight away. The mutation
+   * returns once the BE accepted the run; the answer arrives through `chatEvents`.
+   */
+  startChatRun(
+    ctx: RequestContext,
+    input: { threadId: string; runId: string; message: string; history: ChatMessageInput[] },
+  ): Promise<ChatRun>
+  /** Events with `seq > after`, in order. Stand-in for an AppSync subscription (docs/adr/0007). */
   chatEvents(ctx: RequestContext, runId: string, after: number): Promise<ChatEventPage>
   chatCitation(ctx: RequestContext, dataset: string, recordId: string): Promise<SourceRecord>
   searchHcps(ctx: RequestContext, query: string, limit?: number): Promise<HcpSearchResult[]>
   hcpProfile(ctx: RequestContext, hcpId: string): Promise<HcpProfile>
+  insightDiscovery(ctx: RequestContext, filters?: InsightFilters): Promise<InsightDiscovery>
+  savedViews(ctx: RequestContext): Promise<SavedView[]>
+  saveView(ctx: RequestContext, input: Pick<SavedView, "name" | "reportKind" | "filters">): Promise<SavedView>
 }

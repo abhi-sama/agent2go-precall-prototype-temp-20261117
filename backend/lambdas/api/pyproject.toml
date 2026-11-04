@@ -5,6 +5,7 @@ description = "BE account API Lambda: AppSync field resolvers over RLS-scoped Po
 requires-python = ">=3.12"
 dependencies = [
   "a2g-logging",
+  "boto3>=1.35",
   "psycopg[binary]>=3.2",
   "pyjwt[crypto]>=2.9",
 ]

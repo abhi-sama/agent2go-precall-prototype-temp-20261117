@@ -19,6 +19,8 @@ export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'myFlags' },
   { typeName: 'Query', fieldName: 'adminAccessOverview' },
   { typeName: 'Query', fieldName: 'accessAudit' },
+  { typeName: 'Query', fieldName: 'searchHcps' },
+  { typeName: 'Query', fieldName: 'hcpProfile' },
   { typeName: 'Mutation', fieldName: 'flagIssue' },
   { typeName: 'Query', fieldName: 'chatEvents' },
   { typeName: 'Query', fieldName: 'chatCitation' },
@@ -26,6 +28,9 @@ export const BE_FIELDS = [
   { typeName: 'Mutation', fieldName: 'approveIdentityMapping' },
   { typeName: 'Mutation', fieldName: 'setRolePermissions' },
   { typeName: 'Mutation', fieldName: 'createScopeAssignment' },
+  { typeName: 'Query', fieldName: 'insightDiscovery' },
+  { typeName: 'Query', fieldName: 'savedViews' },
+  { typeName: 'Mutation', fieldName: 'saveView' },
 ] as const;
 
 /**

@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation"
 import type * as React from "react"
 import { PERSONA_CONFIG, type NavItem } from "@/components/shell/persona-config"
 import { ThemeToggle } from "@/components/shell/theme-toggle"
+import { SharedFilterProvider } from "@/components/filters/filter-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { IS_LOCAL_BUILD } from "@/lib/env"
@@ -62,6 +63,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const config = PERSONA_CONFIG[user.persona]
 
   return (
+    <SharedFilterProvider>
     <div className="flex min-h-dvh flex-col bg-background lg:flex-row">
       {/* Desktop rail */}
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-6 border-r border-sidebar-border bg-sidebar p-4 lg:flex">
@@ -114,6 +116,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
+    </SharedFilterProvider>
   )
 }
 

@@ -12,6 +12,12 @@ import {
   ME_QUERY,
   MY_FLAGS_QUERY,
   SET_ROLE_PERMISSIONS_MUTATION,
+  HCP_PROFILE_QUERY,
+  SEARCH_HCPS_QUERY,
+  START_CHAT_RUN_MUTATION,
+  INSIGHT_DISCOVERY_QUERY,
+  SAVED_VIEWS_QUERY,
+  SAVE_VIEW_MUTATION,
 } from "./operations"
 import {
   DataError,
@@ -26,6 +32,8 @@ import {
   type IdentityMatch,
   type Flag,
   type GeoActivity,
+  type HcpProfile,
+  type HcpSearchResult,
   type LandingKpis,
   type Me,
   type RequestContext,
@@ -33,6 +41,9 @@ import {
   type ScopeAssignment,
   type ScopeAssignmentInput,
   type SourceRecord,
+  type InsightDiscovery,
+  type InsightFilters,
+  type SavedView,
 } from "./types"
 
 export interface GraphQLResponse<T> {
@@ -93,20 +104,20 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
       const data = await run<{ me: Me }>(transport, ME_QUERY, undefined, ctx)
       return data.me
     },
-    async landingKpis(ctx, range?: Partial<DateRange>) {
+    async landingKpis(ctx, range?: Partial<DateRange>, filters?: InsightFilters) {
       const data = await run<{ landingKpis: LandingKpis }>(
         transport,
         LANDING_KPIS_QUERY,
-        { from: range?.from ?? null, to: range?.to ?? null },
+        { from: range?.from ?? null, to: range?.to ?? null, ...(filters ? { filters } : {}) },
         ctx,
       )
       return data.landingKpis
     },
-    async geoActivity(ctx, range?: Partial<DateRange>) {
+    async geoActivity(ctx, range?: Partial<DateRange>, filters?: InsightFilters) {
       const data = await run<{ geoActivity: GeoActivity }>(
         transport,
         GEO_ACTIVITY_QUERY,
-        { from: range?.from ?? null, to: range?.to ?? null },
+        { from: range?.from ?? null, to: range?.to ?? null, ...(filters ? { filters } : {}) },
         ctx,
       )
       return data.geoActivity
@@ -161,5 +172,19 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     async startChatRun(ctx, input): Promise<ChatRun> { return (await run<{ startChatRun: ChatRun }>(transport, `mutation StartChatRun($threadId: ID!, $runId: ID!, $message: String!, $history: [ChatMessageInput!]) { startChatRun(threadId: $threadId, runId: $runId, message: $message, history: $history) { runId status } }`, input, ctx)).startChatRun },
     async chatEvents(ctx, runId, after): Promise<ChatEventPage> { return (await run<{ chatEvents: ChatEventPage }>(transport, `query ChatEvents($runId: ID!, $after: Int) { chatEvents(runId: $runId, after: $after) { done status events { seq data } } }`, { runId, after }, ctx)).chatEvents },
     async chatCitation(ctx, dataset, recordId): Promise<SourceRecord> { return (await run<{ chatCitation: SourceRecord }>(transport, `query ChatCitation($dataset: String!, $recordId: ID!) { chatCitation(dataset: $dataset, recordId: $recordId) { dataset recordId title dataThrough fields { label value } } }`, { dataset, recordId }, ctx)).chatCitation },
+    async searchHcps(ctx, query, limit) { return (await run<{ searchHcps: HcpSearchResult[] }>(transport, SEARCH_HCPS_QUERY, { query, limit: limit ?? null }, ctx)).searchHcps },
+    async hcpProfile(ctx, hcpId) { return (await run<{ hcpProfile: HcpProfile }>(transport, HCP_PROFILE_QUERY, { hcpId }, ctx)).hcpProfile },
+    async insightDiscovery(ctx, filters?: InsightFilters) {
+      const data = await run<{ insightDiscovery: InsightDiscovery }>(transport, INSIGHT_DISCOVERY_QUERY, { filters }, ctx)
+      return data.insightDiscovery
+    },
+    async savedViews(ctx) {
+      const data = await run<{ savedViews: SavedView[] }>(transport, SAVED_VIEWS_QUERY, undefined, ctx)
+      return data.savedViews
+    },
+    async saveView(ctx, input) {
+      const data = await run<{ saveView: SavedView }>(transport, SAVE_VIEW_MUTATION, { input }, ctx)
+      return data.saveView
+    },
   }
 }

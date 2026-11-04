@@ -85,6 +85,20 @@ describe("mock adapter", () => {
     await expect(make("u-msl-se-03").hcpProfile(ctx, "HCP-0001")).rejects.toMatchObject({ code: "FORBIDDEN" })
   })
 
+  it("keeps response bars question-scoped with an explicit denominator", async () => {
+    const discovery = await make("u-msl-ne-01").insightDiscovery(ctx, { questionId: "Q-0001" })
+    expect(discovery.distributions).toHaveLength(3)
+    expect(discovery.distributions.every((row) => row.questionId === "Q-0001" && row.denominator > 0)).toBe(true)
+    expect(discovery.distributions.reduce((total, row) => total + row.count, 0)).toBe(discovery.distributions[0].denominator)
+  })
+
+  it("saves a per-user filter preset and returns it for one-tap reopening", async () => {
+    const adapter = make("u-msl-ne-01")
+    const saved = await adapter.saveView(ctx, { name: "Lung pulse", reportKind: "insight-discovery", filters: { molecule: "osimertinib", questionId: "Q-0002" } })
+    expect(saved.filters.questionId).toBe("Q-0002")
+    await expect(adapter.savedViews(ctx)).resolves.toMatchObject([{ savedViewId: saved.savedViewId, name: "Lung pulse" }])
+  })
+
   it("parses scenario only from known values", () => {
     expect(readScenario("?scenario=empty")).toBe("empty")
     expect(readScenario("?scenario=bogus")).toBe("ok")

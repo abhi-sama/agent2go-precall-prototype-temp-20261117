@@ -16,7 +16,7 @@ pnpm test:e2e       # Playwright smoke tests at iPad landscape + portrait (build
 | Design tokens (orange-600 accent, white / warm charcoal, ink-teal-amber-violet palette) | `src/app/globals.css` |
 | App shell (rail on desktop, swipeable tabs on iPad/phone), theme toggle | `src/components/shell/` |
 | Role landings: `/msl` (full), `/director`, `/executive`, `/admin` | `src/app/(app)/` |
-| KPI cards, data-through badge, scope label, shared `FilterBar` | `src/components/landing/`, `src/components/filters/`, `src/components/shell/scope-label.tsx` |
+| KPI cards, data-through badge, scope label, shared filter state, saved views, response distributions and question discovery | `src/components/landing/`, `src/components/filters/`, `src/components/shell/scope-label.tsx` |
 | R3F territory map with 2D fallback and reduced-motion support | `src/components/three/` |
 | shadcn chart (Recharts) and Apache ECharts wrappers | `src/components/charts/` |
 | Source fact / AI summary / Suggestion primitives | `src/components/provenance/` |
@@ -26,7 +26,7 @@ pnpm test:e2e       # Playwright smoke tests at iPad landscape + portrait (build
 ## Data layer (the swap point)
 
 UI code only talks to `DataAdapter` (`src/lib/data/adapter.ts`), which mirrors the GraphQL contract in
-`amplify/data/schema.graphql` (`me`, `landingKpis`, `territoryActivity`). `NEXT_PUBLIC_DATA_ADAPTER` picks the adapter:
+`amplify/data/schema.graphql` (`me`, `landingKpis`, `geoActivity`, `insightDiscovery`, `savedViews`, `saveView`). `NEXT_PUBLIC_DATA_ADAPTER` picks the adapter:
 
 - `appsync`: `graphql-adapter.ts` over `appsync-transport.ts` (Cognito ID token, IdP name/email and `x-correlation-id`
   headers) against the FE AppSync API. Sign-in is Cognito through Amplify (`src/lib/session/cognito-session.tsx`,

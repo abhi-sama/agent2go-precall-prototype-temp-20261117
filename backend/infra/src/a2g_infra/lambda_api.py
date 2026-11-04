@@ -24,7 +24,7 @@ from .config import (
 
 SRC_API = REPO / "backend" / "lambdas" / "api" / "src" / "a2g_api"
 SRC_LOG = REPO / "backend" / "libs" / "a2g_logging" / "src" / "a2g_logging"
-DEPS = ["psycopg[binary]>=3.2", "pyjwt[crypto]>=2.9"]
+DEPS = ["boto3>=1.35", "psycopg[binary]>=3.2", "pyjwt[crypto]>=2.9"]
 
 
 def _arch() -> tuple[str, str]:
@@ -73,6 +73,9 @@ def deploy(fe: dict, db: dict) -> str:
         # FE DynamoDB flags, reached by assuming a narrow FE-account role (docs/adr/0006).
         "A2G_FLAGS_TABLE": FLAGS_TABLE,
         "A2G_FLAGS_ROLE_ARN": FLAGS_ROLE_ARN,
+        "A2G_SAVED_VIEWS_TABLE": fe["saved_views_table"],
+        "A2G_SAVED_VIEWS_ENDPOINT": "http://floci:4566",
+        "A2G_SAVED_VIEWS_ACCESS_KEY": FE_ACCOUNT,
     }
     # The worker streams a chat run from the agent (AgentCore Runtime stand-in) into Postgres; the
     # API Lambda starts it asynchronously (docs/adr/0007).
