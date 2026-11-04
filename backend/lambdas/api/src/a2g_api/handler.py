@@ -89,6 +89,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "createScopeAssignment": resolvers.create_scope_assignment,
         "searchHcps": resolvers.search_hcps,
         "hcpProfile": resolvers.hcp_profile,
+        "hcpTimeline": resolvers.hcp_timeline,
         "insightDiscovery": partial(resolvers.insight_discovery, default_range_days=settings.default_range_days),
         "semanticInsightSearch": partial(resolvers.semantic_insight_search, provider=embeddings),
         "savedViews": list_views,

@@ -427,6 +427,99 @@ def hcp_profile(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Map
     return {"hcpId": raw["hcpId"], **{key: _hcp_field(raw[key]) for key in keys[1:]}}
 
 
+def hcp_timeline(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
+    """Return source-grain HCP interactions without linking parents across calls."""
+    _require_hcp_search_access(cur, identity)
+    hcp_id = args.get("hcpId")
+    if not isinstance(hcp_id, str) or not hcp_id.strip() or len(hcp_id) > 200:
+        raise BadRequest("invalid_hcp_id")
+    hcp_id = hcp_id.strip()
+    if _profile(cur, hcp_id) is None:
+        raise Forbidden("hcp_not_in_scope")
+
+    cur.execute(
+        """
+        SELECT c.crm_call_id, max(c.call_dt)::text,
+               coalesce(array_agg(DISTINCT c.call_chnl) FILTER (WHERE c.call_chnl IS NOT NULL), '{}'),
+               coalesce(array_agg(DISTINCT c.call_type) FILTER (WHERE c.call_type IS NOT NULL), '{}'),
+               coalesce(array_agg(DISTINCT c.call_sta) FILTER (WHERE c.call_sta IS NOT NULL), '{}'),
+               coalesce(array_agg(DISTINCT c.prd_nm) FILTER (WHERE c.prd_nm IS NOT NULL), '{}'),
+               coalesce(array_agg(DISTINCT c.reason_for_visit) FILTER (WHERE c.reason_for_visit IS NOT NULL), '{}')
+                 || coalesce(array_agg(DISTINCT c.derived_disease_state) FILTER (WHERE c.derived_disease_state IS NOT NULL), '{}')
+        FROM call_activity c
+        JOIN hcp_identifier_crosswalk x
+          ON x.source_system = 'call_activity.cust_mdm_id' AND x.source_identifier = c.cust_mdm_id
+        WHERE x.hcp_id = %s AND c.crm_call_id IS NOT NULL
+        GROUP BY c.crm_call_id
+        ORDER BY max(c.call_dt) DESC, c.crm_call_id DESC
+        """,
+        (hcp_id,),
+    )
+    interactions = [
+        {
+            "callId": call_id,
+            "interactionDate": date,
+            "channels": sorted(set(channels)),
+            "types": sorted(set(types)),
+            "statuses": sorted(set(statuses)),
+            "products": sorted(set(products)),
+            "topics": sorted(set(topics)),
+            "sourceRecordId": call_id,
+        }
+        for call_id, date, channels, types, statuses, products, topics in cur.fetchall()
+    ]
+
+    cur.execute(
+        """
+        SELECT i.source_row_id, i.insight_intrctn_dtl_sfdc_id, i.insight_intrctn_rspns_sfdc_id,
+               i.uniq_rspns_id, i.qstn_ext_id, i.qstn_pid, i.qstn_txt, i.rspns_txt,
+               i.date_of_interaction::text
+        FROM hcp_raw_insights i
+        JOIN hcp_identifier_crosswalk x
+          ON x.source_system = 'hcp_raw_insights.cust_mdm_id' AND x.source_identifier = i.cust_mdm_id
+        WHERE x.hcp_id = %s AND coalesce(i.excluded_rspns_flag, false) = false
+        ORDER BY i.date_of_interaction DESC, i.insight_intrctn_dtl_sfdc_id DESC, i.source_row_id DESC
+        """,
+        (hcp_id,),
+    )
+    responses: list[dict[str, Any]] = []
+    parent_candidates: dict[tuple[str, str], list[str]] = {}
+    for row_id, interaction_id, source_id, unique_id, question_id, parent_question_id, question, answer, date in cur.fetchall():
+        response_id = f"insight-{row_id}"
+        interaction_id = interaction_id or f"interaction-{row_id}"
+        question_id = question_id or response_id
+        responses.append(
+            {
+                "responseId": response_id,
+                "interactionId": interaction_id,
+                "parentResponseId": None,
+                "questionId": question_id,
+                "question": question or "",
+                "answer": answer or "",
+                "interactionDate": date,
+                "sourceRecordId": source_id or unique_id or response_id,
+                "_parentQuestionId": parent_question_id,
+            }
+        )
+        parent_candidates.setdefault((interaction_id, question_id), []).append(response_id)
+    for response in responses:
+        candidates = parent_candidates.get(
+            (response["interactionId"], response.pop("_parentQuestionId")), []
+        )
+        if len(candidates) == 1:
+            response["parentResponseId"] = candidates[0]
+
+    answers_by_question: dict[str, list[dict[str, Any]]] = {}
+    for response in responses:
+        answers_by_question.setdefault(response["questionId"], []).append(response)
+    perspectives = [
+        {"questionId": question_id, "question": answers[0]["question"], "answers": answers}
+        for question_id, answers in answers_by_question.items()
+        if len(answers) > 1
+    ]
+    return {"hcpId": hcp_id, "interactions": interactions, "responses": responses, "perspectives": perspectives}
+
+
 def search_hcps(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> list[dict[str, Any]]:
     _require_hcp_search_access(cur, identity)
     pattern = _search_pattern(args.get("query")); limit = args.get("limit", 20)

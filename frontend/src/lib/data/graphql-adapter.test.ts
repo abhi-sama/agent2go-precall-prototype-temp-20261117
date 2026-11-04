@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { createGraphQLAdapter, type GraphQLTransport } from "./graphql-adapter"
-import { HCP_PROFILE_QUERY, LANDING_KPIS_QUERY, SEARCH_HCPS_QUERY } from "./operations"
+import { HCP_PROFILE_QUERY, HCP_TIMELINE_QUERY, LANDING_KPIS_QUERY, SEARCH_HCPS_QUERY } from "./operations"
 
 const ctx = { correlationId: "corr-9" }
 
@@ -45,5 +45,15 @@ describe("graphql adapter", () => {
       { query: SEARCH_HCPS_QUERY, variables: { query: "A", limit: null } },
       { query: HCP_PROFILE_QUERY, variables: { hcpId: "HCP-0001" } },
     ])
+  })
+
+  it("requests the HCP timeline through the contract", async () => {
+    const seen: unknown[] = []
+    const adapter = createGraphQLAdapter(async (req) => {
+      seen.push(req)
+      return { data: { hcpTimeline: { hcpId: "HCP-0001", interactions: [], responses: [], perspectives: [] } } as never }
+    })
+    await expect(adapter.hcpTimeline(ctx, "HCP-0001")).resolves.toMatchObject({ hcpId: "HCP-0001" })
+    expect(seen).toEqual([{ query: HCP_TIMELINE_QUERY, variables: { hcpId: "HCP-0001" } }])
   })
 })

@@ -17,6 +17,7 @@ import type {
   GeoActivity,
   HcpProfile,
   HcpSearchResult,
+  HcpTimeline,
   InsightDiscovery,
   SemanticInsightResult,
   InsightFilters,
@@ -79,6 +80,7 @@ export interface DataAdapter extends GovernanceAdapter {
   chatCitation(ctx: RequestContext, dataset: string, recordId: string): Promise<SourceRecord>
   searchHcps(ctx: RequestContext, query: string, limit?: number): Promise<HcpSearchResult[]>
   hcpProfile(ctx: RequestContext, hcpId: string): Promise<HcpProfile>
+  hcpTimeline(ctx: RequestContext, hcpId: string): Promise<HcpTimeline>
   insightDiscovery(ctx: RequestContext, filters?: InsightFilters): Promise<InsightDiscovery>
   semanticInsightSearch(ctx: RequestContext, query: string, limit?: number): Promise<SemanticInsightResult[]>
   savedViews(ctx: RequestContext): Promise<SavedView[]>

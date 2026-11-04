@@ -92,6 +92,13 @@ describe("mock adapter", () => {
     expect(discovery.distributions.reduce((total, row) => total + row.count, 0)).toBe(discovery.distributions[0].denominator)
   })
 
+  it("consolidates call product rows and preserves parent context within one interaction", async () => {
+    const timeline = await make("u-msl-ne-01").hcpTimeline(ctx, "HCP-0001")
+    expect(timeline.interactions).toEqual([expect.objectContaining({ callId: "CALL-MOCK-1001", products: ["osimertinib", "pembrolizumab"] })])
+    expect(timeline.responses.find((response) => response.responseId === "insight-mock-child")!.parentResponseId).toBe("insight-mock-parent")
+    expect(timeline.responses.find((response) => response.responseId === "insight-mock-unrelated")!.parentResponseId).toBeNull()
+  })
+
   it("saves a per-user filter preset and returns it for one-tap reopening", async () => {
     const adapter = make("u-msl-ne-01")
     const saved = await adapter.saveView(ctx, { name: "Lung pulse", reportKind: "insight-discovery", filters: { molecule: "osimertinib", questionId: "Q-0002" } })

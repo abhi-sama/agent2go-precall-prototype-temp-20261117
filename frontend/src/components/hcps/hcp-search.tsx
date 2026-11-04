@@ -10,6 +10,7 @@ import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
 import type { HcpField } from "@/lib/data/types"
 import { cn } from "@/lib/utils"
+import { HcpTimeline } from "./hcp-timeline"
 
 const PROFILE_FIELDS: readonly { key: "specialty" | "discipline" | "type" | "institution" | "credentials" | "territory"; label: string }[] = [
   { key: "specialty", label: "Specialty" },
@@ -132,6 +133,7 @@ export function HcpSearch() {
           )}
         </div>
       </div>
+      {selectedId && profile.status === "success" ? <div className="px-5 pb-5 sm:px-6 sm:pb-6"><HcpTimeline hcpId={selectedId} /></div> : null}
     </section>
   )
 }

@@ -65,6 +65,17 @@ query HcpProfile($hcpId: ID!) {
 }
 """
 
+HCP_TIMELINE = """
+query HcpTimeline($hcpId: ID!) {
+  hcpTimeline(hcpId: $hcpId) {
+    hcpId
+    interactions { callId interactionDate channels types statuses products topics sourceRecordId }
+    responses { responseId interactionId parentResponseId questionId question answer interactionDate sourceRecordId }
+    perspectives { questionId question answers { responseId interactionId parentResponseId questionId question answer interactionDate sourceRecordId } }
+  }
+}
+"""
+
 
 GEO_ACTIVITY = """
 query GeoActivity($from: AWSDate, $to: AWSDate) {
@@ -209,6 +220,9 @@ class Persona:
 
     def hcp_profile(self, hcp_id: str) -> GraphQLResult:
         return self.query(HCP_PROFILE, {"hcpId": hcp_id})
+
+    def hcp_timeline(self, hcp_id: str) -> GraphQLResult:
+        return self.query(HCP_TIMELINE, {"hcpId": hcp_id})
 
 
 @dataclass

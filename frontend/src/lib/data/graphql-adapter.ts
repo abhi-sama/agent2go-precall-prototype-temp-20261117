@@ -17,6 +17,7 @@ import {
   MY_FLAGS_QUERY,
   SET_ROLE_PERMISSIONS_MUTATION,
   HCP_PROFILE_QUERY,
+  HCP_TIMELINE_QUERY,
   SEARCH_HCPS_QUERY,
   START_CHAT_RUN_MUTATION,
   INSIGHT_DISCOVERY_QUERY,
@@ -42,6 +43,7 @@ import {
   type GeoActivity,
   type HcpProfile,
   type HcpSearchResult,
+  type HcpTimeline,
   type LandingKpis,
   type Me,
   type RequestContext,
@@ -202,6 +204,7 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     async chatCitation(ctx, dataset, recordId): Promise<SourceRecord> { return (await run<{ chatCitation: SourceRecord }>(transport, `query ChatCitation($dataset: String!, $recordId: ID!) { chatCitation(dataset: $dataset, recordId: $recordId) { dataset recordId title dataThrough fields { label value } } }`, { dataset, recordId }, ctx)).chatCitation },
     async searchHcps(ctx, query, limit) { return (await run<{ searchHcps: HcpSearchResult[] }>(transport, SEARCH_HCPS_QUERY, { query, limit: limit ?? null }, ctx)).searchHcps },
     async hcpProfile(ctx, hcpId) { return (await run<{ hcpProfile: HcpProfile }>(transport, HCP_PROFILE_QUERY, { hcpId }, ctx)).hcpProfile },
+    async hcpTimeline(ctx, hcpId) { return (await run<{ hcpTimeline: HcpTimeline }>(transport, HCP_TIMELINE_QUERY, { hcpId }, ctx)).hcpTimeline },
     async insightDiscovery(ctx, filters?: InsightFilters) {
       const data = await run<{ insightDiscovery: InsightDiscovery }>(transport, INSIGHT_DISCOVERY_QUERY, { filters }, ctx)
       return data.insightDiscovery

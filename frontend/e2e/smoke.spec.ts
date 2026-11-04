@@ -2,6 +2,23 @@ import { expect, test, type Page } from "@playwright/test"
 
 const kpiValue = async (page: Page, id: string) => Number(await page.getByTestId(`kpi-${id}-value`).getAttribute("data-value"))
 
+const HCP_TIMELINE_VIEWPORTS = [
+  { name: "MacBook Air 13", width: 1280, height: 800 },
+  { name: "MacBook Air 13 large", width: 1470, height: 956 },
+  { name: "MacBook Pro 14", width: 1512, height: 982 },
+  { name: "MacBook Pro 16", width: 1728, height: 1117 },
+  { name: "Desktop HD", width: 1920, height: 1080 },
+  { name: "Desktop QHD", width: 2560, height: 1440 },
+  { name: "iPad Air 11 portrait", width: 820, height: 1180, touch: true },
+  { name: "iPad Air 11 landscape", width: 1180, height: 820, touch: true },
+  { name: "iPad Pro 11 portrait", width: 834, height: 1194, touch: true },
+  { name: "iPad Pro 11 landscape", width: 1194, height: 834, touch: true },
+  { name: "iPad Air 13 portrait", width: 1024, height: 1366, touch: true },
+  { name: "iPad Air 13 landscape", width: 1366, height: 1024, touch: true },
+  { name: "iPad Pro 13 portrait", width: 1032, height: 1376, touch: true },
+  { name: "iPad Pro 13 landscape", width: 1376, height: 1032, touch: true },
+] as const
+
 test.beforeEach(async ({ page }) => {
   // Start every test as the default seeded MSL, regardless of earlier switches.
   await page.addInitScript(() => window.localStorage.removeItem("a2g.local.userId"))
@@ -59,6 +76,37 @@ test.describe("MSL landing", () => {
     await expect(page.getByTestId("hcp-profile")).toContainText("Credentials")
     await expect(page.getByTestId("hcp-profile")).toContainText("Missing")
     await expect(page.getByTestId("hcp-profile")).toContainText("Not available")
+    await expect(page.getByTestId("hcp-timeline")).toBeVisible()
+    await expect(page.getByTestId("call-CALL-MOCK-1001")).toContainText("osimertinib")
+    const child = page.getByTestId("response-insight-mock-child")
+    await expect(child).toHaveCount(1)
+    await page.getByTestId("response-insight-mock-parent").locator(":scope > summary").click()
+    await expect(child).toBeVisible()
+    await expect(page.getByTestId("hcp-perspective-history")).toContainText("Recorded over time")
+  })
+
+  test.describe("HCP timeline viewport matrix", () => {
+    // These visual checks deliberately share one local build; serial execution avoids starving it
+    // with fourteen simultaneous full page loads.
+    test.describe.configure({ mode: "serial" })
+    for (const viewport of HCP_TIMELINE_VIEWPORTS) {
+      test(`keeps the HCP interaction timeline usable at ${viewport.name}`, async ({ page }) => {
+        await page.setViewportSize(viewport)
+        await page.goto("/msl")
+        await page.getByTestId("hcp-search-input").fill("call system")
+        await page.getByTestId("hcp-search-submit").click()
+        await page.getByTestId("hcp-result-HCP-0001").click()
+        await expect(page.getByTestId("hcp-profile")).toBeVisible({ timeout: 10_000 })
+        await expect(page.getByTestId("hcp-timeline")).toBeVisible({ timeout: 10_000 })
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), viewport.name).toBe(true)
+        if ("touch" in viewport && viewport.touch) {
+          for (const summary of await page.getByTestId("hcp-response-cards").locator("summary").all()) {
+            const box = await summary.boundingBox()
+            expect(box?.height, `${viewport.name} response card target`).toBeGreaterThanOrEqual(44)
+          }
+        }
+      })
+    }
   })
 })
 

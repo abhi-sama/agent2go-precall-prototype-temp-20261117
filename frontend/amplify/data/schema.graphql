@@ -379,6 +379,10 @@ enum HcpFieldState { PRESENT MISSING }
 type HcpField { value: String state: HcpFieldState! }
 type HcpSearchResult { hcpId: ID! name: HcpField! institution: HcpField! territory: HcpField! }
 type HcpProfile { hcpId: ID! name: HcpField! specialty: HcpField! discipline: HcpField! type: HcpField! institution: HcpField! credentials: HcpField! territory: HcpField! }
+type HcpCallInteraction { callId: ID! interactionDate: AWSDate! channels: [String!]! types: [String!]! statuses: [String!]! products: [String!]! topics: [String!]! sourceRecordId: ID! }
+type HcpResponse { responseId: ID! interactionId: ID! parentResponseId: ID questionId: String! question: String! answer: String! interactionDate: AWSDate! sourceRecordId: ID! }
+type HcpPerspective { questionId: String! question: String! answers: [HcpResponse!]! }
+type HcpTimeline { hcpId: ID! interactions: [HcpCallInteraction!]! responses: [HcpResponse!]! perspectives: [HcpPerspective!]! }
 """One shared filter state. Empty fields mean "all values I am authorized to see"."""
 input InsightFiltersInput {
   from: AWSDate
@@ -612,6 +616,7 @@ type Query {
   chatCitation(dataset: String!, recordId: ID!): SourceRecord!
   searchHcps(query: String!, limit: Int): [HcpSearchResult!]!
   hcpProfile(hcpId: ID!): HcpProfile!
+  hcpTimeline(hcpId: ID!): HcpTimeline!
   insightDiscovery(filters: InsightFiltersInput): InsightDiscovery!
   semanticInsightSearch(query: String!, limit: Int): [SemanticInsightResult!]!
   savedViews: [SavedView!]!

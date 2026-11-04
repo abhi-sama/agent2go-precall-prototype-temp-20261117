@@ -513,6 +513,46 @@ export interface TerritoryComparison {
   disclosures: Disclosure[]
 }
 
+/** A CRM call consolidated from the source's repeated call-product rows. */
+export interface HcpCallInteraction {
+  callId: string
+  interactionDate: IsoDate
+  channels: string[]
+  types: string[]
+  statuses: string[]
+  products: string[]
+  topics: string[]
+  /** The original CRM call id, retained for source evidence. */
+  sourceRecordId: string
+}
+
+/** A source response. It is only nested if its parent response is in the same insight interaction. */
+export interface HcpResponse {
+  responseId: string
+  interactionId: string
+  parentResponseId: string | null
+  questionId: string
+  question: string
+  answer: string
+  interactionDate: IsoDate
+  /** The original response record identifier, not a generated summary id. */
+  sourceRecordId: string
+}
+
+/** A chronological comparison of original answers to one compatible catalog question. */
+export interface HcpPerspective {
+  questionId: string
+  question: string
+  answers: HcpResponse[]
+}
+
+export interface HcpTimeline {
+  hcpId: string
+  interactions: HcpCallInteraction[]
+  responses: HcpResponse[]
+  perspectives: HcpPerspective[]
+}
+
 export type DataErrorCode =
   | "UNAUTHENTICATED"
   | "FORBIDDEN"

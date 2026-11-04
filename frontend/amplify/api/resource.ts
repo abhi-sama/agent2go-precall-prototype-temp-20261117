@@ -24,6 +24,7 @@ export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'searchHcps' },
   { typeName: 'Query', fieldName: 'hcpProfile' },
   { typeName: 'Query', fieldName: 'adminDataQuality' },
+  { typeName: 'Query', fieldName: 'hcpTimeline' },
   { typeName: 'Mutation', fieldName: 'flagIssue' },
   { typeName: 'Query', fieldName: 'chatEvents' },
   { typeName: 'Query', fieldName: 'chatCitation' },
