@@ -67,6 +67,7 @@ class ResponseSearchResult:
     topic: str = ""
     period_from: dt.date | None = None
     period_to: dt.date | None = None
+    territory_filter: str | None = None
     matches: int = 0
     examples: tuple[ResponseExample, ...] = ()
     data_through: dt.datetime | None = None
@@ -476,6 +477,7 @@ class PostgresScopedRepository:
             topic=topic,
             period_from=start,
             period_to=end,
+            territory_filter=territory_id,
             matches=matches,
             examples=examples,
             data_through=data_through,

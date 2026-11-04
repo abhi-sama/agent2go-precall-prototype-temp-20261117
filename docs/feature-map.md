@@ -33,6 +33,7 @@ Then, as their blockers land:
 | 17 | #18 | Admin governance: status reconciliation, metric definitions, retention queues, issue assistant | #3, #17 |
 | 18 | #19 | AI evaluation panel: golden suites, automatic scoring, leak probes, history, human ratings | #3, #6 |
 | 32 | #62 | Chatbot answer-quality suite: 40+ golden questions per persona (exact counts, percentages, trends, comparisons, themes, 9-12 turn chains, leak probes), scored against SQL | #59, #60, #61, #19 |
+| 33 | #84 | Chat "Show rows": the exact rows behind a count, share or chart, sorted and paged under RLS, audited CSV export where permitted | #61, #62 |
 | 19 | #20 | Authorization verification grid across API, chat, caches and exports | #6, #7, #13, #16 |
 | 20 | #21 | iPad PWA with encrypted offline briefs and sync queue | #6, #10 |
 | 21 | #22 | 3D analytics visuals beyond the landing page | #12 |
@@ -63,3 +64,4 @@ Then, as their blockers land:
 | 21 (#22) | none (UI only) | A third **3D** view on the Director insights heatmap, drawn from `topicHeatmap`; 2D fallback and reduced motion (ADR 0012). |
 | 18 (#19) | `evalSuites`, `evalRuns`, `evalRun`, `evalRunDiff`, `evalRatings`, `startEvalRun`, `rateAnswer` | Administrators run golden suites per persona through the real agent; runs, results and ratings are stored in FE DynamoDB (`a2g-eval`); the worker is `a2g-be-eval` (ADR 0013). Any persona rates its own finished chat answer. |
 | 13 (#14) | `executiveThemes`, `executiveTopicMatrix`, `generateLeadershipSummary`, `leadershipSummary`, `myLeadershipSummaries`, `exportLeadershipSummary` | Aggregate-only theme cards and topic-by-region matrix from one shared library (`backend/libs/a2g_exec_analysis`); summaries are written by the agent, saved to FE DynamoDB, and re-authorized on open and export (ADR 0013). |
+| 33 (#84) | `chatAnswerRows`, `exportChatRows` | The agent describes the rows behind each figure (`row_sets` event); the BE Lambda reads that description from the caller's own run and lists the rows under RLS. Export needs `chat.rows.export` and is audited (ADR 0015). |

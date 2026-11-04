@@ -27,7 +27,7 @@ export function isFinished(run: Pick<EvalRunSummary, "status">): boolean {
 }
 
 /** Scores are met or not by the same bars the captain set: counts exact, faithfulness and citations at least 90%. */
-export const BAR = { faithfulness: 0.9, citationCorrectness: 0.9, exactCountRate: 1, directionRate: 0.9, visualMatchRate: 1, themeCoverage: 0.9 } as const
+export const BAR = { faithfulness: 0.9, citationCorrectness: 0.9, exactCountRate: 1, directionRate: 0.9, visualMatchRate: 1, rowMatchRate: 1, themeCoverage: 0.9 } as const
 /** A follow-up conversation has to reach this many turns to count as deep. */
 export const CHAIN_DEPTH_BAR = 8
 

@@ -683,6 +683,69 @@ export interface SourceRecord {
   dataThrough: IsoDateTime | null
 }
 
+/** What one row of a "Show rows" table is: a call, an HCP or a recorded response. */
+export type ChatRowKind = "CALLS" | "HCPS" | "RESPONSES"
+export type ChatRowColumnType = "TEXT" | "DATE" | "NUMBER"
+export type ChatRowSortDir = "ASC" | "DESC"
+
+export interface ChatRowColumn {
+  key: string
+  label: string
+  type: ChatRowColumnType
+}
+
+export interface ChatRow {
+  id: string
+  /** One cell per column, null where the source holds nothing. */
+  cells: (string | null)[]
+}
+
+export interface ChatRowsQuery {
+  runId: string
+  rowSetId: string
+  sortBy?: string
+  sortDir?: ChatRowSortDir
+  offset?: number
+  limit?: number
+}
+
+/**
+ * One sorted page of the exact rows behind a figure in a chat answer (docs/adr/0015). `total` is counted now from the
+ * rows; `answerCount` is the figure the answer stated, so a difference means the data changed since the answer.
+ */
+export interface ChatRowsPage {
+  rowSetId: string
+  kind: ChatRowKind
+  label: string
+  scope: string
+  period: string
+  /** What one row is. */
+  definition: string
+  total: number
+  answerCount: number
+  columns: ChatRowColumn[]
+  rows: ChatRow[]
+  offset: number
+  limit: number
+  sortBy: string
+  sortDir: ChatRowSortDir
+  /** True when the caller holds the chat row export permission. */
+  canExport: boolean
+  dataThrough: IsoDateTime | null
+}
+
+/** A CSV of the rows behind a figure, created only after access and the export permission were re-checked and audited. */
+export interface ChatRowsExport {
+  rowSetId: string
+  fileName: string
+  mimeType: string
+  content: string
+  rowCount: number
+  total: number
+  truncated: boolean
+  exportedAt: IsoDateTime
+}
+
 // ---- Pre-call brief (ticket 05, docs/adr/0009) ----------------------------------------------
 
 export type BriefOrigin = "GENERATED" | "USER"

@@ -6,7 +6,7 @@ passed by a correct answer (so no golden question is unanswerable), and the matc
 
 from __future__ import annotations
 
-from a2g_api.eval_scoring import Capture, Evidence, numbers_in
+from a2g_api.eval_scoring import ROW_METRICS, Capture, Evidence, numbers_in
 from a2g_api.eval_suites import GoldenQuestion
 from a2g_api.eval_truth import Truth
 
@@ -78,6 +78,12 @@ def ideal(q: GoldenQuestion, *, wrong: bool = False) -> tuple[Capture, Evidence]
     if q.visual == "chart":
         visuals = [{"phase": "ready", "kind": "bar", "title": "Chart", "metric": "calls", "total": 12, "points": [{"key": "a", "value": 12}]}]
     cap = Capture(text=text, facts=facts, citations=cites, visuals=visuals, computed=set(numbers_in(text)))
+    if e.metric in ROW_METRICS:
+        # A counted answer comes with the rows it counted: one row set per figure, each listing exactly that many rows.
+        # The share's numerator and denominator both have a set.
+        counts = [35, 21] if e.metric == "answer_share" else [12]
+        cap.row_sets = [{"label": "Rows", "count": c} for c in counts]
+        ev.row_checks = [("Rows", c, c) for c in counts]
     return cap, ev
 
 

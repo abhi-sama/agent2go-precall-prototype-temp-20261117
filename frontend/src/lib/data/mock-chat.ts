@@ -9,6 +9,7 @@ import type { ChatContext } from "./director-insights"
 import { TERRITORIES, type FixtureUser } from "./fixtures"
 import { buildMatrix, buildThemes } from "./mock-executive-themes"
 import { inferMockVisual, mockVisual } from "./mock-visuals"
+import { rememberRowSets, rowSetsEvent, type MockRowSet } from "./mock-chat-rows"
 import { mockResponseRecord, mockTerritorySummary } from "./mock-director-insights"
 import type { ChatEventPage, SourceRecord } from "./types"
 
@@ -81,6 +82,8 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
       }),
       custom("citations", cites),
       custom("sample_limitations", { items: matrix.sampleLimitations }),
+      // Aggregate-only access: the answer says rows are unavailable instead of offering a Show rows control.
+      custom("rows_unavailable", { reason: "aggregate_only" }),
       ev("TOOL_CALL_END", { toolCallId: "t1" }),
     )
     const lead = top.map((c) => `${c.topic} (${c.responses.value?.toLocaleString("en-US")} responses)`).join(" and ")
@@ -102,6 +105,11 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
     const to = todayIso(new Date(now))
     const period = `${addDays(to, -89)} to ${to}`
     const cites = [1, 2, 3].map((n) => ({ record_id: `CALL-0000${n}`, dataset: "call_activity", label: `Call on ${addDays(to, -n)} (scientific)` }))
+    // The rows behind each key figure: exactly as many as the figure says, in the viewer's territory.
+    const setOf = (n: number, kind: MockRowSet["kind"], label: string, count: number): MockRowSet => ({
+      rowSetId: `rs${n}`, kind, label, count, periodFrom: addDays(to, -89), periodTo: to, scope: territory.id, sourceId: `f${n}`, territoryId: territory.id,
+    })
+    const rowSets = [setOf(1, "calls", "Distinct calls", calls), setOf(2, "hcps", "Engaged HCPs", hcps), setOf(3, "responses", "Insight responses", responses)]
     events.push(
       ev("TOOL_CALL_START", { toolCallId: "t1", toolCallName: "get_activity_summary" }),
       custom("source_facts", {
@@ -113,8 +121,10 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
         data_through: new Date(now - 86_400_000).toISOString(),
       }),
       custom("citations", cites),
+      custom("row_sets", rowSetsEvent(rowSets)),
       ev("TOOL_CALL_END", { toolCallId: "t1" }),
     )
+    rememberRowSets(runId, rowSets)
     const request = inferMockVisual(question)
     if (request) {
       const through = new Date(now - 86_400_000).toISOString()

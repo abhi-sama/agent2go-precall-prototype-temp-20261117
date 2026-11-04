@@ -8,6 +8,7 @@ import { buildComparison, buildOverview, tooLong } from "./mock-director"
 import { buildExecutiveDrilldown, buildExecutiveOverview, defaultExecutiveRange, executiveWindowTooLong, type ExecutiveInput } from "./mock-executive"
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
 import { mockCitation, readRun, scriptRun } from "./mock-chat"
+import { findRowSet, mockRowsExport, mockRowsPage } from "./mock-chat-rows"
 import { createMockAppearance } from "./mock-appearance"
 import { createMockBriefs } from "./mock-briefs"
 import { createMockExecutiveThemes, type ThemesInput } from "./mock-executive-themes"
@@ -50,10 +51,11 @@ import {
  * `targets` is `ok` plus an approved target population for two territories, so coverage can be shown.
  * `records` is `ok` plus explicit record-level permission for an Executive, so nothing is withheld and drill-down opens.
  * `scope-changed` is `ok` except that saved leadership summaries can no longer be opened or exported (the Executive's scope changed).
+ * `no-export` is `ok` except that the viewer lacks the chat row export permission: rows can be read, not downloaded.
  */
-export type MockScenario = "ok" | "empty" | "error" | "forbidden" | "slow" | "stale" | "targets" | "records" | "scope-changed"
+export type MockScenario = "ok" | "empty" | "error" | "forbidden" | "slow" | "stale" | "targets" | "records" | "scope-changed" | "no-export"
 
-const SCENARIOS: readonly MockScenario[] = ["ok", "empty", "error", "forbidden", "slow", "stale", "targets", "records", "scope-changed"]
+const SCENARIOS: readonly MockScenario[] = ["ok", "empty", "error", "forbidden", "slow", "stale", "targets", "records", "scope-changed", "no-export"]
 
 /** `?scenario=` is honoured only in local builds, so tests and demos can force each UI state. */
 export function readScenario(search: string | undefined): MockScenario {
@@ -119,6 +121,15 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       throw new DataError("UNAVAILABLE", "The data service is unavailable.", ctx.correlationId)
     }
     return s
+  }
+
+  /** The row set of a run, read only for a viewer with record-level access (an Executive is aggregate-only). */
+  function rowSetFor(ctx: RequestContext, runId: string, rowSetId: string) {
+    const user = findUser(options.getUserId())
+    if (user.persona === "executive" || user.territoryIds.length === 0) throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+    const found = findRowSet(runId, rowSetId)
+    if (typeof found === "string") throw new DataError("NOT_FOUND", "That record is not available in your scope.", ctx.correlationId)
+    return found
   }
 
   function resolveRange(range?: Partial<DateRange>): DateRange {
@@ -533,6 +544,26 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       const record = mockCitation(dataset, recordId, findUser(options.getUserId()), now(), scenario() === "records")
       if (!record) throw new DataError("NOT_FOUND", "That record is not available in your scope.", ctx.correlationId)
       return record
+    },
+    async chatAnswerRows(ctx, query) {
+      const s = await gate(ctx, "chatAnswerRows")
+      if (s === "forbidden") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      const found = rowSetFor(ctx, query.runId, query.rowSetId)
+      const page = mockRowsPage(found, query.runId, query, s !== "no-export", dataThrough(s))
+      if (page === "invalid_sort") throw new DataError("BAD_REQUEST", "The request arguments are invalid.", ctx.correlationId)
+      return page
+    },
+    async exportChatRows(ctx, input) {
+      const s = await gate(ctx, "exportChatRows")
+      if (s === "forbidden") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      const found = rowSetFor(ctx, input.runId, input.rowSetId)
+      if (s === "no-export") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      const exportedAt = now().toISOString()
+      const file = mockRowsExport(found, input.runId, input, exportedAt, dataThrough(s))
+      if (file === "invalid_sort") throw new DataError("BAD_REQUEST", "The request arguments are invalid.", ctx.correlationId)
+      // Same trail as the BE: ids and counts only.
+      audit.unshift({ eventId: String(1000 + audit.length), actorUserId: options.getUserId(), action: "chat_rows.exported", resourceType: "chat_row_set", resourceId: `${input.runId}:${input.rowSetId}`, outcome: "allowed", occurredAt: exportedAt })
+      return file
     },
     async searchHcps(ctx, query): Promise<HcpSearchResult[]> { await gate(ctx, "searchHcps"); const user = findUser(options.getUserId()); return user.territoryIds.includes("NE-01") && query.toLowerCase().includes("call") ? [{ hcpId: "HCP-0001", name: { value: "Call system HCP 0001", state: "PRESENT" }, institution: { value: "Northeast Cancer Center", state: "PRESENT" }, territory: { value: "Boston Metro", state: "PRESENT" } }] : [] },
     async hcpProfile(ctx, hcpId): Promise<HcpProfile> { await gate(ctx, "hcpProfile"); if (!hcpInScope(hcpId)) throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId); const p = (v: string | null) => ({ value: v, state: v === null ? "MISSING" as const : "PRESENT" as const }); return { hcpId, name: p("Call system HCP 0001"), specialty: p("Medical oncology"), discipline: p("Oncology"), type: p("HCP"), institution: p("Northeast Cancer Center"), credentials: p(null), territory: p("Boston Metro") } },

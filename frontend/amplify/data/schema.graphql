@@ -533,6 +533,40 @@ input ChatMessageInput { role: String!, content: String! }
 type SourceField { label: String!, value: String! }
 type SourceRecord { dataset: String!, recordId: ID!, title: String!, fields: [SourceField!]!, dataThrough: AWSDateTime }
 
+"""What one row of a "Show rows" table is: a call, an HCP or a recorded response."""
+enum ChatRowKind { CALLS HCPS RESPONSES }
+enum ChatRowColumnType { TEXT DATE NUMBER }
+enum ChatRowSortDir { ASC DESC }
+type ChatRowColumn { key: String!, label: String!, type: ChatRowColumnType! }
+type ChatRow { id: ID!, cells: [String]! }
+"""
+One sorted page of the exact rows behind a figure in a chat answer, limited by the caller's row-level security.
+`total` is counted now from the rows; `answerCount` is the figure the answer stated, so a difference means the data
+changed since the answer was given.
+"""
+type ChatRowsPage {
+  rowSetId: ID!
+  kind: ChatRowKind!
+  label: String!
+  scope: String!
+  period: String!
+  "What one row is."
+  definition: String!
+  total: Int!
+  answerCount: Int!
+  columns: [ChatRowColumn!]!
+  rows: [ChatRow!]!
+  offset: Int!
+  limit: Int!
+  sortBy: String!
+  sortDir: ChatRowSortDir!
+  "True when the caller holds the chat row export permission."
+  canExport: Boolean!
+  dataThrough: AWSDateTime
+}
+"""A CSV of the rows behind a figure, created only after access and the export permission were re-checked and the export was audited."""
+type ChatRowsExport { rowSetId: ID!, fileName: String!, mimeType: String!, content: String!, rowCount: Int!, total: Int!, truncated: Boolean!, exportedAt: AWSDateTime! }
+
 "One BE-published event for the AWS AppSync subscription path."
 type LiveChatEvent { runId: ID!, seq: Int!, data: String! }
 input PublishChatEventInput { runId: ID!, seq: Int!, data: String! }
@@ -1398,6 +1432,8 @@ type EvalRunSummary {
   visualMatchRate: Float
   "Questions that needed a chart or key figures and got one."
   visualCoverage: Float
+  "Counted answers whose Show rows tables list exactly the rows each stated figure counted, recounted under the subject's access."
+  rowMatchRate: Float
   "Qualitative answers that cover their theme."
   themeCoverage: Float
   "Follow-up conversations asked, the most turns any of them reached, and how many stayed correct throughout."
@@ -1444,6 +1480,12 @@ type EvalResult {
   factsShown: Int
   "Why a chart or key figure was judged not to match SQL."
   visualNotes: [String!]
+  "1 when every Show rows table lists exactly the rows its figure counted (and one exists where the answer states a count), 0 when not."
+  rowsMatch: Float
+  "How many row sets the answer offered behind its figures."
+  rowSetsShown: Int
+  "Why Show rows was judged not to match the stated figure."
+  rowNotes: [String!]
   "Figures in the answer that no tool returned, which is why it failed faithfulness."
   unverifiedSample: [String!]
   leaked: Boolean!
@@ -1497,6 +1539,8 @@ type EvalRun {
   visualMatchRate: Float
   "Questions that needed a chart or key figures and got one."
   visualCoverage: Float
+  "Counted answers whose Show rows tables list exactly the rows each stated figure counted, recounted under the subject's access."
+  rowMatchRate: Float
   "Qualitative answers that cover their theme."
   themeCoverage: Float
   "Follow-up conversations asked, the most turns any of them reached, and how many stayed correct throughout."
@@ -1603,6 +1647,8 @@ type Query {
   chatEvents(runId: ID!, after: Int): ChatEventPage!
   "Opening and exporting both re-check RLS; export requests are recorded in the access audit."
   chatCitation(dataset: String!, recordId: ID!, auditExport: Boolean = false): SourceRecord!
+  "The exact rows behind a count, share or chart in one of the caller's own chat runs. Record-level access only; aggregate-only callers are refused."
+  chatAnswerRows(runId: ID!, rowSetId: ID!, sortBy: String, sortDir: ChatRowSortDir, offset: Int, limit: Int): ChatRowsPage!
   searchHcps(query: String!, limit: Int): [HcpSearchResult!]!
   hcpProfile(hcpId: ID!): HcpProfile!
   hcpTimeline(hcpId: ID!): HcpTimeline!
@@ -1663,6 +1709,8 @@ type Mutation {
   saveBriefEdits(input: BriefEditInput!): PreCallBrief!
   "Create a printable brief snapshot after re-checking access and recording the export audit event."
   exportBrief(briefId: ID!): BriefExport!
+  "Download the rows behind a chat figure as CSV. Re-checks record access and the export permission, and records the export in the access audit."
+  exportChatRows(runId: ID!, rowSetId: ID!, sortBy: String, sortDir: ChatRowSortDir): ChatRowsExport!
   "Executive: generate and save a source-linked leadership summary for a date range over the explicit scope."
   generateLeadershipSummary(from: AWSDate, to: AWSDate, regeneratesSummaryId: ID): LeadershipSummary!
   "Create a printable leadership summary after re-checking access and recording the export audit event."

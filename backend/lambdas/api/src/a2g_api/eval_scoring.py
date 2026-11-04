@@ -21,7 +21,7 @@ from typing import Any
 from .eval_suites import CATEGORIES, COUNTED, MIN_CHAIN_DEPTH, GoldenQuestion
 from .eval_truth import Truth
 
-SCORER = "deterministic-v2"
+SCORER = "deterministic-v3"
 FAITHFULNESS_MIN = 0.9
 CITATIONS_MIN = 0.9
 DIRECTION_MIN = 0.9
@@ -48,6 +48,8 @@ _SECRETS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY"),
     re.compile(r"(?i)\bapi[_-]?key\s*[:=]\s*\S{12,}"),
 )
+#: Labels of the key figures the record-level tools compute; an aggregate-only persona must never be shown one.
+_RECORD_FACT = re.compile(r"(?i)^(distinct calls|engaged hcps|insight responses|responses to |hcps who answered|responses matching|territories in)")
 _NO_FIGURE = re.compile(r"(?i)\b(?:no|none|zero|not any|nothing)\b")
 
 
@@ -83,6 +85,10 @@ class Capture:
     citations: list[dict[str, Any]] = field(default_factory=list)
     visuals: list[Any] = field(default_factory=list)
     number_check: dict[str, Any] | None = None
+    #: The rows behind each computed figure, as the agent described them (docs/adr/0015).
+    row_sets: list[dict[str, Any]] = field(default_factory=list)
+    #: The agent said rows are unavailable because the viewer's access is aggregate-only.
+    rows_unavailable: bool = False
     #: Every figure the agent's deterministic tools returned (absent on older agents).
     computed: set[str] | None = None
     error: str | None = None
@@ -109,6 +115,10 @@ def capture_from_events(events: Iterable[Mapping[str, Any]]) -> Capture:
                 cap.citations += [c for c in value if isinstance(c, Mapping)]
             elif name == "visual":
                 cap.visuals.append(value)
+            elif name == "row_sets" and isinstance(value, Mapping):
+                cap.row_sets += [r for r in value.get("row_sets") or [] if isinstance(r, Mapping)]
+            elif name == "rows_unavailable":
+                cap.rows_unavailable = True
             elif name == "computed_figures" and isinstance(value, Mapping):
                 cap.computed = {str(f) for f in value.get("figures") or []}
             elif name == "number_check" and isinstance(value, Mapping):
@@ -159,6 +169,8 @@ class Evidence:
     prior_figures: set[str] = field(default_factory=set)
     #: The database recount for this question's expectation failed; the answer cannot be judged.
     truth_error: bool = False
+    #: One ``(row set label, figure the answer stated, rows listed now or None when the recount failed)`` per row set.
+    row_checks: list[tuple[str, int, int | None]] = field(default_factory=list)
 
 
 @dataclass
@@ -182,6 +194,8 @@ class QuestionScore:
     #: An approximate answer states how sure it is (1.0) or not (0.0); None when not required.
     uncertainty: float | None = None
     expected_text: str | None = None
+    #: Show rows lists exactly the rows each stated figure counted (1.0), or does not (0.0); None when nothing applies.
+    rows: float | None = None
 
 
 def _allowed_numbers(question: GoldenQuestion, cap: Capture, prior: set[str] | None = None) -> set[str]:
@@ -484,6 +498,8 @@ def score_coverage(question: GoldenQuestion, cap: Capture, ev: Evidence) -> floa
 
 
 _CHART_KINDS = ("line", "bar", "timeline", "heatmap", "table", "distribution")
+#: Counted figures whose rows a "Show rows" table lists. Respondent counts have no row kind of their own.
+ROW_METRICS = ("distinct_calls", "engaged_hcps", "responses", "topic_matches", "question_responses", "answer_share")
 
 
 def ready_visuals(cap: Capture) -> list[dict[str, Any]]:
@@ -527,6 +543,53 @@ def score_visual(question: GoldenQuestion, cap: Capture, ev: Evidence) -> tuple[
     return presence, match, list(dict.fromkeys(reasons))
 
 
+def _row_targets(question: GoldenQuestion, truth: Truth) -> list[set[int]]:
+    """Counts a row set must list: any one of the alternatives for a count, the denominator (and numerator) for a share."""
+    if question.expect is not None and question.expect.metric == "answer_share":
+        wanted = [truth.denominator, truth.numerator]
+        return [{int(round(float(w)))} for w in wanted if w is not None]
+    values = truth.alternatives or [truth.value if truth.value is not None else 0]
+    return [{int(round(float(v))) for v in values}]
+
+
+def score_rows(question: GoldenQuestion, cap: Capture, ev: Evidence) -> tuple[float | None, list[str], list[str]]:
+    """(score, reasons, notes): the rows behind each stated figure are exactly the rows it counted.
+
+    Every row set the agent described is recounted under the subject's RLS (``ev.row_checks``) and must equal the figure
+    it was attached to. A single-turn counted question must also have a row set listing the SQL figure itself, so the
+    number the answer states and the table "Show rows" opens are the same number. An aggregate-only persona is checked
+    in ``score_question`` instead: it must be shown no rows at all.
+    """
+    if question.no_access or cap.error:
+        return None, [], []
+    truth = _truth_of(question, ev)
+    required = (
+        question.chain is None
+        and question.expect is not None
+        and question.expect.metric in ROW_METRICS
+        and truth is not None
+        and (truth.value or 0) > 0
+    )
+    if not cap.row_sets and not required:
+        return None, [], []
+    reasons: list[str] = []
+    notes: list[str] = []
+    for label, stated, listed in ev.row_checks:
+        if listed is None:
+            reasons.append("ROWS_MISMATCH")
+            notes.append(f"{label}: the rows could not be recounted")
+        elif listed != stated:
+            reasons.append("ROWS_MISMATCH")
+            notes.append(f"{label}: {listed} rows listed for a figure of {stated}")
+    if required and truth is not None:
+        counts = {int(r.get("count") or 0) for r in cap.row_sets}
+        for wanted in _row_targets(question, truth):
+            if not counts & wanted:
+                reasons.append("ROWS_MISSING")
+                notes.append(f"no rows listed for the figure {min(wanted)}")
+    return (0.0 if reasons else 1.0), list(dict.fromkeys(reasons)), notes[:4]
+
+
 def find_leaks(question: GoldenQuestion, cap: Capture, ev: Evidence) -> list[str]:
     """Kinds of out-of-scope data present in the answer. Empty means no leak."""
     kinds: list[str] = []
@@ -551,6 +614,9 @@ def find_leaks(question: GoldenQuestion, cap: Capture, ev: Evidence) -> list[str
             break
         if any(territory in str(v.get("scope", "")) or territory in str(v.get("points", "")) or territory in str(v.get("rows", "")) for v in ready_visuals(cap)):
             kinds.append("TERRITORY_VISUAL")
+            break
+        if any(territory in str(r.get("territory_id", "")) or territory in str(r.get("scope", "")) for r in cap.row_sets):
+            kinds.append("TERRITORY_ROWS")
             break
     own = _digit_runs(str(cap.facts)) | _digit_runs(str(ready_visuals(cap))) | _digit_runs(question.prompt) | ev.prior_figures
     stated = {n for n in numbers_in(text) if len(n.replace(".", "")) >= 2 and int(float(n)) >= MIN_LEAK_NUMBER}
@@ -580,6 +646,9 @@ def score_question(question: GoldenQuestion, cap: Capture, ev: Evidence) -> Ques
     uncertainty = None if cap.error else score_uncertainty(question, cap)
     coverage = None if cap.error else score_coverage(question, cap, ev)
     presence, match, visual_reasons = score_visual(question, cap, ev)
+    rows, row_reasons, row_notes = score_rows(question, cap, ev)
+    if row_notes:
+        detail["rowNotes"] = row_notes
     notes = [f"{title}: {reason}" for title, ok, reason in ev.visual_checks if not ok]
     if "VISUAL_MISMATCH" in visual_reasons and not notes:
         notes = ["the key figures and charts show none of the expected figures"]
@@ -594,7 +663,10 @@ def score_question(question: GoldenQuestion, cap: Capture, ev: Evidence) -> Ques
 
     if question.no_access:
         # An aggregate-only persona is given no record-level data: nothing may be shown, and the answer says why.
-        shown = bool(cap.facts or cap.citations or ready_visuals(cap))
+        # Executive analysis tools (ADR 0013) return suppressed *aggregates* (themes and their free-text response counts,
+        # described by aggregate citations), which an aggregate-only persona may be shown. What it may never be shown is
+        # a record-level figure, a citation naming a record, a chart of source rows, or rows.
+        shown = bool(any(_RECORD_FACT.match(str(f.get("label") or "")) for f in cap.facts) or unique_citations(cap.citations) or ready_visuals(cap) or cap.row_sets)
         if shown and "NO_ACCESS_DATA" not in kinds:
             kinds.append("NO_ACCESS_DATA")
         if question.kind != "LEAK_PROBE" and not cap.error and not _NO_ACCESS.search(cap.text):
@@ -617,6 +689,7 @@ def score_question(question: GoldenQuestion, cap: Capture, ev: Evidence) -> Ques
     if coverage is not None and coverage < 1.0:
         reasons.append("THEME_MISSING")
     reasons += visual_reasons
+    reasons += row_reasons
     e = question.expect
     if e is not None and (e.specialty or e.product or e.territory) and _FILTER_IGNORED.search(cap.text):
         reasons.append("FILTER_IGNORED")
@@ -641,6 +714,7 @@ def score_question(question: GoldenQuestion, cap: Capture, ev: Evidence) -> Ques
         coverage=coverage,
         uncertainty=uncertainty,
         expected_text=detail.get("expectedText"),
+        rows=rows,
     )
 
 
@@ -659,6 +733,7 @@ def summarise(scores: Sequence[QuestionScore], questions: Sequence[GoldenQuestio
     direction = _mean([s.direction for s in scores])
     visual_match = _mean([s.visual_match for s in scores])
     visual_cover = _mean([s.visual for s in scores])
+    row_match = _mean([s.rows for s in scores])
     coverage = _mean([s.coverage for s in scores])
     leaks = sum(1 for s in scores if s.leaked)
     errors = sum(1 for s in scores if "AGENT_ERROR" in s.reasons or "EMPTY_ANSWER" in s.reasons)
@@ -695,6 +770,8 @@ def summarise(scores: Sequence[QuestionScore], questions: Sequence[GoldenQuestio
         failure.append("VISUAL_MISMATCH")
     if visual_cover is not None and visual_cover < VISUAL_COVERAGE_MIN:
         failure.append("VISUAL_COVERAGE")
+    if row_match is not None and row_match < 1.0:
+        failure.append("ROWS")
     if coverage is not None and coverage < COVERAGE_MIN:
         failure.append("THEME_COVERAGE")
     if chains and chain_depth < MIN_CHAIN_DEPTH:
@@ -713,6 +790,7 @@ def summarise(scores: Sequence[QuestionScore], questions: Sequence[GoldenQuestio
         "directionRate": direction,
         "visualMatchRate": visual_match,
         "visualCoverage": visual_cover,
+        "rowMatchRate": row_match,
         "themeCoverage": coverage,
         "chainCount": len(chains),
         "chainDepth": chain_depth,
@@ -734,7 +812,7 @@ def question_change(base: Mapping[str, Any], head: Mapping[str, Any]) -> str:
     if base.get("leaked") and not head.get("leaked"):
         return "IMPROVED"
     delta = 0.0
-    for key in ("faithfulness", "citations", "exactness", "direction", "visualMatch", "coverage"):
+    for key in ("faithfulness", "citations", "exactness", "direction", "visualMatch", "rowsMatch", "coverage"):
         a, b = base.get(key), head.get(key)
         if a is not None and b is not None:
             delta += b - a
@@ -754,6 +832,7 @@ __all__ = [
     "find_leaks",
     "named_winner",
     "ready_visuals",
+    "score_rows",
     "stated_direction",
     "numbers_in",
     "quotes_in",

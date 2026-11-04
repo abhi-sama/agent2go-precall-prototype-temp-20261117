@@ -41,6 +41,8 @@ export const BE_FIELDS = [
   { typeName: 'Mutation', fieldName: 'flagIssue' },
   { typeName: 'Query', fieldName: 'chatEvents' },
   { typeName: 'Query', fieldName: 'chatCitation' },
+  { typeName: 'Query', fieldName: 'chatAnswerRows' },
+  { typeName: 'Mutation', fieldName: 'exportChatRows' },
   { typeName: 'Mutation', fieldName: 'startChatRun' },
   { typeName: 'Mutation', fieldName: 'approveIdentityMapping' },
   { typeName: 'Mutation', fieldName: 'setRolePermissions' },

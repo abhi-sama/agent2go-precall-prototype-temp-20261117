@@ -517,6 +517,63 @@ export const SCREENS: ScreenSpec[] = [
       await expect(page.getByTestId("chat-rows")).toBeVisible()
     },
   },
+  {
+    name: "chat-answer-rows",
+    path: "/chat",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      // Collapsed by default; one tap opens the exact rows behind the count.
+      await expect(page.getByTestId("answer-rows-toggle")).toHaveAttribute("aria-expanded", "false")
+      await page.getByTestId("answer-rows-toggle").click()
+      await expect(page.getByTestId("answer-rows-table")).toBeVisible()
+    },
+  },
+  {
+    name: "chat-answer-rows-sorted",
+    path: "/chat",
+    userId: "u-dir-ne",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await page.getByTestId("answer-rows-toggle").click()
+      await expect(page.getByTestId("answer-rows-table")).toBeVisible()
+      // Another set, sorted by a numeric column, on the second page.
+      await page.getByTestId("row-set-option").nth(1).click()
+      await page.getByTestId("answer-rows-sort").and(page.locator('[data-column="calls"]')).click()
+      await expect(page.getByTestId("answer-rows-table")).toHaveAttribute("data-sort-by", "calls")
+      await page.getByTestId("answer-rows-next").click()
+      await expect(page.getByTestId("answer-rows-range")).toContainText("26–50")
+    },
+  },
+  {
+    name: "chat-answer-rows-no-export",
+    path: "/chat?scenario=no-export",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await page.getByTestId("answer-rows-toggle").click()
+      await expect(page.getByTestId("answer-rows-export-denied")).toBeVisible()
+    },
+  },
+  {
+    name: "chat-answer-aggregate-only",
+    path: "/chat",
+    userId: "u-exec-all",
+    ready: testId("chat-input"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-input").fill("Which topics are rising across regions?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("aggregate-only-note")).toBeVisible()
+    },
+  },
   ...([
     ["line", "Show my calls by month", "line-chart"],
     ["bars", "Compare my calls by product", "ranked-bars"],

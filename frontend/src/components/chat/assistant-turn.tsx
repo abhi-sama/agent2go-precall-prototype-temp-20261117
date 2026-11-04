@@ -1,8 +1,9 @@
 "use client"
 
-import { AlertTriangle, BarChart3, FileText, Info, Loader2 } from "lucide-react"
+import { AlertTriangle, BarChart3, FileText, Info, Loader2, Lock } from "lucide-react"
 import * as React from "react"
 import { AnswerFeedback } from "@/components/chat/answer-feedback"
+import { AnswerRows } from "@/components/chat/answer-rows"
 import { VisualCard } from "@/components/chat/visual-card"
 import { AiSummary, CitationChip, ExportButton, SourceFact, Suggestion, type ProvenanceCitation } from "@/components/provenance/provenance"
 import { Badge } from "@/components/ui/badge"
@@ -106,6 +107,8 @@ export function AssistantTurnView({
   aggregateOnly: boolean
 }) {
   const running = turn.status === "running"
+  // A turn restored from an older session copy has no row sets.
+  const rowSets = turn.rowSets ?? []
   const through = formatThrough(turn.dataThrough)
   const limitations = turn.sampleLimitations
   // The limitations have their own labelled block; the agent also writes them into the answer text, so don't show them twice.
@@ -185,6 +188,8 @@ export function AssistantTurnView({
         </AiSummary>
       )}
 
+      {turn.status === "done" && rowSets.length > 0 && <AnswerRows runId={turn.runId} rowSets={rowSets} />}
+
       {limitations.length > 0 && (
         <section data-testid="sample-limitations" aria-label="Sample limitations" className="rounded-xl border border-warning/40 bg-warning/8 p-3 text-sm">
           <h4 className="flex items-center gap-2 text-sm font-semibold"><Info className="size-4 text-warning" aria-hidden />Sample limitations</h4>
@@ -207,9 +212,13 @@ export function AssistantTurnView({
         </p>
       )}
 
-      {aggregateOnly && turn.status === "done" && (
-        <p data-testid="aggregate-only-note" className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
-          Your aggregate-only access does not grant source-row access. Records and exports are unavailable in chat.
+      {(aggregateOnly || turn.rowsUnavailable) && turn.status === "done" && rowSets.length === 0 && (
+        <p data-testid="aggregate-only-note" className="flex items-start gap-2 rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
+          <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            <strong className="font-semibold text-foreground">Rows are not available for this answer.</strong> Your aggregate-only access does not grant
+            source-row access, so chat shows aggregates only, with small groups withheld. Records and exports are unavailable in chat.
+          </span>
         </p>
       )}
 

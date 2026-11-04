@@ -68,9 +68,10 @@ export function RunScores({ run }: { run: EvalRunSummary }) {
         <ScoreTile id="exact" label="Exact counts" value={run.exactCountRate} bar={BAR.exactCountRate} hint="counts and shares equal the SQL" />
         <LeakTile count={run.leakCount} probes={run.probeCount} />
       </div>
-      <div data-testid="run-scores-more" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div data-testid="run-scores-more" className="grid grid-cols-2 gap-3 xl:grid-cols-5">
         <ScoreTile id="direction" label="Trends and comparisons" value={run.directionRate} bar={BAR.directionRate} hint="direction or leader agrees with SQL" />
         <ScoreTile id="visual" label="Chart numbers" value={run.visualMatchRate} bar={BAR.visualMatchRate} hint="every plotted number equals SQL" />
+        <ScoreTile id="rows" label="Show rows" value={run.rowMatchRate} bar={BAR.rowMatchRate} hint="each table lists exactly the rows its figure counted" />
         <ScoreTile id="theme" label="Theme coverage" value={run.themeCoverage} bar={BAR.themeCoverage} hint="answers cover the theme asked" />
         <ChainTile run={run} />
       </div>
@@ -127,9 +128,10 @@ function Metric({ label, value }: { label: string; value: number | null }) {
   )
 }
 
-const CHECKS: { key: "direction" | "visual" | "visualMatch" | "coverage" | "uncertainty"; label: string }[] = [
+const CHECKS: { key: "direction" | "visual" | "visualMatch" | "rowsMatch" | "coverage" | "uncertainty"; label: string }[] = [
   { key: "direction", label: "Direction" },
   { key: "visualMatch", label: "Charts match" },
+  { key: "rowsMatch", label: "Rows match" },
   { key: "coverage", label: "Theme" },
 ]
 

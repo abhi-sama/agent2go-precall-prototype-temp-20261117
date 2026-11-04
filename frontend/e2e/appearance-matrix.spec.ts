@@ -13,7 +13,7 @@ import { VIEWPORTS } from "./support/viewports"
  *
  * Follow-device is not a seventh look: it resolves to light or charcoal, and is covered below.
  */
-const KEY_SCREENS = ["msl-landing", "director-landing", "admin", "chat", "design-system"]
+const KEY_SCREENS = ["msl-landing", "director-landing", "admin", "chat", "chat-answer-rows", "design-system"]
 const STYLES = ["warm", "clinical"] as const
 const MODES = ["light", "charcoal", "black"] as const
 

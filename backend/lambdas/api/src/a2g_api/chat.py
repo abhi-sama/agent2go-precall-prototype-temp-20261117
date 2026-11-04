@@ -200,6 +200,11 @@ def chat_citation(cur: psycopg.Cursor, identity: Identity, user_id: str, args: M
     if dataset not in _RECORD_DATASETS or not isinstance(record_id, str) or not 1 <= len(record_id) <= 64:
         raise BadRequest("invalid_citation")
     _require_record_access(cur)
+    if args.get("auditExport") is True:
+        # Exporting is a narrower grant than reading: refuse before anything is read or recorded.
+        cur.execute("SELECT app.has_permission('admin.manage') OR app.has_permission('chat.rows.export')")
+        if not cur.fetchone()[0]:
+            raise Forbidden("export_not_permitted")
     if dataset == "call_activity":
         cur.execute(
             """

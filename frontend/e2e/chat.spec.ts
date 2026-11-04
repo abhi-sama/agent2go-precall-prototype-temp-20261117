@@ -166,3 +166,149 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await expect(page.getByTestId("visual")).toHaveCount(0)
   })
 })
+
+test.describe("Show rows (mock adapter, iPad viewports)", () => {
+  const COUNT_QUESTION = "How many calls did I have in the last 90 days?"
+  const done = async (page: import("@playwright/test").Page) => {
+    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+  }
+  const numbers = (page: import("@playwright/test").Page, column: string) =>
+    page.locator(`[data-testid="answer-row"] [data-column="${column}"]`).evaluateAll((els) => els.map((e) => Number(e.textContent)))
+
+  test("is collapsed under a count, opens to exactly the rows counted, and says they match the answer", async ({ page }) => {
+    await page.goto("/chat")
+    await ask(page, COUNT_QUESTION)
+    await done(page)
+    const calls = Number(await page.getByTestId("fact-f1").getAttribute("data-value"))
+    const hcps = Number(await page.getByTestId("fact-f2").getAttribute("data-value"))
+    const responses = Number(await page.getByTestId("fact-f3").getAttribute("data-value"))
+
+    // Hidden by default: nothing is rendered, so chat stays readable on an iPad.
+    await expect(page.getByTestId("answer-rows-toggle")).toHaveAttribute("aria-expanded", "false")
+    await expect(page.getByTestId("answer-rows-table")).toHaveCount(0)
+    await page.getByTestId("answer-rows-toggle").click()
+    await expect(page.getByTestId("answer-rows-toggle")).toHaveAttribute("aria-expanded", "true")
+    await expect(page.getByTestId("answer-rows-table")).toBeVisible()
+
+    // One set per figure; each set's table adds up to its tile.
+    const options = page.getByTestId("row-set-option")
+    expect(await options.evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-count"))))).toEqual([calls, hcps, responses])
+    for (const [index, expected] of [calls, hcps, responses].entries()) {
+      await options.nth(index).click()
+      await expect(page.getByTestId("answer-rows-range")).toContainText(`of ${expected.toLocaleString("en-US")}`)
+      await expect(page.getByTestId("answer-rows-match")).toHaveAttribute("data-match", "true")
+      await expect(page.getByTestId("answer-rows-match")).toContainText("matching the figure in the answer")
+      expect(await page.getByTestId("answer-row").count()).toBe(Math.min(25, expected))
+    }
+
+    // Collapses again.
+    await page.getByTestId("answer-rows-toggle").click()
+    await expect(page.getByTestId("answer-rows-table")).toHaveCount(0)
+  })
+
+  test("sorts by any column and pages through every row exactly once", async ({ page }) => {
+    await page.goto("/chat")
+    await ask(page, COUNT_QUESTION)
+    await done(page)
+    const calls = Number(await page.getByTestId("fact-f1").getAttribute("data-value"))
+    await page.getByTestId("answer-rows-toggle").click()
+    await expect(page.getByTestId("answer-rows-table")).toBeVisible()
+
+    // A numeric column sorts largest first, then flips.
+    await page.locator('[data-testid="answer-rows-sort"][data-column="minutes"]').click()
+    await expect(page.getByTestId("answer-rows-table")).toHaveAttribute("data-sort-by", "minutes")
+    await expect(page.getByTestId("answer-rows-table")).toHaveAttribute("data-sort-dir", "DESC")
+    await expect(page.locator('th[aria-sort="descending"]')).toContainText("Minutes")
+    let minutes = await numbers(page, "minutes")
+    expect(minutes).toEqual([...minutes].sort((a, b) => b - a))
+    await page.locator('[data-testid="answer-rows-sort"][data-column="minutes"]').click()
+    await expect(page.getByTestId("answer-rows-table")).toHaveAttribute("data-sort-dir", "ASC")
+    await expect(page.locator('th[aria-sort="ascending"]')).toContainText("Minutes")
+    minutes = await numbers(page, "minutes")
+    expect(minutes).toEqual([...minutes].sort((a, b) => a - b))
+
+    // Page through the whole set: every call once, none missing, pages in order.
+    const seen: string[] = []
+    const pages = Math.ceil(calls / 25)
+    for (let p = 0; p < pages; p++) {
+      // Wait for this page (the previous one stays on screen, dimmed, while the next loads).
+      await expect(page.getByTestId("answer-rows-range")).toContainText(`${(p * 25 + 1).toLocaleString("en-US")}–`)
+      seen.push(...(await page.getByTestId("answer-row").evaluateAll((els) => els.map((e) => e.getAttribute("data-row-id")!))))
+      if (p < pages - 1) await page.getByTestId("answer-rows-next").click()
+    }
+    await expect(page.getByTestId("answer-rows-next")).toBeDisabled()
+    expect(seen).toHaveLength(calls)
+    expect(new Set(seen).size).toBe(calls)
+    await expect(page.getByTestId("answer-rows-range")).toContainText(`of ${calls.toLocaleString("en-US")}`)
+    await page.getByTestId("answer-rows-prev").click()
+    await expect(page.getByTestId("answer-rows-next")).toBeEnabled()
+  })
+
+  test("exports the rows as a labelled CSV, after the server re-checks access, and says it was audited", async ({ page }) => {
+    await page.goto("/chat")
+    await ask(page, COUNT_QUESTION)
+    await done(page)
+    const hcps = Number(await page.getByTestId("fact-f2").getAttribute("data-value"))
+    await page.getByTestId("answer-rows-toggle").click()
+    await page.getByTestId("row-set-option").nth(1).click()
+    await expect(page.getByTestId("answer-rows-table")).toBeVisible()
+    const download = page.waitForEvent("download")
+    await page.getByTestId("answer-rows-export").click()
+    const file = await download
+    expect(file.suggestedFilename()).toMatch(/^msl-agent-rows-hcps-.*\.csv$/)
+    const text = await (await import("node:fs/promises")).readFile((await file.path())!, "utf8")
+    expect(text.split("\n")[0]).toMatch(/^# \[SOURCE\]/)
+    const lines = text.trimEnd().split("\n")
+    const header = lines.findIndex((l) => l.startsWith("HCP,Specialty"))
+    expect(lines.length - header - 1).toBe(hcps)
+    await expect(page.getByTestId("answer-rows-exported")).toContainText(`${hcps.toLocaleString("en-US")} rows exported`)
+    await expect(page.getByTestId("answer-rows-exported")).toContainText("access audit")
+  })
+
+  test("without the export permission the rows are still readable but there is no export", async ({ page }) => {
+    await page.goto("/chat?scenario=no-export")
+    await ask(page, COUNT_QUESTION)
+    await done(page)
+    await page.getByTestId("answer-rows-toggle").click()
+    await expect(page.getByTestId("answer-rows-table")).toBeVisible()
+    await expect(page.getByTestId("answer-rows-export")).toHaveCount(0)
+    await expect(page.getByTestId("answer-rows-export-denied")).toContainText("not permitted")
+  })
+
+  test("an aggregate-only Executive never sees Show rows and gets a clear note", async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem("a2g.local.userId", "u-exec-all"))
+    await page.goto("/chat")
+    await ask(page, "Which topics are rising across regions?")
+    await done(page)
+    await expect(page.getByTestId("answer-rows")).toHaveCount(0)
+    await expect(page.getByTestId("answer-rows-toggle")).toHaveCount(0)
+    await expect(page.getByTestId("aggregate-only-note")).toContainText("Rows are not available for this answer")
+    await expect(page.getByTestId("aggregate-only-note")).toContainText("does not grant source-row access")
+  })
+
+  test("a rows service error shows a retryable message, not an empty table", async ({ page }) => {
+    await page.goto("/chat")
+    await ask(page, COUNT_QUESTION)
+    await done(page)
+    // The scripted run is done; from here the service is down.
+    await page.evaluate(() => window.history.replaceState(null, "", "/chat?scenario=error"))
+    await page.getByTestId("answer-rows-toggle").click()
+    await expect(page.getByTestId("answer-rows-error")).toContainText("could not be loaded")
+    await expect(page.getByTestId("answer-rows-table")).toHaveCount(0)
+  })
+
+  test("touch targets in the rows panel are at least 44pt, and nothing scrolls sideways", async ({ page }) => {
+    await page.goto("/chat")
+    await ask(page, COUNT_QUESTION)
+    await done(page)
+    await page.getByTestId("answer-rows-toggle").click()
+    await expect(page.getByTestId("answer-rows-table")).toBeVisible()
+    for (const id of ["answer-rows-toggle", "answer-rows-export", "answer-rows-next"]) {
+      const box = (await page.getByTestId(id).boundingBox())!
+      expect(box.height, id).toBeGreaterThanOrEqual(44)
+    }
+    for (const target of await page.getByTestId("answer-rows-sort").all()) expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    for (const target of await page.getByTestId("row-set-option").all()) expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
+  })
+})

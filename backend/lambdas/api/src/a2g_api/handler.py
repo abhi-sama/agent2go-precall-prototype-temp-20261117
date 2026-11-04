@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, briefs, chat, director, director_insights, eval_panel, eval_store, executive, executive_themes, flags, hierarchy, leadership, post_call, resolvers
+from . import activity, briefs, chat, chat_rows, director, director_insights, eval_panel, eval_store, executive, executive_themes, flags, hierarchy, leadership, post_call, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .embeddings import provider_from_config
@@ -116,6 +116,8 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         ),
         "chatEvents": chat.chat_events,
         "chatCitation": chat.chat_citation,
+        "chatAnswerRows": chat_rows.chat_answer_rows,
+        "exportChatRows": chat_rows.export_chat_rows,
         "me": resolvers.me,
         "landingKpis": partial(resolvers.landing_kpis, default_range_days=settings.default_range_days),
         "geoActivity": partial(resolvers.geo_activity, default_range_days=settings.default_range_days),

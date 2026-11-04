@@ -29,6 +29,7 @@ import psycopg
 
 from a2g_logging import get_logger
 
+from . import chat_rows
 from .agent_client import AgentRuntime
 from .db import user_cursor
 from .eval_scoring import (
@@ -219,6 +220,16 @@ def _gather_truth(cur: psycopg.Cursor, q: GoldenQuestion, cap: Capture, ev: Evid
             ok, reason = False, "recount failed"
         if reason != "not recountable":
             ev.visual_checks.append((str(visual.get("title") or visual.get("kind")), ok, reason))
+    # "Show rows": the rows a row set lists, counted now under the subject's own RLS, must equal the figure it sits behind.
+    for raw in cap.row_sets:
+        label = str(raw.get("label") or "rows")[:80]
+        try:
+            with cur.connection.transaction():
+                described = chat_rows.parse_row_set(raw)
+                ev.row_checks.append((label, described.count, chat_rows.count_rows(cur, described)))
+        except Exception as exc:
+            log.error("eval row recount failed", question_id=q.question_id, error_type=type(exc).__name__)
+            ev.row_checks.append((label, int(raw.get("count") or 0), None))
 
 
 # -- the deliberately leaky stand-in -------------------------------------------------------------------------------
@@ -545,6 +556,9 @@ def result_item(run_id: str, index: int, q: GoldenQuestion, cap: Capture, score:
         "direction": score.direction,
         "visual": score.visual,
         "visualMatch": score.visual_match,
+        "rowsMatch": score.rows,
+        "rowSetsShown": len(cap.row_sets),
+        "rowNotes": score.detail.get("rowNotes") or [],
         "coverage": score.coverage,
         "uncertainty": score.uncertainty,
         "leaked": score.leaked,

@@ -49,7 +49,7 @@ A conversation is one unit of work in the eval worker. Each turn is sent the way
 ## Found, not fixed here (filed as follow-ups #83 and #84)
 
 - Executive chat returns no aggregates. Spec stories 15 and 22 want suppressed aggregates with sample sizes in chat; today the agent refuses record-level and aggregate questions alike for an aggregate-only user. The suite proves nothing leaks and the answer is honest; it will need new expectations when aggregates arrive.
-- "Show rows" exists per cited record (its fields), not for the whole set of rows behind an answer.
+- "Show rows" exists per cited record (its fields), not for the whole set of rows behind an answer. (Built in ADR 0015, #84.)
 
 ## Consequences
 

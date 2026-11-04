@@ -65,6 +65,8 @@ export interface EvalRunSummary {
   /** Charts and key figures whose every number equals a recount of the database. */
   visualMatchRate: number | null
   visualCoverage: number | null
+  /** Counted answers whose Show rows tables list exactly the rows each stated figure counted, recounted under the subject's access. */
+  rowMatchRate: number | null
   themeCoverage: number | null
   /** Follow-up conversations asked, the most turns any reached, and how many stayed correct throughout. */
   chainCount: number | null
@@ -96,11 +98,15 @@ export interface EvalResult {
   direction: number | null
   visual: number | null
   visualMatch: number | null
+  /** 1 when every Show rows table lists exactly the rows its figure counted (and one exists where a count is stated). */
+  rowsMatch: number | null
   coverage: number | null
   uncertainty: number | null
   visualsDrawn: number | null
   factsShown: number | null
+  rowSetsShown: number | null
   visualNotes: string[]
+  rowNotes: string[]
   unverifiedSample: string[]
   leaked: boolean
   leakKinds: string[]
@@ -188,8 +194,8 @@ export interface EvalsAdapter {
   rateAnswer(ctx: RequestContext, input: { runId: string; rating: AnswerRating; note?: string }): Promise<AnswerRatingRecord>
 }
 
-const RUN_FIELDS = `runId persona personaLabel subjectLabel source scorer status errorCode startedAt finishedAt durationMs answered questionCount passedCount failedCount faithfulness citationCorrectness exactCountRate directionRate visualMatchRate visualCoverage themeCoverage chainCount chainDepth chainsCorrect categories { category total passed rate } leakCount probeCount verdict failureReasons suiteFingerprint`
-const RESULT_FIELDS = `questionId kind category chainId turn title prompt verdict faithfulness citations exactness expected expectedText direction visual visualMatch coverage uncertainty visualsDrawn factsShown visualNotes unverifiedSample leaked leakKinds reasons answerExcerpt citationsCited citationsReadable numbersClaimed numbersUnverified quotesChecked quotesFound agentNumberCheck agentError durationMs`
+const RUN_FIELDS = `runId persona personaLabel subjectLabel source scorer status errorCode startedAt finishedAt durationMs answered questionCount passedCount failedCount faithfulness citationCorrectness exactCountRate directionRate visualMatchRate visualCoverage rowMatchRate themeCoverage chainCount chainDepth chainsCorrect categories { category total passed rate } leakCount probeCount verdict failureReasons suiteFingerprint`
+const RESULT_FIELDS = `questionId kind category chainId turn title prompt verdict faithfulness citations exactness expected expectedText direction visual visualMatch rowsMatch coverage uncertainty visualsDrawn factsShown rowSetsShown visualNotes rowNotes unverifiedSample leaked leakKinds reasons answerExcerpt citationsCited citationsReadable numbersClaimed numbersUnverified quotesChecked quotesFound agentNumberCheck agentError durationMs`
 const RATINGS_SUMMARY = `total up down withNote faithfulness citationCorrectness`
 const RATING_FIELDS = `ratingId chatRunId persona userId rating note ratedAt faithfulness citationCorrectness citationsCited numbersUnverified agentNumberCheck`
 
@@ -210,6 +216,7 @@ export function normaliseRun<T extends Partial<EvalRunSummary>>(run: T): T & Pic
     directionRate: nil(run.directionRate),
     visualMatchRate: nil(run.visualMatchRate),
     visualCoverage: nil(run.visualCoverage),
+    rowMatchRate: nil(run.rowMatchRate),
     themeCoverage: nil(run.themeCoverage),
     chainCount: nil(run.chainCount),
     chainDepth: nil(run.chainDepth),
@@ -228,11 +235,14 @@ export function normaliseResult(r: EvalResult): EvalResult {
     direction: nil(r.direction),
     visual: nil(r.visual),
     visualMatch: nil(r.visualMatch),
+    rowsMatch: nil(r.rowsMatch),
     coverage: nil(r.coverage),
     uncertainty: nil(r.uncertainty),
     visualsDrawn: nil(r.visualsDrawn),
     factsShown: nil(r.factsShown),
+    rowSetsShown: nil(r.rowSetsShown),
     visualNotes: r.visualNotes ?? [],
+    rowNotes: r.rowNotes ?? [],
     unverifiedSample: r.unverifiedSample ?? [],
   }
 }

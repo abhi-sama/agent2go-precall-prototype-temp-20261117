@@ -10,6 +10,9 @@ import type {
   ActivityTrends,
   ChatEventPage,
   ChatMessageInput,
+  ChatRowsExport,
+  ChatRowsPage,
+  ChatRowsQuery,
   ChatRun,
   AccessAuditEvent,
   AccessAuditFilter,
@@ -103,6 +106,13 @@ export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter,
   chatEvents(ctx: RequestContext, runId: string, after: number): Promise<ChatEventPage>
   /** Re-checks record access. `auditExport` is true only for an explicit user export. */
   chatCitation(ctx: RequestContext, dataset: string, recordId: string, auditExport?: boolean): Promise<SourceRecord>
+  /**
+   * One sorted page of the exact rows behind a count, share or chart in one of the caller's own chat runs, limited by
+   * RLS. Refused (FORBIDDEN) for aggregate-only access.
+   */
+  chatAnswerRows(ctx: RequestContext, query: ChatRowsQuery): Promise<ChatRowsPage>
+  /** Re-checks record access and the export permission, records the export in the access audit, then returns a CSV. */
+  exportChatRows(ctx: RequestContext, input: Pick<ChatRowsQuery, "runId" | "rowSetId" | "sortBy" | "sortDir">): Promise<ChatRowsExport>
   searchHcps(ctx: RequestContext, query: string, limit?: number): Promise<HcpSearchResult[]>
   hcpProfile(ctx: RequestContext, hcpId: string): Promise<HcpProfile>
   hcpTimeline(ctx: RequestContext, hcpId: string): Promise<HcpTimeline>

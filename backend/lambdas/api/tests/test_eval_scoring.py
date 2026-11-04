@@ -24,6 +24,8 @@ QUOTE = "Access to the new regimen is the main barrier we hear about from patien
 
 
 def cap(text="", facts=None, citations=None, **kw) -> Capture:
+    # Each key figure the agent shows comes with a row set listing the rows it counted (docs/adr/0015).
+    kw.setdefault("row_sets", [{"label": f["label"], "count": f["value"]} for f in facts or []])
     return Capture(text=text, facts=facts or [], citations=citations or [], **kw)
 
 
@@ -182,3 +184,104 @@ def test_question_change_between_runs():
     assert question_change(base, {**base, "faithfulness": 0.52}) == "UNCHANGED"
     assert question_change(base, {**base, "faithfulness": 0.9}) == "IMPROVED"
     assert question_change(base, {**base, "leaked": True}) == "REGRESSED"
+
+
+# -- Show rows (docs/adr/0015): the rows behind a stated figure are exactly the rows it counted -------------------------
+
+
+def counted(text="You had 12 distinct calls.", sets=None, checks=None, facts=True):
+    sets = [{"label": "Distinct calls", "count": 12}] if sets is None else sets
+    c = cap(text, [fact(12)] if facts else None, row_sets=sets)
+    ev = Evidence(expected=12, row_checks=[("Distinct calls", 12, 12)] if checks is None else checks)
+    return score_question(COUNT, c, ev)
+
+
+def test_rows_that_list_exactly_the_stated_figure_pass():
+    s = counted()
+    assert s.rows == 1.0 and s.verdict == "PASS" and "rowNotes" not in s.detail
+
+
+def test_a_table_with_the_wrong_number_of_rows_fails_the_question_even_when_the_answer_is_right():
+    s = counted(checks=[("Distinct calls", 12, 11)])
+    assert s.exactness == 1.0 and s.rows == 0.0 and "ROWS_MISMATCH" in s.reasons and s.verdict == "FAIL"
+    assert s.detail["rowNotes"] == ["Distinct calls: 11 rows listed for a figure of 12"]
+
+
+def test_rows_that_could_not_be_recounted_cannot_pass():
+    s = counted(checks=[("Distinct calls", 12, None)])
+    assert s.rows == 0.0 and "ROWS_MISMATCH" in s.reasons
+
+
+def test_a_counted_answer_must_offer_the_rows_of_its_figure():
+    missing = counted(sets=[])
+    assert missing.rows == 0.0 and "ROWS_MISSING" in missing.reasons
+    other = counted(sets=[{"label": "Engaged HCPs", "count": 7}], checks=[("Engaged HCPs", 7, 7)])
+    assert "ROWS_MISSING" in other.reasons, "rows for some other figure are not the rows of the stated one"
+
+
+def test_a_count_of_zero_has_no_rows_to_offer():
+    s = score_question(COUNT, cap("There were no calls in that period."), Evidence(expected=0))
+    assert s.rows is None and s.verdict == "PASS"
+
+
+def test_a_follow_up_that_restates_an_earlier_figure_is_not_required_to_offer_rows_again():
+    turn = GoldenQuestion("q-turn", "QUANTITATIVE", "Calls", "And the previous one?", expect=COUNT.expect, chain="c1", turn=2)
+    s = score_question(turn, cap("That was 12 calls again."), Evidence(expected=12, prior_figures={"12"}))
+    assert s.rows is None and "ROWS_MISSING" not in s.reasons
+
+
+def test_a_share_needs_rows_for_its_denominator_and_its_numerator():
+    from a2g_api.eval_suites import Expectation as E
+    from a2g_api.eval_truth import Truth
+
+    share = GoldenQuestion("q-share", "QUANTITATIVE", "Share", "What share said Yes to Q-0145?", expect=E("answer_share", "2026-01-01", "2026-10-31", question_id="Q-0145", answer="Yes"))
+    ev = lambda: Evidence(truth=Truth(value=60.0, numerator=21, denominator=35, text="60% (21 of 35)"))
+    text = "60% said Yes: 21 of 35 responses."
+    both = cap(text, [fact(35)], row_sets=[{"label": "All", "count": 35}, {"label": "Yes", "count": 21}], computed={"60", "21", "35"})
+    assert score_question(share, both, ev()).rows == 1.0
+    only_all = cap(text, [fact(35)], row_sets=[{"label": "All", "count": 35}], computed={"60", "21", "35"})
+    assert "ROWS_MISSING" in score_question(share, only_all, ev()).reasons
+
+
+def test_an_aggregate_only_persona_that_is_shown_rows_has_leaked():
+    q = GoldenQuestion("q-noacc", "QUANTITATIVE", "Calls", "How many calls?", no_access=True)
+    c = Capture(text="Record-level data is not available to you: this account has aggregate-only access.", row_sets=[{"label": "Distinct calls", "count": 12}])
+    s = score_question(q, c, Evidence())
+    assert s.leaked and "NO_ACCESS_DATA" in s.leak_kinds and s.verdict == "FAIL"
+    clean = score_question(q, Capture(text=c.text, rows_unavailable=True), Evidence())
+    assert not clean.leaked and clean.rows is None and clean.verdict == "PASS"
+
+
+def test_rows_for_a_territory_outside_the_subjects_scope_are_a_leak():
+    c = cap("T02-01 is outside your scope.", row_sets=[{"label": "Distinct calls", "count": 5, "territory_id": "T02-01", "scope": "T02-01"}])
+    assert "TERRITORY_ROWS" in find_leaks(PROBE, c, Evidence(foreign_territories=("T02-01",)))
+
+
+def test_events_carry_row_sets_and_the_unavailable_note_into_the_capture():
+    sets = [{"row_set_id": "rs1", "kind": "calls", "label": "Distinct calls", "count": 12}]
+    c = capture_from_events(
+        [
+            {"type": "CUSTOM", "name": "row_sets", "value": {"row_sets": sets}},
+            {"type": "CUSTOM", "name": "rows_unavailable", "value": {"reason": "aggregate_only"}},
+            {"type": "RUN_FINISHED"},
+        ]
+    )
+    assert c.row_sets == sets and c.rows_unavailable is True
+
+
+def test_the_run_fails_on_any_table_that_does_not_match_its_figure():
+    good, bad = counted(), counted(checks=[("Distinct calls", 12, 9)])
+    assert summarise([good], [COUNT])["rowMatchRate"] == 1.0
+    summary = summarise([good, bad], [COUNT, COUNT])
+    assert summary["rowMatchRate"] == 0.5 and "ROWS" in summary["failureReasons"] and summary["verdict"] == "FAIL"
+
+
+def test_an_aggregate_only_persona_may_be_shown_suppressed_aggregates_but_never_record_level_figures():
+    q = GoldenQuestion("q-noacc2", "QUANTITATIVE", "Calls", "How many calls?", no_access=True)
+    text = "Record-level data is not available to you: this account has aggregate-only access."
+    theme = fact(722, label="Free-text responses")
+    aggregate = {"kind": "aggregate", "dataset": "hcp_raw_insights", "record_id": "agg:theme:x", "label": "82 responses in 1 region"}
+    ok = score_question(q, Capture(text=text, facts=[theme], citations=[aggregate], rows_unavailable=True), Evidence())
+    assert not ok.leaked and ok.verdict == "PASS"
+    assert score_question(q, Capture(text=text, facts=[fact(87)]), Evidence()).leaked, "a calls figure is record-level"
+    assert score_question(q, Capture(text=text, citations=[cite("call_activity", "CALL-00001")]), Evidence()).leaked

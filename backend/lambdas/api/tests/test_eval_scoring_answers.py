@@ -28,8 +28,10 @@ def question(metric="distinct_calls", **kw) -> GoldenQuestion:
     return GoldenQuestion("q", "QUANTITATIVE", "t", "A question?", expect=expect, **kw)
 
 
-def cap(text, facts=None, visuals=None, citations=None, computed=None) -> Capture:
-    return Capture(text=text, facts=facts or [], visuals=visuals or [], citations=citations or [], computed=computed)
+def cap(text, facts=None, visuals=None, citations=None, computed=None, row_sets=None) -> Capture:
+    # Each key figure the agent shows comes with a row set listing the rows it counted (docs/adr/0015).
+    rows = [{"label": f.get("label", "rows"), "count": f["value"]} for f in facts or []] if row_sets is None else row_sets
+    return Capture(text=text, facts=facts or [], visuals=visuals or [], citations=citations or [], computed=computed, row_sets=rows)
 
 
 def verdict(q, c, ev):
@@ -48,13 +50,15 @@ def test_a_share_needs_the_right_percentage_and_its_denominator():
     q = question(expect=SHARE, visual="kpi")
     ev = Evidence(truth=TRUTH)
     facts = [{"label": "Responses to Q-0145", "value": 35}]
-    good = cap("60.0% said Yes: 21 of 35 responses.", facts, computed={"60", "21", "35"})
+    # The share has two row sets: all the responses to the question (the denominator) and those that said Yes (the numerator).
+    shares = [{"label": "All responses to Q-0145", "count": 35}, {"label": "Answered “Yes”", "count": 21}]
+    good = cap("60.0% said Yes: 21 of 35 responses.", facts, computed={"60", "21", "35"}, row_sets=shares)
     assert verdict(q, good, ev)[0].exactness == 1.0 and verdict(q, good, ev)[0].verdict == "PASS"
-    wrong = cap("57.1% said Yes: 21 of 35 responses.", facts, computed={"57.1", "21", "35"})
+    wrong = cap("57.1% said Yes: 21 of 35 responses.", facts, computed={"57.1", "21", "35"}, row_sets=shares)
     assert "PERCENT_MISMATCH" in verdict(q, wrong, ev)[1]
-    no_den = cap("60% said Yes.", facts, computed={"60"})
+    no_den = cap("60% said Yes.", facts, computed={"60"}, row_sets=shares)
     assert verdict(q, no_den, ev)[1] == ["DENOMINATOR_MISSING"]
-    refuses = cap("I can't calculate a percentage. 21 of the 35 responses were Yes.", facts, computed={"21", "35"})
+    refuses = cap("I can't calculate a percentage. 21 of the 35 responses were Yes.", facts, computed={"21", "35"}, row_sets=shares)
     assert "PERCENT_MISMATCH" in verdict(q, refuses, ev)[1], "counts alone are not the percentage that was asked for"
 
 

@@ -23,6 +23,7 @@ from strands import tool
 from strands.types.tools import ToolContext
 
 from . import ag_ui, chart_data, visuals
+from .row_sets import KIND_UNITS, MAX_ROW_SETS, RowSet
 from .repository import (
     EXECUTIVE_FACETS,
     ActivityResult,
@@ -76,6 +77,10 @@ class RunContext:
     tool_results: list[str] = field(default_factory=list)
     suggestions: list[str] = field(default_factory=list)
     visuals: list[Visual] = field(default_factory=list)
+    #: The exact rows behind each number computed in this run (see ``row_sets.py``); streamed, never shown to the model.
+    row_sets: list[RowSet] = field(default_factory=list)
+    #: True once the run told the browser that rows are unavailable to this (aggregate-only) caller.
+    rows_unavailable_sent: bool = False
     pending: deque[ag_ui.Event] = field(default_factory=deque)
     data_through: dt.datetime | None = None
     tool_calls: int = 0
@@ -125,7 +130,48 @@ class RunContext:
         if citations:
             self.pending.append(ag_ui.custom("citations", [c.model_dump() for c in citations]))
 
+    def add_row_set(
+        self,
+        kind: str,
+        label: str,
+        count: int,
+        period_from: dt.date,
+        period_to: dt.date,
+        scope: str,
+        *,
+        source_id: str = "",
+        **filters: Any,
+    ) -> RowSet | None:
+        """Record the rows behind one counted figure. Identical row sets are kept once; the set is streamed at once."""
+        if count <= 0 or len(self.row_sets) >= MAX_ROW_SETS:
+            return None
+        row_set = RowSet(
+            row_set_id=f"rs{len(self.row_sets) + 1}",
+            kind=kind,  # type: ignore[arg-type]
+            label=label,
+            unit=KIND_UNITS[kind],
+            count=int(count),
+            period_from=period_from.isoformat(),
+            period_to=period_to.isoformat(),
+            scope=scope,
+            source_id=source_id,
+            **{k: v for k, v in filters.items() if v not in (None, "", False)},
+        )
+        if any(existing.key() == row_set.key() for existing in self.row_sets):
+            return None
+        self.row_sets.append(row_set)
+        self.pending.append(ag_ui.custom("row_sets", {"row_sets": [row_set.event_value()]}))
+        return row_set
+
+    def note_rows_unavailable(self) -> None:
+        """Tell the browser, once, that this caller is aggregate-only: it shows a note instead of a Show rows control."""
+        if not self.rows_unavailable_sent:
+            self.rows_unavailable_sent = True
+            self.pending.append(ag_ui.custom("rows_unavailable", {"reason": "aggregate_only"}))
+
     def _record(self, payload: dict[str, Any]) -> str:
+        if payload.get("status") == "aggregate_only":
+            self.note_rows_unavailable()
         text = json.dumps(payload, default=str, separators=(",", ":"))
         self.tool_results.append(text)
         return text
@@ -169,7 +215,30 @@ class RunContext:
             )
         self.visuals.append(visual)
         self.pending.append(ag_ui.custom("visual", visual.event_value()))
+        self._chart_row_set(visual_id, result)
         return self._record_text(visuals.summary_for_model(visual))
+
+    def _chart_row_set(self, visual_id: str, result: ChartResult) -> None:
+        """The rows a chart's total counted: one row per call, HCP or response in the chart's period and filters."""
+        p = result.params
+        if p is None:
+            return
+        scope = p.territory_id or "your scope"
+        if result.shape == "distribution":
+            self.add_row_set(
+                "responses", "Responses counted in the chart", result.total, p.period_from, p.period_to, scope,
+                source_id=visual_id, territory_id=p.territory_id, topic=p.topic, answer_type=p.answer_type,
+            )
+            return
+        # A table covers three measures but reports one total (distinct calls), so its rows are the calls.
+        metric = "calls" if result.shape == "table" else p.metric
+        kind = {"calls": "calls", "engaged_hcps": "hcps", "responses": "responses"}[metric]
+        label = {"calls": "Distinct calls", "hcps": "Engaged HCPs", "responses": "Insight responses"}[kind]
+        self.add_row_set(
+            kind, f"{label} in the chart", result.total, p.period_from, p.period_to, scope,
+            source_id=visual_id, territory_id=p.territory_id, product=p.product,
+            topic=p.topic if kind == "responses" else None,
+        )
 
     def _record_text(self, text: str) -> str:
         self.tool_results.append(text)
@@ -203,6 +272,15 @@ class RunContext:
             self._add_fact(f"Insight responses{suffix}", result.responses, "responses", period, scope, []),
         ]
         self._publish(facts, result.citations)
+        for fact, kind, spec in (
+            (facts[0], "calls", {"specialty": result.specialty_filter}),
+            (facts[1], "hcps", {"specialty": result.specialty_filter}),
+            (facts[2], "responses", {}),
+        ):
+            self.add_row_set(
+                kind, fact.label, fact.value, result.period_from, result.period_to, scope, source_id=fact.fact_id,
+                territory_id=result.territory_filter, product=result.product_filter, **spec,
+            )
         return self._record(
             {
                 "status": "ok",
@@ -243,6 +321,11 @@ class RunContext:
             )
         ]
         self._publish(facts, result.citations)
+        self.add_row_set(
+            "responses", facts[0].label, result.matches, result.period_from, result.period_to,
+            result.territory_filter or "your scope", source_id=facts[0].fact_id,
+            territory_id=result.territory_filter, topic=result.topic,
+        )
         return self._record(
             {
                 "status": "ok",
@@ -312,6 +395,10 @@ class RunContext:
         for t in shown:
             facts.append(self._add_fact(f"Responses on {t.topic}", t.current, "responses", period, scope, cited[:1] if t.status in ("EMERGING", "DECLINING") else []))
         self._publish(facts, result.citations)
+        self.add_row_set(
+            "responses", "Free-text responses in the latest period", result.current_total, result.period_from,
+            result.period_to, scope, source_id=facts[0].fact_id, territory_id=result.territory_filter, free_text=True,
+        )
         return self._record(
             {
                 "status": "ok",
@@ -378,6 +465,7 @@ class RunContext:
     def _exec_finish(self, data: dict[str, Any], citations: list[Citation], facts: list[Fact]) -> list[str]:
         limitations = [str(x) for x in data.get("sampleLimitations") or []] or [DEFAULT_LIMITATION]
         self.executive_evidence = True
+        self.note_rows_unavailable()
         unique = tuple({c.record_id: c for c in citations}.values())
         self._publish(facts, unique)
         self._add_limitations(limitations)
@@ -558,6 +646,17 @@ class RunContext:
         facts = [self._add_fact(f"Responses to {result.question_id}", result.responses, "responses", period, scope, cited)]
         facts.append(self._add_fact(f"HCPs who answered {result.question_id}", result.distinct_hcps, "HCPs", period, scope, []))
         self._publish(facts, result.citations)
+        self.add_row_set(
+            "responses", f"All responses to {result.question_id}", result.responses, result.period_from, result.period_to,
+            scope, source_id=facts[0].fact_id, territory_id=result.territory_filter, question_id=result.question_id,
+        )
+        for bar in result.bars:
+            # The share's numerator: the responses that chose this answer, out of the responses above.
+            self.add_row_set(
+                "responses", f"Answered “{bar.label}”", bar.responses, result.period_from, result.period_to, scope,
+                source_id=facts[0].fact_id, territory_id=result.territory_filter, question_id=result.question_id,
+                answer_label=bar.label,
+            )
         visual = visuals.question_visual(f"q{len(self.visuals) + 1}", result, scope)
         if visual.points:
             self.visuals.append(visual)

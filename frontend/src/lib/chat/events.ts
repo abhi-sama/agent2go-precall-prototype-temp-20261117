@@ -90,6 +90,26 @@ export interface VisualItem {
   spec: VisualSpec | null
 }
 
+/** The kind of row behind a figure: a call, an HCP or a recorded response. Matches the rows query. */
+export type RowSetKind = "calls" | "hcps" | "responses"
+
+/**
+ * The rows behind one figure the agent computed (docs/adr/0015). It names the rows; the table itself is read from the
+ * BE by id, under the viewer's access, so nothing here can widen what is shown. `count` is the figure in the answer.
+ */
+export interface RowSetItem {
+  rowSetId: string
+  kind: RowSetKind
+  label: string
+  unit: string
+  count: number
+  periodFrom: string
+  periodTo: string
+  scope: string
+  /** The key figure (`factId`) or chart (`visualId`) this set sits behind. */
+  sourceId: string
+}
+
 export type TurnStatus = "running" | "done" | "error"
 
 export interface NumberCheck {
@@ -108,6 +128,10 @@ export interface AssistantTurn {
   /** Why these figures may not generalise (window, small samples, withheld groups). Set for Executive analysis. */
   sampleLimitations: string[]
   visuals: VisualItem[]
+  /** The rows behind each count, share or chart. Empty for aggregate-only access. */
+  rowSets: RowSetItem[]
+  /** True when the agent said rows are unavailable because the viewer's access is aggregate-only. */
+  rowsUnavailable: boolean
   suggestions: string[]
   tools: { id: string; name: string; done: boolean }[]
   mode: "claude" | "stub" | null
@@ -127,6 +151,8 @@ export function newTurn(runId: string): AssistantTurn {
     citations: [],
     sampleLimitations: [],
     visuals: [],
+    rowSets: [],
+    rowsUnavailable: false,
     suggestions: [],
     tools: [],
     mode: null,
@@ -168,6 +194,32 @@ function parseCitations(value: unknown): CitationItem[] {
       ...(typeof c.detail === "string" && c.detail ? { detail: c.detail } : {}),
     }
   })
+}
+
+const ROW_KINDS: readonly RowSetKind[] = ["calls", "hcps", "responses"]
+
+/** Only well-formed row sets are kept; a malformed one is dropped rather than half-shown. */
+export function parseRowSets(value: unknown): RowSetItem[] {
+  if (!isObject(value) || !Array.isArray(value.row_sets)) return []
+  const out: RowSetItem[] = []
+  for (const raw of value.row_sets) {
+    if (!isObject(raw)) continue
+    const kind = ROW_KINDS.find((k) => k === raw.kind)
+    const count = raw.count
+    if (!kind || typeof raw.row_set_id !== "string" || !/^rs\d{1,3}$/.test(raw.row_set_id) || typeof count !== "number" || !Number.isInteger(count) || count < 0) continue
+    out.push({
+      rowSetId: raw.row_set_id,
+      kind,
+      label: str(raw.label),
+      unit: str(raw.unit),
+      count,
+      periodFrom: str(raw.period_from),
+      periodTo: str(raw.period_to),
+      scope: str(raw.scope),
+      sourceId: str(raw.source_id),
+    })
+  }
+  return out
 }
 
 const VISUAL_KINDS: readonly VisualKind[] = ["bar", "line", "distribution", "heatmap", "timeline", "table"]
@@ -277,6 +329,13 @@ function applyCustom(turn: AssistantTurn, name: string, value: unknown): Assista
     }
     case "visual":
       return applyVisual(turn, value)
+    case "row_sets": {
+      const known = new Set(turn.rowSets.map((r) => r.rowSetId))
+      const fresh = parseRowSets(value).filter((r) => !known.has(r.rowSetId))
+      return fresh.length ? { ...turn, rowSets: [...turn.rowSets, ...fresh] } : turn
+    }
+    case "rows_unavailable":
+      return { ...turn, rowsUnavailable: true }
     case "sample_limitations": {
       const items = isObject(value) && Array.isArray(value.items) ? value.items.filter((i): i is string => typeof i === "string" && i.trim() !== "") : []
       const merged = [...new Set([...turn.sampleLimitations, ...items])]

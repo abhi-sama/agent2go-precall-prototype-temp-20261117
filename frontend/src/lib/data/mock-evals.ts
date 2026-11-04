@@ -275,8 +275,8 @@ function resultFor(question: Q, plan: Plan, durationMs: number): EvalResult {
     verdict: "PASS", faithfulness: probe ? 1 : 1, citations: theme ? 1 : null, exactness: counted ? 1 : null,
     expected: counted ? (cat === "PERCENTAGE" ? 60 : 148) : null,
     expectedText: noAccess ? "not available (aggregate-only access)" : counted || directional || theme ? (EXPECTED_TEXT[cat] ?? (directional ? "UP (43 to 46)" : "148")) : null,
-    direction: directional ? 1 : null, visual: counted || directional ? 1 : null, visualMatch: counted || directional ? 1 : null, coverage: theme ? 1 : null,
-    uncertainty: cat === "TREND" ? 1 : null, visualsDrawn: counted || directional ? 1 : 0, factsShown: counted ? 2 : 0, visualNotes: [], unverifiedSample: [],
+    direction: directional ? 1 : null, visual: counted || directional ? 1 : null, visualMatch: counted || directional ? 1 : null, rowsMatch: counted ? 1 : null, coverage: theme ? 1 : null,
+    uncertainty: cat === "TREND" ? 1 : null, visualsDrawn: counted || directional ? 1 : 0, factsShown: counted ? 2 : 0, rowSetsShown: counted ? 3 : 0, visualNotes: [], rowNotes: [], unverifiedSample: [],
     leaked: false, leakKinds: [], reasons: [], answerExcerpt: excerpt,
     citationsCited: theme ? 3 : counted ? 2 : 0, citationsReadable: theme ? 3 : counted ? 2 : 0,
     numbersClaimed: probe || noAccess ? 0 : 1, numbersUnverified: 0, quotesChecked: theme ? 1 : 0, quotesFound: theme ? 1 : 0, agentNumberCheck: "verified", agentError: null, durationMs,
@@ -317,6 +317,7 @@ function summarise(results: EvalResult[]) {
   const directionRate = mean(results.map((r) => r.direction))
   const visualMatchRate = mean(results.map((r) => r.visualMatch))
   const visualCoverage = mean(results.map((r) => r.visual))
+  const rowMatchRate = mean(results.map((r) => r.rowsMatch))
   const themeCoverage = mean(results.map((r) => r.coverage))
   const leakCount = results.filter((r) => r.leaked).length
   const chainIds = [...new Set(results.map((r) => r.chainId).filter((c): c is string => !!c))]
@@ -335,12 +336,13 @@ function summarise(results: EvalResult[]) {
     ...(citationCorrectness !== null && citationCorrectness < 0.9 ? ["CITATIONS"] : []),
     ...(directionRate !== null && directionRate < 0.9 ? ["DIRECTION"] : []),
     ...(visualMatchRate !== null && visualMatchRate < 1 ? ["VISUAL_MISMATCH"] : []),
+    ...(rowMatchRate !== null && rowMatchRate < 1 ? ["ROWS"] : []),
   ]
   return {
     questionCount: results.length,
     passedCount: results.filter((r) => r.verdict === "PASS").length,
     failedCount: results.filter((r) => r.verdict === "FAIL").length,
-    faithfulness, citationCorrectness, exactCountRate, directionRate, visualMatchRate, visualCoverage, themeCoverage,
+    faithfulness, citationCorrectness, exactCountRate, directionRate, visualMatchRate, visualCoverage, rowMatchRate, themeCoverage,
     chainCount: chainIds.length, chainDepth, chainsCorrect, categories,
     leakCount,
     probeCount: results.filter((r) => r.kind === "LEAK_PROBE").length,
@@ -386,7 +388,7 @@ export function createMockEvals(options: MockEvalsOptions): EvalsAdapter {
       pollsLeft: 0,
       results,
       run: {
-        runId, persona, personaLabel: suite(persona).label, subjectLabel: suite(persona).subjectLabel, source, scorer: "deterministic-v2", status: "COMPLETE", errorCode: null,
+        runId, persona, personaLabel: suite(persona).label, subjectLabel: suite(persona).subjectLabel, source, scorer: "deterministic-v3", status: "COMPLETE", errorCode: null,
         startedAt: iso(startedMs), finishedAt: iso(startedMs + 96_000), durationMs: 96_000, answered: results.length, suiteFingerprint: suite(persona).fingerprint, ...summary,
       },
     }
@@ -465,9 +467,9 @@ export function createMockEvals(options: MockEvalsOptions): EvalsAdapter {
       const source = input.source ?? "AGENT"
       const count = source === "LEAKY_CANARY" ? suite(input.persona).questions.filter((x) => x.kind === "LEAK_PROBE" && !x.chainId).length : suite(input.persona).questions.length
       const run: EvalRunSummary = {
-        runId, persona: input.persona, personaLabel: suite(input.persona).label, subjectLabel: suite(input.persona).subjectLabel, source, scorer: "deterministic-v2", status: "RUNNING",
+        runId, persona: input.persona, personaLabel: suite(input.persona).label, subjectLabel: suite(input.persona).subjectLabel, source, scorer: "deterministic-v3", status: "RUNNING",
         errorCode: null, startedAt: iso(0), finishedAt: null, durationMs: null, answered: 0, questionCount: count, passedCount: null, failedCount: null, faithfulness: null,
-        citationCorrectness: null, exactCountRate: null, directionRate: null, visualMatchRate: null, visualCoverage: null, themeCoverage: null, chainCount: null, chainDepth: null,
+        citationCorrectness: null, exactCountRate: null, directionRate: null, visualMatchRate: null, visualCoverage: null, rowMatchRate: null, themeCoverage: null, chainCount: null, chainDepth: null,
         chainsCorrect: null, categories: [], leakCount: 0, probeCount: null, verdict: null, failureReasons: [], suiteFingerprint: suite(input.persona).fingerprint,
       }
       store.set(runId, { run, results: [], pollsLeft: 3 })
@@ -493,7 +495,7 @@ export function createMockEvals(options: MockEvalsOptions): EvalsAdapter {
       })
       const counts = { improved: 0, regressed: 0, unchanged: 0, added: 0, removed: 0 }
       for (const x of questions) counts[x.change.toLowerCase() as keyof typeof counts] += 1
-      const metric = (key: "faithfulness" | "citationCorrectness" | "exactCountRate" | "directionRate" | "visualMatchRate" | "themeCoverage" | "leakCount" | "passedCount", label: string) => {
+      const metric = (key: "faithfulness" | "citationCorrectness" | "exactCountRate" | "directionRate" | "visualMatchRate" | "rowMatchRate" | "themeCoverage" | "leakCount" | "passedCount", label: string) => {
         const x = a.run[key]
         const y = b.run[key]
         return { metric: key, label, base: x, head: y, delta: x === null || y === null ? null : Math.round((y - x) * 10000) / 10000 }
@@ -503,7 +505,7 @@ export function createMockEvals(options: MockEvalsOptions): EvalsAdapter {
         head: b.run,
         suiteChanged: a.run.suiteFingerprint !== b.run.suiteFingerprint || a.results.length !== b.results.length,
         verdictChange: a.run.verdict === b.run.verdict ? "UNCHANGED" : b.run.verdict === "PASS" ? "IMPROVED" : "REGRESSED",
-        metrics: [metric("faithfulness", "Faithfulness"), metric("citationCorrectness", "Citation correctness"), metric("exactCountRate", "Exact counts"), metric("directionRate", "Trend and comparison direction"), metric("visualMatchRate", "Chart numbers match SQL"), metric("themeCoverage", "Theme coverage"), metric("leakCount", "Leaks"), metric("passedCount", "Questions passed")],
+        metrics: [metric("faithfulness", "Faithfulness"), metric("citationCorrectness", "Citation correctness"), metric("exactCountRate", "Exact counts"), metric("directionRate", "Trend and comparison direction"), metric("visualMatchRate", "Chart numbers match SQL"), metric("rowMatchRate", "Show rows match the answer"), metric("themeCoverage", "Theme coverage"), metric("leakCount", "Leaks"), metric("passedCount", "Questions passed")],
         counts,
         questions,
       })

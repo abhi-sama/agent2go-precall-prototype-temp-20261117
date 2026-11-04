@@ -285,3 +285,11 @@ _Avoid_: canary test
 A person's thumb and optional note on one live answer, shown beside that answer's automated scores.
 _Avoid_: feedback flag (a flag reports an incorrect record; a rating judges an answer)
 
+**Row set**:
+The kind of row (calls, HCPs or responses) and the filters behind one figure in a chat answer, which Show rows lists exactly.
+_Avoid_: result set, drill-down (a drill-down is a dashboard click-through, not a chat table)
+
+**Show rows**:
+The collapsed control under a numeric chat answer that lists the rows each stated figure counted, for users with record access only.
+_Avoid_: evidence drawer (that opens one cited record)
+

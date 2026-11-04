@@ -175,7 +175,12 @@ def test_a_citation_opens_the_exact_row_and_the_fields_equal_sql(msl, db):
 
 def test_aggregate_only_personas_get_no_rows_and_a_clear_note(executive, db):
     run = say(executive, f"How many distinct calls were made in my region between {OCT[0]} and {OCT[1]}? Show me the rows.")
-    assert not run.facts and not run.citations and not ready(run)
+    # An aggregate-only persona is shown suppressed aggregates (Executive analysis, ADR 0013) but never source rows: no row
+    # set, no figure of the record-level tools, no citation naming a record, no chart of source rows.
+    assert not run.custom("row_sets") and not ready(run)
+    assert all(c.get("kind") == "aggregate" for c in run.citations), run.citations
+    assert not [f for f in run.facts if f["label"].lower().startswith(("distinct calls", "engaged hcps", "insight responses"))]
+    assert run.custom("rows_unavailable") == [{"reason": "aggregate_only"}], "the panel is told why there is no Show rows control"
     assert NOT_AVAILABLE.search(run.text), run.text
     (call,) = db.execute("SELECT crm_call_id FROM call_activity WHERE territory_id = 'T01-01' LIMIT 1").fetchone()
     opened = executive.query(CHAT_CITATION, {"dataset": "call_activity", "recordId": call})

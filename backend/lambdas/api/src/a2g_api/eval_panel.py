@@ -52,6 +52,7 @@ _SUMMARY_KEYS = (
     "directionRate",
     "visualMatchRate",
     "visualCoverage",
+    "rowMatchRate",
     "themeCoverage",
     "chainCount",
     "chainDepth",
@@ -143,8 +144,8 @@ def _present_run(item: Mapping[str, Any], *, now: dt.datetime | None = None) -> 
 def _present_result(item: Mapping[str, Any]) -> dict[str, Any]:
     keys = (
         "questionId", "kind", "category", "chainId", "turn", "title", "prompt", "verdict", "faithfulness", "citations",
-        "exactness", "expected", "expectedText", "direction", "visual", "visualMatch", "coverage", "uncertainty",
-        "visualsDrawn", "factsShown", "leaked", "leakKinds", "reasons", "answerExcerpt", "citationsCited",
+        "exactness", "expected", "expectedText", "direction", "visual", "visualMatch", "rowsMatch", "coverage", "uncertainty",
+        "visualsDrawn", "factsShown", "rowSetsShown", "leaked", "leakKinds", "reasons", "answerExcerpt", "citationsCited",
         "citationsReadable", "numbersClaimed", "numbersUnverified", "quotesChecked", "quotesFound",
         "agentNumberCheck", "agentError", "durationMs",
     )  # fmt: skip
@@ -153,6 +154,7 @@ def _present_result(item: Mapping[str, Any]) -> dict[str, Any]:
         str(item.get("kind")), "EXACT_COUNT"
     )
     out["visualNotes"] = list(item.get("visualNotes") or [])
+    out["rowNotes"] = list(item.get("rowNotes") or [])
     out["unverifiedSample"] = list(item.get("unverifiedSample") or [])
     out["leakKinds"] = list(item.get("leakKinds") or [])
     out["reasons"] = list(item.get("reasons") or [])
@@ -278,6 +280,7 @@ _DELTA_METRICS = (
     ("exactCountRate", "Exact counts"),
     ("directionRate", "Trend and comparison direction"),
     ("visualMatchRate", "Chart numbers match SQL"),
+    ("rowMatchRate", "Show rows match the answer"),
     ("themeCoverage", "Theme coverage"),
     ("leakCount", "Leaks"),
     ("passedCount", "Questions passed"),

@@ -45,12 +45,16 @@ import {
   CREATE_TOPIC_ALERT_RULE_MUTATION,
   TOPIC_ALERTS_QUERY,
   START_CHAT_RUN_MUTATION,
+  CHAT_ANSWER_ROWS_QUERY,
+  EXPORT_CHAT_ROWS_MUTATION,
 } from "./operations"
 import {
   DataError,
   type ActivityEvidence,
   type ActivityTrends,
   type ChatEventPage,
+  type ChatRowsExport,
+  type ChatRowsPage,
   type BriefSummary,
   type BriefExport,
   type ChatRun,
@@ -281,6 +285,12 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     },
     async chatEvents(ctx, runId, after): Promise<ChatEventPage> { return (await run<{ chatEvents: ChatEventPage }>(transport, `query ChatEvents($runId: ID!, $after: Int) { chatEvents(runId: $runId, after: $after) { done status events { seq data } } }`, { runId, after }, ctx)).chatEvents },
     async chatCitation(ctx, dataset, recordId, auditExport = false): Promise<SourceRecord> { return (await run<{ chatCitation: SourceRecord }>(transport, `query ChatCitation($dataset: String!, $recordId: ID!, $auditExport: Boolean) { chatCitation(dataset: $dataset, recordId: $recordId, auditExport: $auditExport) { dataset recordId title dataThrough fields { label value } } }`, { dataset, recordId, auditExport }, ctx)).chatCitation },
+    async chatAnswerRows(ctx, query): Promise<ChatRowsPage> {
+      return (await run<{ chatAnswerRows: ChatRowsPage }>(transport, CHAT_ANSWER_ROWS_QUERY, { ...query }, ctx)).chatAnswerRows
+    },
+    async exportChatRows(ctx, input): Promise<ChatRowsExport> {
+      return (await run<{ exportChatRows: ChatRowsExport }>(transport, EXPORT_CHAT_ROWS_MUTATION, { ...input }, ctx)).exportChatRows
+    },
     async searchHcps(ctx, query, limit) { return (await run<{ searchHcps: HcpSearchResult[] }>(transport, SEARCH_HCPS_QUERY, { query, limit: limit ?? null }, ctx)).searchHcps },
     async hcpProfile(ctx, hcpId) { return (await run<{ hcpProfile: HcpProfile }>(transport, HCP_PROFILE_QUERY, { hcpId }, ctx)).hcpProfile },
     async hcpTimeline(ctx, hcpId) { return (await run<{ hcpTimeline: HcpTimeline }>(transport, HCP_TIMELINE_QUERY, { hcpId }, ctx)).hcpTimeline },

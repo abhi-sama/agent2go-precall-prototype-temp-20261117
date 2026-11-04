@@ -24,13 +24,13 @@ TABLE = "a2g-eval"
 RUN_FIELDS = """
   runId persona personaLabel subjectLabel source scorer status errorCode startedAt finishedAt durationMs answered
   questionCount passedCount failedCount faithfulness citationCorrectness exactCountRate leakCount probeCount verdict
-  failureReasons suiteFingerprint directionRate visualMatchRate visualCoverage themeCoverage chainCount chainDepth chainsCorrect
+  failureReasons suiteFingerprint directionRate visualMatchRate visualCoverage rowMatchRate themeCoverage chainCount chainDepth chainsCorrect
   categories { category total passed rate }
 """
 RESULT_FIELDS = """
   questionId kind title prompt verdict faithfulness citations exactness expected leaked leakKinds reasons answerExcerpt
   citationsCited citationsReadable numbersClaimed numbersUnverified quotesChecked quotesFound agentNumberCheck agentError
-  category chainId turn expectedText direction visual visualMatch coverage uncertainty visualsDrawn factsShown visualNotes
+  category chainId turn expectedText direction visual visualMatch rowsMatch coverage uncertainty visualsDrawn factsShown rowSetsShown visualNotes rowNotes
   unverifiedSample
 """
 SUITES = "query { evalSuites { persona label subjectLabel fingerprint questions { questionId kind category chainId turn title prompt } } }"
@@ -151,7 +151,7 @@ def test_suite_runs_on_demand_and_stores_scored_results(admin, real_runs, db):
         asked = suites[persona]["questions"]
         assert [r["questionId"] for r in run["results"]] == [q["questionId"] for q in asked]
         assert run["questionCount"] == len(asked) == run["passedCount"] + run["failedCount"]
-        assert run["suiteFingerprint"] == suites[persona]["fingerprint"] and run["scorer"] == "deterministic-v2"
+        assert run["suiteFingerprint"] == suites[persona]["fingerprint"] and run["scorer"] == "deterministic-v3"
         assert run["durationMs"] and run["startedAt"] < run["finishedAt"]
         for result in run["results"]:
             assert result["verdict"] in ("PASS", "FAIL") and result["answerExcerpt"] is not None
