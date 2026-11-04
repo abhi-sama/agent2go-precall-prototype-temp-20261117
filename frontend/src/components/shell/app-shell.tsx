@@ -6,6 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type * as React from "react"
 import { PERSONA_CONFIG, type NavItem } from "@/components/shell/persona-config"
+import { AppearanceSettings } from "@/components/shell/appearance-settings"
 import { ThemeToggle } from "@/components/shell/theme-toggle"
 import { SharedFilterProvider } from "@/components/filters/filter-context"
 import { Badge } from "@/components/ui/badge"
@@ -47,7 +48,7 @@ function NavLink({ item, active, rail }: { item: NavItem; active: boolean; rail:
       className={cn(
         base,
         active
-          ? "bg-primary text-primary-foreground shadow-card"
+          ? "bg-nav-active text-nav-active-foreground shadow-card"
           : "text-foreground/80 hover:bg-accent hover:text-accent-foreground",
       )}
     >
@@ -61,6 +62,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { user, signOut } = useSession()
   const config = PERSONA_CONFIG[user.persona]
+  // Several nav entries can share one route (MSL "Insights" lives on the territory page); only the first is current.
+  const activeLabel = config.nav.find((item) => item.href === pathname)?.label
 
   return (
     <SharedFilterProvider>
@@ -71,7 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav aria-label="Primary" className="flex flex-col gap-1">
           <p className="px-4 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{config.tagline}</p>
           {config.nav.map((item) => (
-            <NavLink key={item.label} item={item} active={item.href === pathname} rail />
+            <NavLink key={item.label} item={item} active={item.label === activeLabel} rail />
           ))}
         </nav>
       </aside>
@@ -89,6 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Badge>
               )}
               <PersonaSwitcher />
+              <AppearanceSettings />
               <ThemeToggle />
               {signOut && (
                 <Button
@@ -106,7 +110,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* Swipeable section tabs for iPad portrait and phones */}
           <nav aria-label="Sections" className="safe-px scroll-snap-x flex gap-1.5 overflow-x-auto pb-2 lg:hidden">
             {config.nav.map((item) => (
-              <NavLink key={item.label} item={item} active={item.href === pathname} rail={false} />
+              <NavLink key={item.label} item={item} active={item.label === activeLabel} rail={false} />
             ))}
           </nav>
         </header>
@@ -122,7 +126,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function Brand() {
   return (
-    <Link href="/" className="flex min-h-11 items-center gap-2.5 rounded-xl pr-2" aria-label="MSL Agent home">
+    <Link href="/" className="flex min-h-11 items-center gap-2.5 rounded-xl pr-2">
       <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-lift">
         <Stethoscope className="size-5" aria-hidden />
       </span>

@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import { AdminDataQuality } from "@/components/landing/admin-data-quality"
-import { Check, CircleAlert, Clock3, KeyRound, ShieldCheck } from "lucide-react"
+import { Check, CircleAlert, Clock3, KeyRound } from "lucide-react"
 import { ErrorState, BlockSkeleton } from "@/components/state/states"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { Badge } from "@/components/ui/badge"
@@ -62,7 +62,7 @@ export function AdminLanding() {
   const overview = useQuery("adminAccessOverview", String(refreshKey), (ctx) => adapter.adminAccessOverview ? adapter.adminAccessOverview(ctx) : Promise.reject(new DataError("UNAVAILABLE", "Admin access unavailable", ctx.correlationId)))
   const refresh = () => setRefreshKey((value) => value + 1)
   async function approve(match: IdentityMatch, rosterSourceRowId: string) { if (!adapter.approveIdentityMapping) return; setMappingNotice(null); try { await adapter.approveIdentityMapping({ correlationId: newCorrelationId() }, { userId: match.userId, rosterSourceRowId }); setMappingNotice("Mapping approved explicitly and added to the audit."); refresh() } catch { setMappingNotice("The mapping was not approved. Review the roster candidate and try again.") } }
-  return <div className="flex flex-col gap-6 pb-8"><header className="flex flex-col gap-3 border-b pb-6"><div className="flex items-center gap-2 text-accent-text"><ShieldCheck className="size-5" aria-hidden /><span className="text-sm font-medium">Governed access controls</span></div><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Administration</h1><p className="max-w-3xl text-muted-foreground">Reconcile identities deliberately, set explicit permissions, schedule territory access without changing it early.</p><div><ScopeLabel label={user.scopeLabel} /></div></header>{overview.status === "loading" ? <BlockSkeleton className="h-96" /> : overview.status === "error" ? <ErrorState error={overview.error} onRetry={overview.refetch} /> : <AdminWorkspace overview={overview.data} onRefresh={refresh} onApprove={approve} mappingNotice={mappingNotice} refreshKey={refreshKey} />}<AdminDataQuality /></div>
+  return <div className="flex flex-col gap-6 pb-8"><header className="flex flex-col gap-3 border-b pb-6"><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Administration</h1><p className="max-w-3xl text-muted-foreground">Reconcile identities deliberately, set explicit permissions, schedule territory access without changing it early.</p><div><ScopeLabel label={user.scopeLabel} /></div></header>{overview.status === "loading" ? <BlockSkeleton className="h-96" /> : overview.status === "error" ? <ErrorState error={overview.error} onRetry={overview.refetch} /> : <AdminWorkspace overview={overview.data} onRefresh={refresh} onApprove={approve} mappingNotice={mappingNotice} refreshKey={refreshKey} />}<AdminDataQuality /></div>
 }
 
 function AdminWorkspace({ overview, onRefresh, onApprove, mappingNotice, refreshKey }: { overview: AdminAccessOverview; onRefresh: () => void; onApprove: (match: IdentityMatch, rosterSourceRowId: string) => Promise<void>; mappingNotice: string | null; refreshKey: number }) {

@@ -218,7 +218,7 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
     >
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-3">
         <div className="min-w-0">
-          <h3 className="text-base font-semibold tracking-tight">Territory map</h3>
+          <h2 className="text-base font-semibold tracking-tight">Territory map</h2>
           <nav aria-label="Map level" className="mt-0.5 flex flex-wrap items-center gap-0.5 text-sm">
             {crumbs.map((c, i) => (
               <React.Fragment key={c.id}>
@@ -258,7 +258,7 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
               data-testid="globe"
               role="application"
               aria-label="Interactive 3D globe. Drag to rotate. Each country with activity has a button; the same countries are listed beside the globe."
-              className="size-full touch-none motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500"
+              className="size-full touch-none motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300 motion-safe:ease-out"
             >
               <GlobeBoundary
                 onError={() => {
@@ -278,7 +278,7 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
           ) : webgl === null || !flat ? (
             <BlockSkeleton className="size-full rounded-none" />
           ) : (
-            <div key={flat.mapKey} data-testid="flat-map" className="size-full motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500">
+            <div key={flat.mapKey} data-testid="flat-map" className="size-full motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300 motion-safe:ease-out">
               <FlatMap
                 mapKey={flat.mapKey}
                 shapes={flat.shapes}

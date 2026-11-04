@@ -9,6 +9,7 @@ import {
   Link2,
   RefreshCw,
 } from "lucide-react";
+import { Timeline } from "@/components/charts/timeline";
 import { ScopeLabel } from "@/components/shell/scope-label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -106,24 +107,16 @@ function LoadTimeline({ runs }: { runs: IngestionRun[] }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ol className="grid gap-3 sm:grid-cols-3">
-          {runs.map((run) => (
-            <li
-              key={run.runId}
-              className="relative min-h-24 rounded-xl bg-muted/55 p-3 pl-5"
-            >
-              <span
-                className={`absolute top-4 left-0 size-2.5 -translate-x-1/2 rounded-full ${run.status === "failed" ? "bg-destructive" : run.status === "stale" ? "bg-warning" : "bg-success"}`}
-                aria-hidden
-              />
-              <p className="text-sm font-medium">{run.sourceName}</p>
-              <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-                {formatWhen(run.completedAt)}
-              </p>
-              <StatusBadge status={run.status} />
-            </li>
-          ))}
-        </ol>
+        <Timeline
+          layout="row"
+          events={runs.map((run) => ({
+            id: run.runId,
+            label: run.sourceName,
+            at: formatWhen(run.completedAt),
+            status: run.status === "failed" ? "critical" : run.status === "stale" ? "warning" : "ok",
+            statusLabel: run.status === "failed" ? "Failed" : run.status === "stale" ? "Stale" : "Completed",
+          }))}
+        />
       </CardContent>
     </Card>
   );
@@ -347,7 +340,7 @@ function QualityWorkspace({
           Refresh checks
         </Button>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4">
         <IngestionPanel runs={data.ingestionRuns} />
         <LoadTimeline runs={data.ingestionRuns} />
       </div>

@@ -1,5 +1,6 @@
 "use client"
 
+import { DistributionBars } from "@/components/charts/distribution-bars"
 import { BookmarkPlus, Check, ClipboardList, SlidersHorizontal } from "lucide-react"
 import * as React from "react"
 import { useSharedFilters } from "@/components/filters/filter-context"
@@ -34,14 +35,16 @@ export function AnalyticsFilterBar({ discovery, loading }: { discovery?: Insight
   const views = useQuery("savedViews", userId, (ctx) => adapter.savedViews(ctx), Boolean(userId))
   const range = { from: filters.from ?? defaultRange.from, to: filters.to ?? defaultRange.to }
   const update = (key: keyof InsightFilters, value: string) => setFilters((current) => ({ ...current, [key]: value || undefined }))
-  const selects: SelectFilter[] = discovery ? [
+  // While options load, the six selects are drawn disabled so the page below does not jump when they arrive.
+  const placeholder = (id: string, label: string): SelectFilter => ({ id, label, value: "", options: [{ value: "", label: "Loading…" }], onChange: () => {} })
+  const selects: SelectFilter[] = !discovery ? [["territory", "Territory"], ["molecule", "Molecule"], ["landscape", "Landscape"], ["study", "Study"], ["survey", "Survey"], ["question", "Question"]].map(([id, label]) => placeholder(id, label)) : [
     { id: "territory", label: "Territory", value: filters.territoryId ?? "", options: asOptions(discovery.options.territories, "All authorized territories"), onChange: (value) => update("territoryId", value) },
     { id: "molecule", label: "Molecule", value: filters.molecule ?? "", options: asOptions(discovery.options.molecules, "All molecules"), onChange: (value) => update("molecule", value) },
     { id: "landscape", label: "Landscape", value: filters.landscape ?? "", options: asOptions(discovery.options.landscapes, "All landscapes"), onChange: (value) => update("landscape", value) },
     { id: "study", label: "Study", value: filters.study ?? "", options: asOptions(discovery.options.studies, "All studies"), onChange: (value) => update("study", value) },
     { id: "survey", label: "Survey", value: filters.survey ?? "", options: asOptions(discovery.options.surveys, "All surveys"), onChange: (value) => update("survey", value) },
     { id: "question", label: "Question", value: filters.questionId ?? "", options: asOptions(discovery.options.questions, "All questions"), onChange: (value) => update("questionId", value) },
-  ] : []
+  ]
   const save = async () => {
     const trimmed = name.trim()
     if (!trimmed) { setSaveError("Give this view a name before saving."); return }
@@ -116,10 +119,7 @@ function DistributionCard({ rows }: { rows: ResponseDistribution[] }) {
       <CardDescription>{first.parentQuestionId ? `Follow-up to ${first.parentQuestionId}` : "Primary catalog question"}</CardDescription>
     </CardHeader>
     <CardContent className="flex flex-col gap-3">
-      {rows.map((row) => <div key={row.response} className="grid gap-1.5">
-        <div className="flex justify-between gap-3 text-sm"><span className="min-w-0 truncate text-muted-foreground">{row.response}</span><span className="shrink-0 font-medium tabular-nums">{row.count} · {row.percentage.toFixed(1)}%</span></div>
-        <div className="h-2 overflow-hidden rounded-full bg-muted" aria-label={`${row.response}: ${row.count} of ${row.denominator}`}><div className="h-full rounded-full bg-primary" style={{ width: `${row.percentage}%` }} /></div>
-      </div>)}
+      <DistributionBars rows={rows.map((row) => ({ label: row.response, count: row.count, percent: row.percentage }))} denominator={first.denominator} />
       <p className="border-t pt-3 text-xs text-muted-foreground">Denominator: {first.denominator} distinct recorded responses to this question.</p>
     </CardContent>
   </Card>

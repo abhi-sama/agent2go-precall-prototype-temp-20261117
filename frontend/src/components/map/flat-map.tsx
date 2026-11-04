@@ -3,6 +3,7 @@
 import type { EChartsOption, ECharts } from "echarts"
 import type { FeatureCollection, Geometry } from "geojson"
 import * as React from "react"
+import { canvasFontFamily } from "@/lib/css-color"
 import { cn } from "@/lib/utils"
 import type { MapColors } from "./map-colors"
 
@@ -91,7 +92,7 @@ export function FlatMap({ mapKey, shapes, regions, markers = [], frame, colors, 
       animation: animate,
       animationDuration: 450,
       backgroundColor: "transparent",
-      textStyle: { color: colors.text, fontFamily: "var(--font-geist-sans), system-ui, sans-serif" },
+      textStyle: { color: colors.text, fontFamily: canvasFontFamily() },
       tooltip: {
         trigger: "item",
         confine: true,

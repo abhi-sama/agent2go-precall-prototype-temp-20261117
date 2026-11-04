@@ -2,7 +2,7 @@
 
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { useReducedMotion } from "@/hooks/use-reduced-motion"
+import { useChartMotion } from "./use-chart-motion"
 
 export interface TrendPoint {
   label: string
@@ -18,7 +18,7 @@ export interface TrendAreaChartProps {
 
 /** shadcn chart (Recharts) wrapper: token colours, accessible tooltip/legend, animation off for reduced motion. */
 export function TrendAreaChart({ data, series, className }: TrendAreaChartProps) {
-  const reduced = useReducedMotion()
+  const motion = useChartMotion()
   const config = Object.fromEntries(
     series.map((s, i) => [s.key, { label: s.label, color: `var(--chart-${s.colorIndex ?? i + 1})` }]),
   ) satisfies ChartConfig
@@ -46,7 +46,7 @@ export function TrendAreaChart({ data, series, className }: TrendAreaChartProps)
             stroke={`var(--color-${s.key})`}
             strokeWidth={2}
             fill={`url(#fill-${s.key})`}
-            isAnimationActive={!reduced}
+            {...motion}
           />
         ))}
         <ChartLegend content={<ChartLegendContent />} />

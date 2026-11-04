@@ -3,7 +3,8 @@
 import * as React from "react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { useReducedMotion } from "@/hooks/use-reduced-motion"
+import { assignSeries } from "@/components/charts/palette"
+import { useChartMotion } from "@/components/charts/use-chart-motion"
 import type { DirectorOverview, MixDimension } from "@/lib/data/types"
 import { formatMonthShort } from "@/lib/dates"
 import { cn } from "@/lib/utils"
@@ -16,7 +17,7 @@ import { num, valueLabel } from "./format"
  */
 export function MixSection({ overview }: { overview: DirectorOverview }) {
   const [kind, setKind] = React.useState<MixDimension["dimension"]>("CHANNEL")
-  const reduced = useReducedMotion()
+  const motion = useChartMotion()
   const mix = overview.mix.find((m) => m.dimension === kind) ?? overview.mix[0]
   if (!mix) return null
   const ranked = mix.values.map((v) => ({ name: valueLabel(v.value), calls: v.distinctCalls }))
@@ -24,9 +25,10 @@ export function MixSection({ overview }: { overview: DirectorOverview }) {
     label: formatMonthShort(m.month),
     ...Object.fromEntries(mix.values.map((v, vi) => [`v${vi}`, v.months[i]?.distinctCalls ?? 0])),
   }))
+  const { colors } = assignSeries(mix.values.map((_, i) => `v${i}`))
   const config = {
     calls: { label: "Distinct calls", color: "var(--chart-1)" },
-    ...Object.fromEntries(mix.values.map((v, i) => [`v${i}`, { label: valueLabel(v.value), color: `var(--chart-${(i % 6) + 1})` }])),
+    ...Object.fromEntries(mix.values.map((v, i) => [`v${i}`, { label: valueLabel(v.value), color: colors[`v${i}`] }])),
   } satisfies ChartConfig
   const unit = kind === "PRODUCT" ? "product mentions" : "value mentions"
 
@@ -73,7 +75,7 @@ export function MixSection({ overview }: { overview: DirectorOverview }) {
                 <XAxis type="number" tickLine={false} axisLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={104} tick={{ fontSize: 12 }} />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                <Bar dataKey="calls" fill="var(--color-calls)" radius={[0, 6, 6, 0]} isAnimationActive={!reduced} />
+                <Bar dataKey="calls" fill="var(--color-calls)" radius={[0, 6, 6, 0]} {...motion} />
               </BarChart>
             </ChartContainer>
           </figure>
@@ -86,7 +88,7 @@ export function MixSection({ overview }: { overview: DirectorOverview }) {
                 <YAxis tickLine={false} axisLine={false} width={36} allowDecimals={false} />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
                 {mix.values.map((v, i) => (
-                  <Bar key={v.value} dataKey={`v${i}`} stackId="mix" fill={`var(--color-v${i})`} isAnimationActive={!reduced} />
+                  <Bar key={v.value} dataKey={`v${i}`} stackId="mix" fill={`var(--color-v${i})`} {...motion} />
                 ))}
                 <ChartLegend content={<ChartLegendContent />} />
               </BarChart>

@@ -52,6 +52,10 @@ export async function collectLayoutReport(page: Page, opts: { touch: boolean }):
     const isShown = (el: Element) => {
       // Tailwind's .sr-only (skip link, "Close" labels) is intentionally collapsed and clipped to 1px.
       if (el.closest(".sr-only")) return false
+      // Content of a closed <details> is not rendered (content-visibility: hidden) though it keeps a stale box.
+      for (let d = el.closest("details"); d; d = d.parentElement?.closest("details") ?? null) {
+        if (!d.open && !(el.closest("summary")?.parentElement === d)) return false
+      }
       const cs = getComputedStyle(el)
       if (cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) return false
       for (let p: Element | null = el; p; p = p.parentElement) {

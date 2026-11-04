@@ -156,12 +156,12 @@ export const SCREENS: ScreenSpec[] = [
       await testId("access-audit-filters")(page)
     },
   },
-  { name: "admin-governance", path: "/admin/governance", userId: "u-admin-sec", ready: heading("Hierarchy and coverage") },
+  { name: "admin-governance", path: "/admin/governance", userId: "u-admin-sec", ready: heading("Data governance workspace") },
   ...["Access timeline", "Catalog and responses"].map((tab): ScreenSpec => ({
     name: `admin-governance-${tab.toLowerCase().replace(/\s+/g, "-")}`,
     path: "/admin/governance",
     userId: "u-admin-sec",
-    ready: heading("Hierarchy and coverage"),
+    ready: heading("Data governance workspace"),
     prepare: async (page) => {
       await page.getByRole("tab", { name: tab }).click()
       await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true")
@@ -191,6 +191,33 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   { name: "design-system", path: "/design", ready: async (page) => { await heading("Design system")(page); await testId("echart")(page) } },
+  // The other appearances (docs/design/direction.md): the same screens in true black and in the other style.
+  {
+    name: "director-landing-black-warm",
+    path: "/director",
+    userId: "u-dir-ne",
+    ready: testId("director-overview"),
+    prepare: async (page) => {
+      await page.evaluate(() => {
+        const root = document.documentElement
+        root.classList.add("dark")
+        root.dataset.mode = "black"
+        root.dataset.style = "warm"
+      })
+    },
+  },
+  {
+    name: "msl-landing-charcoal-clinical",
+    path: "/msl",
+    ready: testId("kpi-calls"),
+    prepare: async (page) => {
+      await page.evaluate(() => {
+        const root = document.documentElement
+        root.classList.add("dark")
+        root.dataset.style = "clinical"
+      })
+    },
+  },
   // Error and empty states share the shell; one MSL state each keeps the matrix quick.
   { name: "msl-landing-empty", path: "/msl?scenario=empty", ready: testId("state-empty") },
   { name: "msl-landing-error", path: "/msl?scenario=error", ready: testId("state-error") },

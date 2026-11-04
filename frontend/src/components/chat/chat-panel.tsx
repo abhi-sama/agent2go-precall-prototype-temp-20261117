@@ -29,8 +29,13 @@ export function ChatPanel() {
   const bottom = React.useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
 
+  // A new turn scrolls smoothly into view; tokens streaming into it follow instantly, so the page does not
+  // restart a smooth scroll on every update.
+  const turnCount = React.useRef(0)
   React.useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "end" })
+    const isNewTurn = turns.length !== turnCount.current
+    turnCount.current = turns.length
+    bottom.current?.scrollIntoView({ behavior: reduced || !isNewTurn ? "auto" : "smooth", block: "end" })
   }, [turns, reduced])
 
   const submit = (question: string) => {

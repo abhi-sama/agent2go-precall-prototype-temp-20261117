@@ -23,7 +23,7 @@ export function ScopeLabel({
       )}
     >
       <ShieldCheck className="size-4 shrink-0" aria-hidden />
-      <span className="text-xs font-semibold tracking-wide uppercase opacity-70">Scope</span>
+      <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">Scope</span>
       <span className="truncate" aria-live="polite">
         {loading || !label ? "Checking access…" : label}
       </span>

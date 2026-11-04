@@ -4,11 +4,12 @@ import type { EChartsOption, ECharts } from "echarts"
 import * as React from "react"
 import { useDocumentTheme } from "@/hooks/use-document-theme"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
-import { resolveCssColor } from "@/lib/css-color"
+import { canvasFontFamily, resolveCssColor } from "@/lib/css-color"
+import { CHART_ANIMATION_MS } from "./palette"
 import { cn } from "@/lib/utils"
 
 const TOKENS = ["--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5", "--chart-6"] as const
-const FALLBACK = ["#ea580c", "#2f4f87", "#2f9d98", "#e0a526", "#7c4dd1", "#8c8580"]
+const FALLBACK = ["#f54900", "#2a78d6", "#1baf7a", "#6250d6", "#e87ba4", "#eda100"]
 
 export interface EChartProps {
   option: EChartsOption
@@ -34,11 +35,13 @@ export function EChart({ option, ariaLabel, className, height = 280, onReady }: 
   const themed = React.useMemo<EChartsOption>(() => {
     const text = resolveCssColor("--foreground", docTheme === "dark" ? "#f1ede9" : "#2a2420")
     const muted = resolveCssColor("--muted-foreground", "#7a716a")
-    const line = resolveCssColor("--border", "#e5e0db")
+    const line = resolveCssColor("--chart-grid", "#e5e0db")
     return {
       color: TOKENS.map((t, i) => resolveCssColor(t, FALLBACK[i])),
-      textStyle: { color: text, fontFamily: "var(--font-geist-sans), system-ui, sans-serif" },
+      textStyle: { color: text, fontFamily: canvasFontFamily() },
       animation: !reduced,
+      animationDuration: CHART_ANIMATION_MS,
+      animationEasing: "cubicOut",
       backgroundColor: "transparent",
       grid: { left: 8, right: 12, top: 24, bottom: 8, containLabel: true },
       xAxis: { axisLine: { lineStyle: { color: line } }, axisLabel: { color: muted }, splitLine: { lineStyle: { color: line } } },

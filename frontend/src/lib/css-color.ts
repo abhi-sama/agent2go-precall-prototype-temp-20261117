@@ -20,3 +20,12 @@ export function resolveCssColor(token: string, fallback: string): string {
     return fallback
   }
 }
+
+/** Canvas text cannot resolve `var()`, so read the font stack the page actually uses (Inter, then the system stack). */
+export function canvasFontFamily(): string {
+  try {
+    return getComputedStyle(document.body).fontFamily || "system-ui, sans-serif"
+  } catch {
+    return "system-ui, sans-serif"
+  }
+}

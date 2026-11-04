@@ -4,7 +4,7 @@ import * as React from "react"
 
 function subscribe(onChange: () => void) {
   const observer = new MutationObserver(onChange)
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-mode", "data-style"] })
   return () => observer.disconnect()
 }
 

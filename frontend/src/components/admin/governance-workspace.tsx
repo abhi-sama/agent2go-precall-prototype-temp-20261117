@@ -1,6 +1,5 @@
 "use client"
 
-import { Network } from "lucide-react"
 import { AccessTimelineView } from "@/components/admin/access-timeline"
 import { HierarchyView } from "@/components/admin/hierarchy-view"
 import { VisibilityMatrices } from "@/components/admin/visibility-matrices"
@@ -17,7 +16,6 @@ export function GovernanceWorkspace() {
   return (
     <div className="flex flex-col gap-6 pb-8">
       <header className="flex flex-col gap-3 border-b pb-6">
-        <div className="flex items-center gap-2 text-accent-text"><Network className="size-5" aria-hidden /><span className="text-sm font-medium">Administrator governance</span></div>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Data governance workspace</h1>
         <p className="max-w-3xl text-muted-foreground">Validate access and source quality, reconcile metadata deliberately, govern definitions, and work lifecycle requests with a complete audit trail.</p>
         <div><ScopeLabel label={user.scopeLabel} /></div>

@@ -2,7 +2,8 @@
 
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { useReducedMotion } from "@/hooks/use-reduced-motion"
+import { assignSeries } from "@/components/charts/palette"
+import { useChartMotion } from "@/components/charts/use-chart-motion"
 import type { ActivityMonth } from "@/lib/data/types"
 import { formatMonth, formatMonthShort } from "@/lib/dates"
 import { channelLabel } from "./format"
@@ -39,7 +40,7 @@ export function MonthlyBarChart({
   onSelect: (month: string) => void
   testId: string
 }) {
-  const reduced = useReducedMotion()
+  const motion = useChartMotion()
   const data = months.map((m) => ({ ...point(m), value: m[field] }))
   const config = { value: { label, color: `var(--chart-${colorIndex})` } } satisfies ChartConfig
   return (
@@ -52,7 +53,7 @@ export function MonthlyBarChart({
         <Bar
           dataKey="value"
           radius={[6, 6, 0, 0]}
-          isAnimationActive={!reduced}
+          {...motion}
           cursor="pointer"
           onClick={(_, index) => onSelect(data[index].month)}
         >
@@ -77,14 +78,15 @@ export function ChannelStackChart({
   onSelect: (month: string, channel: string) => void
   testId: string
 }) {
-  const reduced = useReducedMotion()
+  const motion = useChartMotion()
   const key = (c: string) => `ch_${c.replace(/[^A-Za-z0-9]/g, "_")}`
   const data = months.map((m) => ({
     ...point(m),
     ...Object.fromEntries(channels.map((c) => [key(c), m.channels.find((x) => x.channel === c)?.distinctCalls ?? 0])),
   }))
+  const { colors } = assignSeries(channels)
   const config = Object.fromEntries(
-    channels.map((c, i) => [key(c), { label: channelLabel(c), color: `var(--chart-${(i % 6) + 1})` }]),
+    channels.map((c) => [key(c), { label: channelLabel(c), color: colors[c] }]),
   ) satisfies ChartConfig
   return (
     <ChartContainer config={config} className="aspect-[16/8] w-full" data-testid={testId}>
@@ -100,7 +102,7 @@ export function ChannelStackChart({
             stackId="calls"
             fill={`var(--color-${key(c)})`}
             radius={i === channels.length - 1 ? [6, 6, 0, 0] : 0}
-            isAnimationActive={!reduced}
+            {...motion}
             cursor="pointer"
             onClick={(_, index) => onSelect(data[index].month, c)}
           />
