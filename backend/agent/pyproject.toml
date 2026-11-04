@@ -1,0 +1,37 @@
+[project]
+name = "agent2go-agent"
+version = "0.1.0"
+description = "MSL AgentCore-compatible Strands runtime"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "boto3>=1.35",
+  "fastapi>=0.115",
+  "psycopg[binary]>=3.2",
+  "pydantic>=2.9",
+  "strands-agents>=1.0",
+  "uvicorn[standard]>=0.32",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28",
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

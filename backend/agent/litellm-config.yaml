@@ -1,0 +1,11 @@
+model_list:
+  - model_name: claude-sonnet-5-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5-5
+  - model_name: claude-haiku-5-5
+    litellm_params:
+      model: anthropic/claude-haiku-5-5
+
+general_settings:
+  # Local floci is the only client; never expose this proxy outside localhost.
+  dangerously_permit_weak_or_unset_master_key: true
