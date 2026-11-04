@@ -72,6 +72,16 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   {
+    name: "msl-post-call-workflow",
+    path: "/msl/follow-up",
+    ready: async (page) => {
+      await heading("Optional post-call workflow", 2)(page)
+      await testId("post-call-drafts")(page)
+      await testId("confirmed-tasks")(page)
+      await testId("topic-alerts")(page)
+    },
+  },
+  {
     name: "msl-activity",
     path: "/msl/activity",
     ready: async (page) => {

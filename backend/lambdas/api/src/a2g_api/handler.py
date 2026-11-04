@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, chat, director, flags, hierarchy, resolvers
+from . import activity, chat, director, flags, hierarchy, post_call, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .embeddings import provider_from_config
@@ -112,6 +112,14 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "approveDefinition": resolvers.approve_definition,
         "createGovernanceRequest": resolvers.create_governance_request,
         "decideGovernanceRequest": resolvers.decide_governance_request,
+        "createPostCallDraft": post_call.create_post_call_draft,
+        "confirmPostCallDraft": post_call.confirm_post_call_draft,
+        "postCallDrafts": post_call.post_call_drafts,
+        "confirmFollowUpTasks": post_call.confirm_follow_up_tasks,
+        "myFollowUpTasks": post_call.my_follow_up_tasks,
+        "createTopicAlertRule": post_call.create_topic_alert_rule,
+        "topicAlertRules": post_call.topic_alert_rules,
+        "topicAlerts": post_call.topic_alerts,
     }
 
 

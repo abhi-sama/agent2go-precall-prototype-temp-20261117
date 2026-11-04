@@ -12,7 +12,6 @@ import {
   type ActivityEvidence,
   type ActivityMonth,
   type ActivityTrends,
-  type ChatEventPage, type ChatRun, type SourceRecord,
   type DateRange,
   type DirectorOverview,
   type TerritoryComparison,
@@ -32,6 +31,11 @@ import {
   type InsightDiscovery,
   type InsightFilters,
   type SavedView,
+  type PostCallDraft,
+  type FollowUpTask,
+  type ConfirmFollowUpTaskInput,
+  type TopicAlertRule,
+  type TopicAlert,
 } from "./types"
 
 /** `targets` is `ok` plus an approved target population for two territories, so coverage can be shown. */
@@ -141,6 +145,9 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
   }
 
   const saved: SavedView[] = []
+  const drafts: PostCallDraft[] = []
+  const tasks: FollowUpTask[] = []
+  const alertRules: TopicAlertRule[] = []
   const discoveryOptions: InsightDiscovery["options"] = {
     territories: TERRITORIES.map((t) => ({ value: t.id, label: t.name })),
     molecules: ["trastuzumab deruxtecan", "osimertinib", "pembrolizumab", "sacituzumab govitecan"].map((value) => ({ value, label: value })),
@@ -476,6 +483,50 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       const view: SavedView = { savedViewId: `view-${saved.length + 1}`, name, reportKind: input.reportKind, filters: input.filters, createdAt: now().toISOString() }
       saved.unshift(view)
       return view
+    },
+    async createPostCallDraft(ctx, input) {
+      await gate(ctx, "createPostCallDraft")
+      const notes = input.notes.trim()
+      const structuredLines = notes.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+      if (!notes || !structuredLines.length) throw new DataError("BAD_REQUEST", "Enter at least one note before creating a draft.", ctx.correlationId)
+      const draft: PostCallDraft = { draftId: `draft-${drafts.length + 1}`, notes, structuredLines, status: "DRAFT", createdAt: now().toISOString() }
+      drafts.unshift(draft)
+      return draft
+    },
+    async confirmPostCallDraft(ctx, draftId) {
+      await gate(ctx, "confirmPostCallDraft")
+      const draft = drafts.find((item) => item.draftId === draftId && item.status === "DRAFT")
+      if (!draft) throw new DataError("BAD_REQUEST", "That draft is not available for confirmation.", ctx.correlationId)
+      draft.status = "CONFIRMED"
+      return { ...draft }
+    },
+    async postCallDrafts(ctx) { await gate(ctx, "postCallDrafts"); return [...drafts] },
+    async confirmFollowUpTasks(ctx, input: ConfirmFollowUpTaskInput[]) {
+      await gate(ctx, "confirmFollowUpTasks")
+      const user = findUser(options.getUserId())
+      if (!input.length) throw new DataError("BAD_REQUEST", "Select a task to confirm.", ctx.correlationId)
+      const confirmed = input.map((item) => {
+        const description = item.description.trim()
+        if (!description) throw new DataError("BAD_REQUEST", "A task needs a description.", ctx.correlationId)
+        const task: FollowUpTask = { taskId: `task-${tasks.length + 1}`, description, ownerUserId: user.userId, dueDate: item.dueDate ?? null, status: "OPEN", sourceDraftId: item.sourceDraftId ?? null, createdAt: now().toISOString() }
+        tasks.unshift(task)
+        return task
+      })
+      return confirmed
+    },
+    async myFollowUpTasks(ctx) { await gate(ctx, "myFollowUpTasks"); return [...tasks] },
+    async createTopicAlertRule(ctx, input) {
+      await gate(ctx, "createTopicAlertRule")
+      if (input.topic.trim().length < 2 || input.threshold < 1 || input.periodDays < 1) throw new DataError("BAD_REQUEST", "Complete the alert rule before saving.", ctx.correlationId)
+      const rule: TopicAlertRule = { ruleId: `alert-${alertRules.length + 1}`, topic: input.topic.trim(), threshold: input.threshold, periodDays: input.periodDays, createdAt: now().toISOString() }
+      alertRules.unshift(rule)
+      return rule
+    },
+    async topicAlertRules(ctx) { await gate(ctx, "topicAlertRules"); return [...alertRules] },
+    async topicAlerts(ctx) {
+      await gate(ctx, "topicAlerts")
+      // Mirrors the API contract: deterministic fixture counts and response-id evidence only.
+      return alertRules.map((rule) => ({ ruleId: rule.ruleId, topic: rule.topic, threshold: rule.threshold, periodDays: rule.periodDays, count: rule.topic.toLowerCase().includes("evidence") ? rule.threshold + 2 : 0, evidenceResponseIds: rule.topic.toLowerCase().includes("evidence") ? ["RESP-000001", "RESP-000017", "RESP-000024"] : [] })).filter((alert) => alert.count >= alert.threshold) satisfies TopicAlert[]
     },
     async adminDataQuality(ctx): Promise<AdminDataQuality> {
       const s = await gate(ctx, "adminDataQuality")

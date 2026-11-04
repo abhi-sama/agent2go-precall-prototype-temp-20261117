@@ -113,6 +113,50 @@ export interface SavedView {
   createdAt: IsoDateTime
 }
 
+/** Optional post-call draft. Lines are a lossless rendering of entered notes, never generated observations. */
+export interface PostCallDraft {
+  draftId: string
+  notes: string
+  structuredLines: string[]
+  status: string
+  createdAt: IsoDateTime
+}
+
+/** A task appears only after an explicit confirmation mutation. */
+export interface FollowUpTask {
+  taskId: string
+  description: string
+  ownerUserId: string
+  dueDate: IsoDate | null
+  status: "OPEN" | "IN_PROGRESS" | "DONE"
+  sourceDraftId: string | null
+  createdAt: IsoDateTime
+}
+
+export interface ConfirmFollowUpTaskInput {
+  description: string
+  dueDate?: IsoDate | null
+  sourceDraftId?: string | null
+}
+
+export interface TopicAlertRule {
+  ruleId: string
+  topic: string
+  threshold: number
+  periodDays: number
+  createdAt: IsoDateTime
+}
+
+/** A deterministic count over permitted source records plus response-id evidence. */
+export interface TopicAlert {
+  ruleId: string
+  topic: string
+  threshold: number
+  periodDays: number
+  count: number
+  evidenceResponseIds: string[]
+}
+
 export interface RequestContext {
   /** Sent with every call so FE and BE logs join up. */
   correlationId: string

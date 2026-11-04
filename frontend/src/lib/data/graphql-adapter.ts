@@ -19,11 +19,18 @@ import {
   HCP_PROFILE_QUERY,
   HCP_TIMELINE_QUERY,
   SEARCH_HCPS_QUERY,
-  START_CHAT_RUN_MUTATION,
   INSIGHT_DISCOVERY_QUERY,
   SAVED_VIEWS_QUERY,
   SAVE_VIEW_MUTATION,
   SEMANTIC_INSIGHT_SEARCH_QUERY,
+  POST_CALL_DRAFTS_QUERY,
+  CREATE_POST_CALL_DRAFT_MUTATION,
+  CONFIRM_POST_CALL_DRAFT_MUTATION,
+  MY_FOLLOW_UP_TASKS_QUERY,
+  CONFIRM_FOLLOW_UP_TASKS_MUTATION,
+  TOPIC_ALERT_RULES_QUERY,
+  CREATE_TOPIC_ALERT_RULE_MUTATION,
+  TOPIC_ALERTS_QUERY,
 } from "./operations"
 import {
   DataError,
@@ -55,6 +62,11 @@ import {
   type InsightFilters,
   type SavedView,
   type SemanticInsightResult,
+  type PostCallDraft,
+  type FollowUpTask,
+  type ConfirmFollowUpTaskInput,
+  type TopicAlertRule,
+  type TopicAlert,
 } from "./types"
 
 export interface GraphQLResponse<T> {
@@ -219,6 +231,30 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     async saveView(ctx, input) {
       const data = await run<{ saveView: SavedView }>(transport, SAVE_VIEW_MUTATION, { input }, ctx)
       return data.saveView
+    },
+    async createPostCallDraft(ctx, input) {
+      return (await run<{ createPostCallDraft: PostCallDraft }>(transport, CREATE_POST_CALL_DRAFT_MUTATION, { input }, ctx)).createPostCallDraft
+    },
+    async confirmPostCallDraft(ctx, draftId) {
+      return (await run<{ confirmPostCallDraft: PostCallDraft }>(transport, CONFIRM_POST_CALL_DRAFT_MUTATION, { draftId }, ctx)).confirmPostCallDraft
+    },
+    async postCallDrafts(ctx) {
+      return (await run<{ postCallDrafts: PostCallDraft[] }>(transport, POST_CALL_DRAFTS_QUERY, undefined, ctx)).postCallDrafts
+    },
+    async confirmFollowUpTasks(ctx, input: ConfirmFollowUpTaskInput[]) {
+      return (await run<{ confirmFollowUpTasks: FollowUpTask[] }>(transport, CONFIRM_FOLLOW_UP_TASKS_MUTATION, { input }, ctx)).confirmFollowUpTasks
+    },
+    async myFollowUpTasks(ctx) {
+      return (await run<{ myFollowUpTasks: FollowUpTask[] }>(transport, MY_FOLLOW_UP_TASKS_QUERY, undefined, ctx)).myFollowUpTasks
+    },
+    async createTopicAlertRule(ctx, input) {
+      return (await run<{ createTopicAlertRule: TopicAlertRule }>(transport, CREATE_TOPIC_ALERT_RULE_MUTATION, { input }, ctx)).createTopicAlertRule
+    },
+    async topicAlertRules(ctx) {
+      return (await run<{ topicAlertRules: TopicAlertRule[] }>(transport, TOPIC_ALERT_RULES_QUERY, undefined, ctx)).topicAlertRules
+    },
+    async topicAlerts(ctx) {
+      return (await run<{ topicAlerts: TopicAlert[] }>(transport, TOPIC_ALERTS_QUERY, undefined, ctx)).topicAlerts
     },
     async adminDataQuality(ctx) {
       const data = await run<{ adminDataQuality: AdminDataQuality }>(transport, ADMIN_DATA_QUALITY_QUERY, undefined, ctx)

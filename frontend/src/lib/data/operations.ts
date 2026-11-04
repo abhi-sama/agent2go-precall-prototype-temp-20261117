@@ -134,6 +134,17 @@ export const APPROVE_IDENTITY_MAPPING_MUTATION = /* GraphQL */ `
 `
 export const SAVED_VIEWS_QUERY = /* GraphQL */ `query SavedViews { savedViews { savedViewId name reportKind createdAt filters { from to territoryId molecule landscape study survey questionId } } }`
 export const SAVE_VIEW_MUTATION = /* GraphQL */ `mutation SaveView($input: SaveViewInput!) { saveView(input: $input) { savedViewId name reportKind createdAt filters { from to territoryId molecule landscape study survey questionId } } }`
+const POST_CALL_DRAFT_FIELDS = `draftId notes structuredLines status createdAt`
+const FOLLOW_UP_TASK_FIELDS = `taskId description ownerUserId dueDate status sourceDraftId createdAt`
+const TOPIC_ALERT_RULE_FIELDS = `ruleId topic threshold periodDays createdAt`
+export const POST_CALL_DRAFTS_QUERY = /* GraphQL */ `query PostCallDrafts { postCallDrafts { ${POST_CALL_DRAFT_FIELDS} } }`
+export const CREATE_POST_CALL_DRAFT_MUTATION = /* GraphQL */ `mutation CreatePostCallDraft($input: PostCallDraftInput!) { createPostCallDraft(input: $input) { ${POST_CALL_DRAFT_FIELDS} } }`
+export const CONFIRM_POST_CALL_DRAFT_MUTATION = /* GraphQL */ `mutation ConfirmPostCallDraft($draftId: ID!) { confirmPostCallDraft(draftId: $draftId) { ${POST_CALL_DRAFT_FIELDS} } }`
+export const MY_FOLLOW_UP_TASKS_QUERY = /* GraphQL */ `query MyFollowUpTasks { myFollowUpTasks { ${FOLLOW_UP_TASK_FIELDS} } }`
+export const CONFIRM_FOLLOW_UP_TASKS_MUTATION = /* GraphQL */ `mutation ConfirmFollowUpTasks($input: [ConfirmFollowUpTaskInput!]!) { confirmFollowUpTasks(input: $input) { ${FOLLOW_UP_TASK_FIELDS} } }`
+export const TOPIC_ALERT_RULES_QUERY = /* GraphQL */ `query TopicAlertRules { topicAlertRules { ${TOPIC_ALERT_RULE_FIELDS} } }`
+export const CREATE_TOPIC_ALERT_RULE_MUTATION = /* GraphQL */ `mutation CreateTopicAlertRule($input: TopicAlertRuleInput!) { createTopicAlertRule(input: $input) { ${TOPIC_ALERT_RULE_FIELDS} } }`
+export const TOPIC_ALERTS_QUERY = /* GraphQL */ `query TopicAlerts { topicAlerts { ruleId topic threshold periodDays count evidenceResponseIds } }`
 export const ADMIN_DATA_QUALITY_QUERY = /* GraphQL */ `
   query AdminDataQuality {
     adminDataQuality {

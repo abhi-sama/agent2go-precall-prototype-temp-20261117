@@ -456,6 +456,50 @@ type SavedView {
   createdAt: AWSDateTime!
 }
 
+"""An editable, optional post-call draft. Its lines are copied verbatim from entered notes."""
+type PostCallDraft {
+  draftId: ID!
+  notes: String!
+  structuredLines: [String!]!
+  status: String!
+  createdAt: AWSDateTime!
+}
+
+"""A confirmed follow-up commitment. Suggestions never create one of these by themselves."""
+type FollowUpTask {
+  taskId: ID!
+  description: String!
+  ownerUserId: ID!
+  dueDate: AWSDate
+  status: String!
+  sourceDraftId: ID
+  createdAt: AWSDateTime!
+}
+
+input PostCallDraftInput { notes: String! }
+input ConfirmFollowUpTaskInput { description: String!, dueDate: AWSDate, sourceDraftId: ID }
+
+"""A deterministic, user-owned rule over in-scope recorded responses."""
+type TopicAlertRule {
+  ruleId: ID!
+  topic: String!
+  threshold: Int!
+  periodDays: Int!
+  createdAt: AWSDateTime!
+}
+
+"""An alert is present only when its deterministic count meets its saved threshold."""
+type TopicAlert {
+  ruleId: ID!
+  topic: String!
+  threshold: Int!
+  periodDays: Int!
+  count: Int!
+  evidenceResponseIds: [ID!]!
+}
+
+input TopicAlertRuleInput { topic: String!, threshold: Int!, periodDays: Int! }
+
 type InsightFilters {
   from: AWSDate
   to: AWSDate
@@ -655,6 +699,10 @@ type Query {
   governanceRequestQueue: [GovernanceRequest!]!
   "Read-only issue explanation and investigation suggestions. Administrators only."
   adminIssueAssistant(issueId: ID!): IssueAssistantResponse!
+  postCallDrafts: [PostCallDraft!]!
+  myFollowUpTasks: [FollowUpTask!]!
+  topicAlertRules: [TopicAlertRule!]!
+  topicAlerts: [TopicAlert!]!
 }
 
 type Mutation {
@@ -676,6 +724,11 @@ type Mutation {
   decideGovernanceRequest(input: DecideGovernanceRequestInput!): GovernanceRequest!
   startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!]): ChatRun!
   saveView(input: SaveViewInput!): SavedView!
+  createPostCallDraft(input: PostCallDraftInput!): PostCallDraft!
+  confirmPostCallDraft(draftId: ID!): PostCallDraft!
+  """Creates commitments only after this explicit confirmation mutation."""
+  confirmFollowUpTasks(input: [ConfirmFollowUpTaskInput!]!): [FollowUpTask!]!
+  createTopicAlertRule(input: TopicAlertRuleInput!): TopicAlertRule!
   "Server-to-server only: the BE chat worker publishes an event after persisting it under RLS."
   publishChatEvent(input: PublishChatEventInput!): LiveChatEvent! @aws_iam
 }

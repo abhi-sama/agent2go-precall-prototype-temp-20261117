@@ -53,6 +53,14 @@ export const BE_FIELDS = [
   { typeName: 'Mutation', fieldName: 'decideGovernanceRequest' },
   { typeName: 'Query', fieldName: 'catalogQuestions' },
   { typeName: 'Query', fieldName: 'questionResponses' },
+  { typeName: 'Query', fieldName: 'postCallDrafts' },
+  { typeName: 'Query', fieldName: 'myFollowUpTasks' },
+  { typeName: 'Query', fieldName: 'topicAlertRules' },
+  { typeName: 'Query', fieldName: 'topicAlerts' },
+  { typeName: 'Mutation', fieldName: 'createPostCallDraft' },
+  { typeName: 'Mutation', fieldName: 'confirmPostCallDraft' },
+  { typeName: 'Mutation', fieldName: 'confirmFollowUpTasks' },
+  { typeName: 'Mutation', fieldName: 'createTopicAlertRule' },
 ] as const;
 
 /**

@@ -31,6 +31,11 @@ import type {
   ScopeAssignmentInput,
   SourceRecord,
   SavedView,
+  PostCallDraft,
+  FollowUpTask,
+  ConfirmFollowUpTaskInput,
+  TopicAlertRule,
+  TopicAlert,
   TerritoryComparison,
 } from "./types"
 
@@ -85,5 +90,14 @@ export interface DataAdapter extends GovernanceAdapter {
   semanticInsightSearch(ctx: RequestContext, query: string, limit?: number): Promise<SemanticInsightResult[]>
   savedViews(ctx: RequestContext): Promise<SavedView[]>
   saveView(ctx: RequestContext, input: Pick<SavedView, "name" | "reportKind" | "filters">): Promise<SavedView>
+  createPostCallDraft(ctx: RequestContext, input: { notes: string }): Promise<PostCallDraft>
+  confirmPostCallDraft(ctx: RequestContext, draftId: string): Promise<PostCallDraft>
+  postCallDrafts(ctx: RequestContext): Promise<PostCallDraft[]>
+  /** This is the only method that may create task rows. */
+  confirmFollowUpTasks(ctx: RequestContext, input: ConfirmFollowUpTaskInput[]): Promise<FollowUpTask[]>
+  myFollowUpTasks(ctx: RequestContext): Promise<FollowUpTask[]>
+  createTopicAlertRule(ctx: RequestContext, input: { topic: string; threshold: number; periodDays: number }): Promise<TopicAlertRule>
+  topicAlertRules(ctx: RequestContext): Promise<TopicAlertRule[]>
+  topicAlerts(ctx: RequestContext): Promise<TopicAlert[]>
   adminDataQuality(ctx: RequestContext): Promise<AdminDataQuality>
 }
