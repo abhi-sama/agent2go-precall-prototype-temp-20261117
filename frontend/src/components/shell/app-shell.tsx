@@ -1,12 +1,13 @@
 "use client"
 
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Stethoscope } from "lucide-react"
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
 import { PERSONA_CONFIG, type NavItem } from "@/components/shell/persona-config"
 import { AppearanceSettings } from "@/components/shell/appearance-settings"
+import { BrandMark } from "@/components/brand/brand-mark"
 import { FirstRunOrientation } from "@/components/state/first-run-orientation"
 import { ThemeToggle } from "@/components/shell/theme-toggle"
 import { OfflineStatus } from "@/components/shell/offline-status"
@@ -232,17 +233,12 @@ function Brand({ collapsed = false }: { collapsed?: boolean }) {
   return (
     <Link
       href="/"
-      aria-label={collapsed ? "MSL Agent" : undefined}
+      aria-label="MSL Agent home"
       title={collapsed ? "MSL Agent" : undefined}
       className={cn("flex min-h-11 items-center gap-2.5 rounded-xl", collapsed ? "justify-center" : "pr-2")}
     >
-      <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-lift">
-        <Stethoscope className="size-5" aria-hidden />
-      </span>
-      <span className={cn("flex flex-col leading-none", collapsed && "sr-only")}>
-        <span className="text-[1.05rem] font-semibold tracking-tight">MSL Agent</span>
-        <span className="mt-0.5 text-[0.68rem] font-medium tracking-wide text-muted-foreground uppercase">agent2go</span>
-      </span>
+      <BrandMark priority />
+      <span className={cn("text-base font-semibold tracking-tight", collapsed && "sr-only")}>MSL Agent</span>
     </Link>
   )
 }

@@ -1,10 +1,11 @@
 "use client"
 
 import { fetchAuthSession } from "aws-amplify/auth"
-import { LogIn, Stethoscope } from "lucide-react"
+import { LogIn } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
 import { Button } from "@/components/ui/button"
+import { BrandMark } from "@/components/brand/brand-mark"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PERSONA_HOME } from "@/lib/data/fixtures"
@@ -63,9 +64,7 @@ function LoginForm() {
   return (
     <div className="flex w-full max-w-md flex-col gap-6">
       <div className="flex items-center gap-3">
-        <span className="grid size-11 place-items-center rounded-xl bg-primary text-primary-foreground shadow-lift">
-          <Stethoscope className="size-6" aria-hidden />
-        </span>
+        <BrandMark className="size-11" priority />
         <div className="flex flex-col leading-tight">
           <h1 className="text-2xl font-semibold tracking-tight">Sign in to MSL Agent</h1>
           <p className="text-sm text-muted-foreground">Use your organisation account.</p>

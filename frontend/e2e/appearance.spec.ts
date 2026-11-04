@@ -22,6 +22,23 @@ test("MSL defaults to the warm style", async ({ page }) => {
   await expect.poll(() => attr(page, "style")).toBe("warm")
 })
 
+test("app chrome and install metadata use the shared MSL Agent mark", async ({ page }) => {
+  await signInAs(page, "u-msl-ne-01", { theme: "light" })
+  await page.goto("/msl")
+  const brand = page.getByRole("link", { name: "MSL Agent home" })
+  await expect(brand).toBeVisible()
+  await expect(brand.locator('img[src="/icon.svg"]')).toBeVisible()
+
+  const manifest = await page.evaluate(async () => {
+    const response = await fetch("/manifest.webmanifest")
+    return response.json() as Promise<{ icons: { src: string; sizes: string }[] }>
+  })
+  expect(manifest.icons).toEqual([
+    { src: "/app-icon-192.png", sizes: "192x192", type: "image/png" },
+    { src: "/app-icon-512.png", sizes: "512x512", type: "image/png" },
+  ])
+})
+
 test("Director defaults to the clinical style", async ({ page }) => {
   await signInAs(page, "u-dir-ne", { theme: "light" })
   await page.goto("/director")
