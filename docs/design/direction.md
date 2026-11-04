@@ -101,6 +101,14 @@ New AI surface? Use `AiSummary` with `citations`; do not hand-roll a tinted card
 A collapsible left sidebar: icons only when collapsed, a slide-over sheet in iPad portrait.
 The AI chat is a slide-in right panel that keeps the current filters as context, and a full-screen sheet in iPad portrait.
 
+### Chat panel (ticket #53)
+
+- **Open:** the "Ask AI" button in the header, on every screen except `/chat` (the full page, which shows the same conversation). Opening never navigates; a route change closes the panel.
+- **Presentation:** a right panel, `--chat-panel-w` wide (`clamp(26rem, 32vw, 36rem)`), on laptops and landscape iPads. A full-screen sheet from the bottom when `(max-width: 639px), (orientation: portrait) and (pointer: coarse)` matches, which covers all four iPad portrait sizes (`hooks/use-chat-presentation.ts`). It reuses `ui/sheet.tsx`, so the slide is the one in `motion-plan.md` (300ms in, 200ms out, `--ease-drawer`).
+- **Context:** the route becomes `view` (`/director/insights` is `director-insights`); on screens that show the shared filter bar (`/msl`, `/director`, `/director/insights`, `/executive`) the date range, territory and question go with it. Each one is a chip under the header, so what the agent is told is what the person sees. The path is unchanged: `startChatRun` through AppSync to the BE Lambda, which validates `ChatContextInput` again. Product, landscape, study and survey filters are not in that contract and are not sent (and so not shown). Each question also keeps a line saying which screen it was asked from.
+- **Conversation:** one per person, in `ChatProvider` (`components/chat/chat-provider.tsx`), saved to `sessionStorage` (`lib/chat/persistence.ts`): it survives close, reopen, navigation and reload, ends with the tab, and is never shown to another person. An answer that was still streaming at reload is shown as interrupted.
+- **Touch:** the composer is 16px text, the cursor goes to it on open only with a mouse or keyboard (a touch open keeps the keyboard down), every control is 44pt or more.
+
 ## Icons, empty states, brand
 
 - Icons: Lucide, one stroke weight (1.75), 16px inline and 20px in tiles. No emoji or glyphs as icons.
@@ -110,7 +118,7 @@ The AI chat is a slide-in right panel that keeps the current filters as context,
 ## What ticket #45 built, and what follow-ups apply
 
 Built here (foundation): style, mode and density tokens; the appearance provider with persona defaults and the settings control; Inter with tabular figures; motion primitives; the validated chart palette and shared chart components; the sonner toaster; the audit fixes and high-priority motion fixes.
-Left to follow-up tickets, per-feature: the collapsible sidebar rebuild, the right-hand chat panel, empty-state scenes and onboarding, the brand mark, springy cards and parallax on landing scenes.
+Left to follow-up tickets, per-feature: the collapsible sidebar rebuild, empty-state scenes and onboarding, the brand mark, springy cards and parallax on landing scenes.
 
 ## Decisions recorded from the grilling
 

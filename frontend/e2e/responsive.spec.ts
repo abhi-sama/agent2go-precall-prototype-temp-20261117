@@ -36,7 +36,10 @@ for (const screen of SCREENS) {
 
     // Measure first: a full-page screenshot resizes the emulated viewport and perturbs layout.
     const report = await collectLayoutReport(page, { touch: viewport.touch })
-    const shot = await page.screenshot({ fullPage: true, animations: "disabled" })
+    // A modal (the chat panel, a citation sheet) is fixed to the viewport, so it is captured as the person sees it; a
+    // full-page capture would stretch the viewport and the sheet with it.
+    const modalOpen = (await page.locator('[role="dialog"]').count()) > 0
+    const shot = await page.screenshot({ fullPage: !modalOpen, animations: "disabled" })
     // On disk for review (test-results/screenshots/<viewport>/<screen>.png) and attached to the HTML report.
     const dir = path.join("test-results", "screenshots", viewport.name)
     mkdirSync(dir, { recursive: true })

@@ -11,6 +11,8 @@ export interface ChatTurn {
   id: string
   question: string
   answer: AssistantTurn
+  /** The screen the question was asked from, kept so a later turn can say where it came from. */
+  context?: ChatContext
 }
 
 const POLL_MS = 250
@@ -44,6 +46,7 @@ export function historyOf(turns: ChatTurn[]): ChatMessageInput[] {
 export function useChat(adapter: DataAdapter) {
   const [turns, setTurns] = React.useState<ChatTurn[]>([])
   const [threadId, setThreadId] = React.useState(newId)
+  const [hydrated, setHydrated] = React.useState(false)
   const turnsRef = React.useRef<ChatTurn[]>([])
   const abort = React.useRef<AbortController | null>(null)
   const running = turns.some((t) => t.answer.status === "running")
@@ -70,7 +73,7 @@ export function useChat(adapter: DataAdapter) {
       const correlationId = newCorrelationId()
       const ctx = { correlationId }
       const history = historyOf(turnsRef.current)
-      commit([...turnsRef.current, { id: runId, question: text, answer: newTurn(runId) }])
+      commit([...turnsRef.current, { id: runId, question: text, answer: newTurn(runId), ...(context ? { context } : {}) }])
       const controller = new AbortController()
       abort.current = controller
       const fail = (message: string) => patch(runId, (a) => ({ ...a, status: "error", error: message }))
@@ -119,5 +122,17 @@ export function useChat(adapter: DataAdapter) {
     setThreadId(newId())
   }, [commit])
 
-  return { turns, running, send, reset, threadId }
+  /** Put a stored conversation back after a reload (or `null` when there is none). Until then `hydrated` is false. */
+  const restore = React.useCallback(
+    (stored: { turns: ChatTurn[]; threadId: string } | null) => {
+      if (stored) {
+        commit(stored.turns)
+        setThreadId(stored.threadId)
+      }
+      setHydrated(true)
+    },
+    [commit],
+  )
+
+  return { turns, running, send, reset, restore, hydrated, threadId }
 }

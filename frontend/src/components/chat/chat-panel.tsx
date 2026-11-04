@@ -1,54 +1,33 @@
 "use client"
 
-import { MessageSquarePlus, SendHorizontal } from "lucide-react"
+import { MessageSquarePlus } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import * as React from "react"
-import { AssistantTurnView } from "@/components/chat/assistant-turn"
-import { CitationSheet } from "@/components/chat/citation-sheet"
+import { ChatConversation } from "@/components/chat/chat-conversation"
+import { useChatSession } from "@/components/chat/chat-provider"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { Button } from "@/components/ui/button"
-import { useReducedMotion } from "@/hooks/use-reduced-motion"
-import type { CitationItem } from "@/lib/chat/events"
 import { parseChatContext, startersFor } from "@/lib/chat/context"
-import { MAX_QUESTION_CHARS, useChat } from "@/lib/chat/use-chat"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
 import { useSession } from "@/lib/session/session-provider"
 
-const STARTERS = [
+export const STARTERS = [
   "How many calls did I have in the last 90 days?",
   "What have HCPs recorded about osimertinib?",
   "Which territories can I see?",
 ]
 
+/** The full-page chat (`/chat`, and the target of "Ask the agent" links that carry a screen's context). Same conversation as the slide-in panel. */
 export function ChatPanel() {
   const adapter = useDataAdapter()
   const { userId, ready } = useSession()
   const me = useQuery("me", userId, (ctx) => adapter.me(ctx), ready)
-  const { turns, running, send, reset } = useChat(adapter)
+  const { turns, running, reset } = useChatSession()
   const params = useSearchParams()
   // The screen the chat was opened from (a Director's territory or question). Defaults for the agent only.
   const context = React.useMemo(() => parseChatContext(new URLSearchParams(params.toString())), [params])
   const starters = startersFor(context, STARTERS)
-  const [draft, setDraft] = React.useState("")
-  const [open, setOpen] = React.useState<CitationItem | null>(null)
-  const bottom = React.useRef<HTMLDivElement>(null)
-  const reduced = useReducedMotion()
-
-  // A new turn scrolls smoothly into view; tokens streaming into it follow instantly, so the page does not
-  // restart a smooth scroll on every update.
-  const turnCount = React.useRef(0)
-  React.useEffect(() => {
-    const isNewTurn = turns.length !== turnCount.current
-    turnCount.current = turns.length
-    bottom.current?.scrollIntoView({ behavior: reduced || !isNewTurn ? "auto" : "smooth", block: "end" })
-  }, [turns, reduced])
-
-  const submit = (question: string) => {
-    if (!question.trim() || running) return
-    setDraft("")
-    void send(question, context)
-  }
 
   return (
     <div className="flex min-h-[calc(100dvh-13rem)] flex-col gap-4" data-testid="chat-panel">
@@ -73,71 +52,7 @@ export function ChatPanel() {
           )}
         </div>
       </header>
-
-      <div className="flex flex-1 flex-col gap-6" data-testid="chat-thread">
-        {turns.length === 0 && (
-          <div className="flex flex-col gap-3 rounded-2xl border border-dashed p-6" data-testid="chat-empty">
-            <p className="font-medium">Try a question</p>
-            <ul className="flex flex-wrap gap-2">
-              {starters.map((s) => (
-                <li key={s}>
-                  <button
-                    type="button"
-                    data-testid="starter"
-                    onClick={() => submit(s)}
-                    className="min-h-11 rounded-xl border bg-card px-4 text-left text-sm hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                  >
-                    {s}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {turns.map((t) => (
-          <article key={t.id} className="flex flex-col gap-3" data-testid="chat-turn">
-            <p data-testid="user-message" className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-3 text-primary-foreground">
-              {t.question}
-            </p>
-            <AssistantTurnView turn={t.answer} onAsk={submit} onOpenCitation={setOpen} canAsk={!running} aggregateOnly={me.status === "success" && me.data.persona === "executive"} />
-          </article>
-        ))}
-        <div ref={bottom} />
-      </div>
-
-      <form
-        className="safe-pb sticky bottom-0 -mx-4 flex items-end gap-2 border-t bg-background/90 px-4 py-3 backdrop-blur-md sm:mx-0 sm:rounded-2xl sm:border"
-        onSubmit={(e) => {
-          e.preventDefault()
-          submit(draft)
-        }}
-      >
-        <label htmlFor="chat-input" className="sr-only">
-          Your question
-        </label>
-        <textarea
-          id="chat-input"
-          data-testid="chat-input"
-          value={draft}
-          rows={2}
-          maxLength={MAX_QUESTION_CHARS}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault()
-              submit(draft)
-            }
-          }}
-          placeholder="Ask about your calls, HCPs or recorded responses"
-          className="min-h-11 flex-1 resize-none rounded-xl border border-input bg-card px-3 py-2.5 text-base focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-        />
-        <Button type="submit" size="lg" data-testid="chat-send" disabled={running || !draft.trim()} aria-label="Send question">
-          <SendHorizontal aria-hidden />
-          <span className="hidden sm:inline">Ask</span>
-        </Button>
-      </form>
-
-      <CitationSheet citation={open} onClose={() => setOpen(null)} />
+      <ChatConversation context={context} starters={starters} layout="page" />
     </div>
   )
 }

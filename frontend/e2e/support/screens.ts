@@ -547,6 +547,69 @@ export const SCREENS: ScreenSpec[] = [
       await expect(page.getByTestId("visual-sheet")).toBeVisible()
     },
   },
+  // The slide-in chat (ticket #53): a right panel on laptops and landscape iPads, a full-screen sheet in iPad portrait.
+  {
+    name: "chat-drawer-open",
+    path: "/msl",
+    ready: testId("kpi-calls"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-open").click()
+      await expect(page.getByTestId("chat-drawer")).toBeVisible()
+      await expect(page.getByTestId("chat-empty")).toBeVisible()
+    },
+  },
+  {
+    name: "chat-drawer-director-context",
+    path: "/director/insights",
+    userId: "u-dir-ne",
+    ready: testId("topic-heatmap"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-open").click()
+      await expect(page.getByTestId("chat-drawer")).toBeVisible()
+      await expect(page.locator('[data-testid="chat-chip"][data-kind="range"]')).toBeVisible()
+    },
+  },
+  {
+    name: "chat-drawer-answer",
+    path: "/msl",
+    ready: testId("kpi-calls"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-open").click()
+      await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+    },
+  },
+  ...([
+    ["line", "Show my calls by month", "line-chart"],
+    ["heatmap", "Heatmap of calls by product", "heatmap-chart"],
+    ["table", "Give me a table of calls", "visual-table"],
+  ] as const).map(([name, question, chart]): ScreenSpec => ({
+    name: `chat-drawer-visual-${name}`,
+    path: "/msl",
+    ready: testId("kpi-calls"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-open").click()
+      await page.getByTestId("chat-input").fill(question)
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId(chart).first()).toBeVisible()
+    },
+  })),
+  {
+    name: "chat-drawer-citation",
+    path: "/msl",
+    ready: testId("kpi-calls"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-open").click()
+      await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      // Scoped to the panel: /msl has AI-content cards of its own with citations underneath it.
+      await page.getByTestId("chat-drawer").getByTestId("citation").first().click()
+      await expect(page.getByTestId("citation-sheet")).toBeVisible()
+    },
+  },
   { name: "design-system", path: "/design", ready: async (page) => { await heading("Design system")(page); await testId("echart")(page) } },
   // The other appearances (docs/design/direction.md): the same screens in true black and in the other style.
   {
@@ -617,6 +680,38 @@ export const SCREENS: ScreenSpec[] = [
         root.dataset.mode = "black"
         root.dataset.style = "clinical"
       })
+    },
+  },
+  {
+    name: "chat-drawer-black-clinical",
+    path: "/msl",
+    ready: testId("kpi-calls"),
+    prepare: async (page) => {
+      await page.evaluate(() => {
+        const root = document.documentElement
+        root.classList.add("dark")
+        root.dataset.mode = "black"
+        root.dataset.style = "clinical"
+      })
+      await page.getByTestId("chat-open").click()
+      await page.getByTestId("chat-input").fill("Compare my calls by product")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+    },
+  },
+  {
+    name: "chat-drawer-charcoal-warm",
+    path: "/director",
+    userId: "u-dir-ne",
+    ready: testId("director-overview"),
+    prepare: async (page) => {
+      await page.evaluate(() => {
+        const root = document.documentElement
+        root.classList.add("dark")
+        root.dataset.style = "warm"
+      })
+      await page.getByTestId("chat-open").click()
+      await expect(page.getByTestId("chat-drawer")).toBeVisible()
     },
   },
   {

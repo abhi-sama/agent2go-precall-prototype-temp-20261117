@@ -5,6 +5,8 @@ import dynamic from "next/dynamic"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
+import { ChatDrawer, ChatTrigger } from "@/components/chat/chat-drawer"
+import { ChatProvider } from "@/components/chat/chat-provider"
 import { PERSONA_CONFIG, type NavItem } from "@/components/shell/persona-config"
 import { AppearanceSettings } from "@/components/shell/appearance-settings"
 import { BrandMark } from "@/components/brand/brand-mark"
@@ -118,6 +120,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SharedFilterProvider>
+    <ChatProvider>
     <div className="flex min-h-dvh flex-col bg-background desktop:flex-row">
       {/* Desktop rail */}
       <aside
@@ -174,6 +177,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   Local
                 </Badge>
               )}
+              <ChatTrigger />
               <PersonaSwitcher />
               <AppearanceSettings />
               <ThemeToggle />
@@ -225,6 +229,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </SheetContent>
       </Sheet>
     </div>
+    <ChatDrawer />
+    </ChatProvider>
     </SharedFilterProvider>
   )
 }

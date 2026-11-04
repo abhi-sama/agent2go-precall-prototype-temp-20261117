@@ -172,6 +172,8 @@
   --control-h: 2.75rem;
   --card-pad: 1rem;
   --page-gap: 1.5rem;
+  /* Slide-in chat panel: a third of a laptop screen, never narrower than a phone-sized column or wider than a reading line. */
+  --chat-panel-w: clamp(26rem, 32vw, 36rem);
 
   /* Motion tokens: one ease-out for entrances, one durations scale (see docs/design/motion-plan.md). */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
