@@ -52,8 +52,7 @@ export function Heatmap({
     <div data-testid={testId} className="max-h-[28rem] overflow-y-auto rounded-xl border">
       <table className="w-full table-fixed border-collapse text-sm">
         <caption className="sr-only">{caption}</caption>
-        {/* The table header sticks inside this scroll container; it intentionally passes beneath the app shell's sticky header before this card enters view. */}
-        <thead data-layout-ok="overlap" className="sticky top-0 z-10 bg-card">
+        <thead className="bg-card">
           <tr className="border-b text-left text-xs text-muted-foreground">
             <th scope="col" className="w-[34%] px-3 py-2 font-medium sm:w-[28%]">{rowHeader}</th>
             {columns.map((c) => (

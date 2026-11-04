@@ -65,8 +65,10 @@ test.describe("Executive overview", () => {
 
   test("coverage is withheld without a target population and shown with one", async ({ page }) => {
     await page.goto("/executive")
+    await expect(page.getByTestId("executive-overview")).toHaveAttribute("aria-busy", "false", { timeout: 15_000 })
     await expect(page.getByTestId("coverage-withheld")).toContainText("Coverage is not shown")
     await page.goto("/executive?scenario=targets")
+    await expect(page.getByTestId("executive-overview")).toHaveAttribute("aria-busy", "false", { timeout: 15_000 })
     await expect(page.getByTestId("coverage-value")).toContainText("%")
   })
 

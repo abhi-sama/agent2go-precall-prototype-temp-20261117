@@ -81,8 +81,10 @@ test.describe("MSL landing", () => {
     await expect(page.getByTestId("hcp-timeline")).toBeVisible()
     await expect(page.getByTestId("call-CALL-MOCK-1001")).toContainText("osimertinib")
     const child = page.getByTestId("response-insight-mock-child")
-    await expect(child).toHaveCount(1)
-    await page.getByTestId("response-insight-mock-parent").locator(":scope > summary").click()
+    await expect(page.getByTestId("response-insight-mock-parent")).toHaveCount(1)
+    // Follow-up answers are deliberately rendered only after their parent is opened.
+    await expect(child).toHaveCount(0)
+    await page.getByTestId("response-toggle-insight-mock-parent").click()
     await expect(child).toBeVisible()
     await expect(page.getByTestId("hcp-perspective-history")).toContainText("Recorded over time")
   })
