@@ -717,6 +717,19 @@ def save_view(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mappi
     return view
 
 
+def my_appearance(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, store: SavedViews) -> dict[str, str] | None:
+    return store.get_appearance(user_id)
+
+
+def set_appearance(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, store: SavedViews) -> dict[str, str]:
+    input_ = args.get("input")
+    if not isinstance(input_, dict):
+        raise BadRequest("invalid_appearance")
+    choice = store.set_appearance(user_id, input_)
+    log.info("appearance saved", user_id=user_id, style=choice["style"], mode=choice["mode"], density=choice["density"])
+    return choice
+
+
 def admin_metadata_reconciliation(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Compare status values without selecting or overwriting either source of record."""
     _require_admin(cur)

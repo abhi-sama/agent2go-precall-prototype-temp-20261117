@@ -8,6 +8,7 @@ import { buildComparison, buildOverview, tooLong } from "./mock-director"
 import { buildExecutiveDrilldown, buildExecutiveOverview, defaultExecutiveRange, executiveWindowTooLong, type ExecutiveInput } from "./mock-executive"
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
 import { mockCitation, readRun, scriptRun } from "./mock-chat"
+import { createMockAppearance } from "./mock-appearance"
 import { createMockBriefs } from "./mock-briefs"
 import { createMockExecutiveThemes, type ThemesInput } from "./mock-executive-themes"
 import {
@@ -238,6 +239,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     kind: "mock",
     ...createMockGovernance({ getUser: () => findUser(options.getUserId()), gate, now }),
     ...createMockEvals({ getUser: () => findUser(options.getUserId()), gate, now }),
+    ...createMockAppearance({ getUserId: options.getUserId, gate, now }),
     ...createMockBriefs({ user: () => findUser(options.getUserId()), scenario, gate, now }),
     ...createMockDirectorInsights({ getUser: () => findUser(options.getUserId()), gate, now }),
     ...createMockExecutiveThemes({ user: () => findUser(options.getUserId()), scenario, gate, input: themesInput, now }),

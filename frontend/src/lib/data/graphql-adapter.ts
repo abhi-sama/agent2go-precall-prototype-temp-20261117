@@ -33,6 +33,8 @@ import {
   INSIGHT_DISCOVERY_QUERY,
   SAVED_VIEWS_QUERY,
   SAVE_VIEW_MUTATION,
+  MY_APPEARANCE_QUERY,
+  SET_APPEARANCE_MUTATION,
   SEMANTIC_INSIGHT_SEARCH_QUERY,
   POST_CALL_DRAFTS_QUERY,
   CREATE_POST_CALL_DRAFT_MUTATION,
@@ -85,6 +87,7 @@ import {
   type TopicAlert,
   type ExecutiveDrilldown,
   type ExecutiveOverview,
+  SavedAppearance,
 } from "./types"
 
 export interface GraphQLResponse<T> {
@@ -295,6 +298,12 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     async saveView(ctx, input) {
       const data = await run<{ saveView: SavedView }>(transport, SAVE_VIEW_MUTATION, { input }, ctx)
       return data.saveView
+    },
+    async myAppearance(ctx) {
+      return (await run<{ myAppearance: SavedAppearance | null }>(transport, MY_APPEARANCE_QUERY, undefined, ctx)).myAppearance
+    },
+    async setAppearance(ctx, input) {
+      return (await run<{ setAppearance: SavedAppearance }>(transport, SET_APPEARANCE_MUTATION, { input }, ctx)).setAppearance
     },
     async createPostCallDraft(ctx, input) {
       return (await run<{ createPostCallDraft: PostCallDraft }>(transport, CREATE_POST_CALL_DRAFT_MUTATION, { input }, ctx)).createPostCallDraft

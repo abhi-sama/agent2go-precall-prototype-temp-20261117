@@ -127,7 +127,7 @@ export function ErrorState({ error, onRetry }: { error: DataError; onRetry?: () 
     >
       {copy.body}
       {error.correlationId && (
-        <span className="mt-2 block font-mono text-xs opacity-70">Reference {error.correlationId.slice(0, 8)}</span>
+        <span className="mt-2 block font-mono text-xs">Reference {error.correlationId.slice(0, 8)}</span>
       )}
     </StateShell>
   )

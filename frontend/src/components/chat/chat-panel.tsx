@@ -129,7 +129,7 @@ export function ChatPanel() {
             }
           }}
           placeholder="Ask about your calls, HCPs or recorded responses"
-          className="min-h-11 flex-1 resize-none rounded-xl border bg-card px-3 py-2.5 text-base focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="min-h-11 flex-1 resize-none rounded-xl border border-input bg-card px-3 py-2.5 text-base focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
         />
         <Button type="submit" size="lg" data-testid="chat-send" disabled={running || !draft.trim()} aria-label="Send question">
           <SendHorizontal aria-hidden />

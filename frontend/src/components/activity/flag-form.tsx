@@ -180,7 +180,7 @@ export function FlagForm({
           {error.code === "BAD_REQUEST"
             ? "That could not be flagged. Check the id: it must be a record in your own scope."
             : "The flag could not be sent. Try again."}
-          {error.correlationId && <span className="mt-1 block font-mono text-xs opacity-70">Reference {error.correlationId.slice(0, 8)}</span>}
+          {error.correlationId && <span className="mt-1 block font-mono text-xs">Reference {error.correlationId.slice(0, 8)}</span>}
         </p>
       )}
 

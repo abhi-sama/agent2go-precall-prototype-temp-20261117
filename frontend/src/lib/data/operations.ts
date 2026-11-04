@@ -134,6 +134,8 @@ export const APPROVE_IDENTITY_MAPPING_MUTATION = /* GraphQL */ `
 `
 export const SAVED_VIEWS_QUERY = /* GraphQL */ `query SavedViews { savedViews { savedViewId name reportKind createdAt filters { from to territoryId molecule landscape study survey questionId } } }`
 export const SAVE_VIEW_MUTATION = /* GraphQL */ `mutation SaveView($input: SaveViewInput!) { saveView(input: $input) { savedViewId name reportKind createdAt filters { from to territoryId molecule landscape study survey questionId } } }`
+export const MY_APPEARANCE_QUERY = /* GraphQL */ `query MyAppearance { myAppearance { style mode density updatedAt } }`
+export const SET_APPEARANCE_MUTATION = /* GraphQL */ `mutation SetAppearance($input: AppearanceInput!) { setAppearance(input: $input) { style mode density updatedAt } }`
 const POST_CALL_DRAFT_FIELDS = `draftId notes structuredLines status createdAt`
 const FOLLOW_UP_TASK_FIELDS = `taskId description ownerUserId dueDate status sourceDraftId createdAt`
 const TOPIC_ALERT_RULE_FIELDS = `ruleId topic threshold periodDays createdAt`

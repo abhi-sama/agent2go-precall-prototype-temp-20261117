@@ -36,6 +36,25 @@ Style lives on `<html data-style="warm|clinical">` and changes tokens (`--radius
 The header's sun/moon button flips light and dark; the appearance settings pick Device, Light, Charcoal or Black.
 The chart palette was validated on white, charcoal card and black card surfaces (see `charts.md`).
 
+## Saving and applying the choice (ticket #49)
+
+Style, mode and density are saved **per user** (`setAppearance`, read back with `myAppearance`) through the approved path: browser -> FE AppSync -> BE API Lambda -> FE DynamoDB (ADR 0012). Nothing is saved until the person changes something; until then the persona defaults apply (MSL Warm, Director, Executive and Administrator Clinical).
+
+- **First paint, no flash.** A boot script at the top of the root layout reads a device-local copy of the choice (`localStorage["a2g.appearance"]`, tagged with the user id) and sets `data-style`, `data-density`, `data-mode` and the `dark` class before anything paints. With no copy it picks the persona style of the local quick-switch user, or the style shown last time. A different user's copy is ignored. After the session loads, the provider fetches the saved choice and, if it differs (a choice made on another device), applies it.
+- **Changing a setting** updates the page and the local copy at once and saves to the server in the background; saves are queued and the newest wins. If a save fails, a toast says the choice still applies on this device.
+- **Follow-device** (`Device`) maps device dark to warm charcoal, never true black. **True black** renders `#000` page and sidebar surfaces.
+- **The header sun/moon button** goes through the same provider, so it saves too. Flipping back from Light returns to the dark flavour last chosen on this device.
+- **First visit on a new device or browser** has no local copy, so the persona default shows until the saved choice arrives (a fraction of a second); a returning person on the same device never sees a change.
+
+### Contrast (WCAG AA) in every combination
+
+All six looks (Warm and Clinical x Light, Warm charcoal and True black) meet WCAG 2.x AA, and `e2e/appearance-matrix.spec.ts` proves it on the key screens (MSL, Director, Admin, chat, design system) at every viewport: text 4.5:1 (3:1 for large text), form-control borders and the focus ring 3:1. Decisions that follow from it:
+
+- **Labels on the orange are warm ink, not white** (light mode): white on orange-600 is 3.6:1, ink is 5.3:1. The orange itself is unchanged. Dark modes already did this.
+- **Form-control borders** use `--input`, a mid-tone chosen to hold 3:1 on every surface a field sits on; hairlines and card edges stay on the lighter `--border`.
+- **Semantic colours** (`--success`, `--warning`, `--destructive`, `--suggest`, `--ai`) are chosen to hold 4.5:1 as small text on white and on their own 10-20% tints, because components use them as text. Placeholders use `--muted-foreground`.
+- Chart axis labels follow `--muted-foreground` in every mode.
+
 ## Density
 
 | Density | Default for | Control height | Card padding |

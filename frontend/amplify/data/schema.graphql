@@ -618,6 +618,23 @@ type SavedView {
   createdAt: AWSDateTime!
 }
 
+"""
+The person's saved look. Values are validated by the BE: style auto|warm|clinical, mode device|light|charcoal|black,
+density auto|comfortable|compact. "auto" means the persona (style) or device (density) default.
+"""
+type AppearancePreference {
+  style: String!
+  mode: String!
+  density: String!
+  updatedAt: AWSDateTime!
+}
+
+input AppearanceInput {
+  style: String!
+  mode: String!
+  density: String!
+}
+
 """An editable, optional post-call draft. Its lines are copied verbatim from entered notes."""
 type PostCallDraft {
   draftId: ID!
@@ -1592,6 +1609,8 @@ type Query {
   insightDiscovery(filters: InsightFiltersInput): InsightDiscovery!
   semanticInsightSearch(query: String!, limit: Int): [SemanticInsightResult!]!
   savedViews: [SavedView!]!
+  "The caller's saved style, mode and density, or null when they never chose (use persona defaults)."
+  myAppearance: AppearancePreference
   "Territory graph with cycles, orphans, missing links, overlaps and inheritance validated. Administrators only."
   adminHierarchy: HierarchyValidation!
   "Effective-dated assignments with computed status, the approval trail, and overlaps. Administrators only."
@@ -1666,6 +1685,8 @@ type Mutation {
   decideGovernanceRequest(input: DecideGovernanceRequestInput!): GovernanceRequest!
   startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!], context: ChatContextInput): ChatRun!
   saveView(input: SaveViewInput!): SavedView!
+  "Save the caller's style, mode and density. Always the caller's own; there is no way to name another user."
+  setAppearance(input: AppearanceInput!): AppearancePreference!
   createPostCallDraft(input: PostCallDraftInput!): PostCallDraft!
   confirmPostCallDraft(draftId: ID!): PostCallDraft!
   """Creates commitments only after this explicit confirmation mutation."""

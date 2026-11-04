@@ -25,7 +25,7 @@ export default defineConfig({
   },
   projects: VIEWPORTS.map((v) => ({
     name: v.name,
-    testMatch: FUNCTIONAL_PROJECTS.includes(v.name) ? /.*\.spec\.ts$/ : /(responsive|motion-matrix)\.spec\.ts$/,
+    testMatch: FUNCTIONAL_PROJECTS.includes(v.name) ? /.*\.spec\.ts$/ : /(responsive|motion-matrix|appearance-matrix)\.spec\.ts$/,
     use: {
       ...devices["Desktop Chrome"],
       viewport: { width: v.width, height: v.height },

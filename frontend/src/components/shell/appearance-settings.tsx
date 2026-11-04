@@ -74,7 +74,7 @@ function Segmented<T extends string>({
   )
 }
 
-/** One place for the three appearance switches. Defaults follow the person's role and device; every choice is saved on this device. */
+/** One place for the three appearance switches. Defaults follow the person's role and device; every choice is saved to their account. */
 export function AppearanceSettings() {
   const { mode, style, density, resolvedStyle, resolvedDensity, setMode, setStyle, setDensity } = useAppearance()
   return (
@@ -119,6 +119,7 @@ export function AppearanceSettings() {
             log.info("appearance changed", { setting: "density", value: v })
           }}
         />
+        <p className="text-xs text-muted-foreground">Saved to your account, so it follows you to your other devices.</p>
       </PopoverContent>
     </Popover>
   )

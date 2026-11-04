@@ -49,6 +49,8 @@ export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'semanticInsightSearch' },
   { typeName: 'Query', fieldName: 'savedViews' },
   { typeName: 'Mutation', fieldName: 'saveView' },
+  { typeName: 'Query', fieldName: 'myAppearance' },
+  { typeName: 'Mutation', fieldName: 'setAppearance' },
   { typeName: 'Query', fieldName: 'adminHierarchy' },
   { typeName: 'Query', fieldName: 'adminAccessTimeline' },
   { typeName: 'Mutation', fieldName: 'requestScopeChange' },

@@ -19,6 +19,15 @@ from .settings import Settings
 _serializer = TypeSerializer()
 _deserializer = TypeDeserializer()
 _FILTER_KEYS = ("from", "to", "territoryId", "molecule", "landscape", "study", "survey", "questionId")
+# The per-user appearance choice lives in the same owner-keyed table under a fixed sort key. The prefix keeps it out of
+# the saved-view list; the verified user id is the partition key, so nobody can read or write another person's choice.
+PREFERENCE_PREFIX = "PREF#"
+APPEARANCE_KEY = f"{PREFERENCE_PREFIX}appearance"
+APPEARANCE_CHOICES: dict[str, tuple[str, ...]] = {
+    "style": ("auto", "warm", "clinical"),
+    "mode": ("device", "light", "charcoal", "black"),
+    "density": ("auto", "comfortable", "compact"),
+}
 
 
 class SavedViews:
@@ -51,7 +60,9 @@ class SavedViews:
     def list(self, owner_user_id: str) -> list[dict[str, Any]]:
         try:
             result = self.client.query(TableName=self.table, KeyConditionExpression="ownerUserId = :owner", ExpressionAttributeValues={":owner": _serializer.serialize(owner_user_id)}, ScanIndexForward=False)
-            return [self._view(self._decode(item)) for item in result.get("Items", [])]
+            items = [self._decode(item) for item in result.get("Items", [])]
+            # The person's preference items share the table; they are not saved views.
+            return [self._view(item) for item in items if not str(item["savedViewId"]).startswith(PREFERENCE_PREFIX)]
         except Exception as exc:
             raise Unavailable("saved_views_read_failed") from exc
 
@@ -65,3 +76,27 @@ class SavedViews:
         except Exception as exc:
             raise Unavailable("saved_views_write_failed") from exc
         return self._view(item)
+
+    @staticmethod
+    def _appearance(item: dict[str, Any]) -> dict[str, str]:
+        return {"style": item["style"], "mode": item["mode"], "density": item["density"], "updatedAt": item["updatedAt"]}
+
+    def get_appearance(self, owner_user_id: str) -> dict[str, str] | None:
+        """The saved appearance, or None when the person never chose one (the client then uses their persona defaults)."""
+        try:
+            result = self.client.get_item(TableName=self.table, Key=self._encode({"ownerUserId": owner_user_id, "savedViewId": APPEARANCE_KEY}), ConsistentRead=True)
+        except Exception as exc:
+            raise Unavailable("appearance_read_failed") from exc
+        item = result.get("Item")
+        return self._appearance(self._decode(item)) if item else None
+
+    def set_appearance(self, owner_user_id: str, input_: dict[str, Any]) -> dict[str, str]:
+        choice = {key: input_.get(key) for key in APPEARANCE_CHOICES}
+        if any(choice[key] not in allowed for key, allowed in APPEARANCE_CHOICES.items()):
+            raise BadRequest("invalid_appearance")
+        item = {"ownerUserId": owner_user_id, "savedViewId": APPEARANCE_KEY, **choice, "updatedAt": datetime.now(timezone.utc).isoformat()}
+        try:
+            self.client.put_item(TableName=self.table, Item=self._encode(item))
+        except Exception as exc:
+            raise Unavailable("appearance_write_failed") from exc
+        return self._appearance(item)

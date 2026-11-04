@@ -113,6 +113,21 @@ export interface SavedView {
   createdAt: IsoDateTime
 }
 
+/** Style "auto" means the persona's default; density "auto" means the device's. "device" mode follows the OS. */
+export type StylePref = "auto" | "warm" | "clinical"
+export type ModePref = "device" | "light" | "charcoal" | "black"
+export type DensityPref = "auto" | "comfortable" | "compact"
+
+/** A person's saved look. Saved per user in FE DynamoDB; `null` from `myAppearance` means they never chose. */
+export interface AppearanceChoice {
+  style: StylePref
+  mode: ModePref
+  density: DensityPref
+}
+export interface SavedAppearance extends AppearanceChoice {
+  updatedAt: IsoDateTime
+}
+
 /** Optional post-call draft. Lines are a lossless rendering of entered notes, never generated observations. */
 export interface PostCallDraft {
   draftId: string

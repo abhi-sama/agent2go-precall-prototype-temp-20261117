@@ -102,6 +102,12 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
 
     def save_view(cur, identity, user_id, args):
         return resolvers.save_view(cur, identity, user_id, args, store=SavedViews(settings))
+
+    def my_appearance(cur, identity, user_id, args):
+        return resolvers.my_appearance(cur, identity, user_id, args, store=SavedViews(settings))
+
+    def set_appearance(cur, identity, user_id, args):
+        return resolvers.set_appearance(cur, identity, user_id, args, store=SavedViews(settings))
     embeddings = provider_from_config(settings.embedding_provider, endpoint_url=settings.embedding_endpoint, region_name=settings.saved_views_region)
 
     return {
@@ -148,6 +154,8 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "semanticInsightSearch": partial(resolvers.semantic_insight_search, provider=embeddings),
         "savedViews": list_views,
         "saveView": save_view,
+        "myAppearance": my_appearance,
+        "setAppearance": set_appearance,
         "adminHierarchy": hierarchy.admin_hierarchy,
         "adminAccessTimeline": hierarchy.admin_access_timeline,
         "requestScopeChange": hierarchy.request_scope_change,

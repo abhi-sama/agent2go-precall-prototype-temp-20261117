@@ -4,6 +4,8 @@ import type { ExecutiveThemesAdapter } from "./executive-themes"
 import type { GovernanceAdapter } from "./governance"
 import type {
   ActivityEvidence,
+  AppearanceChoice,
+  SavedAppearance,
   ActivityMetric,
   ActivityTrends,
   ChatEventPage,
@@ -108,6 +110,10 @@ export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter,
   semanticInsightSearch(ctx: RequestContext, query: string, limit?: number): Promise<SemanticInsightResult[]>
   savedViews(ctx: RequestContext): Promise<SavedView[]>
   saveView(ctx: RequestContext, input: Pick<SavedView, "name" | "reportKind" | "filters">): Promise<SavedView>
+  /** The caller's saved style, mode and density; null when they never chose (use persona defaults). */
+  myAppearance(ctx: RequestContext): Promise<SavedAppearance | null>
+  /** Saves the caller's own choice (there is no way to name another user). The latest save wins. */
+  setAppearance(ctx: RequestContext, input: AppearanceChoice): Promise<SavedAppearance>
   createPostCallDraft(ctx: RequestContext, input: { notes: string }): Promise<PostCallDraft>
   confirmPostCallDraft(ctx: RequestContext, draftId: string): Promise<PostCallDraft>
   postCallDrafts(ctx: RequestContext): Promise<PostCallDraft[]>

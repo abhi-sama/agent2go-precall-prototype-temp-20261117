@@ -11,14 +11,14 @@ All tokens are CSS custom properties in `frontend/src/app/globals.css`, mapped t
 | `data-style` | `warm`, `clinical` | `AppearanceProvider`; default from persona |
 | `data-density` | `comfortable`, `compact` | `AppearanceProvider`; default from `pointer: coarse` |
 
-A boot script in the root layout applies saved choices before first paint.
+A boot script in the root layout applies the saved choice (device copy, tagged with the user id) before first paint; the server copy is per user in FE DynamoDB. See `direction.md`, "Saving and applying the choice".
 
 ## Groups
 
 | Group | Tokens |
 |---|---|
 | Surface and text | `--background`, `--foreground`, `--card`, `--popover`, `--secondary`, `--muted`, `--muted-foreground`, `--border`, `--input`, `--ring`, `--sidebar*` |
-| Accent | `--primary` (orange-600 light, orange-500 dark), `--primary-foreground`, `--accent-text` (small orange text), `--accent` (hover wash) |
+| Accent | `--primary` (orange-600 light, orange-500 dark), `--primary-foreground` (warm ink in every mode: white is under 4.5:1 on orange-600), `--accent-text` (small orange text), `--accent` (hover wash) |
 | Navigation | `--nav-active`, `--nav-active-foreground` |
 | Meaning | `--fact*` (computed from source data; `--fact-soft` is the neutral muted surface, no tint), `--ai*` (AI-written; orange wash, see `direction.md`), `--suggest*` (proposals), `--success`, `--warning`, `--destructive` |
 | Chart | `--chart-1` to `--chart-6` (categorical, fixed order), `--chart-other`, `--chart-grid`; sequential ramps come from `sequentialFill` |
@@ -37,3 +37,7 @@ JS-driven motion (the globe camera, the expand unmount timer) reads these throug
 - Hover and active states read `--accent` and `--nav-active*`, so the two styles differ by tokens alone.
 - Fixed pixel and `ease-in-out` values in sheets replaced by motion tokens.
 - `--ink`, `--teal`, `--amber`, `--violet` remain for badges and meaning tokens (`--fact`, `--suggest`); they are not chart colours.
+
+## Contrast rules for tokens (ticket #49)
+
+Any new or changed token must keep `e2e/appearance-matrix.spec.ts` green in all six looks. In short: text tokens hold 4.5:1 on the surfaces and tints they appear on, `--input` and `--ring` hold 3:1 on `--background`, `--card`, `--popover` and `--muted`, and `--border` is decorative only (never the sole boundary of a control).

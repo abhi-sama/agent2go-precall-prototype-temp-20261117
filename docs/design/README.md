@@ -52,7 +52,8 @@ Nothing may overflow, overlap or need horizontal scrolling at any of these. Touc
 
 The list is `frontend/e2e/support/viewports.ts` and the screens are `frontend/e2e/support/screens.ts` (the shared responsive matrix from ticket #46; Playwright builds one project per viewport). `pnpm test:e2e` runs every screen at every size and fails on sideways scrolling, clipped or overlapping content, touch targets under 44pt on iPad sizes, and charts or 3D views that do not fit.
 A full-page screenshot per screen and size lands in `frontend/test-results/screenshots/<viewport>/<screen>.png`. Add your screen to `SCREENS` when you add a route.
-`frontend/e2e/appearance.spec.ts` covers style, mode and density; extend it when you add a token that changes with them.
+`frontend/e2e/appearance.spec.ts` covers style, mode and density (persona defaults, persistence, no flash); extend it when you add a token that changes with them.
+`frontend/e2e/appearance-matrix.spec.ts` runs the key screens in all six style x mode looks at every viewport and fails on layout problems and on WCAG AA contrast (`e2e/support/contrast.ts`). Add a screen to `KEY_SCREENS` when it introduces new colour combinations.
 
 ### Before you open the PR
 

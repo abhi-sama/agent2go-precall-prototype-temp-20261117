@@ -228,9 +228,9 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.012 55);
 
-  /* orange-600 */
+  /* orange-600. Labels on it are warm ink, not white: white is 3.6:1 on this orange, ink is 5.3:1 (WCAG AA needs 4.5). */
   --primary: oklch(0.646 0.222 41.116);
-  --primary-foreground: oklch(1 0 0);
+  --primary-foreground: oklch(0.175 0.008 55);
   --accent-text: oklch(0.553 0.195 38.402); /* orange-700, for small accent text on white */
 
   --secondary: oklch(0.972 0.005 70);
@@ -239,9 +239,10 @@
   --muted-foreground: oklch(0.5 0.012 60);
   --accent: oklch(0.968 0.02 60); /* orange-tinted hover wash */
   --accent-foreground: oklch(0.4 0.14 38);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: oklch(0.5 0.2 27);
   --border: oklch(0.915 0.006 70);
-  --input: oklch(0.89 0.008 70);
+  /* Control borders carry the 3:1 non-text contrast (WCAG 1.4.11) on every surface a field sits on. Hairlines use --border. */
+  --input: oklch(0.6 0.01 65);
   --ring: oklch(0.646 0.222 41.116);
 
   --ink: oklch(0.4 0.09 255);
@@ -249,15 +250,16 @@
   --teal: oklch(0.58 0.1 192);
   --amber: oklch(0.78 0.16 80);
   --violet: oklch(0.52 0.19 292);
-  --success: oklch(0.58 0.13 155);
-  --warning: oklch(0.7 0.16 70);
+  /* Semantic colours double as small text, so each is chosen to hold 4.5:1 on white and on its own 10-15% tint (WCAG AA). */
+  --success: oklch(0.49 0.11 155);
+  --warning: oklch(0.5 0.12 65);
 
   /* Three kinds of content. Facts are plain (no tint), AI is a soft orange wash, suggestions are dashed teal. */
   --fact: oklch(0.4 0.09 255);
   --fact-soft: var(--muted);
   --ai: oklch(0.5 0.17 40); /* 6:1 on --ai-soft */
   --ai-soft: oklch(0.968 0.028 65);
-  --suggest: oklch(0.5 0.1 192);
+  --suggest: oklch(0.45 0.09 192);
   --suggest-soft: oklch(0.965 0.025 195);
 
   /*
@@ -278,7 +280,7 @@
   --sidebar: oklch(0.985 0.003 70);
   --sidebar-foreground: oklch(0.21 0.012 55);
   --sidebar-primary: oklch(0.646 0.222 41.116);
-  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-primary-foreground: oklch(0.175 0.008 55);
   --sidebar-accent: oklch(0.968 0.02 60);
   --sidebar-accent-foreground: oklch(0.4 0.14 38);
   --sidebar-border: oklch(0.915 0.006 70);
@@ -310,12 +312,12 @@
   --secondary: oklch(0.295 0.008 56);
   --secondary-foreground: oklch(0.95 0.006 70);
   --muted: oklch(0.295 0.008 56);
-  --muted-foreground: oklch(0.72 0.012 65);
+  --muted-foreground: oklch(0.76 0.012 65);
   --accent: oklch(0.3 0.03 50);
   --accent-foreground: oklch(0.88 0.08 60);
-  --destructive: oklch(0.704 0.191 22.216);
+  --destructive: oklch(0.77 0.15 22);
   --border: oklch(0.34 0.008 56);
-  --input: oklch(0.38 0.01 56);
+  --input: oklch(0.58 0.01 56);
   --ring: oklch(0.705 0.213 47.604);
 
   --ink: oklch(0.72 0.1 250);
@@ -370,7 +372,7 @@
   --accent: oklch(0.26 0.02 50);
   --ai-soft: oklch(0.235 0.04 50);
   --border: oklch(0.29 0.005 56);
-  --input: oklch(0.32 0.006 56);
+  --input: oklch(0.54 0.006 56);
   --sidebar: oklch(0 0 0);
   --sidebar-border: oklch(0.26 0.005 56);
   --chart-grid: oklch(0.29 0.005 56);
@@ -401,7 +403,7 @@
   --accent: oklch(0.955 0.004 250);
   --accent-foreground: oklch(0.21 0.012 55);
   --border: oklch(0.905 0.004 250);
-  --input: oklch(0.86 0.005 250);
+  --input: oklch(0.6 0.008 255);
   --sidebar: oklch(0.982 0.002 250);
   --sidebar-accent: oklch(0.955 0.004 250);
   --sidebar-accent-foreground: oklch(0.21 0.012 55);
@@ -435,6 +437,11 @@
 }
 
 @layer base {
+  /* Placeholders are text: the browser default is a faint gray under 4.5:1. */
+  ::placeholder {
+    color: var(--muted-foreground);
+    opacity: 1;
+  }
   * {
     @apply border-border outline-ring/50;
   }
