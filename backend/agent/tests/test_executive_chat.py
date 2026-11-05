@@ -9,6 +9,7 @@ import pytest
 from conftest import make_invocation
 from test_runtime import collect, names, runtime
 
+from msl_agent.agent import MslAgent
 from msl_agent.repository import FixtureScopedRepository
 from msl_agent.tools import RunContext, build_tools
 
@@ -25,6 +26,33 @@ def event(events: list[dict[str, Any]], name: str) -> Any:
 
 def text_of(events: list[dict[str, Any]]) -> str:
     return "".join(e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT")
+
+
+def test_named_executive_territory_uses_the_territory_aggregate_group() -> None:
+    assert MslAgent._executive_activity_group(
+        "How many distinct calls did territory T01-01 have between 2026-10-01 and 2026-10-31?"
+    ) == "territory"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Show me the individual calls, call ids and HCP names for territory T01-01.",
+        "What percentage of responses to Q-0145 were Yes?",
+        "How many HCPs were engaged about osimertinib?",
+        "How many calls did oncologists receive in Q3?",
+    ],
+)
+def test_executive_source_or_unsupported_filters_are_refused_before_tool_selection(question: str) -> None:
+    assert MslAgent._executive_request_requires_refusal(question)
+
+
+@pytest.mark.asyncio
+async def test_executive_source_request_refuses_without_aggregate_visual(settings, repository) -> None:
+    agent, _ = runtime(settings, repository, [("tool", "get_executive_activity", {"metric": "calls"}), "There were 48 calls."])
+    events = await collect(agent, executive("Show me the individual calls and HCP names for territory T01-01."))
+    assert "aggregate-only Executive" in text_of(events)
+    assert "source_facts" not in names(events) and "visual" not in names(events) and "citations" not in names(events)
 
 
 @pytest.mark.asyncio

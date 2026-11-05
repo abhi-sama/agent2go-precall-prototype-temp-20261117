@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import tempfile
 import time
 import uuid
@@ -18,9 +19,11 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any, Literal
 
+from a2g_logging import get_logger
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
 
 def _positive_env(name: str, default: int) -> int:
     """Read a small operational limit without letting a bad local env wedge the bridge."""
@@ -38,6 +41,8 @@ MAX_IN_FLIGHT = _positive_env("A2G_CLI_MAX_IN_FLIGHT", 2)
 # queue.  Callers may raise this deliberately, but local development fails over
 # promptly by default.
 DEFAULT_TIMEOUT_SECONDS = 120
+_TOOL_UNAVAILABLE = re.compile(r"\b(?:tool|chart)\b.{0,80}(?:not available|unavailable|isn't|is not|wasn't|was not|can't|cannot)", re.I)
+log = get_logger(__name__)
 
 
 class ToolCall(BaseModel):
@@ -156,14 +161,48 @@ def _normalise_request(request: dict[str, Any]) -> dict[str, Any]:
     return {"system": "\n\n".join(system), "messages": turns, "tools": tools}
 
 
-def _prompt(payload: dict[str, Any]) -> str:
-    return """You are a model adapter, not an agent. Do not use tools, browse, read files, or execute commands.
+_ADAPTER_SYSTEM_PROMPT = """You are a model adapter, not an agent. Do not use tools, browse, read files, or execute commands.
 Answer the conversation encoded below. Tool definitions are declarative: if a tool is needed, return a tool_calls
 reply. Every tool call's input_json must be a serialized JSON object. Tool-result messages are prior results and must
 be used as conversational context. Return exactly one JSON object that conforms to the supplied schema, with no
 Markdown or explanation. In a data-grounded answer, use double quotation marks only for exact, verbatim text from a
-tool result. Do not quote your own framing, paraphrases, labels, dates, or explanations.\n\nCONVERSATION:\n""" + json.dumps(
-        payload, ensure_ascii=False, separators=(",", ":")
+tool result. Do not quote your own framing, paraphrases, labels, dates, or explanations."""
+
+
+def _prompt(payload: dict[str, Any], *, include_system: bool = True) -> str:
+    """Encode only the conversation data for the CLI's user turn.
+
+    Claude CLI receives the application's system prompt through ``--system-prompt``. Keep the
+    complete form for Codex, which has no equivalent non-interactive system-prompt flag.
+    """
+    conversation = payload if include_system else {"messages": payload["messages"], "tools": payload["tools"]}
+    return "CONVERSATION:\n" + json.dumps(conversation, ensure_ascii=False, separators=(",", ":"))
+
+
+def _claude_system_prompt(payload: dict[str, Any]) -> str:
+    """Keep the API system instructions at real system priority in Claude CLI."""
+    system = payload["system"].strip()
+    return f"{system}\n\n{_ADAPTER_SYSTEM_PROMPT}" if system else _ADAPTER_SYSTEM_PROMPT
+
+
+def _codex_prompt(payload: dict[str, Any]) -> str:
+    """Make the application protocol legible to Codex's single prompt channel.
+
+    ``codex exec`` has no non-interactive system-prompt option.  Putting the
+    application system message and the tool contract in named instruction
+    sections is materially different from serialising them as data inside a
+    conversation object: the model must decide whether to emit the strict
+    ``tool_calls`` reply before it can see any tool result.
+    """
+    system = payload["system"].strip()
+    return (
+        "APPLICATION RULES (follow these rules while answering):\n"
+        f"{system}\n\n"
+        f"{_ADAPTER_SYSTEM_PROMPT}\n\n"
+        "DECLARATIVE TOOL DEFINITIONS (return tool_calls to use one; do not claim tools are unavailable):\n"
+        f"{json.dumps(payload['tools'], ensure_ascii=False, separators=(',', ':'))}\n\n"
+        "CONVERSATION HISTORY:\n"
+        f"{json.dumps(payload['messages'], ensure_ascii=False, separators=(',', ':'))}"
     )
 
 
@@ -218,6 +257,11 @@ def _ground_quotes(reply: ModelReply, payload: dict[str, Any]) -> ModelReply:
     return ModelReply(kind="text", content=f'{text}\n\nRecorded response: "{quote}"')
 
 
+def _must_retry_for_tool(reply: ModelReply, payload: dict[str, Any]) -> bool:
+    """Repair the CLI's occasional false claim that declared tools do not exist."""
+    return bool(payload["tools"] and reply.kind == "text" and reply.content and _TOOL_UNAVAILABLE.search(reply.content))
+
+
 async def _run(command: list[str], prompt: str, cwd: Path, timeout: int) -> str:
     try:
         process = await asyncio.create_subprocess_exec(
@@ -263,7 +307,7 @@ def _parse_claude(raw: str) -> ModelReply:
         raise CliFailure("Claude returned an invalid model contract") from error
 
 
-async def _claude(prompt: str, model: str, cwd: Path, timeout: int) -> ModelReply:
+async def _claude(prompt: str, model: str, cwd: Path, timeout: int, system_prompt: str) -> ModelReply:
     command = [
         "claude",
         "-p",
@@ -273,6 +317,8 @@ async def _claude(prompt: str, model: str, cwd: Path, timeout: int) -> ModelRepl
         json.dumps(REPLY_SCHEMA),
         "--model",
         _model_alias(model),
+        "--system-prompt",
+        system_prompt,
         "--tools",
         "",
         "--strict-mcp-config",
@@ -322,15 +368,33 @@ async def _complete(request: dict[str, Any]) -> ModelReply:
     async with _capacity:
         with tempfile.TemporaryDirectory(prefix="a2g-cli-llm-") as temporary:
             cwd = Path(temporary)
-            prompt = _prompt(payload)
             if backend == "codex-cli":
-                return _ground_quotes(await _codex(prompt, cwd, timeout), payload)
+                reply = await _codex(_codex_prompt(payload), cwd, timeout)
+                log.warning(f"CLI completion served backend=codex-cli reply_kind={reply.kind}")
+                return _ground_quotes(reply, payload)
             try:
-                return _ground_quotes(await _claude(prompt, str(request.get("model", "sonnet")), cwd, timeout), payload)
+                reply = await _claude(
+                    _prompt(payload, include_system=False),
+                    str(request.get("model", "sonnet")),
+                    cwd,
+                    timeout,
+                    _claude_system_prompt(payload),
+                )
+                if _must_retry_for_tool(reply, payload):
+                    reply = await _claude(
+                        _prompt(payload, include_system=False)
+                        + "\n\nA declared tool is available. Do not claim it is unavailable; return tool_calls for the needed tool.",
+                        str(request.get("model", "sonnet")), cwd, timeout, _claude_system_prompt(payload),
+                    )
+                log.warning(f"CLI completion served backend=claude-cli reply_kind={reply.kind}")
+                return _ground_quotes(reply, payload)
             except CliFailure:
                 # A failure includes subscription limits and transient CLI errors.  The
                 # fallback has the identical strict contract, so callers see no change.
-                return _ground_quotes(await _codex(prompt, cwd, timeout), payload)
+                log.warning("CLI completion fell back backend=claude-cli to_backend=codex-cli")
+                reply = await _codex(_codex_prompt(payload), cwd, timeout)
+                log.warning(f"CLI completion served backend=codex-cli reply_kind={reply.kind}")
+                return _ground_quotes(reply, payload)
 
 
 def _completion(reply: ModelReply, model: str) -> dict[str, Any]:

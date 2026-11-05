@@ -30,6 +30,14 @@ def test_executive_gets_suppressed_aggregates_with_aggregate_citations_and_limit
     assert not any("suppressed" in r for r in ctx.tool_results)
 
 
+def test_executive_scope_check_denies_a_foreign_named_territory() -> None:
+    repository = PostgresScopedRepository(AGENT_URL)
+    identity = Identity(user_id="executive-region-01", persona="Executive", correlation_id="corr-db-test")
+
+    assert repository.territory_in_scope(identity, "T01-01")
+    assert not repository.territory_in_scope(identity, "T02-01")
+
+
 def test_other_personas_and_unscoped_executives_get_nothing() -> None:
     for user, persona, status in (("msl-t01-01", "MSL", "executive_only"), ("director-region-01", "Director", "executive_only"), ("msl-nobody", "Executive", "no_scope")):
         ctx = ctx_for(user, persona)

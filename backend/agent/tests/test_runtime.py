@@ -72,6 +72,18 @@ def names(events: list[dict[str, Any]]) -> list[str]:
     return [e["name"] if e["type"] == "CUSTOM" else e["type"] for e in events]
 
 
+def test_non_executive_model_tools_do_not_offer_executive_only_refusals(repository) -> None:
+    ordinary = {tool.tool_name for tool in build_tools(RunContext(make_invocation().identity, repository), for_model=True)}
+    executive = {
+        tool.tool_name
+        for tool in build_tools(RunContext(make_invocation("exec-1", "Executive").identity, repository), for_model=True)
+    }
+
+    assert {"get_executive_activity", "get_org_themes", "get_region_topic_matrix"}.isdisjoint(ordinary)
+    assert {"get_executive_activity", "get_org_themes", "get_region_topic_matrix"} <= executive
+    assert "get_activity_summary" in ordinary and "get_activity_summary" in executive
+
+
 @pytest.mark.asyncio
 async def test_streams_facts_then_text_then_suggestions(settings, repository) -> None:
     steps = [
@@ -144,6 +156,28 @@ async def test_aggregate_only_persona_gets_no_record_level_facts(settings, repos
     )
     events = await collect(agent, make_invocation("exec-1", "Executive"))
     assert "source_facts" not in names(events)
+
+
+@pytest.mark.asyncio
+async def test_executive_foreign_territory_is_refused_before_aggregate_data_can_be_misattributed(settings, repository) -> None:
+    agent, writer = runtime(
+        settings,
+        repository,
+        [("tool", "get_executive_activity", {"metric": "calls", "group_by": "territory"}), "There were 48 calls."],
+    )
+    events = await collect(
+        agent,
+        make_invocation(
+            "executive-region-01",
+            "Executive",
+            "How many calls did territory T02-01 have between 2026-10-01 and 2026-10-31?",
+        ),
+    )
+
+    text = "".join(e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT")
+    assert "outside this user's scope" in text
+    assert "source_facts" not in names(events) and "citations" not in names(events)
+    assert writer.turns == []
 
 
 @pytest.mark.asyncio

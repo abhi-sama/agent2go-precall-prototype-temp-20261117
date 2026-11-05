@@ -205,6 +205,8 @@ class ExecutiveActivityResult:
 
 
 class ScopedReadRepository(Protocol):
+    def territory_in_scope(self, identity: Identity, territory_id: str) -> bool: ...
+
     def executive_activity(
         self,
         identity: Identity,
@@ -313,6 +315,17 @@ class PostgresScopedRepository:
                     (identity.user_id, identity.persona, identity.correlation_id),
                 )
                 yield cur
+
+    def territory_in_scope(self, identity: Identity, territory_id: str) -> bool:
+        """Check one named territory without exposing whether an out-of-scope id exists."""
+        with self._session(identity) as cur:
+            if identity.persona == "Executive":
+                # Executives have no source-row permission, so their explicit aggregate scope is
+                # the authorization source. ``exec_units`` is security-definer and never exposes rows.
+                cur.execute("SELECT EXISTS (SELECT 1 FROM app.exec_units() WHERE territory_id = %s)", (territory_id,))
+            else:
+                cur.execute("SELECT app.can_read_territory(%s)", (territory_id,))
+            return bool(cur.fetchone()[0])
 
     @staticmethod
     def _gate(cur: psycopg.Cursor) -> Status:
@@ -959,6 +972,13 @@ class FixtureScopedRepository:
     def _scope_for(self, identity: Identity) -> tuple[str, ...]:
         mapping = {"msl-t01-01": ("T01-01",), "msl-t02-01": ("T02-01",)}
         return mapping.get(identity.user_id, ())
+
+    def territory_in_scope(self, identity: Identity, territory_id: str) -> bool:
+        if identity.persona == "Administrator":
+            return True
+        if identity.persona == "Executive":
+            return identity.user_id == self.EXECUTIVE_USER and territory_id.startswith("T01-")
+        return territory_id in self._scope_for(identity)
 
     def activity_summary(
         self,

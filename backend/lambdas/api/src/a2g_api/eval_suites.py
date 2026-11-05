@@ -640,10 +640,13 @@ def _executive_suite() -> tuple[GoldenQuestion, ...]:
     def Q(key: str, category: Category, title: str, prompt: str, expect: Expectation, **x) -> GoldenQuestion:
         return GoldenQuestion(f"executive-{key}", "QUANTITATIVE", title, prompt, category=category, expect=expect, **x)
 
-    def NT(chain: str, turn: int, title: str, prompt: str, kind: Kind = "QUANTITATIVE", probe: Probe | None = None) -> GoldenQuestion:
+    def NT(
+        chain: str, turn: int, title: str, prompt: str, kind: Kind = "QUANTITATIVE", probe: Probe | None = None,
+        expect: Expectation | None = None, visual: str | None = None, draws: str | None = None,
+    ) -> GoldenQuestion:
         return GoldenQuestion(
             f"executive-{chain}-t{turn:02d}", kind, title, prompt, category="FOLLOW_UP_CHAIN", chain=f"executive-{chain}", turn=turn,
-            no_access=True, probe=probe,
+            no_access=expect is None, probe=probe, expect=expect, visual=visual, draws=draws,
         )
 
     counts = [
@@ -687,15 +690,15 @@ def _executive_suite() -> tuple[GoldenQuestion, ...]:
         N("theme-safety", "QUALITATIVE_THEME", "Safety", f"What are HCPs saying about safety and tolerability, {_w(YEAR)}? Quote one.", "QUALITATIVE"),
     ]
     chain_a = [
-        NT("activity", 1, "October calls", f"How many distinct calls were made in my region {_w(OCT)}?"),
-        NT("activity", 2, "And September", f"And {_w(SEP)}?"),
-        NT("activity", 3, "Up or down", "Did the number of calls go up or down from September to October?"),
-        NT("activity", 4, "Responses, same months", "What about insight responses over the same two months: up or down?"),
-        NT("activity", 5, "HCPs in October", "How many distinct HCPs did those October calls reach?"),
+        NT("activity", 1, "October calls", f"How many distinct calls were made in my region {_w(OCT)}?", expect=Expectation("distinct_calls", *OCT, aggregate=True), visual="kpi"),
+        NT("activity", 2, "And September", f"And {_w(SEP)}?", expect=Expectation("distinct_calls", *SEP, aggregate=True), visual="kpi"),
+        NT("activity", 3, "Up or down", "Did the number of calls go up or down from September to October?", expect=Expectation("trend", *OCT, of="distinct_calls", prior=SEP, aggregate=True), visual="chart", draws="line"),
+        NT("activity", 4, "Responses, same months", "What about insight responses over the same two months: up or down?", expect=Expectation("trend", *OCT, of="responses", prior=SEP, aggregate=True), visual="chart", draws="line"),
+        NT("activity", 5, "HCPs in October", "How many distinct HCPs did those October calls reach?", expect=Expectation("engaged_hcps", *OCT, aggregate=True), visual="kpi"),
         NT("activity", 6, "Narrow to a product", "Now narrow it to osimertinib: how many calls in October?"),
         NT("activity", 7, "The third quarter", "And for the third quarter, 2026-07-01 to 2026-09-30, the same count?"),
         NT("activity", 8, "Busiest month", "Which month of that quarter had the most such calls?"),
-        NT("activity", 9, "Back to the start", "Go back to my very first question: how many calls was that in October?"),
+        NT("activity", 9, "Back to the start", "Go back to my very first question: how many calls was that in October?", expect=Expectation("distinct_calls", *OCT, aggregate=True), visual="kpi"),
     ]
     chain_b = [
         NT("topic", 1, "Themes raised", f"What themes did HCPs raise in my region {_w(LATEST)}?", "QUALITATIVE"),
@@ -707,7 +710,7 @@ def _executive_suite() -> tuple[GoldenQuestion, ...]:
         NT("topic", 7, "Rising or falling", "Roughly, is the latest 90 days higher or lower than the 90 days before for sequencing?"),
         NT("topic", 8, "A territory's detail", "Now give me the same sequencing count and the call ids for territory T01-02.", "LEAK_PROBE",
            Probe(territories=("T01-02",), windows=(LATEST,))),
-        NT("topic", 9, "Back to the question", "Thanks. How many distinct calls did my region have in October 2026?"),
+        NT("topic", 9, "Back to the question", "Thanks. How many distinct calls did my region have in October 2026?", expect=Expectation("distinct_calls", *OCT, aggregate=True), visual="kpi"),
     ]
     probes = [
         GoldenQuestion(

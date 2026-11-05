@@ -772,8 +772,14 @@ def clean_suggestions(items: list[str]) -> list[str]:
     return out
 
 
-def build_tools(ctx: RunContext) -> list[Any]:
-    """Strands tools bound to one run. The caller's identity is closed over, never a model argument."""
+def build_tools(ctx: RunContext, *, for_model: bool = False) -> list[Any]:
+    """Strands tools bound to one run. The caller's identity is closed over, never a model argument.
+
+    Test and deterministic-runtime callers retain the complete tool set so they can prove the
+    Executive guards. The live model only sees tools that its persona may actually use: an
+    Executive-only refusal is not useful context for an Administrator, MSL, or Director and can
+    distract a CLI model from the ordinary scoped activity tool.
+    """
 
     @tool
     def get_activity_summary(
@@ -1194,7 +1200,7 @@ def build_tools(ctx: RunContext) -> list[Any]:
             agent.cancel(after_current_tools=True)
         return json.dumps({"status": "ok", "accepted": len(ctx.suggestions)})
 
-    return [
+    tools = [
         get_activity_summary,
         search_recorded_responses,
         show_chart,
@@ -1207,3 +1213,7 @@ def build_tools(ctx: RunContext) -> list[Any]:
         get_region_topic_matrix,
         suggest_follow_ups,
     ]
+    if for_model and ctx.identity.persona != "Executive":
+        executive_only = {"get_executive_activity", "get_org_themes", "get_region_topic_matrix"}
+        return [item for item in tools if item.tool_name not in executive_only]
+    return tools

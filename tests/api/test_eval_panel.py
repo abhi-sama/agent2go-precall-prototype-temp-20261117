@@ -67,10 +67,14 @@ def clear_table() -> None:
 
 
 @pytest.fixture(scope="module", autouse=True)
-def empty_table():
+def empty_table(request):
     clear_table()
     yield
-    clear_table()
+    # A failed quality assertion is itself diagnostic output.  Keep the completed
+    # per-persona runs so the panel and PR can show every metric, including the
+    # last suite, instead of deleting the evidence during pytest teardown.
+    if not request.session.testsfailed:
+        clear_table()
 
 
 @pytest.fixture(scope="module")

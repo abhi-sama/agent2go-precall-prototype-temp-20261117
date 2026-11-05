@@ -55,12 +55,14 @@ log = get_logger(__name__)
 RUN_ID = re.compile(r"^ev-\d{14}-[0-9a-f]{8}$")
 SOURCES = ("AGENT", "LEAKY_CANARY")
 ANSWER_EXCERPT_CHARS = 1500
-# A CLI-backed subscription session is intentionally serial. Keep each suite's
-# fan-out small and allow a request to wait behind that bridge; API-backed and
-# deployed AgentCore routes retain the existing faster defaults.
+# A CLI-backed subscription session has a small, host-level concurrency budget.
+# Keep a suite wide enough to occupy both bridge slots: one worker leaves half
+# the bridge idle, so a 90-question local suite can exceed the Lambda limit.
+# API-backed and deployed AgentCore routes retain their broader fan-out.
 AGENT_TIMEOUT_SECONDS = 170
 CLI_AGENT_TIMEOUT_SECONDS = 480
-DEFAULT_WORKERS = 1
+DEFAULT_WORKERS = 6
+CLI_WORKERS = 2
 _RECORD_TOKEN = re.compile(r"\b[A-Za-z]{2,10}-\d{3,10}\b")
 
 Runtime = AgentRuntime
@@ -68,6 +70,11 @@ Runtime = AgentRuntime
 
 def _agent_timeout(settings: Settings) -> int:
     return CLI_AGENT_TIMEOUT_SECONDS if settings.llm_backend in {"claude-cli", "codex-cli"} else AGENT_TIMEOUT_SECONDS
+
+
+def _worker_count(settings: Settings) -> int:
+    """Use both sustainable CLI slots without changing non-CLI evaluation throughput."""
+    return CLI_WORKERS if settings.llm_backend in {"claude-cli", "codex-cli"} else DEFAULT_WORKERS
 
 
 def new_run_id(now: dt.datetime | None = None) -> str:
@@ -416,7 +423,7 @@ def run_suite(
     admin_user_id: str,
     correlation_id: str,
     started_at: dt.datetime | None = None,
-    workers: int = DEFAULT_WORKERS,
+    workers: int | None = None,
     clock: Callable[[], float] = time.perf_counter,
 ) -> dict[str, Any]:
     """Run the suite end to end and return the stored run summary."""
@@ -457,7 +464,8 @@ def run_suite(
                 count = len(captures)
             store.put(_summary_item(status="RUNNING", answered=count, **base))
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        worker_count = workers if workers is not None else _worker_count(settings)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, worker_count)) as pool:
             timeout = _agent_timeout(settings)
             futures = [
                 pool.submit(_run_unit, runner, suite, run_id, questions, unit, correlation_id, done, timeout)

@@ -70,6 +70,93 @@ def test_grounded_quote_reads_bedrock_tool_result_content_blocks():
     assert cli_llm._grounded_quote(payload) == "A verified recorded response has enough words."
 
 
+def test_claude_receives_the_api_system_prompt_at_system_priority(monkeypatch):
+    captured: dict[str, str] = {}
+
+    async def fake_claude(prompt, _model, _cwd, _timeout, system_prompt):
+        captured["prompt"] = prompt
+        captured["system_prompt"] = system_prompt
+        return cli_llm.ModelReply(kind="text", content="ok")
+
+    monkeypatch.setenv("LLM_BACKEND", "claude-cli")
+    monkeypatch.setattr(cli_llm, "_claude", fake_claude)
+    reply = asyncio.run(
+        cli_llm._complete(
+            {
+                "messages": [
+                    {"role": "system", "content": "Use tools for every data question."},
+                    {"role": "user", "content": "How many calls did I have?"},
+                ]
+            }
+        )
+    )
+
+    assert reply.content == "ok"
+    assert "Use tools for every data question." in captured["system_prompt"]
+    assert "Use tools for every data question." not in captured["prompt"]
+    assert "How many calls did I have?" in captured["prompt"]
+
+
+def test_claude_retries_a_false_tool_unavailable_reply(monkeypatch):
+    prompts: list[str] = []
+
+    async def fake_claude(prompt, *_args):
+        prompts.append(prompt)
+        if len(prompts) == 1:
+            return cli_llm.ModelReply(kind="text", content="The chart tool isn't available.")
+        return cli_llm.ModelReply(kind="tool_calls", tool_calls=[{"id": "call_1", "name": "show_chart", "input": {}}])
+
+    monkeypatch.setenv("LLM_BACKEND", "claude-cli")
+    monkeypatch.setattr(cli_llm, "_claude", fake_claude)
+    reply = asyncio.run(cli_llm._complete({"messages": [{"role": "user", "content": "Compare months."}], "tools": [{"type": "function"}]}))
+
+    assert reply.kind == "tool_calls" and len(prompts) == 2
+    assert "Do not claim it is unavailable" in prompts[1]
+
+
+def test_tool_unavailable_retry_catches_past_tense_refusals():
+    payload = {"tools": [{"type": "function"}]}
+    assert cli_llm._must_retry_for_tool(cli_llm.ModelReply(kind="text", content="The search tool wasn't available."), payload)
+
+
+def test_claude_command_sets_the_system_prompt_flag(monkeypatch, tmp_path):
+    captured: dict[str, object] = {}
+
+    async def fake_run(command, prompt, cwd, timeout):
+        captured.update(command=command, prompt=prompt, cwd=cwd, timeout=timeout)
+        return json.dumps({"result": json.dumps({"kind": "text", "content": "ok", "tool_calls": []})})
+
+    monkeypatch.setattr(cli_llm, "_run", fake_run)
+    reply = asyncio.run(cli_llm._claude("conversation", "claude-haiku-5-5", tmp_path, 31, "API system"))
+
+    assert reply.content == "ok"
+    command = captured["command"]
+    assert isinstance(command, list)
+    assert command[command.index("--system-prompt") + 1] == "API system"
+    assert captured["prompt"] == "conversation"
+    assert captured["cwd"] == tmp_path and captured["timeout"] == 31
+
+
+def test_codex_prompt_makes_system_rules_and_tools_explicit():
+    payload = cli_llm._normalise_request(
+        {
+            "messages": [
+                {"role": "system", "content": "Use data tools before answering."},
+                {"role": "assistant", "content": None, "tool_calls": [{"id": "call_1"}]},
+                {"role": "tool", "tool_call_id": "call_1", "content": "42"},
+                {"role": "user", "content": "How many calls?"},
+            ],
+            "tools": [{"type": "function", "function": {"name": "lookup"}}],
+        }
+    )
+
+    prompt = cli_llm._codex_prompt(payload)
+
+    assert "APPLICATION RULES" in prompt and "Use data tools before answering." in prompt
+    assert "DECLARATIVE TOOL DEFINITIONS" in prompt and '"name":"lookup"' in prompt
+    assert "CONVERSATION HISTORY" in prompt and '"tool_call_id":"call_1"' in prompt
+
+
 def test_grounded_quote_does_not_trust_user_supplied_json():
     payload = {
         "messages": [

@@ -81,6 +81,14 @@ def test_the_executive_gets_only_governed_aggregates_in_chat():
     assert all(q.no_access or q.kind == "LEAK_PROBE" or q.expect is not None for q in suite.questions)
 
 
+def test_no_prompt_is_both_answerable_and_no_access_within_a_persona_suite():
+    for suite in SUITES.values():
+        access_by_prompt: dict[str, set[bool]] = {}
+        for question in suite.questions:
+            access_by_prompt.setdefault(question.prompt, set()).add(not question.no_access)
+        assert all(len(access) == 1 for access in access_by_prompt.values()), suite.persona
+
+
 @pytest.mark.parametrize("persona", list(SUITES))
 def test_a_correct_answer_passes_every_question(persona):
     suite = SUITES[persona]

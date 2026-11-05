@@ -41,6 +41,16 @@ from .writes import ConversationTurn, ConversationWriteTool, NullConversationWri
 log = get_logger(__name__)
 
 _TERRITORY_ID = re.compile(r"\b(T\d{2}-\d{2})\b", re.I)
+_EXECUTIVE_SOURCE_REQUEST = re.compile(
+    r"\b(?:individual|row(?:s)?|call id(?:s)?|hcp(?: name)?s? behind|list (?:the )?hcps?|export|quote|recorded response(?:s)?|"
+    r"response id(?:s)?|record[- ]level|percentage|percent|answered|scor(?:e|ing)|oncologist(?:s)?)\b",
+    re.I,
+)
+_EXECUTIVE_UNSUPPORTED_FILTER = re.compile(
+    r"\b(?:osimertinib|pembrolizumab|ctdna|neoadjuvant|pulmonary toxicity|biomarker|product)\b|"
+    r"\bon\s+20\d{2}-\d{2}\b|\bcompare\b.*\bregion\b|\b(?:same count|most such calls)\b",
+    re.I,
+)
 
 DEFAULT_SUGGESTIONS = [
     "How many calls did I have in the last 90 days?",
@@ -91,6 +101,7 @@ organisational analysis with two tools, get_org_themes (theme cards by portfolio
 and get_region_topic_matrix (topics by region with trend arrows), plus get_executive_activity for counts, trends and \
 comparisons of calls, engaged HCPs or insight responses. Use get_executive_activity instead of the record-level tools \
 for every quantitative Executive question: total for a count, month for a trend, and region or territory for a comparison. \
+When the question names a territory ID, use group_by territory (never total), even if it asks for one count. \
 It draws the safe chart itself. The record-level tools return aggregate_only for this user; say so only if asked for \
 individual calls, HCPs or responses.
 Executive rules:
@@ -212,12 +223,10 @@ class MslAgent:
         )
         return Agent(
             model=model,
-            # The Executive-only aggregate tool is not offered to other personas: a model that picks it for an
-            # Administrator's "whole organisation" question only earns a refusal instead of the in-scope count.
-            tools=[
-                t for t in build_tools(ctx)
-                if invocation.identity.persona == "Executive" or t.tool_name != "get_executive_activity"
-            ],
+            # Avoid offering Executive-only tools to models that cannot use them. Their guarded
+            # refusal is useful for direct regression tests, but it is a misleading choice for a
+            # non-Executive count question (especially through a strict CLI adapter).
+            tools=build_tools(ctx, for_model=True),
             system_prompt=SYSTEM_PROMPT.format(
                 persona=invocation.identity.persona, today=dt.date.today().isoformat()
             )
@@ -246,6 +255,8 @@ class MslAgent:
         is_theme_question = any(word in q for word in ("theme", "topic", "what are hcp", "what did hcp", "recorded perspective", "ctdna", "sequencing"))
         if is_theme_question:
             return None
+        if _TERRITORY_ID.search(question):
+            return "territory"
         request = infer_chart_request(question)
         if request and request.group_by in ("month", "week", "day"):
             return "month"
@@ -254,6 +265,17 @@ class MslAgent:
         if "region" in q or "compare" in q or "versus" in q:
             return "region"
         return "total"
+
+    @staticmethod
+    def _executive_request_requires_refusal(question: str) -> bool:
+        """Keep aggregate-only access from becoming an unsupported proxy for source data.
+
+        The Executive aggregate tool supports scope-wide counts, trends and comparisons only.  A
+        request for rows, respondents, answer shares, a product/topic slice, or a single day would
+        otherwise make its safe aggregate visual look like permission to disclose underlying data.
+        Refuse before the model can select a tool or the runtime can add its evidence backstop.
+        """
+        return bool(_EXECUTIVE_SOURCE_REQUEST.search(question) or _EXECUTIVE_UNSUPPORTED_FILTER.search(question))
 
     @staticmethod
     def _run_executive(ctx: RunContext, tools: dict[str, Any], question: str) -> None:
@@ -305,9 +327,22 @@ class MslAgent:
         # deliberately does not query the requested territory, so it reveals
         # neither its existence nor any of its metadata.
         requested = _TERRITORY_ID.search(invocation.question)
-        if requested and not is_executive:
-            scope = await asyncio.to_thread(self._repository.scope, identity)
-            if requested.group(1).upper() not in {t.upper() for t in scope.territory_ids}:
+        if is_executive and self._executive_request_requires_refusal(invocation.question):
+            refusal = "That request needs source-record or unsupported filtered data, which is not available to an aggregate-only Executive."
+            yield ag_ui.text_start(message_id)
+            yield ag_ui.text_content(message_id, refusal)
+            yield ag_ui.text_end(message_id)
+            yield ag_ui.custom("computed_figures", {"figures": []})
+            yield ag_ui.custom("number_check", {"status": "verified", "count": 0, "checked": self.mode == "claude"})
+            yield ag_ui.custom("suggestions", DEFAULT_SUGGESTIONS)
+            yield ag_ui.custom("conversation_saved", {"saved": False})
+            log.info("run refused aggregate-only request", thread_id=invocation.thread_id, run_id=run_id, outcome="aggregate_only")
+            yield ag_ui.run_finished(invocation.thread_id, run_id)
+            return
+        if requested:
+            if not await asyncio.to_thread(
+                self._repository.territory_in_scope, identity, requested.group(1).upper()
+            ):
                 refusal = "That territory is outside this user's scope, so no data can be shown."
                 yield ag_ui.text_start(message_id)
                 yield ag_ui.text_content(message_id, refusal)
