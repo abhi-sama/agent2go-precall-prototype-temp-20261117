@@ -22,11 +22,22 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-MAX_IN_FLIGHT = 2
+def _positive_env(name: str, default: int) -> int:
+    """Read a small operational limit without letting a bad local env wedge the bridge."""
+    try:
+        return max(1, int(os.getenv(name, str(default))))
+    except ValueError:
+        return default
+
+
+# The subscription CLI is much slower than an API, but two independent
+# subprocesses are sustainable.  The eval runner keeps each suite to one
+# request at a time, so four suites create a bounded queue instead of a burst.
+MAX_IN_FLIGHT = _positive_env("A2G_CLI_MAX_IN_FLIGHT", 2)
 # A stalled subscription CLI must not wedge an AppSync chat run or the two-slot
 # queue.  Callers may raise this deliberately, but local development fails over
 # promptly by default.
-DEFAULT_TIMEOUT_SECONDS = 45
+DEFAULT_TIMEOUT_SECONDS = 120
 
 
 class ToolCall(BaseModel):

@@ -17,6 +17,8 @@ class ChartRequest:
     group_by: str
     chart_type: str = "auto"
     topic: str = ""
+    from_date: str = ""
+    to_date: str = ""
 
 
 _TREND = re.compile(
@@ -31,6 +33,22 @@ _COMPARE = re.compile(
 _HEATMAP = re.compile(r"\b(heat ?map|matrix|grid)\b", re.I)
 _TABLE = re.compile(r"\b(table|tabulate)\b", re.I)
 _TIMELINE = re.compile(r"\b(timeline|day by day|daily)\b", re.I)
+_ISO_DATE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+
+
+def _window(question: str) -> tuple[str, str]:
+    """Keep explicit ISO windows when the deterministic chart backstop runs.
+
+    The model may skip a chart tool or omit its optional dates.  A visual must
+    nevertheless represent the period the user asked for, never the 90-day
+    default window.
+    """
+    dates = _ISO_DATE.findall(question)
+    if len(dates) >= 2:
+        return dates[0], dates[1]
+    if len(dates) == 1:
+        return dates[0], dates[0]
+    return "", ""
 
 
 def _metric(question: str) -> str:
@@ -53,16 +71,22 @@ def _group(question: str, metric: str) -> str:
 
 def infer_chart_request(question: str) -> ChartRequest | None:
     metric = _metric(question)
+    from_date, to_date = _window(question)
     if _HEATMAP.search(question):
-        return ChartRequest(metric, _group(question, metric), "heatmap")
+        return ChartRequest(metric, _group(question, metric), "heatmap", from_date=from_date, to_date=to_date)
     if _TIMELINE.search(question):
-        return ChartRequest(metric, "week", "timeline")
+        return ChartRequest(metric, "week", "timeline", from_date=from_date, to_date=to_date)
     if _TABLE.search(question):
-        return ChartRequest(metric, _group(question, metric), "table")
+        return ChartRequest(metric, _group(question, metric), "table", from_date=from_date, to_date=to_date)
     if _TREND.search(question):
-        return ChartRequest(metric, "week" if re.search(r"\b(week|weekly)\b", question, re.I) else "month")
+        return ChartRequest(
+            metric,
+            "week" if re.search(r"\b(week|weekly)\b", question, re.I) else "month",
+            from_date=from_date,
+            to_date=to_date,
+        )
     if _COMPARE.search(question):
-        return ChartRequest(metric, _group(question, metric), "bar")
+        return ChartRequest(metric, _group(question, metric), "bar", from_date=from_date, to_date=to_date)
     return None
 
 

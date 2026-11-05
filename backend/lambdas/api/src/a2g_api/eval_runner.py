@@ -55,11 +55,19 @@ log = get_logger(__name__)
 RUN_ID = re.compile(r"^ev-\d{14}-[0-9a-f]{8}$")
 SOURCES = ("AGENT", "LEAKY_CANARY")
 ANSWER_EXCERPT_CHARS = 1500
+# A CLI-backed subscription session is intentionally serial. Keep each suite's
+# fan-out small and allow a request to wait behind that bridge; API-backed and
+# deployed AgentCore routes retain the existing faster defaults.
 AGENT_TIMEOUT_SECONDS = 170
-DEFAULT_WORKERS = 6
+CLI_AGENT_TIMEOUT_SECONDS = 480
+DEFAULT_WORKERS = 1
 _RECORD_TOKEN = re.compile(r"\b[A-Za-z]{2,10}-\d{3,10}\b")
 
 Runtime = AgentRuntime
+
+
+def _agent_timeout(settings: Settings) -> int:
+    return CLI_AGENT_TIMEOUT_SECONDS if settings.llm_backend in {"claude-cli", "codex-cli"} else AGENT_TIMEOUT_SECONDS
 
 
 def new_run_id(now: dt.datetime | None = None) -> str:
@@ -284,6 +292,7 @@ def _ask(
     correlation_id: str,
     history: Sequence[dict[str, str]] = (),
     thread: str | None = None,
+    timeout: int = AGENT_TIMEOUT_SECONDS,
 ) -> Capture:
     payload = {
         "identity": {
@@ -300,7 +309,7 @@ def _ask(
     }
     started = time.perf_counter()
     try:
-        events = list(runtime.invoke(payload, timeout=AGENT_TIMEOUT_SECONDS))
+        events = list(runtime.invoke(payload, timeout=timeout))
         cap = capture_from_events(events)
     except Exception as exc:
         log.error("eval question failed", run_id=run_id, question_id=question.question_id, error_type=type(exc).__name__)
@@ -332,6 +341,7 @@ def _run_unit(
     unit: Sequence[int],
     correlation_id: str,
     on_done: Callable[[int, Capture], None],
+    timeout: int = AGENT_TIMEOUT_SECONDS,
 ) -> None:
     """Ask a single question, or walk one chain turn by turn the way a person would: each turn carries the
     conversation so far, so a later turn that leans on an earlier one ("and September?", "go back to my first
@@ -339,7 +349,7 @@ def _run_unit(
     history: list[dict[str, str]] = []
     thread = f"c{unit[0]:02d}" if len(unit) > 1 else None
     for i in unit:
-        cap = _ask(runtime, suite, run_id, i, questions[i], correlation_id, history, thread)
+        cap = _ask(runtime, suite, run_id, i, questions[i], correlation_id, history, thread, timeout)
         on_done(i, cap)
         history += [
             {"role": "user", "content": questions[i].prompt},
@@ -448,8 +458,9 @@ def run_suite(
             store.put(_summary_item(status="RUNNING", answered=count, **base))
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+            timeout = _agent_timeout(settings)
             futures = [
-                pool.submit(_run_unit, runner, suite, run_id, questions, unit, correlation_id, done)
+                pool.submit(_run_unit, runner, suite, run_id, questions, unit, correlation_id, done, timeout)
                 for unit in _units(questions)
             ]
             for future in concurrent.futures.as_completed(futures):

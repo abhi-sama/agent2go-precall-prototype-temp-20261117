@@ -45,6 +45,12 @@ class Settings:
     fe_brief_write_role_arn: str | None = None
     fe_brief_table: str | None = None
     max_output_tokens: int = 700
+    #: Local subscription CLIs are materially slower than a hosted model API.
+    llm_backend: str = ""
+
+    @property
+    def cli_backend(self) -> bool:
+        return self.llm_backend in {"claude-cli", "codex-cli"}
 
     @classmethod
     def from_environment(cls) -> Settings:
@@ -60,4 +66,5 @@ class Settings:
             fe_chat_table=os.getenv("A2G_FE_CHAT_TABLE") or None,
             fe_brief_write_role_arn=os.getenv("A2G_FE_BRIEF_WRITE_ROLE_ARN") or None,
             fe_brief_table=os.getenv("A2G_FE_BRIEF_TABLE") or None,
+            llm_backend=os.getenv("A2G_LLM_BACKEND", "").lower(),
         )

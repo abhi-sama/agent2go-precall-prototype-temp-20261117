@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import shutil
 import subprocess
 import time
@@ -88,6 +89,9 @@ def deploy(fe: dict, db: dict) -> str:
         "A2G_SAVED_VIEWS_TABLE": fe["saved_views_table"],
         "A2G_SAVED_VIEWS_ENDPOINT": "http://floci:4566",
         "A2G_SAVED_VIEWS_ACCESS_KEY": FE_ACCOUNT,
+        # This is operational routing metadata, never a credential. Eval and
+        # chat workers use it to size their local CLI request budgets.
+        "A2G_LLM_BACKEND": os.environ.get("LLM_BACKEND", ""),
     }
     # The worker streams a chat run from the agent (AgentCore Runtime stand-in) into Postgres; the
     # API Lambda starts it asynchronously (docs/adr/0007).

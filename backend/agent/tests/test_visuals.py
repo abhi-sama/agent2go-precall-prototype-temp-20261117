@@ -181,6 +181,8 @@ def test_intent_vocabulary() -> None:
     assert infer_chart_request("heatmap of responses by product").chart_type == "heatmap"
     assert infer_chart_request("trend of engaged HCPs").metric == "engaged_hcps"
     assert infer_chart_request("weekly responses").group_by == "week"
+    dated = infer_chart_request("Show calls by month from 2026-07-01 to 2026-09-30")
+    assert dated and (dated.from_date, dated.to_date) == ("2026-07-01", "2026-09-30")
 
 
 def test_bucket_helpers_cover_the_period() -> None:

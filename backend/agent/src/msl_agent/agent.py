@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import re
 import time
 from collections.abc import AsyncIterator, Callable
 from types import SimpleNamespace
@@ -38,6 +39,8 @@ from .tools import VISUAL_TOOLS, RunContext, build_tools, clean_suggestions
 from .writes import ConversationTurn, ConversationWriteTool, NullConversationWriter
 
 log = get_logger(__name__)
+
+_TERRITORY_ID = re.compile(r"\b(T\d{2}-\d{2})\b", re.I)
 
 DEFAULT_SUGGESTIONS = [
     "How many calls did I have in the last 90 days?",
@@ -199,7 +202,13 @@ class MslAgent:
             streaming=True,  # BedrockModel selects ConverseStream; floci proxies only Converse/ConverseStream.
             # An organisational answer cites several themes and regions, so it gets more room than a single-number answer.
             max_tokens=self._settings.max_output_tokens * (2 if invocation.identity.persona == "Executive" else 1),
-            boto_client_config=Config(read_timeout=90, retries={"max_attempts": 2, "mode": "standard"}),
+            # CLI calls queue behind one subscription session, unlike the API.
+            # Keep the model request alive through that queue instead of turning
+            # a healthy delayed response into a ModelTimeoutException.
+            boto_client_config=Config(
+                read_timeout=420 if self._settings.cli_backend else 90,
+                retries={"max_attempts": 2, "mode": "standard"},
+            ),
         )
         return Agent(
             model=model,
@@ -220,6 +229,8 @@ class MslAgent:
             metric=request.metric,
             group_by=request.group_by,
             chart_type=request.chart_type,
+            from_date=request.from_date,
+            to_date=request.to_date,
             tool_context=SimpleNamespace(tool_use={"toolUseId": f"auto-{len(ctx.visuals) + 1}"}, agent=None),
         )
 
@@ -251,6 +262,8 @@ class MslAgent:
             tools["get_executive_activity"](
                 metric=metric,
                 group_by=group_by,
+                from_date=request.from_date if request else "",
+                to_date=request.to_date if request else "",
                 tool_context=SimpleNamespace(tool_use={"toolUseId": f"exec-auto-{len(ctx.visuals) + 1}"}, agent=None),
             )
             return
@@ -282,16 +295,36 @@ class MslAgent:
         yield ag_ui.run_started(invocation.thread_id, run_id)
         yield ag_ui.custom("model_mode", {"mode": self.mode})
 
+        # Do not give a model the opportunity to substitute its normal scope
+        # after a request names a territory the caller cannot read.  This check
+        # deliberately does not query the requested territory, so it reveals
+        # neither its existence nor any of its metadata.
+        requested = _TERRITORY_ID.search(invocation.question)
+        if requested and not is_executive:
+            scope = await asyncio.to_thread(self._repository.scope, identity)
+            if requested.group(1).upper() not in {t.upper() for t in scope.territory_ids}:
+                refusal = "That territory is outside this user's scope, so no data can be shown."
+                yield ag_ui.text_start(message_id)
+                yield ag_ui.text_content(message_id, refusal)
+                yield ag_ui.text_end(message_id)
+                yield ag_ui.custom("computed_figures", {"figures": []})
+                yield ag_ui.custom("number_check", {"status": "verified", "count": 0, "checked": self.mode == "claude"})
+                yield ag_ui.custom("suggestions", DEFAULT_SUGGESTIONS)
+                yield ag_ui.custom("conversation_saved", {"saved": False})
+                log.info("run refused out of scope", thread_id=invocation.thread_id, run_id=run_id, outcome="out_of_scope")
+                yield ag_ui.run_finished(invocation.thread_id, run_id)
+                return
+
         try:
             if self.mode == "stub":
                 # floci's stub answers with canned text and never calls tools, so the facts the panel
                 # shows are computed up front by the same deterministic tool.
                 tools = {t.tool_name: t for t in build_tools(ctx)}
+                summary_ctx = invocation.context
                 if is_executive:
                     await asyncio.to_thread(self._run_executive, ctx, tools, invocation.question)
-                else:
+                elif summary_ctx is None or summary_ctx.intent != "TERRITORY_SUMMARY":
                     await asyncio.to_thread(tools["get_activity_summary"])
-                summary_ctx = invocation.context
                 if not is_executive and summary_ctx is not None and summary_ctx.intent == "TERRITORY_SUMMARY":
                     await asyncio.to_thread(
                         tools["get_topic_trends"], summary_ctx.from_date or "", summary_ctx.to_date or "", summary_ctx.territory_id or ""

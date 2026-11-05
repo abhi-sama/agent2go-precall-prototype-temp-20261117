@@ -128,6 +128,16 @@ async def test_out_of_scope_territory_returns_no_data(settings, repository) -> N
 
 
 @pytest.mark.asyncio
+async def test_named_foreign_territory_is_refused_before_the_model_can_fall_back_to_local_data(settings, repository) -> None:
+    agent, writer = runtime(settings, repository, [("tool", "get_activity_summary", {}), "You had 2 calls."])
+    events = await collect(agent, make_invocation(question="How many calls did territory T02-01 have in October?"))
+    text = "".join(e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT")
+    assert "outside this user's scope" in text
+    assert "source_facts" not in names(events) and "citations" not in names(events)
+    assert writer.turns == []
+
+
+@pytest.mark.asyncio
 async def test_aggregate_only_persona_gets_no_record_level_facts(settings, repository) -> None:
     agent, _ = runtime(
         settings, repository, [("tool", "get_activity_summary", {}), "Not available for your role."]

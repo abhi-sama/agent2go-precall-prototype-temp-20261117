@@ -32,6 +32,7 @@ class Settings:
     fe_appsync_url: str | None = None
     embedding_provider: str = "local"
     embedding_endpoint: str | None = None
+    llm_backend: str = ""
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> Settings:
@@ -72,4 +73,5 @@ class Settings:
             fe_appsync_url=(e.get("A2G_FE_APPSYNC_URL") or "").rstrip("/") or None,
             embedding_provider=e.get("A2G_EMBEDDING_PROVIDER", "local"),
             embedding_endpoint=e.get("A2G_BEDROCK_ENDPOINT") or e.get("AWS_ENDPOINT_URL") or None,
+            llm_backend=e.get("A2G_LLM_BACKEND", "").lower(),
         )
