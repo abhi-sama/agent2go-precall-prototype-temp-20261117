@@ -184,7 +184,9 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
           lat: anchor.lat,
           lng: anchor.lng,
           label: c.countryCode,
-          aria: `${c.countryName}: ${describeCalls(c)}. Open its map.`,
+          // The marker visibly reads the ISO code; retain it at the start of the accessible name so the
+          // visual label and spoken label describe the same control.
+          aria: `${c.countryCode}. ${c.countryName}: ${describeCalls(c)}. Open its map.`,
         }
       }),
     [activity, colors, extent],

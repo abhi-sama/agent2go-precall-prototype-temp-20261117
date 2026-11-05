@@ -72,8 +72,14 @@ export function FlatMap({ mapKey, shapes, regions, markers = [], frame, colors, 
         if (e.seriesType === "scatter" && e.data?.id) handlers.current.onMarkerClick?.(e.data.id)
         else if (e.componentType === "geo" && e.name) handlers.current.onRegionClick(e.name)
       })
-      ro = new ResizeObserver(() => chart.resize())
-      ro.observe(host.current)
+      // Skip a resize that races unmount or a collapsed host: ECharts throws inside its view-coordinate update
+      // (null transform) when a geo/map chart is resized at zero size or after disposal.
+      const el = host.current
+      ro = new ResizeObserver(() => {
+        if (disposed || chart.isDisposed() || !el.clientWidth || !el.clientHeight) return
+        chart.resize()
+      })
+      ro.observe(el)
       setReady(true)
     })()
     return () => {

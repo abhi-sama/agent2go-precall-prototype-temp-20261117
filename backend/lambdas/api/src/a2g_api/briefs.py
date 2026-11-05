@@ -19,6 +19,7 @@ Logs carry ids, counts and enums only. Objectives, HCP names and recorded answer
 
 from __future__ import annotations
 
+import os
 import datetime as dt
 import re
 import threading
@@ -47,7 +48,9 @@ MAX_ITEM_TEXT = 600
 MAX_ITEM_DETAIL = 800
 STALE_AFTER_DAYS = 180
 #: AppSync cuts a resolver off at 30 seconds, so the agent call must give up before that.
-AGENT_TIMEOUT_SECONDS = 25.0
+#: Local stacks whose model is a subscription CLI (several seconds slower than Bedrock) raise it with
+#: A2G_AGENT_TIMEOUT_SECONDS; the default is the AWS value.
+AGENT_TIMEOUT_SECONDS = float(os.environ.get("A2G_AGENT_TIMEOUT_SECONDS", "25"))
 _ID = re.compile(r"^br-[0-9]{14}-[0-9a-f]{8}$")
 _HCP_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:_.\-]{0,127}$")
 _ITEM_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]{0,63}$")

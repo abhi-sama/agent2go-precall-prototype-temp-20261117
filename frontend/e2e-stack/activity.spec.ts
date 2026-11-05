@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { expect, test } from "@playwright/test"
+import { goToNav } from "./nav"
 
 /** Written by backend/infra/scripts/up.sh; the source of seeded users and the local password. */
 const outputs = JSON.parse(readFileSync(path.join(__dirname, "..", "amplify_outputs.json"), "utf8"))
@@ -14,7 +15,7 @@ test("an MSL sees real monthly trends, opens the evidence behind a month, and fl
   await page.getByTestId("login-submit").click()
   await expect(page).toHaveURL(/\/msl$/)
 
-  await page.getByRole("link", { name: "My activity" }).first().click()
+  await goToNav(page, "My activity")
   await expect(page).toHaveURL(/\/msl\/activity$/)
   await expect(page.getByTestId("scope-label")).toContainText("T01-01")
   await expect(page.getByTestId("data-through")).toContainText("Data through")

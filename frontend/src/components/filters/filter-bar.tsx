@@ -25,6 +25,8 @@ export interface FilterBarProps {
   /** Extra filters (territory, product, theme...) added by later tickets. Native selects: best on touch. */
   selects?: SelectFilter[]
   disabled?: boolean
+  /** Disables only the extra selects (their options are unavailable to this role); the date range stays usable. */
+  selectsDisabled?: boolean
   className?: string
 }
 
@@ -32,7 +34,7 @@ export interface FilterBarProps {
  * Shared filter bar. Date presets are one tap; a custom range uses native date inputs so iPad shows
  * its own picker. Invalid ranges are explained inline and never emitted.
  */
-export function FilterBar({ range, onRangeChange, defaultRange, onReset, selects, disabled, className }: FilterBarProps) {
+export function FilterBar({ range, onRangeChange, defaultRange, onReset, selects, disabled, selectsDisabled, className }: FilterBarProps) {
   const activePreset = matchPreset(range)
   const [custom, setCustom] = React.useState(activePreset === null)
   const showCustom = custom || activePreset === null
@@ -152,7 +154,7 @@ export function FilterBar({ range, onRangeChange, defaultRange, onReset, selects
               <select
                 id={`filter-${s.id}`}
                 value={s.value}
-                disabled={disabled}
+                disabled={disabled || selectsDisabled}
                 onChange={(e) => s.onChange(e.target.value)}
                 className="h-11 w-full min-w-44 max-w-[min(100%,22rem)] truncate rounded-lg border border-input bg-background px-3 text-sm"
               >

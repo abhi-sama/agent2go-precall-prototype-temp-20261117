@@ -61,8 +61,14 @@ export function EChart({ option, ariaLabel, className, height = 280, onReady }: 
       if (disposed || !host.current) return
       const chart = echarts.init(host.current, undefined, { renderer: "canvas" })
       chartRef.current = chart
-      ro = new ResizeObserver(() => chart.resize())
-      ro.observe(host.current)
+      // Skip a resize that races unmount or a collapsed host: ECharts throws inside its view-coordinate update
+      // (null transform) when a geo/map chart is resized at zero size or after disposal.
+      const el = host.current
+      ro = new ResizeObserver(() => {
+        if (disposed || chart.isDisposed() || !el.clientWidth || !el.clientHeight) return
+        chart.resize()
+      })
+      ro.observe(el)
       setReady(true)
       onReady?.(chart)
     })()

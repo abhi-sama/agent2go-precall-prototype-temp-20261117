@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { expect, test } from "@playwright/test"
+import { goToNav } from "./nav"
 
 const outputs = JSON.parse(readFileSync(path.join(__dirname, "..", "amplify_outputs.json"), "utf8"))
 const a2g = outputs.custom.a2g as { local_password: string; seeded_users: { userId: string; email: string }[] }
@@ -13,7 +14,7 @@ test("an administrator sees the validated hierarchy, the approval trail and the 
   await page.getByTestId("login-submit").click()
   await expect(page).toHaveURL(/\/admin$/)
 
-  await page.getByRole("link", { name: "Hierarchy and coverage" }).first().click()
+  await goToNav(page, "Hierarchy and coverage")
   await expect(page).toHaveURL(/\/admin\/governance$/)
   // The seed plants an orphan assignment and a territory under two parents.
   await expect(page.getByTestId("hierarchy-findings")).toContainText("UNRESOLVED-01")

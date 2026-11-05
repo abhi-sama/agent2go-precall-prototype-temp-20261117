@@ -92,6 +92,8 @@ def deploy(fe: dict, db: dict) -> str:
         # This is operational routing metadata, never a credential. Eval and
         # chat workers use it to size their local CLI request budgets.
         "A2G_LLM_BACKEND": os.environ.get("LLM_BACKEND", ""),
+        # Brief and leadership-summary generation give up on the agent after this long (default 25s, the AWS value).
+        **({"A2G_AGENT_TIMEOUT_SECONDS": os.environ["A2G_AGENT_TIMEOUT_SECONDS"]} if os.environ.get("A2G_AGENT_TIMEOUT_SECONDS") else {}),
     }
     # The worker streams a chat run from the agent (AgentCore Runtime stand-in) into Postgres; the
     # API Lambda starts it asynchronously (docs/adr/0007).

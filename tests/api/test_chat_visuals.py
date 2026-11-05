@@ -123,7 +123,8 @@ def test_an_out_of_scope_territory_never_yields_a_visual(msl, other_msl, db):
 def test_executives_get_no_record_level_visual():
     run = Persona.sign_in("executive-region-01").chat("Show my calls by month.")
     assert run.types[-1] == "RUN_FINISHED"
-    assert ready(run) == []
+    # Ticket 83: an Executive may get a chart of suppressed aggregates, never one that carries source rows.
+    assert all(not v.get("rows") for v in ready(run))
 
 
 def test_a_plain_count_stays_key_figures_without_a_chart(msl):

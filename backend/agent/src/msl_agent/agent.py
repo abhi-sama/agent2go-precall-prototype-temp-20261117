@@ -212,7 +212,12 @@ class MslAgent:
         )
         return Agent(
             model=model,
-            tools=build_tools(ctx),
+            # The Executive-only aggregate tool is not offered to other personas: a model that picks it for an
+            # Administrator's "whole organisation" question only earns a refusal instead of the in-scope count.
+            tools=[
+                t for t in build_tools(ctx)
+                if invocation.identity.persona == "Executive" or t.tool_name != "get_executive_activity"
+            ],
             system_prompt=SYSTEM_PROMPT.format(
                 persona=invocation.identity.persona, today=dt.date.today().isoformat()
             )

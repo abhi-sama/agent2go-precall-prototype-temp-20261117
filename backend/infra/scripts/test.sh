@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Run every foundation test against the local stack (start it first with up.sh).
 set -euo pipefail
-REPO=$(cd "$(dirname "$0")/../../.." && pwd)
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+REPO=$(cd "$SCRIPT_DIR/../../.." && pwd)
+# Same LLM backend as up.sh: the provisioner step below recreates the agent container, which would otherwise
+# fall back to stub mode (no number guard, no visuals) and fail the live chat tests.
+source "$SCRIPT_DIR/llm-env.sh"
 export DATABASE_URL=$(python3 -c "import json;print(json.load(open('$REPO/backend/infra/.state/outputs.json'))['be']['owner_dsn'])")
 
 echo "== logging redaction (unit)"

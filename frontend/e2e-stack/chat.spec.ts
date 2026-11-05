@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { expect, test } from "@playwright/test"
+import { goToNav } from "./nav"
 
 const outputs = JSON.parse(readFileSync(path.join(__dirname, "..", "amplify_outputs.json"), "utf8"))
 const a2g = outputs.custom.a2g as { local_password: string; seeded_users: { userId: string; email: string }[] }
@@ -14,7 +15,7 @@ test("a seeded MSL asks in the chat panel and gets a streamed, cited answer from
   await page.getByTestId("login-submit").click()
   await expect(page).toHaveURL(/\/msl$/)
 
-  await page.getByRole("link", { name: "Ask the agent" }).first().click()
+  await goToNav(page, "Ask the agent")
   await expect(page).toHaveURL(/\/chat$/)
   await page.getByTestId("chat-input").fill("How many distinct calls did I have in the last 90 days? Use the tool.")
   await page.getByTestId("chat-send").click()

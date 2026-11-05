@@ -17,6 +17,7 @@ Logs carry ids, counts and enums only. Summary text and scope names are never lo
 
 from __future__ import annotations
 
+import os
 import datetime as dt
 import re
 import uuid
@@ -47,7 +48,9 @@ MAX_LISTED = 25
 TOP_CARDS = 5
 TOP_CROSS_REGION = 3
 #: AppSync cuts a resolver off at 30 seconds, so the agent call must give up before that.
-AGENT_TIMEOUT_SECONDS = 25.0
+#: Local stacks whose model is a subscription CLI (several seconds slower than Bedrock) raise it with
+#: A2G_AGENT_TIMEOUT_SECONDS; the default is the AWS value.
+AGENT_TIMEOUT_SECONDS = float(os.environ.get("A2G_AGENT_TIMEOUT_SECONDS", "25"))
 SUMMARY_PREFIX = "SUMMARY#"
 
 

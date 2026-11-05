@@ -28,7 +28,10 @@ export function PersonaSwitcher() {
       <PopoverTrigger
         data-testid="persona-switch"
         render={
-          <Button variant="outline" className="max-w-[16rem] justify-start gap-2.5" aria-label="Switch persona (local build)" />
+          <Button
+            variant="outline"
+            className="max-w-[16rem] justify-start gap-2.5"
+          />
         }
       >
         <UserRound aria-hidden className="text-accent-text" />

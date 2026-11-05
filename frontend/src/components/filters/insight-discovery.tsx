@@ -25,7 +25,7 @@ function asOptions(options: FilterOption[], all: string): FilterOption[] {
 }
 
 /** The shared date + seven-dimensional filter control, and one-tap saved view controls. */
-export function AnalyticsFilterBar({ discovery, loading }: { discovery?: InsightDiscovery; loading: boolean }) {
+export function AnalyticsFilterBar({ discovery, loading, unavailable = false }: { discovery?: InsightDiscovery; loading: boolean; unavailable?: boolean }) {
   const adapter = useDataAdapter()
   const { userId } = useSession()
   const { filters, setFilters, resetFilters } = useSharedFilters()
@@ -36,7 +36,8 @@ export function AnalyticsFilterBar({ discovery, loading }: { discovery?: Insight
   const range = { from: filters.from ?? defaultRange.from, to: filters.to ?? defaultRange.to }
   const update = (key: keyof InsightFilters, value: string) => setFilters((current) => ({ ...current, [key]: value || undefined }))
   // While options load, the six selects are drawn disabled so the page below does not jump when they arrive.
-  const placeholder = (id: string, label: string): SelectFilter => ({ id, label, value: "", options: [{ value: "", label: "Loading…" }], onChange: () => {} })
+  // An aggregate-only role has no catalog options to offer (they come from record-level reads): say so instead of loading forever.
+  const placeholder = (id: string, label: string): SelectFilter => ({ id, label, value: "", options: [{ value: "", label: unavailable ? "Not available for your role" : "Loading…" }], onChange: () => {} })
   const selects: SelectFilter[] = !discovery ? [["territory", "Territory"], ["molecule", "Molecule"], ["landscape", "Landscape"], ["study", "Study"], ["survey", "Survey"], ["question", "Question"]].map(([id, label]) => placeholder(id, label)) : [
     { id: "territory", label: "Territory", value: filters.territoryId ?? "", options: asOptions(discovery.options.territories, "All authorized territories"), onChange: (value) => update("territoryId", value) },
     { id: "molecule", label: "Molecule", value: filters.molecule ?? "", options: asOptions(discovery.options.molecules, "All molecules"), onChange: (value) => update("molecule", value) },
@@ -64,6 +65,7 @@ export function AnalyticsFilterBar({ discovery, loading }: { discovery?: Insight
         onReset={resetFilters}
         selects={selects}
         disabled={loading}
+        selectsDisabled={unavailable}
       />
       <section aria-label="Saved views" className="flex flex-col gap-3 rounded-xl bg-secondary/55 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">

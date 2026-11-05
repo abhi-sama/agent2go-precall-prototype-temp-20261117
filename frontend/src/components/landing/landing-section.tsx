@@ -49,6 +49,8 @@ export function LandingSection({
   const discovery = useQuery("insightDiscovery", key, (ctx) => adapter.insightDiscovery(ctx, filters), ready)
 
   const loading = kpis.status === "loading"
+  // Catalog options and distributions are record-level reads: an aggregate-only role is refused them by design.
+  const discoveryForbidden = discovery.status === "error" && discovery.error.code === "FORBIDDEN"
   const allZero = kpis.status === "success" && kpis.data.distinctCalls === 0 && kpis.data.distinctEngagedHcps === 0 && kpis.data.responseCount === 0
   // An aggregate-only viewer has no record-level KPIs but does have a scoped map.
   const aggregateOnly = kpis.status === "error" && kpis.error.code === "FORBIDDEN" && geo !== null
@@ -74,7 +76,7 @@ export function LandingSection({
         </div>
       </ParallaxScene>
 
-      <AnalyticsFilterBar discovery={discovery.status === "success" ? discovery.data : undefined} loading={loading || discovery.status === "loading"} />
+      <AnalyticsFilterBar discovery={discovery.status === "success" ? discovery.data : undefined} loading={loading || discovery.status === "loading"} unavailable={discoveryForbidden} />
 
       {showMap &&
         (geo ? (
@@ -150,7 +152,7 @@ export function LandingSection({
 
       {children?.({ range })}
 
-      {discovery.status === "error" ? <ErrorState error={discovery.error} onRetry={discovery.refetch} /> : discovery.status === "success" && (
+      {discovery.status === "error" ? (aggregateOnly && discoveryForbidden ? null : <ErrorState error={discovery.error} onRetry={discovery.refetch} />) : discovery.status === "success" && (
         <div className="flex flex-col gap-10">
           <ResponseDistributions discovery={discovery.data} />
           <QualitativeInsights discovery={discovery.data} />

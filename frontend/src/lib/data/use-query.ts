@@ -41,12 +41,18 @@ export function useQuery<T>(
       .catch((err: unknown) => {
         if (cancelled) return
         const error = toDataError(err, correlationId)
-        log.child(correlationId).error("query failed", {
+        // A denied optional query is an expected part of aggregate-only pages, not a browser error.
+        // Keep it traceable at warning level without turning a healthy Executive overview into a failed console audit.
+        const logger = log.child(correlationId)
+        const message = "query failed"
+        const fields = {
           operation,
           status: "error",
           error_code: error.code,
           duration_ms: Math.round(performance.now() - started),
-        })
+        }
+        if (error.code === "FORBIDDEN") logger.warn(message, fields)
+        else logger.error(message, fields)
         setSettled({ key: fullKey, state: { status: "error", error } })
       })
     return () => {

@@ -11,6 +11,7 @@ answers the probes with real out-of-scope records, so a failing run is proven wi
 
 from __future__ import annotations
 
+import os
 import time
 import uuid
 
@@ -100,7 +101,11 @@ def wait(admin: Persona, run_id: str, timeout: float = RUN_TIMEOUT) -> dict:
 @pytest.fixture(scope="module")
 def real_runs(admin) -> dict[str, dict]:
     """One real run per persona, started together: the same suites the panel runs, against the real agent."""
-    started = {p: start(admin, p) for p in ("msl", "director", "executive", "admin")}
+    personas = ("msl", "director", "executive", "admin")
+    if os.environ.get("A2G_EVAL_SERIAL"):
+        # The local Claude-CLI bridge has a few model slots; four suites at once starve each other past the stall limit.
+        return {p: wait(admin, start(admin, p)["runId"]) for p in personas}
+    started = {p: start(admin, p) for p in personas}
     return {p: wait(admin, r["runId"]) for p, r in started.items()}
 
 
