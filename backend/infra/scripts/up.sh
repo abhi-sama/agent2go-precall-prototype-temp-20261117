@@ -3,7 +3,8 @@
 # and seed it. Safe to re-run; each run reseeds the database deterministically.
 # Everything stays local: every AWS call goes to floci at http://localhost:4566.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+cd "$SCRIPT_DIR/.."
 REPO=$(cd ../.. && pwd)
 
 for tool in docker uv pnpm psql; do
@@ -18,7 +19,11 @@ COMPOSE_SERVICES=(floci graphql)
 case "$LLM_BACKEND" in
   claude-cli|codex-cli)
     export A2G_BEDROCK_BACKEND=proxy COMPOSE_PROFILES=llm
-    "$(dirname "$0")/cli-llm.sh" start
+    # The relay runs in Docker while the subscription CLI bridge runs on the
+    # host. Keep its target in lockstep when an isolated stack selects a
+    # non-default bridge port.
+    export A2G_LLM_RELAY_PORT="${A2G_LLM_RELAY_PORT:-${A2G_CLI_LLM_PORT:-4001}}"
+    "$SCRIPT_DIR/cli-llm.sh" start
     COMPOSE_SERVICES+=(litellm)
     echo "== ${LLM_BACKEND}: floci Bedrock proxy -> local CLI bridge"
     ;;
