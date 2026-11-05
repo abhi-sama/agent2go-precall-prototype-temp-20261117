@@ -16,7 +16,9 @@ deterministic tools in ``tools.py``; the answer is checked against them in ``num
 from __future__ import annotations
 
 import asyncio
+import calendar
 import datetime as dt
+import json
 import re
 import time
 from collections.abc import AsyncIterator, Callable
@@ -41,13 +43,25 @@ from .writes import ConversationTurn, ConversationWriteTool, NullConversationWri
 log = get_logger(__name__)
 
 _TERRITORY_ID = re.compile(r"\b(T\d{2}-\d{2})\b", re.I)
+_ISO_DATE = re.compile(r"\b(20\d{2}-\d{2}-\d{2})\b")
+_MONTH = re.compile(
+    r"\b(january|february|march|april|may|june|july|august|september|october|november|december)\b",
+    re.I,
+)
+_YEAR = re.compile(r"\b(20\d{2})\b")
+_QUESTION_ID = re.compile(r"\b(Q-[A-Za-z0-9_.:-]+)\b", re.I)
+_QUANTITATIVE = re.compile(r"\b(?:how many|count|calls?|hcps?|doctors?|physicians?|engaged|responses?|insights?|percent(?:age)?|share)\b", re.I)
+_QUOTED_ANSWER = re.compile(r"[\"“]([^\"”]+)[\"”]")
+_MONTH_NUMBERS = {name: index for index, name in enumerate((
+    "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
+), start=1)}
 _EXECUTIVE_SOURCE_REQUEST = re.compile(
     r"\b(?:individual|row(?:s)?|call id(?:s)?|hcp(?: name)?s? behind|list (?:the )?hcps?|export|quote|recorded response(?:s)?|"
     r"response id(?:s)?|record[- ]level|percentage|percent|answered|scor(?:e|ing)|oncologist(?:s)?)\b",
     re.I,
 )
 _EXECUTIVE_UNSUPPORTED_FILTER = re.compile(
-    r"\b(?:osimertinib|pembrolizumab|ctdna|neoadjuvant|pulmonary toxicity|biomarker|product)\b|"
+    r"\b(?:osimertinib|pembrolizumab|ctdna|neoadjuvant|pulmonary toxicity|biomarker|sequencing|product)\b|"
     r"\bon\s+20\d{2}-\d{2}\b|\bcompare\b.*\bregion\b|\b(?:same count|most such calls)\b",
     re.I,
 )
@@ -249,22 +263,80 @@ class MslAgent:
         )
 
     @staticmethod
-    def _executive_activity_group(question: str) -> str | None:
-        """Return the only aggregate grouping that can satisfy this quantitative Executive question."""
+    def _executive_window(question: str, history: list[str]) -> tuple[str, str]:
+        """Resolve an Executive count window from this turn, then its conversational context."""
+        turns = [question, *reversed(history)]
+        for turn in turns:
+            dates = _ISO_DATE.findall(turn)
+            if len(dates) >= 2:
+                return dates[0], dates[1]
+            if len(dates) == 1:
+                return dates[0], dates[0]
+
+        current_months = _MONTH.findall(question)
+        months = current_months
+        source = question
+        if not months:
+            for turn in reversed(history):
+                found = _MONTH.findall(turn)
+                if found:
+                    months, source = found, turn
+                    break
+        if not months:
+            return "", ""
+        year_match = _YEAR.search(question) or _YEAR.search(source)
+        if year_match is None:
+            for turn in turns:
+                if match := _YEAR.search(turn):
+                    year_match = match
+                    break
+        if year_match is None:
+            return "", ""
+        year = int(year_match.group(1))
+        first, last = _MONTH_NUMBERS[months[0].lower()], _MONTH_NUMBERS[months[-1].lower()]
+        if last < first:
+            return "", ""
+        return f"{year:04d}-{first:02d}-01", f"{year:04d}-{last:02d}-{calendar.monthrange(year, last)[1]:02d}"
+
+    @staticmethod
+    def _executive_activity_request(question: str, history: list[str] | None = None) -> tuple[str, str, str, str] | None:
+        """Choose the safe Executive aggregate request for a turn, inheriting only time/metric context."""
         q = question.lower()
         is_theme_question = any(word in q for word in ("theme", "topic", "what are hcp", "what did hcp", "recorded perspective", "ctdna", "sequencing"))
         if is_theme_question:
             return None
+        prior = history or []
+
+        def metric_in(turn: str) -> str | None:
+            text = turn.lower()
+            if re.search(r"\b(hcps?|doctors?|physicians?|engaged)\b", text) and "recorded" not in text:
+                return "engaged_hcps"
+            if re.search(r"\b(responses?|insights?|said|recorded|feedback|answers?)\b", text):
+                return "responses"
+            if re.search(r"\b(calls?|meetings?|interactions?)\b", text):
+                return "calls"
+            return None
+
+        metric = metric_in(question) or next((metric_in(turn) for turn in reversed(prior) if metric_in(turn)), "calls")
         if _TERRITORY_ID.search(question):
-            return "territory"
-        request = infer_chart_request(question)
-        if request and request.group_by in ("month", "week", "day"):
-            return "month"
-        if request and request.group_by == "territory":
-            return "territory"
-        if "region" in q or "compare" in q or "versus" in q:
-            return "region"
-        return "total"
+            group_by = "territory"
+        elif (
+            len(_MONTH.findall(question)) >= 2
+            or re.search(r"\b(month|up or down|higher or lower|more or fewer|more or less|which month|busiest month)\b", q)
+        ):
+            group_by = "month"
+        elif re.search(r"\b(?:by|across|between) regions?\b|\bcompare\b.*\bregions?\b|\bversus\b", q):
+            group_by = "region"
+        else:
+            group_by = "total"
+        from_date, to_date = MslAgent._executive_window(question, prior)
+        return metric, group_by, from_date, to_date
+
+    @staticmethod
+    def _executive_activity_group(question: str) -> str | None:
+        """Return the only aggregate grouping that can satisfy this quantitative Executive question."""
+        request = MslAgent._executive_activity_request(question)
+        return request[1] if request is not None else None
 
     @staticmethod
     def _executive_request_requires_refusal(question: str) -> bool:
@@ -278,27 +350,107 @@ class MslAgent:
         return bool(_EXECUTIVE_SOURCE_REQUEST.search(question) or _EXECUTIVE_UNSUPPORTED_FILTER.search(question))
 
     @staticmethod
-    def _run_executive(ctx: RunContext, tools: dict[str, Any], question: str) -> None:
+    def _run_executive(
+        ctx: RunContext, tools: dict[str, Any], question: str, history: list[str] | None = None
+    ) -> tuple[str, str, str, str] | None:
         """Deterministic floor for an Executive run: the aggregate evidence exists whatever the model did."""
         ctx.tool_calls = 0  # a backstop is not charged to the model's tool budget
-        group_by = MslAgent._executive_activity_group(question)
-        if group_by is not None:
-            request = infer_chart_request(question)
-            q = question.lower()
-            metric = request.metric if request else ("responses" if "response" in q or "insight" in q else "calls")
+        request = MslAgent._executive_activity_request(question, history)
+        if request is not None:
+            metric, group_by, from_date, to_date = request
             tools["get_executive_activity"](
                 metric=metric,
                 group_by=group_by,
-                from_date=request.from_date if request else "",
-                to_date=request.to_date if request else "",
+                from_date=from_date,
+                to_date=to_date,
                 tool_context=SimpleNamespace(tool_use={"toolUseId": f"exec-auto-{len(ctx.visuals) + 1}"}, agent=None),
             )
-            return
+            return request
         facet = infer_executive_facet(question)
         tools["get_org_themes"](facet=facet)
         if wants_region_matrix(question):
             ctx.tool_calls = 0
             tools["get_region_topic_matrix"](facet=facet)
+        return None
+
+    @staticmethod
+    def _quantitative_fallback_request(
+        question: str, history: list[str] | None = None
+    ) -> tuple[str, dict[str, str]] | None:
+        """Select the narrow scoped read that repairs a no-tool quantitative reply.
+
+        The model normally chooses the tool. This guard runs only when it emitted no
+        source facts, so it cannot replace an intentional tool result or broaden a
+        request. The called tools still apply the caller's RLS scope themselves.
+        """
+        if not _QUANTITATIVE.search(question):
+            return None
+        turns = [question, *reversed(history or [])]
+        dates = next((found for turn in turns if len(found := _ISO_DATE.findall(turn)) >= 2), [])
+        territory = next((found for turn in turns if (found := _TERRITORY_ID.search(turn))), None)
+        arguments = {
+            "from_date": dates[0] if dates else "",
+            "to_date": dates[1] if len(dates) > 1 else (dates[0] if dates else ""),
+            "territory_id": territory.group(1).upper() if territory else "",
+        }
+        if question_id := next((found for turn in turns if (found := _QUESTION_ID.search(turn))), None):
+            return "get_question_breakdown", {"question_id": question_id.group(1).upper(), **arguments}
+
+        lower = question.lower()
+        if re.search(r"\b(?:what are hcps? saying|recorded responses?|quote)\b", lower):
+            if match := re.search(r"\babout\s+(.+?)(?=\s+(?:in|between)\b|[?.!])", question, re.I):
+                return "search_recorded_responses", {"topic": " ".join(match.group(1).split()), **arguments}
+        if not re.search(r"\b(?:calls?|hcps?|doctors?|physicians?|engaged|responses?|insights?)\b", lower):
+            return None
+        product = ""
+        if match := re.search(r"\babout\s+(.+?)(?=\s+(?:were|was|between|in)\b|[?.!])", question, re.I):
+            product = " ".join(match.group(1).split())
+        specialty = ""
+        if match := re.search(r"\bwith\s+([a-z][a-z -]{1,60}?)(?=\s+(?:in|between|on)\b|[?.!])", question, re.I):
+            specialty = " ".join(match.group(1).split())
+        return "get_activity_summary", {**arguments, "product": product, "specialty": specialty}
+
+    @staticmethod
+    def _quantitative_fallback_text(result: dict[str, Any], question: str) -> str:
+        """Render only a verbatim figure from a deterministic fallback tool result."""
+        if result.get("status") != "ok":
+            return ""
+        period = f"{result.get('period_from')} to {result.get('period_to')}"
+        if question_id := result.get("question_id"):
+            quoted = _QUOTED_ANSWER.findall(question)
+            requested_answer = quoted[-1] if quoted else ""
+            answer = next(
+                (
+                    item
+                    for item in result.get("answers", [])
+                    if str(item.get("answer", "")).casefold() == requested_answer.casefold()
+                ),
+                None,
+            )
+            if answer is None or answer.get("share_percent") is None:
+                return ""
+            return (
+                f'\n\nThe verified result is {answer["share_percent"]}% of responses to {question_id} '
+                f'were "{answer["answer"]}": {answer["responses"]} "{answer["answer"]}" responses '
+                f'out of {result["responses"]} responses for {period}.'
+            )
+
+        if "matching_responses" in result:
+            return (
+                f"\n\nThe verified count is {result['matching_responses']} matching responses about {result['topic']} "
+                f"for {period}."
+            )
+
+        lower = question.lower()
+        key, unit = (
+            ("engaged_hcps", "HCPs")
+            if re.search(r"\b(hcps?|doctors?|physicians?|engaged)\b", lower)
+            else ("insight_responses", "responses")
+            if re.search(r"\b(responses?|insights?)\b", lower)
+            else ("distinct_calls", "calls")
+        )
+        value = result.get(key)
+        return f"\n\nThe verified count is {value} {unit} for {period}." if value is not None else ""
 
     async def run(self, invocation: Invocation) -> AsyncIterator[ag_ui.Event]:
         identity: Identity = invocation.identity
@@ -308,6 +460,7 @@ class MslAgent:
         started = time.perf_counter()
         ctx = RunContext(identity=identity, repository=self._repository, run_id=run_id)
         text_parts: list[str] = []
+        executive_fallback_fact = None
         open_tool_calls: dict[str, bool] = {}
         text_open = False
         paragraph_break = False
@@ -362,7 +515,10 @@ class MslAgent:
                 tools = {t.tool_name: t for t in build_tools(ctx)}
                 summary_ctx = invocation.context
                 if is_executive:
-                    await asyncio.to_thread(self._run_executive, ctx, tools, invocation.question)
+                    await asyncio.to_thread(
+                        self._run_executive, ctx, tools, invocation.question,
+                        [message.content for message in invocation.messages[:-1]],
+                    )
                 elif summary_ctx is None or summary_ctx.intent != "TERRITORY_SUMMARY":
                     await asyncio.to_thread(tools["get_activity_summary"])
                 if not is_executive and summary_ctx is not None and summary_ctx.intent == "TERRITORY_SUMMARY":
@@ -417,15 +573,30 @@ class MslAgent:
                 for event in drain():
                     yield event
             if is_executive:
-                requested_group = self._executive_activity_group(invocation.question)
-                if not ctx.executive_evidence or (requested_group is not None and requested_group not in ctx.executive_activity_groups):
-                    # The model may call the aggregate tool with its default ``total`` grouping for a trend or
-                    # comparison. Evidence exists in that case, but not the requested grouping, so use the
-                    # question's deterministic grouping as a second backstop.
+                history = [message.content for message in invocation.messages[:-1]]
+                requested = self._executive_activity_request(invocation.question, history)
+                request_complete = requested is not None and requested in ctx.executive_activity_requests
+                if not ctx.executive_evidence or (requested is not None and not request_complete):
+                    # A model can omit dates or use the default total grouping. The backstop repeats the
+                    # caller's resolved request, including follow-up context, before any figure is accepted.
                     tools = {t.tool_name: t for t in build_tools(ctx)}
-                    await asyncio.to_thread(self._run_executive, ctx, tools, invocation.question)
+                    first_new_fact = len(ctx.facts)
+                    completed = await asyncio.to_thread(self._run_executive, ctx, tools, invocation.question, history)
+                    if completed is not None and completed[1] == "total" and len(ctx.facts) > first_new_fact:
+                        executive_fallback_fact = ctx.facts[-1]
                 for event in drain():
                     yield event
+                if executive_fallback_fact is not None and str(executive_fallback_fact.value) not in "".join(text_parts):
+                    correction = (
+                        "\n\nThe verified aggregate result is "
+                        f"{executive_fallback_fact.value} {executive_fallback_fact.unit} for {executive_fallback_fact.period}."
+                    )
+                    if not text_open:
+                        text_open = True
+                        yield ag_ui.text_start(message_id)
+                    text_parts.append(correction)
+                    ctx.answer_chars += len(correction)
+                    yield ag_ui.text_content(message_id, correction)
                 if ctx.limitations:
                     # The acceptance rule "answers state their sample limitations" is enforced by code, not by the prompt.
                     paragraph = ("\n\n" if text_parts else "") + "Sample limitations: " + " ".join(ctx.limitations)
@@ -436,6 +607,29 @@ class MslAgent:
                     ctx.answer_chars += len(paragraph)
                     yield ag_ui.text_content(message_id, paragraph)
                     yield ag_ui.custom("sample_limitations", {"items": list(ctx.limitations)})
+            elif not ctx.facts and not open_tool_calls:
+                request = self._quantitative_fallback_request(
+                    invocation.question, [message.content for message in invocation.messages[:-1]]
+                )
+                if request is not None:
+                    tool_name, arguments = request
+                    tools = {tool.tool_name: tool for tool in build_tools(ctx)}
+                    ctx.tool_calls = 0  # deterministic evidence must not be blocked by a model's irrelevant tool budget
+                    try:
+                        result = json.loads(await asyncio.to_thread(tools[tool_name], **arguments))
+                    except (KeyError, TypeError, json.JSONDecodeError) as exc:
+                        log.error("quantitative fallback failed", run_id=run_id, error_type=type(exc).__name__)
+                    else:
+                        for event in drain():
+                            yield event
+                        correction = self._quantitative_fallback_text(result, invocation.question)
+                        if correction:
+                            if not text_open:
+                                text_open = True
+                                yield ag_ui.text_start(message_id)
+                            text_parts.append(correction)
+                            ctx.answer_chars += len(correction)
+                            yield ag_ui.text_content(message_id, correction)
             if text_open:
                 yield ag_ui.text_end(message_id)
             for event in drain():

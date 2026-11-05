@@ -33,6 +33,7 @@ class Settings:
     embedding_provider: str = "local"
     embedding_endpoint: str | None = None
     llm_backend: str = ""
+    cli_eval_workers: int | None = None
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> Settings:
@@ -74,4 +75,18 @@ class Settings:
             embedding_provider=e.get("A2G_EMBEDDING_PROVIDER", "local"),
             embedding_endpoint=e.get("A2G_BEDROCK_ENDPOINT") or e.get("AWS_ENDPOINT_URL") or None,
             llm_backend=e.get("A2G_LLM_BACKEND", "").lower(),
+            # A local CLI can opt into additional suite workers when its bridge has matching slots.
+            # Absent or invalid input retains the sustainable two-worker default.
+            cli_eval_workers=_local_cli_workers(e, env),
         )
+
+
+def _local_cli_workers(environ: dict[str, str], env: str) -> int | None:
+    """Return an explicit local-only CLI suite fan-out, if it is usable."""
+    if env != "local":
+        return None
+    try:
+        workers = int(environ.get("A2G_CLI_EVAL_WORKERS", ""))
+    except ValueError:
+        return None
+    return workers if 1 <= workers <= 8 else None

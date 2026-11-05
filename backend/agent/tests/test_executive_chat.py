@@ -11,6 +11,7 @@ from test_runtime import collect, names, runtime
 
 from msl_agent.agent import MslAgent
 from msl_agent.repository import FixtureScopedRepository
+from msl_agent.schemas import Message
 from msl_agent.tools import RunContext, build_tools
 
 EXEC = "executive-region-01"
@@ -34,6 +35,39 @@ def test_named_executive_territory_uses_the_territory_aggregate_group() -> None:
     ) == "territory"
 
 
+def test_executive_activity_follow_ups_inherit_only_the_needed_context() -> None:
+    october = "How many distinct calls were made in my region between 2026-10-01 and 2026-10-31?"
+    assert MslAgent._executive_activity_request("How many distinct HCPs did those October calls reach?", [october]) == (
+        "engaged_hcps", "total", "2026-10-01", "2026-10-31",
+    )
+    assert MslAgent._executive_activity_request(
+        "How many distinct calls did my region have in October 2026?",
+        ["How many recorded responses mention sequencing?", "What themes did HCPs raise?"],
+    ) == ("calls", "total", "2026-10-01", "2026-10-31")
+
+
+@pytest.mark.asyncio
+async def test_executive_follow_up_keeps_its_explicit_window_when_the_model_has_no_answer(settings, repository) -> None:
+    """The aggregate fallback must answer a dated follow-up, not fall back to its 90-day default."""
+    agent, _ = runtime(settings, repository, ["I could not retrieve that count."])
+    first = "How many distinct calls were made in my region between 2026-10-01 and 2026-10-31?"
+    invocation = executive("And between 2026-09-01 and 2026-09-30?").model_copy(
+        update={
+            "messages": [
+                Message(role="user", content=first),
+                Message(role="assistant", content="The October total was shown."),
+                Message(role="user", content="And between 2026-09-01 and 2026-09-30?"),
+            ]
+        }
+    )
+
+    events = await collect(agent, invocation)
+
+    facts = event(events, "source_facts")["facts"]
+    assert facts[-1]["period"] == "2026-09-01 to 2026-09-30"
+    assert str(facts[-1]["value"]) in text_of(events)
+
+
 @pytest.mark.parametrize(
     "question",
     [
@@ -41,6 +75,7 @@ def test_named_executive_territory_uses_the_territory_aggregate_group() -> None:
         "What percentage of responses to Q-0145 were Yes?",
         "How many HCPs were engaged about osimertinib?",
         "How many calls did oncologists receive in Q3?",
+        "Show how mentions of sequencing changed month by month over the last six months.",
     ],
 )
 def test_executive_source_or_unsupported_filters_are_refused_before_tool_selection(question: str) -> None:

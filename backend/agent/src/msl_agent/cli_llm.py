@@ -42,6 +42,13 @@ MAX_IN_FLIGHT = _positive_env("A2G_CLI_MAX_IN_FLIGHT", 2)
 # promptly by default.
 DEFAULT_TIMEOUT_SECONDS = 120
 _TOOL_UNAVAILABLE = re.compile(r"\b(?:tool|chart)\b.{0,80}(?:not available|unavailable|isn't|is not|wasn't|was not|can't|cannot)", re.I)
+_DATA_LOOKUP_FAILURE = re.compile(
+    r"(?:\b(?:data\s+(?:lookup|tool|tools|source|sources)|lookup|retriev(?:e|al)|count|breakdown|number|share)\b"
+    r".{0,80}\b(?:failed|error(?:s)?|unavailable|can't|cannot|couldn't|could not)\b"
+    r"|\b(?:can't|cannot|couldn't|could not)\b.{0,80}"
+    r"\b(?:get|retrieve|provide)\b.{0,80}\b(?:count|breakdown|number|share)\b)",
+    re.I,
+)
 log = get_logger(__name__)
 
 
@@ -259,7 +266,20 @@ def _ground_quotes(reply: ModelReply, payload: dict[str, Any]) -> ModelReply:
 
 def _must_retry_for_tool(reply: ModelReply, payload: dict[str, Any]) -> bool:
     """Repair the CLI's occasional false claim that declared tools do not exist."""
-    return bool(payload["tools"] and reply.kind == "text" and reply.content and _TOOL_UNAVAILABLE.search(reply.content))
+    messages = payload.get("messages", [])
+    latest_user = max(
+        (index for index, message in enumerate(messages) if message.get("role") == "user"), default=-1
+    )
+    has_current_turn_tool_result = any(
+        message.get("role") == "tool" for message in messages[latest_user + 1 :]
+    )
+    return bool(
+        payload["tools"]
+        and not has_current_turn_tool_result
+        and reply.kind == "text"
+        and reply.content
+        and (_TOOL_UNAVAILABLE.search(reply.content) or _DATA_LOOKUP_FAILURE.search(reply.content))
+    )
 
 
 async def _run(command: list[str], prompt: str, cwd: Path, timeout: int) -> str:

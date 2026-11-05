@@ -92,6 +92,8 @@ def deploy(fe: dict, db: dict) -> str:
         # This is operational routing metadata, never a credential. Eval and
         # chat workers use it to size their local CLI request budgets.
         "A2G_LLM_BACKEND": os.environ.get("LLM_BACKEND", ""),
+        # An isolated local CLI bridge may explicitly provide more matching slots for a full eval.
+        **({"A2G_CLI_EVAL_WORKERS": os.environ["A2G_CLI_EVAL_WORKERS"]} if os.environ.get("A2G_CLI_EVAL_WORKERS") else {}),
         # Brief and leadership-summary generation give up on the agent after this long (default 25s, the AWS value).
         **({"A2G_AGENT_TIMEOUT_SECONDS": os.environ["A2G_AGENT_TIMEOUT_SECONDS"]} if os.environ.get("A2G_AGENT_TIMEOUT_SECONDS") else {}),
     }

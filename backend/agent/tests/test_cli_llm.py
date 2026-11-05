@@ -119,6 +119,36 @@ def test_tool_unavailable_retry_catches_past_tense_refusals():
     assert cli_llm._must_retry_for_tool(cli_llm.ModelReply(kind="text", content="The search tool wasn't available."), payload)
 
 
+def test_tool_unavailable_retry_catches_a_generic_data_failure_before_any_tool_result():
+    payload = {
+        "tools": [{"type": "function"}],
+        "messages": [{"role": "user", "content": "How many HCPs engaged on a product in October?"}],
+    }
+
+    assert cli_llm._must_retry_for_tool(
+        cli_llm.ModelReply(
+            kind="text",
+            content="I couldn't get that count. The data lookup failed, so I don't have a number.",
+        ),
+        payload,
+    )
+
+
+def test_tool_unavailable_retry_does_not_repeat_after_a_current_turn_tool_result():
+    payload = {
+        "tools": [{"type": "function"}],
+        "messages": [
+            {"role": "user", "content": "How many calls?"},
+            {"role": "assistant", "tool_calls": [{"id": "call_1"}]},
+            {"role": "tool", "tool_call_id": "call_1", "content": '{"status":"out_of_scope"}'},
+        ],
+    }
+
+    assert not cli_llm._must_retry_for_tool(
+        cli_llm.ModelReply(kind="text", content="I can't give that count because the data is unavailable."), payload
+    )
+
+
 def test_claude_command_sets_the_system_prompt_flag(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 

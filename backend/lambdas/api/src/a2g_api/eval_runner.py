@@ -26,7 +26,6 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import Any
 
 import psycopg
-
 from a2g_logging import get_logger
 
 from . import chat_rows
@@ -73,8 +72,10 @@ def _agent_timeout(settings: Settings) -> int:
 
 
 def _worker_count(settings: Settings) -> int:
-    """Use both sustainable CLI slots without changing non-CLI evaluation throughput."""
-    return CLI_WORKERS if settings.llm_backend in {"claude-cli", "codex-cli"} else DEFAULT_WORKERS
+    """Use a local CLI's explicit slots without changing non-CLI evaluation throughput."""
+    if settings.llm_backend in {"claude-cli", "codex-cli"}:
+        return settings.cli_eval_workers if settings.env == "local" and settings.cli_eval_workers else CLI_WORKERS
+    return DEFAULT_WORKERS
 
 
 def new_run_id(now: dt.datetime | None = None) -> str:

@@ -13,6 +13,7 @@ from conftest import make_invocation
 
 from msl_agent.agent import MslAgent
 from msl_agent.app import create_app
+from msl_agent.schemas import Message
 from msl_agent.tools import RunContext, build_tools
 from msl_agent.writes import ConversationTurn
 
@@ -124,6 +125,75 @@ async def test_a_number_the_model_invented_is_flagged(settings, repository) -> N
     check = next(e for e in events if e.get("name") == "number_check")["value"]
     assert check == {"status": "unverified", "count": 1, "checked": True}
     assert writer.turns[0].unverified_numbers == ["7"]
+
+
+@pytest.mark.asyncio
+async def test_quantitative_fallback_repairs_a_model_that_skips_an_activity_tool(settings, repository) -> None:
+    agent, writer = runtime(settings, repository, ["I could not get that count."])
+    events = await collect(
+        agent,
+        make_invocation(question="How many distinct calls did I have about osimertinib between 2026-10-01 and 2026-10-31?"),
+    )
+
+    facts = next(e for e in events if e.get("name") == "source_facts")["value"]["facts"]
+    assert {fact["label"]: fact["value"] for fact in facts}["Distinct calls (osimertinib)"] == 2
+    assert "The verified count is 2 calls for 2026-10-01 to 2026-10-31." in writer.turns[0].assistant_text
+    assert writer.turns[0].unverified_numbers == []
+
+
+@pytest.mark.asyncio
+async def test_quantitative_fallback_repairs_a_model_that_skips_a_question_breakdown(settings, repository) -> None:
+    agent, writer = runtime(settings, repository, ["The lookup failed, so I cannot provide that percentage."])
+    events = await collect(
+        agent,
+        make_invocation(
+            question='What percentage of the responses to Q-0013 were “Yes”, between 2026-10-01 and 2026-10-31?'
+        ),
+    )
+
+    assert "visual" in names(events)
+    assert "55.2%" in writer.turns[0].assistant_text
+    assert '16 "Yes" responses out of 29 responses' in writer.turns[0].assistant_text
+    assert writer.turns[0].unverified_numbers == []
+
+
+@pytest.mark.asyncio
+async def test_quantitative_fallback_uses_response_search_for_a_quoted_theme_count(settings, repository) -> None:
+    agent, writer = runtime(settings, repository, ["I could not retrieve the matching response count."])
+    events = await collect(
+        agent,
+        make_invocation(
+            question="What are HCPs saying about osimertinib between 2026-10-01 and 2026-10-31? Quote one recorded response and say how many matched."
+        ),
+    )
+
+    facts = next(e for e in events if e.get("name") == "source_facts")["value"]["facts"]
+    assert {fact["label"]: fact["value"] for fact in facts}["Responses matching “osimertinib”"] == 1
+    assert "The verified count is 1 matching responses about osimertinib" in writer.turns[0].assistant_text
+    assert writer.turns[0].citations and writer.turns[0].unverified_numbers == []
+
+
+@pytest.mark.asyncio
+async def test_quantitative_fallback_inherits_the_question_window_for_a_percentage_follow_up(settings, repository) -> None:
+    agent, writer = runtime(settings, repository, ["The question breakdown was unavailable."])
+    invocation = make_invocation(question='And what percent said "No"?').model_copy(
+        update={
+            "messages": [
+                Message(
+                    role="user",
+                    content='What percentage of Q-0013 responses were “Yes” between 2026-10-01 and 2026-10-31?',
+                ),
+                Message(role="assistant", content="The earlier answer was unavailable."),
+                Message(role="user", content='And what percent said "No"?'),
+            ]
+        }
+    )
+
+    await collect(agent, invocation)
+
+    assert "34.5%" in writer.turns[0].assistant_text
+    assert '10 "No" responses out of 29 responses' in writer.turns[0].assistant_text
+    assert writer.turns[0].unverified_numbers == []
 
 
 @pytest.mark.asyncio

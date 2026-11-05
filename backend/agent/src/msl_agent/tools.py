@@ -98,6 +98,9 @@ class RunContext:
     executive_evidence: bool = False
     #: Groupings returned by the aggregate activity tool, so a total cannot satisfy a requested trend/comparison.
     executive_activity_groups: set[str] = field(default_factory=set)
+    #: Exact aggregate requests that completed, including their resolved period. This prevents a model's default
+    #: 90-day aggregate from satisfying a later follow-up that asks for a different month.
+    executive_activity_requests: set[tuple[str, str, str, str]] = field(default_factory=set)
 
     # -- bookkeeping --------------------------------------------------------------------------
     def _add_citations(self, items: tuple[Citation, ...]) -> list[str]:
@@ -477,6 +480,9 @@ class RunContext:
         self.executive_activity_groups.add(result.group_by)
         self.data_through = result.data_through
         period = f"{result.period_from.isoformat()} to {result.period_to.isoformat()}"
+        self.executive_activity_requests.add(
+            (result.metric, result.group_by, result.period_from.isoformat(), result.period_to.isoformat())
+        )
         label = {"calls": "Distinct calls", "engaged_hcps": "Engaged HCPs", "responses": "Insight responses"}[result.metric]
         citation = Citation(
             record_id=f"agg:executive:activity:{result.metric}:{result.group_by}:{result.period_from}:{result.period_to}",
