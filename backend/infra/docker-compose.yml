@@ -38,8 +38,9 @@ services:
       # Label every sibling container floci starts, so down.sh removes only this stack's.
       FLOCI_DOCKER_EXTRA_LABELS_0__KEY: io.agent2go.stack
       FLOCI_DOCKER_EXTRA_LABELS_0__VALUE: ${A2G_STACK_LABEL:-local}
-      # Bedrock Runtime (Converse/ConverseStream) is proxied to LiteLLM -> Claude when a key is
-      # present; with no key floci answers with its built-in stub. up.sh picks the backend.
+      # Bedrock Runtime (Converse/ConverseStream) always sees this stable OpenAI-compatible
+      # endpoint.  The relay below picks the local subscription CLI or API-backed LiteLLM, so
+      # switching the final hop never requires restarting this shared floci container.
       FLOCI_SERVICES_BEDROCK_RUNTIME_BACKEND: ${A2G_BEDROCK_BACKEND:-stub}
       FLOCI_SERVICES_BEDROCK_RUNTIME_PROXY_URL: http://litellm:4000/v1
       FLOCI_SERVICES_BEDROCK_RUNTIME_PROXY_MODEL_MAPPING: anthropic.claude-sonnet-5-5-v1:0=claude-sonnet-5-5,anthropic.claude-haiku-5-5-v1:0=claude-haiku-5-5
@@ -48,13 +49,27 @@ services:
     image: floci/floci-sidecar-graphql:0.2.0
     container_name: ${A2G_GRAPHQL_CONTAINER:-floci-aws-graphql}
 
-  # LiteLLM turns floci's OpenAI-style proxy calls into Anthropic API calls. Only started (profile
-  # "llm") when ANTHROPIC_API_KEY is non-empty. The key file is mounted read-only and sourced at
-  # container start: the key is never copied into the repo, the compose file or an env var of this project.
+  # Stable in-network relay.  In CLI mode it forwards to the host-side bridge where the official
+  # subscription CLI runs; in API mode it forwards to api-litellm.  floci therefore never needs a
+  # configuration change or restart to switch the final provider.
   litellm:
     profiles: ["llm"]
-    image: ghcr.io/berriai/litellm:main-stable
+    build:
+      context: ./cli-relay
+    image: agent2go-cli-relay:local
     container_name: ${A2G_LITELLM_CONTAINER:-litellm}
+    # Docker's host-gateway mapping is IPv4. Force socat to use it rather than a
+    # DNS-provided IPv6 address, which is not routable from this bridge network.
+    command: ["TCP-LISTEN:4000,fork,reuseaddr", "TCP4:${A2G_LLM_RELAY_HOST:-host.docker.internal}:${A2G_LLM_RELAY_PORT:-4001}"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Kept for when API credit returns.  Its key file is mounted read-only and only its own process
+  # reads it; it is never copied into the repository or exported by these scripts.
+  api-litellm:
+    profiles: ["api"]
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: ${A2G_API_LITELLM_CONTAINER:-api-litellm}
     entrypoint: ["/bin/sh", "-c", "set -a; . /run/a2g-keys.env; exec docker/prod_entrypoint.sh --config /app/config.yaml --port 4000"]
     volumes:
       - ../agent/litellm-config.yaml:/app/config.yaml:ro

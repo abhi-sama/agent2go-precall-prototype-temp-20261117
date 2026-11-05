@@ -38,16 +38,16 @@ browser ──(Cognito ID token, x-user-full-name, x-user-email, x-correlation-i
                                                     Postgres 16 + pgvector, RLS on every table
 ```
 
-Chat follows the same route and continues to the agent (`backend/agent`, the AgentCore Runtime stand-in), which calls Bedrock ConverseStream through floci, LiteLLM and Claude:
+Chat follows the same route and continues to the agent (`backend/agent`, the AgentCore Runtime stand-in), which calls Bedrock ConverseStream through floci and a local OpenAI-compatible relay:
 
 ```
 startChatRun ─▶ BE API Lambda ──async──▶ chat worker Lambda ──POST /invocations (SSE)──▶ Strands agent
  (AppSync)        records the run          appends each AG-UI event to chat_run_events    ├─ read tools: SQL under RLS
-chatEvents  ◀─── reads events (polling: stand-in for an AppSync subscription)             ├─ Bedrock ConverseStream ─▶ floci ─▶ LiteLLM ─▶ Claude
+chatEvents  ◀─── reads events (polling: stand-in for an AppSync subscription)             ├─ Bedrock ConverseStream ─▶ floci ─▶ relay ─▶ Claude CLI (or API LiteLLM)
                                                                                           └─ write tool: assume FE role ─▶ FE DynamoDB (chat history)
 ```
 
-With no `ANTHROPIC_API_KEY` in `~/.config/agent2go/keys.env`, `up.sh` leaves LiteLLM out and floci answers with its Bedrock stub; chat still works and says so.
+Local development defaults to `LLM_BACKEND=claude-cli`: it invokes the installed official `claude` CLI under your existing subscription, never reads or copies its credentials. It maps Sonnet and Haiku Bedrock model IDs to CLI aliases, disables the CLI's own tools/MCP, and falls back to `codex exec` if Claude is unavailable or limited. Use `LLM_BACKEND=codex-cli` to select Codex directly, `LLM_BACKEND=api` to restore the API-key LiteLLM path (requires `ANTHROPIC_API_KEY` in `~/.config/agent2go/keys.env`), or `LLM_BACKEND=stub` for floci's canned response. The bridge accepts multi-turn and tool-result context, returns OpenAI tool calls, streams chunked output, and queues beyond two in-flight CLI calls.
 The decisions behind this are in [docs/adr/](docs/adr/).
 
 ## Repository layout
