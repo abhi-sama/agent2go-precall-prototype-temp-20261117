@@ -36,6 +36,28 @@ UI code only talks to `DataAdapter` (`src/lib/data/adapter.ts`), which mirrors t
 The local floci stack answers no CORS preflights, so local builds reach it through the same-origin rewrite `/_floci/*`
 in `next.config.ts`.
 
+### Use the real local agent
+
+Start the complete local stack (including the host-side Claude CLI bridge, with automatic Codex CLI fallback) from the
+repository root:
+
+```bash
+LLM_BACKEND=claude-cli backend/infra/scripts/up.sh
+```
+
+That command writes `frontend/.env.local`; do not copy credentials or generated output values between worktrees. For a
+separate preview copy, its local environment must select the real adapter and point its same-origin proxy at the stack:
+
+```dotenv
+NEXT_PUBLIC_APP_ENV=local
+NEXT_PUBLIC_DATA_ADAPTER=appsync
+A2G_FLOCI_ENDPOINT=http://localhost:4566
+NEXT_PUBLIC_AMPLIFY_OUTPUTS=<the generated value from that stack's frontend/.env.local>
+```
+
+Start that preview with its own port, for example `pnpm dev --port 3210`, then sign in at `/login` with a seeded local
+persona. `mock` is for fixture-only UI work: it cannot answer arbitrary questions from the seeded data.
+
 ## Local-only features
 
 `NEXT_PUBLIC_APP_ENV=local` (set in `.env.development`) enables the persona quick-switch, the seeded-user sign-in list

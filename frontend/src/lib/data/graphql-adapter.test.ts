@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { createGraphQLAdapter, type GraphQLTransport } from "./graphql-adapter"
-import { AUTHORIZATION_VERIFICATION_GRID_QUERY, HCP_PROFILE_QUERY, HCP_TIMELINE_QUERY, LANDING_KPIS_QUERY, SEARCH_HCPS_QUERY } from "./operations"
+import { AUTHORIZATION_VERIFICATION_GRID_QUERY, HCP_PROFILE_QUERY, HCP_TIMELINE_QUERY, LANDING_KPIS_QUERY, SEARCH_HCPS_QUERY, START_CHAT_RUN_MUTATION } from "./operations"
 
 const ctx = { correlationId: "corr-9" }
 
@@ -63,5 +63,30 @@ describe("graphql adapter", () => {
       return { data: { authorizationVerificationGrid: { suiteId: "local-appsync-authorization-v1", localOnly: true, total: 128, passed: 128, results: [] } } as never }
     })
     await expect(adapter.authorizationVerificationGrid(ctx)).resolves.toMatchObject({ total: 128, passed: 128, localOnly: true })
+  })
+
+  it("starts a real-adapter chat run with its message, history and screen context", async () => {
+    const seen: unknown[] = []
+    const adapter = createGraphQLAdapter(async (req) => {
+      seen.push(req)
+      return { data: { startChatRun: { runId: "run-live-1", status: "RUNNING" } } as never }
+    })
+    await expect(adapter.startChatRun(ctx, {
+      threadId: "thread-live-1",
+      runId: "run-live-1",
+      message: "What are the main concerns of HCPs?",
+      history: [{ role: "user", content: "hi" }],
+      context: { view: "msl", from: "2026-10-01", to: "2026-10-31", intent: "FREE" },
+    })).resolves.toEqual({ runId: "run-live-1", status: "RUNNING" })
+    expect(seen).toEqual([{
+      query: START_CHAT_RUN_MUTATION,
+      variables: {
+        threadId: "thread-live-1",
+        runId: "run-live-1",
+        message: "What are the main concerns of HCPs?",
+        history: [{ role: "user", content: "hi" }],
+        context: { view: "msl", from: "2026-10-01", to: "2026-10-31", intent: "FREE" },
+      },
+    }])
   })
 })

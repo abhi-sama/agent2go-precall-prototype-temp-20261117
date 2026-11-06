@@ -41,7 +41,10 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
   const suggestions = ["Which territories can I see?", "What have HCPs recorded about osimertinib?"]
   const directReply = smallTalkReply(question)
   const scopeQuestion = /\b(?:which|what)\s+territor(?:y|ies)\s+(?:can|do)\s+i\s+(?:see|access)\b|\bmy\s+scope\b/i.test(question)
-  const topic = question.match(/\b(?:recorded|said|saying)\b.*?\babout\s+(.+?)[?.!]?\s*$/i)?.[1]?.trim()
+  const explicitTopic = question.match(/\b(?:recorded|said|saying)\b.*?\babout\s+(.+?)[?.!]?\s*$/i)?.[1]?.trim()
+  const qualitativeQuestion = /\b(?:concerns?|themes?|topics?|perspectives?)\b|\bwhat\s+(?:are|do|did)\s+hcps?\b/i.test(question)
+  const topic = explicitTopic ?? (qualitativeQuestion && user.persona !== "executive" ? "recorded HCP concerns" : undefined)
+  const activityQuestion = /\b(?:calls?|engaged|hcps?|responses?|insights?|activity)\b|\bhow\s+(?:am|did)\s+i\s+do\b/i.test(question)
 
   const summaryTerritory = context?.intent === "TERRITORY_SUMMARY" ? context.territoryId : undefined
   if (directReply) {
@@ -177,7 +180,7 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
     answer = "Record-level questions are not available for your role yet. Aggregate views are on your landing page."
   } else if (asked && !user.territoryIds.includes(asked)) {
     answer = `Territory ${asked} is outside your scope, so I cannot show any data for it. I can answer for the territories you have access to.`
-  } else {
+  } else if (activityQuestion) {
     const territory = TERRITORIES.find((t) => t.id === (asked ?? user.territoryIds[0]))!
     const calls = Math.round(territory.callsPerWorkday * 64)
     const hcps = Math.round(calls * 0.86)
@@ -213,6 +216,8 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
       events.push(ev("TOOL_CALL_START", { toolCallId: "v1", toolCallName: "show_chart" }), custom("visual", { phase: "pending", visual_id: "v1", tool: "show_chart" }), custom("visual", mockVisual(request, common, "v1")), ev("TOOL_CALL_END", { toolCallId: "v1" }))
     }
     answer = `In ${territory.id} you had ${calls} distinct calls with ${hcps} engaged HCPs and ${responses} insight responses over the last 90 days.`
+  } else {
+    answer = "This mock preview does not have a scripted answer for that question. Switch to the live local agent to ask it against the seeded data."
   }
 
   events.push(ev("TEXT_MESSAGE_START", { messageId: "m1", role: "assistant" }))

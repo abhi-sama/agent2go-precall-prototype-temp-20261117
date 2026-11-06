@@ -81,6 +81,10 @@ _VAGUE_ACTIVITY = re.compile(
     r"\b(?:how\s+(?:am|are)\s+i\s+doing|how\s+did\s+i\s+do|my\s+activity|my\s+overview|activity\s+overview)\b",
     re.I,
 )
+_QUALITATIVE_HCP_QUESTION = re.compile(
+    r"\b(?:concerns?|themes?|topics?|perspectives?)\b",
+    re.I,
+)
 _SCOPE_QUESTION = re.compile(
     r"\b(?:which|what)\s+territor(?:y|ies)\s+(?:can|do)\s+i\s+(?:see|access)\b|\bmy\s+scope\b",
     re.I,
@@ -420,7 +424,10 @@ class MslAgent:
         source facts, so it cannot replace an intentional tool result or broaden a
         request. The called tools still apply the caller's RLS scope themselves.
         """
-        if not _QUANTITATIVE.search(question):
+        # ``HCP`` is also a quantitative keyword, but questions about what HCPs
+        # raise or what their concerns are need the recorded-response/theme path.
+        # Do not turn a missed qualitative tool call into an activity summary.
+        if _QUALITATIVE_HCP_QUESTION.search(question) or not _QUANTITATIVE.search(question):
             return None
         turns = [question, *reversed(history or [])]
         dates = next((found for turn in turns if len(found := _ISO_DATE.findall(turn)) >= 2), [])
@@ -446,6 +453,31 @@ class MslAgent:
         if match := re.search(r"\bwith\s+([a-z][a-z -]{1,60}?)(?=\s+(?:in|between|on)\b|[?.!])", question, re.I):
             specialty = " ".join(match.group(1).split())
         return "get_activity_summary", {**arguments, "product": product, "specialty": specialty}
+
+    @staticmethod
+    def _qualitative_fallback_requests(
+        question: str, history: list[str] | None = None
+    ) -> list[tuple[str, dict[str, str]]]:
+        """Return scoped evidence for a broad HCP-perspective question the model skipped.
+
+        A response/theme question is intentionally broad: the theme tool supplies
+        the supported themes, while a concerns question also gets cited recorded
+        responses. This runs only after the model supplied no facts.
+        """
+        if not _QUALITATIVE_HCP_QUESTION.search(question):
+            return []
+        turns = [question, *reversed(history or [])]
+        dates = next((found for turn in turns if len(found := _ISO_DATE.findall(turn)) >= 2), [])
+        territory = next((found for turn in turns if (found := _TERRITORY_ID.search(turn))), None)
+        arguments = {
+            "from_date": dates[0] if dates else "",
+            "to_date": dates[1] if len(dates) > 1 else (dates[0] if dates else ""),
+            "territory_id": territory.group(1).upper() if territory else "",
+        }
+        requests: list[tuple[str, dict[str, str]]] = [("get_topic_trends", arguments)]
+        if re.search(r"\bconcerns?\b", question, re.I):
+            requests.append(("search_recorded_responses", {"topic": "concern", **arguments}))
+        return requests
 
     @staticmethod
     def _stub_evidence_request(
@@ -680,28 +712,46 @@ class MslAgent:
                     yield ag_ui.text_content(message_id, paragraph)
                     yield ag_ui.custom("sample_limitations", {"items": list(ctx.limitations)})
             elif direct_reply is None and not ctx.facts and not open_tool_calls:
-                request = self._quantitative_fallback_request(
-                    invocation.question, [message.content for message in invocation.messages[:-1]]
-                )
-                if request is not None:
-                    tool_name, arguments = request
-                    tools = {tool.tool_name: tool for tool in build_tools(ctx)}
-                    ctx.tool_calls = 0  # deterministic evidence must not be blocked by a model's irrelevant tool budget
-                    try:
-                        result = json.loads(await asyncio.to_thread(tools[tool_name], **arguments))
-                    except (KeyError, TypeError, json.JSONDecodeError) as exc:
-                        log.error("quantitative fallback failed", run_id=run_id, error_type=type(exc).__name__)
-                    else:
-                        for event in drain():
-                            yield event
-                        correction = self._quantitative_fallback_text(result, invocation.question)
-                        if correction:
-                            if not text_open:
-                                text_open = True
-                                yield ag_ui.text_start(message_id)
-                            text_parts.append(correction)
-                            ctx.answer_chars += len(correction)
-                            yield ag_ui.text_content(message_id, correction)
+                history = [message.content for message in invocation.messages[:-1]]
+                tools = {tool.tool_name: tool for tool in build_tools(ctx)}
+                qualitative_requests = self._qualitative_fallback_requests(invocation.question, history)
+                if qualitative_requests:
+                    ctx.tool_calls = 0  # deterministic evidence must not be blocked by a skipped model tool call
+                    for tool_name, arguments in qualitative_requests:
+                        try:
+                            await asyncio.to_thread(tools[tool_name], **arguments)
+                        except (KeyError, TypeError, json.JSONDecodeError) as exc:
+                            log.error("qualitative fallback failed", run_id=run_id, error_type=type(exc).__name__)
+                    for event in drain():
+                        yield event
+                    if ctx.facts:
+                        correction = "\n\nThe verified recorded-response themes and cited sources above are available for this question."
+                        if not text_open:
+                            text_open = True
+                            yield ag_ui.text_start(message_id)
+                        text_parts.append(correction)
+                        ctx.answer_chars += len(correction)
+                        yield ag_ui.text_content(message_id, correction)
+                else:
+                    request = self._quantitative_fallback_request(invocation.question, history)
+                    if request is not None:
+                        tool_name, arguments = request
+                        ctx.tool_calls = 0  # deterministic evidence must not be blocked by a model's irrelevant tool budget
+                        try:
+                            result = json.loads(await asyncio.to_thread(tools[tool_name], **arguments))
+                        except (KeyError, TypeError, json.JSONDecodeError) as exc:
+                            log.error("quantitative fallback failed", run_id=run_id, error_type=type(exc).__name__)
+                        else:
+                            for event in drain():
+                                yield event
+                            correction = self._quantitative_fallback_text(result, invocation.question)
+                            if correction:
+                                if not text_open:
+                                    text_open = True
+                                    yield ag_ui.text_start(message_id)
+                                text_parts.append(correction)
+                                ctx.answer_chars += len(correction)
+                                yield ag_ui.text_content(message_id, correction)
             if text_open:
                 yield ag_ui.text_end(message_id)
             for event in drain():

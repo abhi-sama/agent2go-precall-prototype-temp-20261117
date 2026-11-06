@@ -48,6 +48,21 @@ describe("mock chat", () => {
     expect(page.events.some((e) => e.data.includes('"source_facts"'))).toBe(true)
   })
 
+  it("routes broad HCP concerns through recorded responses instead of activity", async () => {
+    const page = await eventsOf("u-msl-ne-01", "What are the main concerns of HCPs?")
+    const text = page.events.map((e) => JSON.parse(e.data)).filter((e) => e.type === "TEXT_MESSAGE_CONTENT").map((e) => e.delta).join("")
+    expect(page.events.some((e) => e.data.includes('"search_recorded_responses"'))).toBe(true)
+    expect(page.events.some((e) => e.data.includes('"get_activity_summary"'))).toBe(false)
+    expect(text).toContain("recorded HCP concerns")
+  })
+
+  it("does not invent an activity summary for an unknown mock question", async () => {
+    const page = await eventsOf("u-msl-ne-01", "Can you write me a limerick about Tuesday?")
+    const text = page.events.map((e) => JSON.parse(e.data)).filter((e) => e.type === "TEXT_MESSAGE_CONTENT").map((e) => e.delta).join("")
+    expect(page.events.some((e) => e.data.includes('"source_facts"'))).toBe(false)
+    expect(text).toContain("does not have a scripted answer")
+  })
+
   it("returns no facts for a territory outside scope", async () => {
     const page = await eventsOf("u-msl-ne-01", "How many calls in SE-03?")
     expect(page.events.some((e) => e.data.includes('"source_facts"'))).toBe(false)

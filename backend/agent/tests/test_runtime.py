@@ -174,6 +174,20 @@ async def test_quantitative_fallback_uses_response_search_for_a_quoted_theme_cou
 
 
 @pytest.mark.asyncio
+async def test_qualitative_fallback_uses_the_theme_path_not_activity_facts(settings, repository) -> None:
+    agent, writer = runtime(settings, repository, ["I could not retrieve the recorded perspectives."])
+    events = await collect(agent, make_invocation(question="What are the main concerns of HCPs?"))
+
+    facts = [fact for event in events if event.get("name") == "source_facts" for fact in event["value"]["facts"]]
+    labels = {fact["label"] for fact in facts}
+    assert "Free-text responses in the latest period" in labels
+    assert "Responses matching “concern”" in labels
+    assert not any(label.startswith("Distinct calls") for label in labels)
+    assert "verified recorded-response themes" in writer.turns[0].assistant_text
+    assert writer.turns[0].citations
+
+
+@pytest.mark.asyncio
 async def test_quantitative_fallback_inherits_the_question_window_for_a_percentage_follow_up(settings, repository) -> None:
     agent, writer = runtime(settings, repository, ["The question breakdown was unavailable."])
     invocation = make_invocation(question='And what percent said "No"?').model_copy(
