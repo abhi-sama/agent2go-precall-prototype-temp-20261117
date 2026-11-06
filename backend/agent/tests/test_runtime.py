@@ -261,6 +261,70 @@ async def test_stub_mode_still_attaches_deterministic_facts(stub_settings, repos
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("user_id", "persona"),
+    [
+        ("msl-t01-01", "MSL"),
+        ("director-region-01", "Director"),
+        ("executive-region-01", "Executive"),
+        ("admin-1", "Administrator"),
+    ],
+)
+@pytest.mark.parametrize(
+    "question",
+    ["hi", "Hi there", "Thanks, that's helpful", "What can you do today?"],
+)
+async def test_stub_small_talk_never_attaches_data_or_visuals(stub_settings, repository, user_id, persona, question) -> None:
+    agent, writer = runtime(stub_settings, repository, ["Floci stub response for model=m"])
+
+    events = await collect(agent, make_invocation(user_id, persona, question))
+
+    event_names = names(events)
+    assert "source_facts" not in event_names
+    assert "citations" not in event_names
+    assert "row_sets" not in event_names
+    assert "visual" not in event_names
+    assert writer.turns[0].facts == []
+    assert writer.turns[0].citations == []
+    assert writer.turns[0].visuals == []
+    assert "Floci stub" not in writer.turns[0].assistant_text
+
+
+@pytest.mark.asyncio
+async def test_stub_routes_a_vague_activity_question_but_leaves_other_plain_language_to_the_model(stub_settings, repository) -> None:
+    activity_agent, activity_writer = runtime(stub_settings, repository, ["Floci stub response for model=m"])
+    activity_events = await collect(activity_agent, make_invocation(question="How am I doing?"))
+
+    assert "source_facts" in names(activity_events)
+    assert activity_writer.turns[0].facts
+
+    conversational_agent, conversational_writer = runtime(stub_settings, repository, ["Floci stub response for model=m"])
+    conversational_events = await collect(conversational_agent, make_invocation(question="Tell me something interesting."))
+
+    assert "source_facts" not in names(conversational_events)
+    assert conversational_writer.turns[0].facts == []
+
+    executive_agent, executive_writer = runtime(stub_settings, repository, ["Floci stub response for model=m"])
+    executive_events = await collect(
+        executive_agent,
+        make_invocation("executive-region-01", "Executive", "Tell me something interesting."),
+    )
+
+    assert "source_facts" not in names(executive_events)
+    assert executive_writer.turns[0].facts == []
+
+
+@pytest.mark.asyncio
+async def test_stub_routes_a_qualitative_hcp_question_to_scoped_recorded_responses(stub_settings, repository) -> None:
+    agent, writer = runtime(stub_settings, repository, ["Floci stub response for model=m"])
+    events = await collect(agent, make_invocation(question="What are HCPs saying about osimertinib?"))
+
+    facts = next(event for event in events if event.get("name") == "source_facts")["value"]["facts"]
+    assert facts[0]["label"] == "Responses matching “osimertinib”"
+    assert writer.turns[0].citations
+
+
+@pytest.mark.asyncio
 async def test_model_failure_ends_with_a_generic_run_error(settings, repository) -> None:
     class Boom:
         async def stream_async(self, prompt: str):

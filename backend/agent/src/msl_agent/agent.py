@@ -65,6 +65,26 @@ _EXECUTIVE_UNSUPPORTED_FILTER = re.compile(
     r"\bon\s+20\d{2}-\d{2}\b|\bcompare\b.*\bregion\b|\b(?:same count|most such calls)\b",
     re.I,
 )
+_EXECUTIVE_DATA_REQUEST = re.compile(
+    r"\b(?:calls?|meetings?|interactions?|hcps?|doctors?|physicians?|engaged|responses?|insights?|"
+    r"themes?|topics?|activity|trend|compare|month|region|territor(?:y|ies))\b",
+    re.I,
+)
+_SMALL_TALK = re.compile(
+    r"^\s*(?:(?:hi|hello|hey)(?:\s+there)?|good\s+(?:morning|afternoon|evening)|"
+    r"thanks?(?:\s*,?\s*(?:that'?s|this\s+is)\s+(?:helpful|great))?|thank\s+you(?:\s+for\s+(?:the\s+)?help)?|"
+    r"appreciate\s+(?:it|that)|what\s+can\s+you\s+do(?:\s+today)?|"
+    r"how\s+can\s+you\s+help(?:\s+me)?|help(?:\s+me)?|who\s+are\s+you)\s*[.!?]*\s*$",
+    re.I,
+)
+_VAGUE_ACTIVITY = re.compile(
+    r"\b(?:how\s+(?:am|are)\s+i\s+doing|how\s+did\s+i\s+do|my\s+activity|my\s+overview|activity\s+overview)\b",
+    re.I,
+)
+_SCOPE_QUESTION = re.compile(
+    r"\b(?:which|what)\s+territor(?:y|ies)\s+(?:can|do)\s+i\s+(?:see|access)\b|\bmy\s+scope\b",
+    re.I,
+)
 
 DEFAULT_SUGGESTIONS = [
     "How many calls did I have in the last 90 days?",
@@ -148,6 +168,18 @@ SUMMARY_SUGGESTIONS = [
     "How did HCPs answer the most-answered question here?",
     "What did HCPs record about access and reimbursement?",
 ]
+
+
+def small_talk_reply(question: str) -> str | None:
+    """Answer ordinary conversation without treating it as an implicit data request."""
+    if not _SMALL_TALK.fullmatch(question):
+        return None
+    normalized = question.strip().casefold()
+    if "thank" in normalized:
+        return "You’re welcome. I can help with activity counts, recorded HCP perspectives, trends, and your available scope."
+    if "what can" in normalized or "how can" in normalized or normalized.startswith("help"):
+        return "I can help with activity counts, recorded HCP perspectives, trends, and your available scope. Ask in your own words whenever you’re ready."
+    return "Hi! I can help with activity counts, recorded HCP perspectives, trends, and your available scope. What would you like to explore?"
 
 
 def context_note(invocation: Invocation) -> str:
@@ -350,6 +382,11 @@ class MslAgent:
         return bool(_EXECUTIVE_SOURCE_REQUEST.search(question) or _EXECUTIVE_UNSUPPORTED_FILTER.search(question))
 
     @staticmethod
+    def _executive_data_request(question: str, history: list[str] | None = None) -> bool:
+        """Whether an Executive turn is about its governed aggregate data at all."""
+        return any(_EXECUTIVE_DATA_REQUEST.search(turn) for turn in (question, *(history or ())))
+
+    @staticmethod
     def _run_executive(
         ctx: RunContext, tools: dict[str, Any], question: str, history: list[str] | None = None
     ) -> tuple[str, str, str, str] | None:
@@ -411,6 +448,25 @@ class MslAgent:
         return "get_activity_summary", {**arguments, "product": product, "specialty": specialty}
 
     @staticmethod
+    def _stub_evidence_request(
+        question: str, history: list[str] | None = None
+    ) -> tuple[str, dict[str, str]] | None:
+        """Choose evidence for the deterministic stub without treating ordinary chat as data work.
+
+        The stub cannot decide whether a message calls for data.  Keep its small, explicit
+        routing surface aligned with the real model's tool contract so a greeting or thanks does
+        not inherit an activity summary merely because the page happens to be "My activity".
+        """
+        if _SCOPE_QUESTION.search(question):
+            return "get_my_scope", {}
+        request = MslAgent._quantitative_fallback_request(question, history)
+        if request is not None:
+            return request
+        if _VAGUE_ACTIVITY.search(question):
+            return "get_activity_summary", {}
+        return None
+
+    @staticmethod
     def _quantitative_fallback_text(result: dict[str, Any], question: str) -> str:
         """Render only a verbatim figure from a deterministic fallback tool result."""
         if result.get("status") != "ok":
@@ -460,6 +516,7 @@ class MslAgent:
         started = time.perf_counter()
         ctx = RunContext(identity=identity, repository=self._repository, run_id=run_id)
         text_parts: list[str] = []
+        direct_reply = small_talk_reply(invocation.question)
         executive_fallback_fact = None
         open_tool_calls: dict[str, bool] = {}
         text_open = False
@@ -509,22 +566,28 @@ class MslAgent:
                 return
 
         try:
-            if self.mode == "stub":
+            if self.mode == "stub" and direct_reply is None:
                 # floci's stub answers with canned text and never calls tools, so the facts the panel
-                # shows are computed up front by the same deterministic tool.
+                # shows are computed up front by the same deterministic tool.  Unlike the former
+                # unconditional activity call, this only runs for a data-shaped request.
                 tools = {t.tool_name: t for t in build_tools(ctx)}
                 summary_ctx = invocation.context
-                if is_executive:
+                if is_executive and self._executive_data_request(
+                    invocation.question, [message.content for message in invocation.messages[:-1]]
+                ):
                     await asyncio.to_thread(
                         self._run_executive, ctx, tools, invocation.question,
                         [message.content for message in invocation.messages[:-1]],
                     )
-                elif summary_ctx is None or summary_ctx.intent != "TERRITORY_SUMMARY":
-                    await asyncio.to_thread(tools["get_activity_summary"])
-                if not is_executive and summary_ctx is not None and summary_ctx.intent == "TERRITORY_SUMMARY":
+                elif summary_ctx is not None and summary_ctx.intent == "TERRITORY_SUMMARY":
                     await asyncio.to_thread(
                         tools["get_topic_trends"], summary_ctx.from_date or "", summary_ctx.to_date or "", summary_ctx.territory_id or ""
                     )
+                elif request := self._stub_evidence_request(
+                    invocation.question, [message.content for message in invocation.messages[:-1]]
+                ):
+                    tool_name, arguments = request
+                    await asyncio.to_thread(tools[tool_name], **arguments)
                 for event in drain():
                     yield event
                 request = None if is_executive else infer_chart_request(invocation.question)
@@ -533,46 +596,55 @@ class MslAgent:
                     for event in drain():
                         yield event
 
-            agent = self._agent_factory(ctx, invocation)
-            async for raw in agent.stream_async(invocation.question):
-                if not isinstance(raw, dict):
-                    continue
-                tool_use = raw.get("current_tool_use")
-                if (
-                    isinstance(tool_use, dict)
-                    and tool_use.get("toolUseId")
-                    and tool_use["toolUseId"] not in open_tool_calls
-                ):
-                    open_tool_calls[tool_use["toolUseId"]] = True
-                    paragraph_break = bool(text_parts)
-                    tool_name = str(tool_use.get("name", "tool"))
-                    yield ag_ui.tool_call_start(tool_use["toolUseId"], tool_name)
-                    if tool_name in VISUAL_TOOLS:
-                        # A placeholder at once; the plotted values follow when the query returns.
-                        yield ag_ui.custom("visual", visuals.pending_event_value(tool_use["toolUseId"], tool_name))
-                message = raw.get("message")
-                if isinstance(message, dict) and message.get("role") == "user":
-                    for block in message.get("content", []):
-                        result = block.get("toolResult") if isinstance(block, dict) else None
-                        if result and result.get("toolUseId") in open_tool_calls:
-                            open_tool_calls[result["toolUseId"]] = False
-                            for event in drain():
-                                yield event
-                            yield ag_ui.tool_call_end(result["toolUseId"])
-                delta = raw.get("data")
-                if isinstance(delta, str) and delta:
-                    if paragraph_break:
-                        # Text on both sides of a tool call stays two paragraphs, not one run-on string.
-                        delta, paragraph_break = "\n\n" + delta, False
-                    if not text_open:
-                        text_open = True
-                        yield ag_ui.text_start(message_id)
-                    text_parts.append(delta)
-                    ctx.answer_chars += len(delta)
-                    yield ag_ui.text_content(message_id, delta)
-                for event in drain():
-                    yield event
-            if is_executive:
+            if direct_reply is not None:
+                text_open = True
+                text_parts.append(direct_reply)
+                ctx.answer_chars += len(direct_reply)
+                yield ag_ui.text_start(message_id)
+                yield ag_ui.text_content(message_id, direct_reply)
+            else:
+                agent = self._agent_factory(ctx, invocation)
+                async for raw in agent.stream_async(invocation.question):
+                    if not isinstance(raw, dict):
+                        continue
+                    tool_use = raw.get("current_tool_use")
+                    if (
+                        isinstance(tool_use, dict)
+                        and tool_use.get("toolUseId")
+                        and tool_use["toolUseId"] not in open_tool_calls
+                    ):
+                        open_tool_calls[tool_use["toolUseId"]] = True
+                        paragraph_break = bool(text_parts)
+                        tool_name = str(tool_use.get("name", "tool"))
+                        yield ag_ui.tool_call_start(tool_use["toolUseId"], tool_name)
+                        if tool_name in VISUAL_TOOLS:
+                            # A placeholder at once; the plotted values follow when the query returns.
+                            yield ag_ui.custom("visual", visuals.pending_event_value(tool_use["toolUseId"], tool_name))
+                    message = raw.get("message")
+                    if isinstance(message, dict) and message.get("role") == "user":
+                        for block in message.get("content", []):
+                            result = block.get("toolResult") if isinstance(block, dict) else None
+                            if result and result.get("toolUseId") in open_tool_calls:
+                                open_tool_calls[result["toolUseId"]] = False
+                                for event in drain():
+                                    yield event
+                                yield ag_ui.tool_call_end(result["toolUseId"])
+                    delta = raw.get("data")
+                    if isinstance(delta, str) and delta:
+                        if paragraph_break:
+                            # Text on both sides of a tool call stays two paragraphs, not one run-on string.
+                            delta, paragraph_break = "\n\n" + delta, False
+                        if not text_open:
+                            text_open = True
+                            yield ag_ui.text_start(message_id)
+                        text_parts.append(delta)
+                        ctx.answer_chars += len(delta)
+                        yield ag_ui.text_content(message_id, delta)
+                    for event in drain():
+                        yield event
+            if is_executive and direct_reply is None and self._executive_data_request(
+                invocation.question, [message.content for message in invocation.messages[:-1]]
+            ):
                 history = [message.content for message in invocation.messages[:-1]]
                 requested = self._executive_activity_request(invocation.question, history)
                 request_complete = requested is not None and requested in ctx.executive_activity_requests
@@ -607,7 +679,7 @@ class MslAgent:
                     ctx.answer_chars += len(paragraph)
                     yield ag_ui.text_content(message_id, paragraph)
                     yield ag_ui.custom("sample_limitations", {"items": list(ctx.limitations)})
-            elif not ctx.facts and not open_tool_calls:
+            elif direct_reply is None and not ctx.facts and not open_tool_calls:
                 request = self._quantitative_fallback_request(
                     invocation.question, [message.content for message in invocation.messages[:-1]]
                 )
@@ -644,7 +716,7 @@ class MslAgent:
             )
             return
 
-        if not ctx.visuals and self.mode == "claude" and not is_executive:
+        if direct_reply is None and not ctx.visuals and self.mode == "claude" and not is_executive:
             # Floor for the rule "a trend or comparison always gets a chart": the model skipped the tool, so run
             # the same deterministic query from the question's own words.
             request = infer_chart_request(invocation.question)

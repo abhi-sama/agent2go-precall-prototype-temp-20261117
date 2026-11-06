@@ -24,15 +24,60 @@ const runs = new Map<string, { startedAt: number; events: ScheduledEvent[] }>()
 const TOKEN_MS = 90
 const ev = (type: string, extra: Record<string, unknown> = {}) => JSON.stringify({ type, timestamp: Date.now(), ...extra })
 const custom = (name: string, value: unknown) => ev("CUSTOM", { name, value })
+const SMALL_TALK = /^\s*(?:(?:hi|hello|hey)(?:\s+there)?|good\s+(?:morning|afternoon|evening)|thanks?(?:\s*,?\s*(?:that'?s|this\s+is)\s+(?:helpful|great))?|thank\s+you(?:\s+for\s+(?:the\s+)?help)?|appreciate\s+(?:it|that)|what\s+can\s+you\s+do(?:\s+today)?|how\s+can\s+you\s+help(?:\s+me)?|help(?:\s+me)?|who\s+are\s+you)\s*[.!?]*\s*$/i
+
+function smallTalkReply(question: string): string | null {
+  if (!SMALL_TALK.test(question)) return null
+  const normalized = question.trim().toLowerCase()
+  if (normalized.includes("thank")) return "You’re welcome. I can help with activity counts, recorded HCP perspectives, trends, and your available scope."
+  if (normalized.includes("what can") || normalized.includes("how can") || normalized.startsWith("help")) return "I can help with activity counts, recorded HCP perspectives, trends, and your available scope. Ask in your own words whenever you’re ready."
+  return "Hi! I can help with activity counts, recorded HCP perspectives, trends, and your available scope. What would you like to explore?"
+}
 
 export function scriptRun(runId: string, user: FixtureUser, question: string, now = Date.now(), context?: ChatContext): void {
   const asked = question.match(/\b([A-Z]{2}-\d{2})\b/)?.[1]
   const events: string[] = [ev("RUN_STARTED", { threadId: "mock", runId }), custom("model_mode", { mode: "claude" })]
   let answer: string
   const suggestions = ["Which territories can I see?", "What have HCPs recorded about osimertinib?"]
+  const directReply = smallTalkReply(question)
+  const scopeQuestion = /\b(?:which|what)\s+territor(?:y|ies)\s+(?:can|do)\s+i\s+(?:see|access)\b|\bmy\s+scope\b/i.test(question)
+  const topic = question.match(/\b(?:recorded|said|saying)\b.*?\babout\s+(.+?)[?.!]?\s*$/i)?.[1]?.trim()
 
   const summaryTerritory = context?.intent === "TERRITORY_SUMMARY" ? context.territoryId : undefined
-  if (summaryTerritory && user.persona === "director" && user.territoryIds.includes(summaryTerritory)) {
+  if (directReply) {
+    answer = directReply
+  } else if (scopeQuestion) {
+    if (user.persona === "executive") {
+      answer = "Your role has aggregate-only access to its configured regions; individual territory records are not available in chat."
+    } else if (user.persona === "admin") {
+      answer = "This administration role has no clinical territory scope in chat."
+    } else {
+      const territories = user.territoryIds
+      events.push(
+        ev("TOOL_CALL_START", { toolCallId: "t1", toolCallName: "get_my_scope" }),
+        custom("source_facts", { facts: [{ fact_id: "f1", label: "Territories in your scope", value: territories.length, unit: "territories", period: "today", scope: "your scope", citation_ids: [] }], data_through: new Date(now - 86_400_000).toISOString() }),
+        ev("TOOL_CALL_END", { toolCallId: "t1" }),
+      )
+      answer = `You can access ${territories.join(", ")}.`
+    }
+  } else if (topic) {
+    if (user.persona === "executive") {
+      answer = "That request needs source-record data, which is not available to an aggregate-only Executive."
+    } else if (user.persona === "admin") {
+      answer = "Record-level questions are not available for this administration role."
+    } else {
+      const periodEnd = todayIso(new Date(now))
+      const period = `${addDays(periodEnd, -89)} to ${periodEnd}`
+      const citation = { record_id: "RESP-MOCK-001", dataset: "hcp_raw_insights", label: `Recorded response mentioning ${topic}` }
+      events.push(
+        ev("TOOL_CALL_START", { toolCallId: "t1", toolCallName: "search_recorded_responses" }),
+        custom("source_facts", { facts: [{ fact_id: "f1", label: `Recorded responses mentioning ${topic}`, value: 1, unit: "responses", period, scope: user.territoryIds[0] ?? "your scope", citation_ids: [citation.record_id] }], data_through: new Date(now - 86_400_000).toISOString() }),
+        custom("citations", [citation]),
+        ev("TOOL_CALL_END", { toolCallId: "t1" }),
+      )
+      answer = `I found 1 recorded response mentioning ${topic} in your scope. Open the source to read the recorded perspective.`
+    }
+  } else if (summaryTerritory && user.persona === "director" && user.territoryIds.includes(summaryTerritory)) {
     // An AI territory summary: only figures from the evidence the panel shows, each with the responses behind it.
     const to = context?.to ?? todayIso(new Date(now))
     const range = { from: context?.from ?? addDays(to, -89), to }

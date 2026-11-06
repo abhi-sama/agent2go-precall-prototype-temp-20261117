@@ -20,6 +20,11 @@ export interface FactItem {
   citationIds: string[]
 }
 
+/** A comparison bar is meaningful only when every fact shares the same measure. */
+export function factsAreComparable(facts: FactItem[]): boolean {
+  return facts.length > 1 && new Set(facts.map((fact) => fact.unit.trim().toLocaleLowerCase())).size === 1
+}
+
 export interface CitationItem {
   recordId: string
   dataset: string

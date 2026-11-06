@@ -9,7 +9,94 @@ async function ask(page: import("@playwright/test").Page, question: string) {
   await page.getByTestId("chat-send").click()
 }
 
+async function openAs(page: import("@playwright/test").Page, userId: string) {
+  // The suite's default init script clears local persona state. Register this after it so every
+  // navigation retains the requested fixture persona.
+  await page.addInitScript((id) => window.localStorage.setItem("a2g.local.userId", id), userId)
+  await page.goto("/chat")
+}
+
 test.describe("chat panel (mock adapter, iPad viewports)", () => {
+  test("small talk stays conversational for every persona", async ({ page }) => {
+    const cases = [
+      ["u-msl-ne-01", "hi"],
+      ["u-dir-ne", "Hi there"],
+      ["u-exec-all", "Thanks, that's helpful"],
+      ["u-admin-sec", "What can you do today?"],
+    ] as const
+
+    for (const [userId, message] of cases) {
+      await openAs(page, userId)
+      await ask(page, message)
+      const turn = page.getByTestId("chat-turn").last()
+      await expect(turn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      await expect(turn.getByTestId("ai-summary")).toContainText(/help with activity counts/i)
+      await expect(turn.getByTestId("ai-summary")).not.toContainText("facts above")
+      await expect(turn.getByTestId("source-facts")).toHaveCount(0)
+      await expect(turn.getByTestId("citation")).toHaveCount(0)
+      await expect(turn.getByTestId("show-rows")).toHaveCount(0)
+      await expect(turn.getByTestId("visuals")).toHaveCount(0)
+    }
+  })
+
+  test("each persona can follow every suggested next question in the rendered chat", async ({ page }) => {
+    test.setTimeout(90_000)
+    for (const userId of ["u-msl-ne-01", "u-dir-ne", "u-exec-all", "u-admin-sec"]) {
+      await openAs(page, userId)
+      await ask(page, "How can you help me?")
+      const introduction = page.getByTestId("assistant-turn").last()
+      await expect(introduction).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      const suggestions = await introduction.getByTestId("suggestion").allInnerTexts()
+      expect(suggestions.length).toBeGreaterThan(0)
+
+      for (const label of suggestions) {
+        await introduction.getByTestId("suggestion").filter({ hasText: label }).click()
+        const turn = page.getByTestId("chat-turn").last()
+        await expect(turn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+        await expect(page.getByTestId("user-message").last()).toHaveText(label)
+        await expect(turn.getByTestId("ai-summary")).not.toBeEmpty()
+      }
+    }
+  })
+
+  test("aggregate-only follow-ups do not turn a recorded-response chip into source data", async ({ page }) => {
+    for (const [userId, expected] of [
+      ["u-exec-all", /source-record data/i],
+      ["u-admin-sec", /not available for this administration role/i],
+    ] as const) {
+      await openAs(page, userId)
+      await ask(page, "How can you help me?")
+      const introduction = page.getByTestId("assistant-turn").last()
+      await expect(introduction).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      await introduction.getByTestId("suggestion").filter({ hasText: "What have HCPs recorded about osimertinib?" }).click()
+      const turn = page.getByTestId("chat-turn").last()
+      await expect(turn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      await expect(turn.getByTestId("ai-summary")).toContainText(expected)
+      await expect(turn.getByTestId("source-facts")).toHaveCount(0)
+      await expect(turn.getByTestId("citation")).toHaveCount(0)
+      await expect(turn.getByTestId("show-rows")).toHaveCount(0)
+      await expect(turn.getByTestId("visuals")).toHaveCount(0)
+    }
+  })
+
+  test("follow-up chips preserve their requested scope and topic", async ({ page }) => {
+    await page.goto("/chat")
+    await ask(page, "How many calls did I have in the last 90 days?")
+    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+
+    await page.getByTestId("suggestion").filter({ hasText: "Which territories can I see?" }).last().click()
+    const scopeTurn = page.getByTestId("chat-turn").last()
+    await expect(scopeTurn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(scopeTurn.getByTestId("source-facts")).toContainText("Territories in your scope")
+    await expect(scopeTurn.getByTestId("show-rows")).toHaveCount(0)
+
+    await scopeTurn.getByTestId("suggestion").filter({ hasText: "What have HCPs recorded about osimertinib?" }).click()
+    const topicTurn = page.getByTestId("chat-turn").last()
+    await expect(topicTurn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(topicTurn.getByTestId("source-facts")).toContainText("Recorded responses mentioning osimertinib")
+    await expect(topicTurn.getByTestId("citation")).toHaveCount(1)
+  })
+
   test("streams a cited answer with source facts, AI summary and suggestions kept distinct", async ({ page }) => {
     await page.goto("/chat")
     await expect(page.getByRole("heading", { level: 1, name: "Ask the agent" })).toBeVisible()
@@ -106,6 +193,7 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     await expect(page.getByTestId("visual")).toHaveCount(0)
     await expect(page.getByTestId("source-facts")).toBeVisible()
+    await expect(page.getByTestId("chat-fact-chart")).toHaveCount(0)
 
     await page.getByTestId("chat-new").click()
     await ask(page, "Show my calls by month")

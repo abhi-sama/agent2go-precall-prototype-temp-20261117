@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { applyEvent, newTurn, parseEvent, parseVisual } from "./events"
-import { citationNumber, citationsForFact } from "./events"
+import { citationNumber, citationsForFact, factsAreComparable } from "./events"
 
 const fold = (events: object[]) =>
   events.reduce<ReturnType<typeof newTurn>>((turn, e) => applyEvent(turn, parseEvent(JSON.stringify(e))!), newTurn("r1"))
@@ -108,5 +108,13 @@ describe("visual events", () => {
     let turn = applyEvent(newTurn("r"), custom({ phase: "ready", ...base }))
     turn = applyEvent(turn, { type: "TOOL_CALL_END", toolCallId: "v1" })
     expect(turn.visuals).toHaveLength(1)
+  })
+})
+
+describe("fact comparisons", () => {
+  it("only compares facts that use the same measure", () => {
+    const fact = (unit: string) => ({ factId: unit, label: unit, value: 1, unit, period: "p", scope: "s", citationIds: [] })
+    expect(factsAreComparable([fact("calls"), fact("calls")])).toBe(true)
+    expect(factsAreComparable([fact("calls"), fact("HCPs"), fact("responses")])).toBe(false)
   })
 })
