@@ -1,25 +1,26 @@
 "use client"
 
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react"
+import { AppShell as AstryxAppShell, useAppShellMobile } from "@astryxdesign/core/AppShell"
+import { Badge } from "@astryxdesign/core/Badge"
+import { HStack } from "@astryxdesign/core/HStack"
+import { IconButton } from "@astryxdesign/core/IconButton"
+import { MobileNavToggle } from "@astryxdesign/core/MobileNav"
+import { SideNav, SideNavCollapseButton, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav"
+import { TopNav, TopNavHeading, useTopNavRenderMode } from "@astryxdesign/core/TopNav"
+import { LogOut } from "lucide-react"
 import dynamic from "next/dynamic"
-import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
 import { ChatDrawer, ChatTrigger } from "@/components/chat/chat-drawer"
 import { ChatProvider } from "@/components/chat/chat-provider"
-import { PERSONA_CONFIG, type NavItem } from "@/components/shell/persona-config"
+import { PERSONA_CONFIG } from "@/components/shell/persona-config"
 import { AppearanceSettings } from "@/components/shell/appearance-settings"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { FirstRunOrientation } from "@/components/state/first-run-orientation"
-import { ThemeToggle } from "@/components/shell/theme-toggle"
 import { OfflineStatus } from "@/components/shell/offline-status"
 import { SharedFilterProvider } from "@/components/filters/filter-context"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { IS_LOCAL_BUILD } from "@/lib/env"
 import { useSession } from "@/lib/session/session-provider"
-import { cn } from "@/lib/utils"
 
 /**
  * Local builds only. In any other build the switcher is not rendered and a stored identity is
@@ -40,63 +41,45 @@ function readCollapsedSidebar() {
   }
 }
 
-function NavLink({
-  item,
-  active,
-  collapsed = false,
-  onNavigate,
-}: {
-  item: NavItem
-  active: boolean
-  collapsed?: boolean
-  onNavigate?: () => void
-}) {
-  const Icon = item.icon
-  const base = cn(
-    "flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl text-sm font-medium transition-colors",
-    collapsed ? "justify-center px-0" : "px-4",
-  )
-  if (!item.href) {
-    return (
-      <span
-        aria-disabled="true"
-        title={collapsed ? item.label : undefined}
-        className={cn(base, "cursor-not-allowed text-muted-foreground/70")}
-      >
-        <Icon className="size-[1.1rem]" aria-hidden />
-        <span className={cn("whitespace-nowrap", collapsed && "sr-only")}>{item.label}</span>
-        <Badge variant="outline" className={cn("ml-auto h-5 px-1.5 text-[0.65rem]", collapsed && "hidden")}>
-          Soon
-        </Badge>
-      </span>
-    )
-  }
-  return (
-    <Link
-      href={item.href}
-      aria-current={active ? "page" : undefined}
-      aria-label={collapsed ? item.label : undefined}
-      title={collapsed ? item.label : undefined}
-      onClick={onNavigate}
-      className={cn(
-        base,
-        active
-          ? "bg-nav-active text-nav-active-foreground shadow-card"
-          : "text-foreground/80 hover:bg-accent hover:text-accent-foreground",
-      )}
-    >
-      <Icon className="size-[1.1rem]" aria-hidden />
-      <span className={cn("whitespace-nowrap", collapsed && "sr-only")}>{item.label}</span>
-    </Link>
-  )
+/**
+ * Below this width the side navigation moves into a drawer opened from the header. `xl` (1280px) keeps portrait
+ * iPads (up to the 1024px Pro) on the drawer and the 1366px landscape iPad Pro and desktops on the inline rail.
+ */
+const MOBILE_BREAKPOINT = "xl" as const
+
+/**
+ * Opens the navigation drawer below the breakpoint (it renders nothing above it). The TopNav heading is reused as the
+ * drawer's header, so the toggle hides itself there instead of appearing twice.
+ */
+function NavigationToggle() {
+  const mode = useTopNavRenderMode()
+  if (mode === "drawer") return null
+  return <MobileNavToggle data-testid="sidebar-menu" label="Open navigation" />
 }
 
+/** The navigation drawer closes itself after a route change, so the new page is not hidden behind it. */
+function CloseDrawerOnNavigate() {
+  const pathname = usePathname()
+  const { closeMobileNav, isMobileNavOpen } = useAppShellMobile()
+  const previous = React.useRef(pathname)
+  React.useEffect(() => {
+    if (previous.current === pathname) return
+    previous.current = pathname
+    if (isMobileNavOpen) closeMobileNav()
+  }, [pathname, isMobileNavOpen, closeMobileNav])
+  return null
+}
+
+/**
+ * The authenticated frame: Astryx AppShell with a TopNav (brand and global actions), a collapsible SideNav built from
+ * the persona's navigation (persona-config.ts is the single source of routes and access), and the Astryx mobile
+ * drawer below the `xl` breakpoint. The page scrolls with the window (`height="auto"`), as before.
+ */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { user, signOut } = useSession()
   const config = PERSONA_CONFIG[user.persona]
   const [collapsed, setCollapsed] = React.useState(false)
-  const [navigationOpen, setNavigationOpen] = React.useState(false)
   // Several nav entries can share one route (MSL "Insights" lives on the territory page); only the first is current.
   const activeLabel = config.nav.find((item) => item.href === pathname)?.label
 
@@ -106,145 +89,101 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setCollapsed(readCollapsedSidebar())
   }, [])
 
-  const toggleCollapsed = () => {
-    setCollapsed((current) => {
-      const next = !current
-      try {
-        window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(next))
-      } catch {
-        // Private browsing still gets the chosen state for this visit.
+  const onCollapsedChange = React.useCallback((next: boolean) => {
+    setCollapsed(next)
+    try {
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(next))
+    } catch {
+      // Private browsing still gets the chosen state for this visit.
+    }
+  }, [])
+  const collapsible = React.useMemo(
+    () => ({ isCollapsed: collapsed, onCollapsedChange, hasButton: false }),
+    [collapsed, onCollapsedChange],
+  )
+
+  const topNav = (
+    <TopNav
+      label="Workspace"
+      heading={
+        <HStack gap={1} vAlign="center">
+          <NavigationToggle />
+          <TopNavHeading logo={<BrandMark priority />} heading="MSL Agent" headingHref="/" />
+        </HStack>
       }
-      return next
-    })
-  }
+      endContent={
+        <HStack gap={2} vAlign="center" wrap="nowrap">
+          {IS_LOCAL_BUILD && <Badge variant="warning" label="Local" className="hidden sm:inline-flex" />}
+          <OfflineStatus />
+          <ChatTrigger />
+          <PersonaSwitcher />
+          <AppearanceSettings />
+          {signOut && (
+            <IconButton
+              data-testid="sign-out"
+              label="Sign out"
+              tooltip="Sign out"
+              variant="ghost"
+              icon={<LogOut aria-hidden />}
+              onClick={() => void signOut()}
+            />
+          )}
+        </HStack>
+      }
+    />
+  )
+
+  const sideNav = (
+    <SideNav
+      aria-label="Primary"
+      data-testid="sidebar-rail"
+      data-collapsed={String(collapsed)}
+      collapsible={collapsible}
+      footerIcons={
+        <SideNavCollapseButton
+          data-testid="sidebar-collapse"
+          collapsible={collapsible}
+          label={collapsed ? "Expand navigation" : "Collapse navigation"}
+        />
+      }
+    >
+      <SideNavSection title={config.tagline}>
+        {config.nav.map((item) => (
+          <SideNavItem
+            key={item.label}
+            label={item.label}
+            icon={item.icon}
+            href={item.href ?? undefined}
+            isSelected={item.label === activeLabel}
+            isDisabled={!item.href}
+            size="lg"
+            endContent={item.href ? undefined : <Badge variant="neutral" label="Soon" />}
+          />
+        ))}
+      </SideNavSection>
+    </SideNav>
+  )
 
   return (
     <SharedFilterProvider>
-    <ChatProvider>
-    <div className="flex min-h-dvh flex-col bg-background desktop:flex-row">
-      {/* Desktop rail */}
-      <aside
-        data-testid="sidebar-rail"
-        data-collapsed={collapsed}
-        className={cn(
-          "sticky top-0 hidden h-dvh shrink-0 flex-col gap-6 border-r border-sidebar-border bg-sidebar p-4 desktop:flex",
-          collapsed ? "w-20" : "w-64",
-        )}
-      >
-        <div className={cn("flex items-center", collapsed ? "flex-col gap-2" : "justify-between gap-2")}>
-          <Brand collapsed={collapsed} />
-          <Button
-            variant="ghost"
-            size="icon"
-            data-testid="sidebar-collapse"
-            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-            aria-pressed={collapsed}
-            onClick={toggleCollapsed}
-          >
-            {collapsed ? <PanelLeftOpen aria-hidden /> : <PanelLeftClose aria-hidden />}
-          </Button>
-        </div>
-        <nav aria-label="Primary" className="flex flex-col gap-1">
-          <p className={cn("px-4 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase", collapsed && "sr-only")}>
-            {config.tagline}
-          </p>
-          {config.nav.map((item) => (
-            <NavLink key={item.label} item={item} active={item.label === activeLabel} collapsed={collapsed} />
-          ))}
-        </nav>
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="safe-pt sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
-          <div className="safe-px flex min-h-16 items-center justify-between gap-3 py-2">
-            <div className="desktop:hidden flex min-w-0 items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                data-testid="sidebar-menu"
-                aria-label="Open navigation"
-                aria-expanded={navigationOpen}
-                aria-controls="sidebar-sheet"
-                onClick={() => setNavigationOpen(true)}
-              >
-                <Menu aria-hidden />
-              </Button>
-              <Brand />
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              {IS_LOCAL_BUILD && (
-                <Badge variant="outline" className="hidden h-7 border-warning/50 text-warning sm:inline-flex">
-                  Local
-                </Badge>
-              )}
-              <ChatTrigger />
-              <PersonaSwitcher />
-              <AppearanceSettings />
-              <ThemeToggle />
-              <OfflineStatus />
-              {signOut && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  data-testid="sign-out"
-                  aria-label="Sign out"
-                  onClick={() => void signOut()}
-                >
-                  <LogOut aria-hidden />
-                </Button>
-              )}
-            </div>
-          </div>
-        </header>
-
-        <main id="main" className="safe-px safe-pb flex-1 py-6 lg:py-8">
-          <div className="mx-auto w-full max-w-[84rem]">
-            <FirstRunOrientation />
-            {children}
-          </div>
-        </main>
-      </div>
-      <Sheet open={navigationOpen} onOpenChange={setNavigationOpen}>
-        <SheetContent
-          id="sidebar-sheet"
-          side="left"
-          data-testid="sidebar-sheet"
-          className="safe-pt safe-pb gap-0 overflow-y-auto p-4 pr-3 data-[side=left]:w-[min(22rem,calc(100vw-1rem))] data-[side=left]:sm:max-w-none"
+      <ChatProvider>
+        <AstryxAppShell
+          height="auto"
+          variant="section"
+          topNav={topNav}
+          sideNav={sideNav}
+          mobileNav={{ hasToggle: false, breakpoint: MOBILE_BREAKPOINT }}
         >
-          <SheetHeader className="p-0 pr-12">
-            <SheetTitle className="sr-only">Navigation</SheetTitle>
-            <Brand />
-          </SheetHeader>
-          <nav aria-label="Primary" className="mt-6 flex flex-col gap-1">
-            <p className="px-4 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{config.tagline}</p>
-            {config.nav.map((item) => (
-              <NavLink
-                key={item.label}
-                item={item}
-                active={item.label === activeLabel}
-                onNavigate={() => setNavigationOpen(false)}
-              />
-            ))}
-          </nav>
-        </SheetContent>
-      </Sheet>
-    </div>
-    <ChatDrawer />
-    </ChatProvider>
+          <CloseDrawerOnNavigate />
+          <div className="safe-px safe-pb py-6 lg:py-8">
+            <div className="mx-auto w-full max-w-[84rem]">
+              <FirstRunOrientation />
+              {children}
+            </div>
+          </div>
+        </AstryxAppShell>
+        <ChatDrawer />
+      </ChatProvider>
     </SharedFilterProvider>
-  )
-}
-
-function Brand({ collapsed = false }: { collapsed?: boolean }) {
-  return (
-    <Link
-      href="/"
-      aria-label="MSL Agent home"
-      title={collapsed ? "MSL Agent" : undefined}
-      className={cn("flex min-h-11 items-center gap-2.5 rounded-xl", collapsed ? "justify-center" : "pr-2")}
-    >
-      <BrandMark priority />
-      <span className={cn("text-base font-semibold tracking-tight", collapsed && "sr-only")}>MSL Agent</span>
-    </Link>
   )
 }

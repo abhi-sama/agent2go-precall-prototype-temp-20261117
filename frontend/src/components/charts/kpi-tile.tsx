@@ -59,7 +59,7 @@ export function KpiTile({ id, label, value, definition, caption, icon: Icon, ser
         {shown.toLocaleString("en-US")}
       </p>
       <p className="mt-3 text-sm text-muted-foreground">{definition}</p>
-      {caption && <p className="mt-1 text-xs font-medium text-foreground/70">{caption}</p>}
+      {caption && <p className="mt-1 text-xs font-medium text-muted-foreground">{caption}</p>}
     </article>
   )
 }

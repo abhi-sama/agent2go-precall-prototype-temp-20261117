@@ -94,7 +94,7 @@ export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t:
 
 /** `--ease-out` from globals.css. */
 export const easeOut = cubicBezier(0.23, 1, 0.32, 1)
-/** The chart draw-in duration (`--duration-slow`), the same as every other chart. */
+/** The chart draw-in duration (`--a2g-duration-slow`), the same as every other chart. */
 export const INTRO_MS = 450
 
 /** Camera distance that fits a bounding sphere in a viewport, using the narrower of the two field-of-view angles. */

@@ -1,0 +1,15 @@
+/*
+ * Accessibility patches to the stock Astryx themes, kept to the minimum and scoped to one theme each. They sit in the
+ * `components` layer, after `astryx-theme`, so they override the theme's own token without touching any component.
+ * Remove a patch once the upstream theme meets WCAG AA on its own.
+ */
+@layer components {
+  /*
+   * Chocolate light: secondary text (#B88859) is about 3:1 on its surfaces and accent text (#8C5927) about 4.4:1 on
+   * its muted ones; these keep each hue at 4.5:1 or more. Dark values are the theme's own.
+   */
+  [data-astryx-theme="chocolate"] {
+    --color-text-secondary: light-dark(#76573a, #c4a882);
+    --color-text-accent: light-dark(#784a1d, #d4a06a);
+  }
+}

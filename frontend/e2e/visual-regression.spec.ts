@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test"
+import { KEY_LOOKS, cacheFor, lookName } from "./support/appearance"
 import { SCREENS } from "./support/screens"
 import { VIEWPORTS } from "./support/viewports"
 
@@ -28,8 +29,6 @@ const KEY_SCREENS = [
   // The once-per-user orientation card, as a new user sees the landing page (every other shot has it dismissed).
   { name: "msl-landing", firstRun: true },
 ]
-const STYLES = ["warm", "clinical"] as const
-const MODES = ["light", "charcoal", "black"] as const
 
 test.describe.configure({ mode: "parallel" })
 
@@ -37,9 +36,9 @@ for (const { name, firstRun } of KEY_SCREENS) {
   const file = firstRun ? `${name}-first-run` : name
   const screen = SCREENS.find((s) => s.name === name)
   if (!screen) throw new Error(`visual-regression: unknown screen ${name}`)
-  for (const style of STYLES) {
-    for (const mode of MODES) {
-      test(`${file} · ${style} · ${mode}`, async ({ page }, testInfo) => {
+  for (const look of KEY_LOOKS) {
+    {
+      test(`${file} · ${lookName(look)}`, async ({ page }, testInfo) => {
         const viewport = VIEWPORTS.find((v) => v.name === testInfo.project.name)
         if (!viewport) throw new Error(`unknown viewport project ${testInfo.project.name}`)
         const userId = screen.userId ?? "u-msl-ne-01"
@@ -48,18 +47,18 @@ for (const { name, firstRun } of KEY_SCREENS) {
           ([id, cache, seen]) => {
             window.localStorage.setItem("a2g.local.userId", id as string)
             if (seen) window.localStorage.setItem(`a2g.first-run.v1:${id}`, "seen")
-            window.localStorage.setItem("a2g.appearance", JSON.stringify({ uid: id, density: "auto", ...(cache as object) }))
+            window.localStorage.setItem("a2g.appearance", cache as string)
           },
-          [userId, { style, mode }, !firstRun] as const,
+          [userId, cacheFor(userId, look), !firstRun] as const,
         )
         await page.goto(screen.path)
         await screen.ready(page)
         if (screen.prepare) await screen.prepare(page)
         await page.evaluate(() => document.fonts.ready)
-        await expect(page.locator("html")).toHaveAttribute("data-style", style)
+        await expect(page.locator("html")).toHaveAttribute("data-astryx-theme", look.theme)
         await page.waitForTimeout(700)
 
-        await expect(page).toHaveScreenshot(`${file}__${style}-${mode}.png`, {
+        await expect(page).toHaveScreenshot(`${file}__${lookName(look)}.png`, {
           animations: "disabled",
           caret: "hide",
           scale: "css",

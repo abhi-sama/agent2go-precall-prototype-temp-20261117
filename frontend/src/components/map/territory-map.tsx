@@ -4,7 +4,7 @@ import { ChevronRight, Globe2, Lock, MapPin, Navigation } from "lucide-react"
 import dynamic from "next/dynamic"
 import * as React from "react"
 import { BlockSkeleton } from "@/components/state/states"
-import { useDocumentTheme } from "@/hooks/use-document-theme"
+import { useDocumentTheme, useThemeSignature } from "@/hooks/use-document-theme"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import type { GeoActivity, GeoCountry, GeoTerritory, Persona } from "@/lib/data/types"
 import { formatRange } from "@/lib/dates"
@@ -96,7 +96,12 @@ function shade(item: Pick<GeoTerritory | GeoCountry, "distinctCalls" | "suppress
 export function TerritoryMap({ activity, persona, className }: { activity: GeoActivity; persona: Persona; className?: string }) {
   const reducedMotion = useReducedMotion()
   const theme = useDocumentTheme()
-  const colors = React.useMemo(() => readMapColors(theme), [theme])
+  const themeSignature = useThemeSignature()
+  // The Astryx theme and the scheme are both invalidation keys: either changes the resolved map colours.
+  const colors = React.useMemo(() => {
+    void themeSignature
+    return readMapColors(theme)
+  }, [theme, themeSignature])
   const webgl = React.useSyncExternalStore(
     () => () => {},
     detectWebGL,

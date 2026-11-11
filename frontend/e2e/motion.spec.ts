@@ -62,18 +62,23 @@ test.describe("planned motion plays", () => {
     await expect.poll(() => page.locator("[data-slot=sheet-content]").evaluate((el) => getComputedStyle(el).translate)).toBe("none")
   })
 
-  test("a button press scales and springs back", async ({ page }) => {
+  // Buttons are Astryx Buttons: a press paints the theme's pressed overlay instead of scaling. A fine pointer gets it
+  // from CSS :active (--_press-overlay); under a coarse pointer Astryx paints it with the data-astryx-press attribute.
+  test("a button press shows the pressed state and releases it", async ({ page }) => {
     await page.goto("/msl/activity")
     const button = page.getByTestId("evidence-open-calls")
     await expect(button).toBeEnabled()
     await button.scrollIntoViewIfNeeded()
+    const state = () =>
+      button.evaluate((el) => `${getComputedStyle(el).getPropertyValue("--_press-overlay").trim()}|${el.getAttribute("data-astryx-press") ?? ""}`)
+    const resting = await state()
     const box = (await button.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await page.mouse.down()
-    await expect.poll(() => button.evaluate((el) => getComputedStyle(el).scale)).not.toBe("none")
+    await expect.poll(state).not.toBe(resting)
     await page.mouse.move(0, 0)
     await page.mouse.up()
-    await expect.poll(() => button.evaluate((el) => getComputedStyle(el).scale)).toBe("none")
+    await expect.poll(state).toBe(resting)
   })
 
   test("landing KPI tiles spring in once; a filter change does not replay them", async ({ page }) => {

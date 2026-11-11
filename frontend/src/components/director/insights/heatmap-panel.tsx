@@ -8,7 +8,7 @@ import { EChart } from "@/components/charts/echart"
 import { AiSummary } from "@/components/provenance/provenance"
 import { EmptyState, ErrorState } from "@/components/state/states"
 import { buttonVariants } from "@/components/ui/button"
-import { useDocumentTheme } from "@/hooks/use-document-theme"
+import { useDocumentTheme, useThemeSignature } from "@/hooks/use-document-theme"
 import { chatLink } from "@/lib/chat/context"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { HeatmapCell, ThemeCard, ThemeFacet, TopicHeatmap } from "@/lib/data/director-insights"
@@ -145,11 +145,13 @@ function Legend({ max }: { max: number }) {
 
 function HeatmapChart({ data, selected, onSelect }: { data: TopicHeatmap; selected: { territoryId: string; topic: string } | null; onSelect: (s: { territoryId: string; topic: string }) => void }) {
   const docTheme = useDocumentTheme()
+  const themeSignature = useThemeSignature()
   const topics = data.topics.map((t) => t.topic)
   const territories = data.territories.map((t) => t.territoryId)
   const byKey = React.useMemo(() => new Map(data.cells.map((c) => [`${c.territoryId}|${c.topic}`, c])), [data.cells])
   const max = Math.max(...data.cells.map((c) => c.share), 1)
   const option = React.useMemo<EChartsOption>(() => {
+    void themeSignature // tokens are re-read whenever the Astryx theme or scheme changes
     const low = resolveCssColor("--muted", docTheme === "dark" ? "#2a2420" : "#f3eeea")
     const high = resolveCssColor("--primary", "#ea580c")
     const ink = resolveCssColor("--foreground", docTheme === "dark" ? "#f1ede9" : "#2a2420")
@@ -184,7 +186,7 @@ function HeatmapChart({ data, selected, onSelect }: { data: TopicHeatmap; select
         },
       ],
     }
-  }, [topics, territories, byKey, max, selected, docTheme])
+  }, [topics, territories, byKey, max, selected, docTheme, themeSignature])
 
   return (
     <EChart

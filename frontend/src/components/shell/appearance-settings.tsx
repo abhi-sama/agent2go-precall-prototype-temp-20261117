@@ -1,126 +1,44 @@
 "use client"
 
-import { SlidersHorizontal } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import {
-  useAppearance,
-  type DensityPref,
-  type ModePref,
-  type StylePref,
-} from "@/lib/appearance/appearance-provider"
-import { log } from "@/lib/log/logger"
-import { cn } from "@/lib/utils"
+import { Heading } from "@astryxdesign/core/Heading"
+import { IconButton } from "@astryxdesign/core/IconButton"
+import { Popover } from "@astryxdesign/core/Popover"
+import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
+import { Palette } from "lucide-react"
+import { ThemePicker } from "@/components/shell/theme-picker"
+import { useSession } from "@/lib/session/session-provider"
 
-interface Option<T extends string> {
-  value: T
-  label: string
-}
-
-const MODES: Option<ModePref>[] = [
-  { value: "device", label: "Device" },
-  { value: "light", label: "Light" },
-  { value: "charcoal", label: "Charcoal" },
-  { value: "black", label: "Black" },
-]
-const STYLES: Option<StylePref>[] = [
-  { value: "auto", label: "For my role" },
-  { value: "warm", label: "Warm" },
-  { value: "clinical", label: "Clinical" },
-]
-const DENSITIES: Option<DensityPref>[] = [
-  { value: "auto", label: "For my device" },
-  { value: "comfortable", label: "Comfortable" },
-  { value: "compact", label: "Compact" },
-]
-
-function Segmented<T extends string>({
-  label,
-  hint,
-  options,
-  value,
-  onChange,
-  testId,
-}: {
-  label: string
-  hint?: string
-  options: Option<T>[]
-  value: T
-  onChange: (value: T) => void
-  testId: string
-}) {
-  return (
-    <fieldset className="flex flex-col gap-1.5" data-testid={testId}>
-      <legend className="text-sm font-semibold">{label}</legend>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-        {options.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            aria-pressed={o.value === value}
-            data-testid={`${testId}-${o.value}`}
-            onClick={() => onChange(o.value)}
-            className={cn(
-              "press min-h-11 rounded-lg border px-2 text-sm font-medium transition-colors",
-              o.value === value ? "border-primary bg-primary/10 text-foreground ring-1 ring-primary" : "bg-card hover:bg-muted",
-            )}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-    </fieldset>
-  )
-}
-
-/** One place for the three appearance switches. Defaults follow the person's role and device; every choice is saved to their account. */
+/**
+ * The header's appearance settings: theme, colour scheme and density in one popover (a bottom sheet on a phone).
+ * Scheme and density are saved to the person's account; the theme is remembered on this device.
+ */
 export function AppearanceSettings() {
-  const { mode, style, density, resolvedStyle, resolvedDensity, setMode, setStyle, setDensity } = useAppearance()
+  const { userId, ready } = useSession()
+  const signedIn = ready && userId !== ""
   return (
-    <Popover>
-      <PopoverTrigger
-        data-testid="appearance-settings"
-        render={<Button variant="outline" size="icon" aria-label="Appearance settings" />}
-      >
-        <SlidersHorizontal aria-hidden />
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(26rem,calc(100vw-2rem))] gap-4 p-4">
-        <Segmented
-          testId="appearance-mode"
-          label="Mode"
-          hint="Device follows your iPad or computer; dark is warm charcoal."
-          options={MODES}
-          value={mode}
-          onChange={(v) => {
-            setMode(v)
-            log.info("appearance changed", { setting: "mode", value: v })
-          }}
-        />
-        <Segmented
-          testId="appearance-style"
-          label="Style"
-          hint={`Warm is softer and rounder; clinical is flatter and neutral. Now: ${resolvedStyle}.`}
-          options={STYLES}
-          value={style}
-          onChange={(v) => {
-            setStyle(v)
-            log.info("appearance changed", { setting: "style", value: v })
-          }}
-        />
-        <Segmented
-          testId="appearance-density"
-          label="Density"
-          hint={`Comfortable suits touch; compact fits more on a desktop. Now: ${resolvedDensity}.`}
-          options={DENSITIES}
-          value={density}
-          onChange={(v) => {
-            setDensity(v)
-            log.info("appearance changed", { setting: "density", value: v })
-          }}
-        />
-        <p className="text-xs text-muted-foreground">Saved to your account, so it follows you to your other devices.</p>
-      </PopoverContent>
+    <Popover
+      label="Appearance"
+      placement="below"
+      alignment="end"
+      padding={4}
+      width={440}
+      presentation="adaptive"
+      content={
+        <VStack gap={4}>
+          <VStack gap={1}>
+            <Heading level={2}>Appearance</Heading>
+            <Text type="supporting">
+              {signedIn
+                ? "Colour scheme and density follow you to your other devices; the theme is remembered here."
+                : "Remembered on this device."}
+            </Text>
+          </VStack>
+          <ThemePicker />
+        </VStack>
+      }
+    >
+      <IconButton data-testid="appearance-settings" label="Appearance settings" tooltip="Appearance" variant="ghost" icon={<Palette aria-hidden />} />
     </Popover>
   )
 }

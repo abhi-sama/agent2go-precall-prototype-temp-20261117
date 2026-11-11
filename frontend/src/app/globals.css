@@ -1,6 +1,11 @@
+/* Cascade layer order (Astryx migration-setup): reset lowest, Astryx components above Tailwind preflight, utilities last. */
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@astryxdesign/core/reset.css";
+@import "@astryxdesign/core/astryx.css";
 
 /* A server-authorized pre-call export prints as a clean document, never as the interactive workspace. */
 .brief-print-document {
@@ -74,16 +79,27 @@
   }
 }
 
-@custom-variant dark (&:is(.dark *));
+/* `dark:` follows the resolved colour scheme: a saved override, else the device (no JS-only class). */
+@custom-variant dark {
+  &:where(:root[data-color-scheme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-color-scheme="light"]) *) {
+      @slot;
+    }
+  }
+}
 
 @theme inline {
   /* Desktop navigation starts above the largest portrait iPad. */
   --breakpoint-desktop: 75rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  /* Type follows the active Astryx theme; Inter and Geist Mono stay as fallbacks. */
+  --font-sans: var(--font-family-body, var(--font-inter)), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-family-code, var(--font-geist-mono));
+  --font-heading: var(--font-family-heading, var(--font-sans));
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -144,14 +160,7 @@
 }
 
 
-/*
- * Design tokens.
- * Light: white surface, Tailwind orange-600 accent, warm neutrals.
- * Dark: warm charcoal (stone family), accent lifts to orange-500 so labels keep contrast.
- * Complementary professional palette: ink blue, teal, amber, violet.
- */
 :root {
-  --radius: 0.875rem;
   /* Print must stay legible even when the interactive workspace is in dark mode. */
   --print-background: oklch(1 0 0);
   --print-foreground: oklch(0.21 0.012 55);
@@ -159,15 +168,9 @@
   --print-border: oklch(0.87 0.008 55);
 
   /*
-   * Style, mode and density are three independent switches on <html> (see docs/design/direction.md):
-   *   data-style="warm" | "clinical"        shape, elevation, how much orange is spent
-   *   .dark + data-mode="black"             light, warm charcoal (.dark) or true black
-   *   data-density="comfortable" | "compact"  spacing and control height
-   * Components read tokens only, so any combination works.
+   * Colour, shape and type come from the active Astryx theme (<html data-astryx-theme>) and colour scheme
+   * (<html data-color-scheme>). Density stays an app switch: data-density="comfortable" | "compact".
    */
-  --nav-active: var(--primary);
-  --nav-active-foreground: var(--primary-foreground);
-
   /* Density: comfortable is the iPad default, compact the desktop default. */
   --control-h: 2.75rem;
   --card-pad: 1rem;
@@ -179,9 +182,9 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
-  --duration-fast: 120ms;
+  --a2g-duration-fast: 120ms;
   --duration-base: 200ms;
-  --duration-slow: 450ms;
+  --a2g-duration-slow: 450ms;
   /* Purposeful base tier (ticket #56): 150 to 250ms, so nothing that moves because you tapped feels slow. */
   --duration-drill: 220ms; /* drill-down content swaps, map level reveal, route change */
   --duration-drawer: 250ms; /* sheets and drawers coming in; they leave in --duration-base */
@@ -215,222 +218,116 @@
   --state-scene-panel-mix: 44%;
   --state-scene-signal-mix: 48%;
   --state-empty: var(--primary);
-  --state-empty-soft: color-mix(in oklch, var(--primary) 16%, var(--card));
+  --state-empty-soft: color-mix(in oklch, var(--primary) 10%, var(--card));
   --state-access: var(--fact);
-  --state-access-soft: color-mix(in oklch, var(--fact) 16%, var(--card));
+  --state-access-soft: color-mix(in oklch, var(--fact) 10%, var(--card));
   --state-error: var(--destructive);
-  --state-error-soft: color-mix(in oklch, var(--destructive) 16%, var(--card));
+  --state-error-soft: color-mix(in oklch, var(--destructive) 10%, var(--card));
   --state-first-run: var(--suggest);
-  --state-first-run-soft: color-mix(in oklch, var(--suggest) 16%, var(--card));
-
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.21 0.012 55);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.012 55);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.012 55);
-
-  /* orange-600. Labels on it are warm ink, not white: white is 3.6:1 on this orange, ink is 5.3:1 (WCAG AA needs 4.5). */
-  --primary: oklch(0.646 0.222 41.116);
-  --primary-foreground: oklch(0.175 0.008 55);
-  --accent-text: oklch(0.553 0.195 38.402); /* orange-700, for small accent text on white */
-
-  --secondary: oklch(0.972 0.005 70);
-  --secondary-foreground: oklch(0.28 0.012 55);
-  --muted: oklch(0.972 0.005 70);
-  --muted-foreground: oklch(0.5 0.012 60);
-  --accent: oklch(0.968 0.02 60); /* orange-tinted hover wash */
-  --accent-foreground: oklch(0.4 0.14 38);
-  --destructive: oklch(0.5 0.2 27);
-  --border: oklch(0.915 0.006 70);
-  /* Control borders carry the 3:1 non-text contrast (WCAG 1.4.11) on every surface a field sits on. Hairlines use --border. */
-  --input: oklch(0.6 0.01 65);
-  --ring: oklch(0.646 0.222 41.116);
-
-  --ink: oklch(0.4 0.09 255);
-  --ink-foreground: oklch(0.985 0 0);
-  --teal: oklch(0.58 0.1 192);
-  --amber: oklch(0.78 0.16 80);
-  --violet: oklch(0.52 0.19 292);
-  /* Semantic colours double as small text, so each is chosen to hold 4.5:1 on white and on its own 10-15% tint (WCAG AA). */
-  --success: oklch(0.49 0.11 155);
-  --warning: oklch(0.5 0.12 65);
-
-  /* Three kinds of content. Facts are plain (no tint), AI is a soft orange wash, suggestions are dashed teal. */
-  --fact: oklch(0.4 0.09 255);
-  --fact-soft: var(--muted);
-  --ai: oklch(0.5 0.17 40); /* 6:1 on --ai-soft */
-  --ai-soft: oklch(0.968 0.028 65);
-  --suggest: oklch(0.45 0.09 192);
-  --suggest-soft: oklch(0.965 0.025 195);
-
-  /*
-   * Chart palette: categorical slots in fixed order, never cycled. Validated with the dataviz
-   * validator (docs/design/charts.md): adjacent pairs pass lightness, chroma, CVD and normal-vision
-   * floors in both modes; the first three also pass all-pairs. Slot 1 is the accent.
-   * Light slots 3, 5, 6 sit under 3:1 on white, so those series always carry visible labels or a table view.
-   */
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.575 0.163 255.5);
-  --chart-3: oklch(0.669 0.141 162.1);
-  --chart-4: oklch(0.527 0.197 283.4);
-  --chart-5: oklch(0.716 0.141 357.4);
-  --chart-6: oklch(0.764 0.161 75.1);
-  --chart-other: oklch(0.6 0.02 60); /* the folded "Other" series; never a ninth hue */
-  --chart-grid: oklch(0.915 0.006 70);
-
-  --sidebar: oklch(0.985 0.003 70);
-  --sidebar-foreground: oklch(0.21 0.012 55);
-  --sidebar-primary: oklch(0.646 0.222 41.116);
-  --sidebar-primary-foreground: oklch(0.175 0.008 55);
-  --sidebar-accent: oklch(0.968 0.02 60);
-  --sidebar-accent-foreground: oklch(0.4 0.14 38);
-  --sidebar-border: oklch(0.915 0.006 70);
-  --sidebar-ring: oklch(0.646 0.222 41.116);
-
-  --elev-card: 0 1px 2px oklch(0.2 0.02 55 / 6%), 0 4px 16px -6px oklch(0.2 0.02 55 / 10%);
-  --elev-lift: 0 2px 4px oklch(0.2 0.02 55 / 8%), 0 14px 32px -12px oklch(0.45 0.15 40 / 28%);
-
-  /* Map colours (read by the globe and the flat map; canvas and WebGL cannot use CSS vars directly) */
-  --scene-bg: oklch(0.975 0.006 70);
-  --scene-tile: oklch(0.93 0.008 70);
-  --scene-tile-locked: oklch(0.95 0.004 70);
-}
-
-/* Warm charcoal (#1C1917) is the dark mode; device dark maps here. True black is `.dark[data-mode="black"]` below. */
-.dark {
-  --background: oklch(0.216 0.006 56);
-  --foreground: oklch(0.95 0.006 70);
-  --card: oklch(0.255 0.007 56);
-  --card-foreground: oklch(0.95 0.006 70);
-  --popover: oklch(0.28 0.008 56);
-  --popover-foreground: oklch(0.95 0.006 70);
-
-  /* orange-500 on charcoal keeps >6:1 with charcoal label text */
-  --primary: oklch(0.705 0.213 47.604);
-  --primary-foreground: oklch(0.175 0.008 55);
-  --accent-text: oklch(0.78 0.16 55); /* orange-400 */
-
-  --secondary: oklch(0.295 0.008 56);
-  --secondary-foreground: oklch(0.95 0.006 70);
-  --muted: oklch(0.295 0.008 56);
-  --muted-foreground: oklch(0.76 0.012 65);
-  --accent: oklch(0.3 0.03 50);
-  --accent-foreground: oklch(0.88 0.08 60);
-  --destructive: oklch(0.77 0.15 22);
-  --border: oklch(0.34 0.008 56);
-  --input: oklch(0.58 0.01 56);
-  --ring: oklch(0.705 0.213 47.604);
-
-  --ink: oklch(0.72 0.1 250);
-  --ink-foreground: oklch(0.175 0.008 55);
-  --teal: oklch(0.75 0.11 190);
-  --amber: oklch(0.82 0.15 85);
-  --violet: oklch(0.74 0.15 295);
-  --success: oklch(0.74 0.14 155);
-  --warning: oklch(0.8 0.15 75);
-
-  --fact: oklch(0.74 0.1 250);
-  --fact-soft: var(--muted);
-  --ai: oklch(0.8 0.15 60);
-  --ai-soft: oklch(0.29 0.045 50);
-  --suggest: oklch(0.78 0.1 190);
-  --suggest-soft: oklch(0.25 0.03 195);
-
-  /* Dark steps are their own selection (L 0.48-0.67, >=3:1 on the card), not an automatic flip. */
-  --chart-1: oklch(0.65 0.187 41.6);
-  --chart-2: oklch(0.622 0.161 255.1);
-  --chart-3: oklch(0.621 0.128 163.1);
-  --chart-4: oklch(0.67 0.145 286.8);
-  --chart-5: oklch(0.622 0.171 0.8);
-  --chart-6: oklch(0.67 0.143 73.2);
-  --chart-other: oklch(0.62 0.015 60);
-  --chart-grid: oklch(0.34 0.008 56);
-
-  --sidebar: oklch(0.19 0.006 56);
-  --sidebar-foreground: oklch(0.95 0.006 70);
-  --sidebar-primary: oklch(0.705 0.213 47.604);
-  --sidebar-primary-foreground: oklch(0.175 0.008 55);
-  --sidebar-accent: oklch(0.3 0.03 50);
-  --sidebar-accent-foreground: oklch(0.88 0.08 60);
-  --sidebar-border: oklch(0.34 0.008 56);
-  --sidebar-ring: oklch(0.705 0.213 47.604);
-
-  --elev-card: 0 1px 2px oklch(0 0 0 / 30%), 0 8px 24px -12px oklch(0 0 0 / 50%);
-  --elev-lift: 0 2px 4px oklch(0 0 0 / 30%), 0 16px 36px -14px oklch(0.6 0.2 45 / 35%);
-
-  --scene-bg: oklch(0.24 0.007 56);
-  --scene-tile: oklch(0.3 0.01 55);
-  --scene-tile-locked: oklch(0.255 0.008 55);
-}
-
-/* True black (OLED): same warm accents, pure black canvas, surfaces lifted by lightness. */
-.dark[data-mode="black"] {
-  --background: oklch(0 0 0);
-  --card: oklch(0.17 0.004 56);
-  --popover: oklch(0.2 0.005 56);
-  --secondary: oklch(0.23 0.005 56);
-  --muted: oklch(0.23 0.005 56);
-  --accent: oklch(0.26 0.02 50);
-  --ai-soft: oklch(0.235 0.04 50);
-  --border: oklch(0.29 0.005 56);
-  --input: oklch(0.54 0.006 56);
-  --sidebar: oklch(0 0 0);
-  --sidebar-border: oklch(0.26 0.005 56);
-  --chart-grid: oklch(0.29 0.005 56);
-  --scene-bg: oklch(0.1 0.004 56);
-  --scene-tile: oklch(0.26 0.006 56);
-  --scene-tile-locked: oklch(0.2 0.005 56);
-  --elev-card: 0 0 0 1px oklch(0.29 0.005 56 / 60%);
-  --elev-lift: 0 0 0 1px oklch(0.4 0.02 50 / 50%), 0 12px 30px -14px oklch(0.6 0.2 45 / 30%);
+  --state-first-run-soft: color-mix(in oklch, var(--suggest) 10%, var(--card));
 }
 
 /*
- * Clinical precise: restrained and neutral. Smaller radius, flat elevation, neutral hover washes, and
- * orange kept for the primary action and focus; the active nav item is a neutral chip, not a block of orange.
- * Warm professional is the default above (soft radius, orange-tinted washes, lifted cards).
+ * Legacy design tokens, now backed by the active Astryx theme (see docs/astryx-migration.md).
+ * Pages that still use the shadcn-style utilities (bg-card, text-muted-foreground, border-border ...) follow the
+ * chosen Astryx theme and light/dark mode through these aliases. Values are Astryx tokens that already resolve with
+ * light-dark(), so no separate dark block is needed. Declared on every theme boundary, so a nested <Theme> re-resolves them.
  */
-[data-style="clinical"] {
-  --radius: 0.5rem;
-  --elev-card: 0 1px 1px oklch(0.2 0.01 250 / 5%);
-  --elev-lift: 0 1px 2px oklch(0.2 0.01 250 / 10%);
-  --nav-active: var(--accent);
-  --nav-active-foreground: var(--foreground);
+:where(:root, [data-astryx-theme]) {
+  --radius: var(--radius-container);
+  --background: var(--color-background-body);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-background-card);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-background-popover);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent);
+  --primary-foreground: var(--color-on-accent);
+  --accent-text: var(--color-text-accent);
+  /* A neutral wash derived from the card, so secondary text keeps its contrast on it (some themes' own muted fill
+     is too dark for their secondary text). */
+  --secondary: color-mix(in oklab, var(--color-text-primary) 6%, var(--color-background-card));
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--secondary);
+  --muted-foreground: var(--color-text-secondary);
+  --accent: var(--color-overlay-hover);
+  --accent-foreground: var(--color-text-primary);
+  /* Status text is pulled slightly toward the primary text so it keeps 4.5:1 on its own tinted wash in every theme. */
+  --destructive: color-mix(in oklab, var(--color-text-error) 80%, var(--color-text-primary));
+  --border: var(--color-border);
+  /* Native control borders carry the 3:1 non-text contrast (WCAG 1.4.11) in every theme; hairlines use --border. */
+  --input: var(--color-text-secondary);
+  --ring: var(--focus-outline-color, var(--color-accent));
+
+  /* Status text tokens are page-safe in every theme (4.5:1 on page and card); hue text tokens (text-blue ...) are
+     only for text on their own pale fill, so they are not used for page text here. */
+  --ink: var(--color-text-info);
+  --ink-foreground: var(--color-background-surface);
+  --teal: var(--color-data-categorical-teal);
+  --amber: var(--color-data-yellow-4);
+  --violet: var(--color-data-categorical-purple);
+  --success: color-mix(in oklab, var(--color-text-success) 80%, var(--color-text-primary));
+  --warning: color-mix(in oklab, var(--color-text-warning) 80%, var(--color-text-primary));
+
+  /*
+   * Three kinds of content. Facts are plain, AI is a soft orange wash, suggestions are a dashed teal wash. The hues are
+   * fixed data-viz tokens mixed into each theme's own text and card colours, so they read in every theme and scheme
+   * (a theme's own hue tokens are tuned for its pale fills and are not legible as page text in every theme).
+   */
+  --fact: var(--color-text-info);
+  --fact-soft: var(--secondary);
+  --ai: color-mix(in oklab, var(--color-data-categorical-orange) 25%, var(--color-text-primary));
+  --ai-soft: color-mix(in oklab, var(--color-data-categorical-orange) 12%, var(--color-background-card));
+  --suggest: color-mix(in oklab, var(--color-data-categorical-teal) 25%, var(--color-text-primary));
+  --suggest-soft: color-mix(in oklab, var(--color-data-categorical-teal) 12%, var(--color-background-card));
+
+  /* Chart palette: Astryx data-visualization tokens in a fixed order, never cycled. */
+  --chart-1: var(--color-data-categorical-blue);
+  --chart-2: var(--color-data-categorical-orange);
+  --chart-3: var(--color-data-categorical-green);
+  --chart-4: var(--color-data-categorical-purple);
+  --chart-5: var(--color-data-categorical-pink);
+  --chart-6: var(--color-data-categorical-teal);
+  --chart-other: var(--color-data-neutral); /* the folded "Other" series; never a ninth hue */
+  --chart-grid: var(--color-border);
+
+  --sidebar: var(--color-background-surface);
+  --sidebar-foreground: var(--color-text-primary);
+  --sidebar-primary: var(--color-accent);
+  --sidebar-primary-foreground: var(--color-on-accent);
+  --sidebar-accent: var(--color-overlay-hover);
+  --sidebar-accent-foreground: var(--color-text-primary);
+  --sidebar-border: var(--color-border);
+  --sidebar-ring: var(--color-accent);
+  --nav-active: var(--color-overlay-pressed);
+  --nav-active-foreground: var(--color-text-primary);
+
+  --elev-card: var(--shadow-low);
+  --elev-lift: var(--shadow-med);
+
+  /* Map colours (read by the globe and the flat map through resolveCssColor; canvas and WebGL cannot use CSS vars). */
+  --scene-bg: var(--color-background-body);
+  --scene-tile: var(--color-border-emphasized);
+  --scene-tile-locked: var(--secondary);
 }
-/* Cool neutrals are a light-mode choice; dark modes keep their own surfaces. */
-:root:not(.dark)[data-style="clinical"] {
-  --secondary: oklch(0.968 0.003 250);
-  --muted: oklch(0.968 0.003 250);
-  --muted-foreground: oklch(0.48 0.01 255);
-  --accent: oklch(0.955 0.004 250);
-  --accent-foreground: oklch(0.21 0.012 55);
-  --border: oklch(0.905 0.004 250);
-  --input: oklch(0.6 0.008 255);
-  --sidebar: oklch(0.982 0.002 250);
-  --sidebar-accent: oklch(0.955 0.004 250);
-  --sidebar-accent-foreground: oklch(0.21 0.012 55);
-  --sidebar-border: oklch(0.905 0.004 250);
-  --chart-grid: oklch(0.905 0.004 250);
+
+/*
+ * Colour scheme (Modern Web Guidance: dark-mode, dark-mode-toggle). The base stays `light dark`, so with no script the
+ * page follows the device. A saved override is reflected as <html data-color-scheme>, set before first paint by the
+ * boot script; it also pins the root <Theme> wrapper and any nested Theme left on "system".
+ */
+:root {
+  color-scheme: light dark;
+  accent-color: var(--color-accent);
 }
-.dark[data-style="clinical"] {
-  --accent: oklch(0.3 0.005 56);
-  --accent-foreground: oklch(0.95 0.006 70);
-  --sidebar-accent: oklch(0.3 0.005 56);
-  --sidebar-accent-foreground: oklch(0.95 0.006 70);
-  --secondary: oklch(0.295 0.006 56);
-  --muted: oklch(0.295 0.006 56);
-  --elev-card: 0 0 0 1px oklch(0.34 0.008 56 / 70%);
-  --elev-lift: 0 1px 2px oklch(0 0 0 / 40%);
-  --nav-active: var(--accent);
-  --nav-active-foreground: var(--foreground);
+:root[data-color-scheme="light"],
+:root[data-color-scheme="light"] [data-astryx-theme]:not([data-theme]) {
+  color-scheme: light;
 }
-.dark[data-style="clinical"][data-mode="black"] {
-  --accent: oklch(0.25 0.005 56);
-  --sidebar-accent: oklch(0.25 0.005 56);
-  --secondary: oklch(0.23 0.004 56);
-  --muted: oklch(0.23 0.004 56);
+:root[data-color-scheme="dark"],
+:root[data-color-scheme="dark"] [data-astryx-theme]:not([data-theme]) {
+  color-scheme: dark;
 }
-[data-style="clinical"] [aria-current="page"] svg { color: var(--primary); }
 
 [data-density="compact"] {
   --control-h: 2.25rem;
@@ -488,21 +385,37 @@
 }
 
 @layer utilities {
+  /*
+   * Touch targets (MWG form-factor-adaptation, WCAG 2.5.5): every control is at least 44x44 under a coarse pointer, iPad
+   * first. In the utilities layer so it also lifts Astryx's compact desktop sizes; min-size only ever grows a control.
+   */
+  @media (pointer: coarse) {
+    :where(button, select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="range"]), [role="button"], [role="radio"], [role="tab"], [role="option"], [role="menuitem"], [role="combobox"], summary, nav a[href], .astryx-top-nav-heading a[href], a.astryx-top-nav-heading) {
+      min-block-size: 44px;
+      min-inline-size: 44px;
+    }
+  }
+  /* >=16px fields stop iOS Safari zooming on focus. In the utilities layer so it also reaches Astryx inputs on touch. */
+  @media (pointer: coarse) {
+    :where(input:not([type="checkbox"], [type="radio"], [type="range"]), select, textarea) {
+      font-size: max(16px, 1em);
+    }
+  }
   /* Motion primitives. Each is a no-op under reduced motion (the global rule collapses animations) and hover is pointer-gated. */
-  .press { transition: transform var(--duration-fast) var(--ease-out); }
+  .press { transition: transform var(--a2g-duration-fast) var(--ease-out); }
   .press:active { transform: scale(0.97); }
   .hover-lift { transition: transform var(--duration-base) var(--ease-out); }
   @media (hover: hover) and (pointer: fine) {
     .hover-lift:hover { transform: translateY(-2px); }
   }
   .spring-in { animation: spring-in var(--duration-spring) var(--ease-spring) backwards; animation-delay: calc(var(--i, 0) * var(--duration-stagger)); }
-  .fade-up { animation: fade-up var(--duration-slow) var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * var(--duration-stagger)); }
+  .fade-up { animation: fade-up var(--a2g-duration-slow) var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * var(--duration-stagger)); }
   /* Drill-down: the new level grows out of the one you tapped (in) or settles back from it (out). data-dir picks which. */
   .drill-in { animation: drill-in var(--duration-drill) var(--ease-out) backwards; }
   .drill-in[data-dir="out"] { animation-name: drill-out; }
   /* Page change (tens of times a day, so near-imperceptible: 120ms): the incoming screen fades up four pixels; the outgoing one is simply replaced. `backwards` fill, so no
      transform is left on the page afterwards (a lingering one would trap fixed-position children). */
-  .page-in { animation: page-in var(--duration-fast) var(--ease-out) backwards; }
+  .page-in { animation: page-in var(--a2g-duration-fast) var(--ease-out) backwards; }
   /* Expand: grid rows go 0fr to 1fr, so a row opens to its real height without measuring. Content sits in one child. */
   .expand { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--duration-base) var(--ease-out), opacity var(--duration-base) var(--ease-out); }
   .expand[data-open="false"] { grid-template-rows: 0fr; opacity: 0; }

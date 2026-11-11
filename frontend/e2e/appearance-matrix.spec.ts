@@ -2,51 +2,39 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 import { collectContrastReport, collectFocusRingReport } from "./support/contrast"
+import { LOOKS, lookName, readLook, seedLook, type Look } from "./support/appearance"
 import { collectLayoutReport } from "./support/layout-checks"
 import { SCREENS } from "./support/screens"
 import { VIEWPORTS } from "./support/viewports"
 
 /**
- * D1 (#49): every style x mode combination (warm/clinical x light/charcoal/black) on the key screens, at every viewport
- * in the matrix. Each page must lay out without overflow or overlap (the same checks as responsive.spec.ts) and every
- * painted text and form control must meet WCAG AA contrast (e2e/support/contrast.ts).
+ * Every Astryx theme in light and dark (gothic is dark-only) on the key screens, at every viewport in the matrix. Each
+ * page must lay out without overflow or overlap (the same checks as responsive.spec.ts) and every painted text and
+ * form control must meet WCAG AA contrast (e2e/support/contrast.ts).
  *
- * Follow-device is not a seventh look: it resolves to light or charcoal, and is covered below.
+ * Follow-device is not a separate look: it resolves to light or dark, and is covered below.
  */
 const KEY_SCREENS = ["msl-landing", "director-landing", "admin", "chat", "chat-answer-rows", "design-system"]
-const STYLES = ["warm", "clinical"] as const
-const MODES = ["light", "charcoal", "black"] as const
 
-async function openAs(page: Page, userId: string, appearance: { style: string; mode: string }) {
-  await page.addInitScript(
-    ([id, cache]) => {
-      window.localStorage.setItem("a2g.local.userId", id as string)
-      window.localStorage.setItem("a2g.appearance", JSON.stringify({ uid: id, density: "auto", ...(cache as object) }))
-    },
-    [userId, appearance] as const,
-  )
+async function openAs(page: Page, userId: string, look: Look) {
+  await seedLook(page, userId, look)
 }
 
 for (const name of KEY_SCREENS) {
   const screen = SCREENS.find((s) => s.name === name)!
-  for (const style of STYLES) {
-    for (const mode of MODES) {
-      test(`${name} · ${style} · ${mode}`, async ({ page }, testInfo) => {
+  for (const look of LOOKS) {
+    {
+      test(`${name} · ${lookName(look)}`, async ({ page }, testInfo) => {
         const viewport = VIEWPORTS.find((v) => v.name === testInfo.project.name)!
-        await openAs(page, screen.userId ?? "u-msl-ne-01", { style, mode })
+        await openAs(page, screen.userId ?? "u-msl-ne-01", look)
         await page.goto(screen.path)
         await screen.ready(page)
         if (screen.prepare) await screen.prepare(page)
         await page.evaluate(() => document.fonts.ready)
         await page.waitForTimeout(600)
 
-        // The page is really in the combination under test.
-        const root = await page.evaluate(() => ({
-          style: document.documentElement.dataset.style,
-          dark: document.documentElement.classList.contains("dark"),
-          black: document.documentElement.dataset.mode === "black",
-        }))
-        expect(root).toEqual({ style, dark: mode !== "light", black: mode === "black" })
+        // The page is really in the look under test.
+        expect(await readLook(page)).toEqual({ theme: look.theme, wrapper: look.theme, dark: look.scheme === "dark" })
 
         const layout = await collectLayoutReport(page, { touch: viewport.touch })
         const contrast = await collectContrastReport(page)
@@ -54,7 +42,7 @@ for (const name of KEY_SCREENS) {
         const shot = await page.screenshot({ fullPage: true, animations: "disabled" })
         const dir = path.join("test-results", "screenshots", viewport.name)
         mkdirSync(dir, { recursive: true })
-        writeFileSync(path.join(dir, `${name}__${style}-${mode}.png`), shot)
+        writeFileSync(path.join(dir, `${name}__${lookName(look)}.png`), shot)
 
         const fmt = (title: string, rows: string[]) => (rows.length ? `${title}:\n  ${rows.join("\n  ")}` : "")
         const problems = [
@@ -66,7 +54,7 @@ for (const name of KEY_SCREENS) {
           fmt(`Contrast below WCAG AA (${contrast.checked} checked, ${contrast.unmeasured} over images/gradients not measurable)`, contrast.failures),
           fmt("Focus ring contrast", ring),
         ].filter(Boolean)
-        expect(problems, `${name} ${style}/${mode} at ${viewport.width}x${viewport.height}\n${problems.join("\n")}`).toEqual([])
+        expect(problems, `${name} ${lookName(look)} at ${viewport.width}x${viewport.height}\n${problems.join("\n")}`).toEqual([])
         // A screen that measures nothing would pass vacuously.
         expect(contrast.checked, "text elements measured").toBeGreaterThan(10)
       })
@@ -75,20 +63,17 @@ for (const name of KEY_SCREENS) {
 }
 
 test.describe("follow-device", () => {
-  test("device dark is warm charcoal, never true black", async ({ page }) => {
-    await page.emulateMedia({ colorScheme: "dark" })
-    await openAs(page, "u-msl-ne-01", { style: "warm", mode: "device" })
-    await page.goto("/msl")
-    await expect(page.getByTestId("kpi-calls")).toBeVisible()
-    expect(await page.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(true)
-    expect(await page.evaluate(() => document.documentElement.dataset.mode ?? null)).toBeNull()
-  })
-
-  test("device light is the light mode", async ({ page }) => {
-    await page.emulateMedia({ colorScheme: "light" })
-    await openAs(page, "u-msl-ne-01", { style: "warm", mode: "device" })
-    await page.goto("/msl")
-    await expect(page.getByTestId("kpi-calls")).toBeVisible()
-    expect(await page.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(false)
-  })
+  for (const [scheme, dark] of [["dark", true], ["light", false]] as const) {
+    test(`device ${scheme} is the ${scheme} scheme`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme })
+      await page.addInitScript(() => {
+        window.localStorage.setItem("a2g.local.userId", "u-msl-ne-01")
+        window.localStorage.setItem("a2g.appearance", JSON.stringify({ uid: "u-msl-ne-01", theme: "neutral", mode: "device", style: "auto", density: "auto" }))
+      })
+      await page.goto("/msl")
+      await expect(page.getByTestId("kpi-calls")).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(dark)
+      expect(await page.evaluate(() => document.documentElement.getAttribute("data-color-scheme"))).toBeNull()
+    })
+  }
 })

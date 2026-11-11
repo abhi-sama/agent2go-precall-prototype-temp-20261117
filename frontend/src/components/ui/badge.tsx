@@ -1,51 +1,40 @@
-import { mergeProps } from "@base-ui/react/merge-props"
-import { useRender } from "@base-ui/react/use-render"
-import { cva, type VariantProps } from "class-variance-authority"
+import { Badge as AstryxBadge } from "@astryxdesign/core/Badge"
+import type * as React from "react"
 import { cn } from "@/lib/utils"
 
-const badgeVariants = cva(
-  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity] duration-(--duration-fast) ease-(--ease-out) focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
-        secondary:
-          "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
-        destructive:
-          "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
-        outline:
-          "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
-        ghost:
-          "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
-        link: "text-primary underline-offset-4 hover:underline",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  }
-)
+/**
+ * Compatibility adapter: the shadcn-era `<Badge>` API rendered by the Astryx Badge, so badges follow the active theme.
+ * New code uses `Badge` from `@astryxdesign/core/Badge` with its own `variant` and `label` (see docs/astryx-migration.md).
+ * Mapping: destructive -> error, every other variant -> neutral (the themed info fill is under 4.5:1 for body text in
+ * some themes, and the legacy default badge carried no meaning of its own).
+ */
+export type BadgeVariant = "default" | "secondary" | "destructive" | "outline" | "ghost" | "link"
+type AstryxBadgeVariant = "neutral" | "error"
 
-function Badge({
-  className,
-  variant = "default",
-  render,
-  ...props
-}: useRender.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
-  return useRender({
-    defaultTagName: "span",
-    props: mergeProps<"span">(
-      {
-        className: cn(badgeVariants({ variant }), className),
-      },
-      props
-    ),
-    render,
-    state: {
-      slot: "badge",
-      variant,
-    },
-  })
+const VARIANT: Record<BadgeVariant, AstryxBadgeVariant> = {
+  default: "neutral",
+  secondary: "neutral",
+  destructive: "error",
+  outline: "neutral",
+  ghost: "neutral",
+  link: "neutral",
 }
 
-export { Badge, badgeVariants }
+export interface BadgeProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, "color"> {
+  variant?: BadgeVariant | null
+  ref?: React.Ref<HTMLSpanElement>
+}
+
+function Badge({ variant, children, className, ...rest }: BadgeProps) {
+  return (
+    <AstryxBadge
+      {...rest}
+      variant={VARIANT[variant ?? "default"]}
+      // Icons inside a legacy badge keep the small badge size.
+      className={cn("[&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3", className)}
+      label={children}
+    />
+  )
+}
+
+export { Badge }

@@ -116,7 +116,7 @@ test.describe("personal activity trends", () => {
     await page.goto("/msl")
     // iPad uses the navigation sheet, while the desktop rail is intentionally hidden.
     await page.getByTestId("sidebar-menu").click()
-    await page.getByTestId("sidebar-sheet").getByRole("link", { name: "My activity" }).click()
+    await page.getByRole("dialog", { name: "Navigation" }).getByRole("link", { name: "My activity" }).click()
     await expect(page).toHaveURL(/\/msl\/activity$/)
   })
 })

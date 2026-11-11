@@ -1,9 +1,10 @@
 import { expect, test, type Page } from "@playwright/test"
+import { LOOKS, lookName, seedLook } from "./support/appearance"
 
 /**
  * AI-content look (ticket D3): source facts are plain, AI summaries sit on a soft orange card with a sparkle badge and
- * openable citations, suggestions have a dashed outline, and exports carry the same labels. Checked in both styles and
- * all three modes. What a user sees, not token values: the three kinds must differ from each other on screen.
+ * openable citations, suggestions have a dashed outline, and exports carry the same labels. Checked in every Astryx
+ * theme and scheme. What a user sees, not token values: the three kinds must differ from each other on screen.
  */
 const bg = (page: Page, selector: string) => page.locator(selector).first().evaluate((el) => getComputedStyle(el).backgroundColor)
 /** Computed colours can be oklab(); a canvas pixel gives plain sRGB to compare channels. */
@@ -16,25 +17,12 @@ const srgb = (page: Page, color: string) =>
   }, color)
 const border = (page: Page, selector: string) => page.locator(selector).first().evaluate((el) => getComputedStyle(el).borderTopStyle)
 
-const APPEARANCES = [
-  { style: "warm", theme: "light", black: false },
-  { style: "warm", theme: "dark", black: false },
-  { style: "warm", theme: "dark", black: true },
-  { style: "clinical", theme: "light", black: false },
-  { style: "clinical", theme: "dark", black: false },
-  { style: "clinical", theme: "dark", black: true },
-]
-
-for (const a of APPEARANCES) {
-  const name = `${a.style} / ${a.theme === "light" ? "light" : a.black ? "true black" : "charcoal"}`
-  test(`fact, AI summary and suggestion are visibly distinct: ${name}`, async ({ page }) => {
-    await page.addInitScript(([appearance, theme]) => {
-      window.localStorage.setItem("theme", theme as string)
-      window.localStorage.setItem("a2g.appearance", JSON.stringify(appearance))
-    }, [{ style: a.style, black: a.black }, a.theme] as const)
+for (const look of LOOKS) {
+  test(`fact, AI summary and suggestion are visibly distinct: ${lookName(look)}`, async ({ page }) => {
+    await seedLook(page, "u-msl-ne-01", look)
     await page.goto("/design")
     await expect(page.locator("[data-provenance]")).toHaveCount(3)
-    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.style)).toBe(a.style)
+    await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-astryx-theme"))).toBe(look.theme)
 
     const fact = '[data-provenance="fact"]'
     const ai = '[data-provenance="ai"]'
@@ -44,9 +32,10 @@ for (const a of APPEARANCES) {
     expect(ab, "AI summary tint differs from the plain fact").not.toBe(fb)
     expect(sb, "suggestion tint differs from the plain fact").not.toBe(fb)
     expect(ab, "AI summary tint differs from the suggestion").not.toBe(sb)
-    // The AI wash is orange: red clearly above blue.
-    const [r, , b] = await srgb(page, ab)
-    expect(r).toBeGreaterThan(b)
+    // The AI wash leans orange: warmer (more red, less blue) than the plain fact card it sits beside.
+    const [ar, , abl] = await srgb(page, ab)
+    const [fr, , fbl] = await srgb(page, fb)
+    expect(ar - abl).toBeGreaterThan(fr - fbl)
     expect(await border(page, suggestion)).toBe("dashed")
     expect(await border(page, ai)).toBe("solid")
     await expect(page.locator(`${ai} [data-kind-badge="ai"]`)).toContainText("AI summary")

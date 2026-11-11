@@ -49,7 +49,10 @@ export async function collectLayoutReport(page: Page, opts: { touch: boolean }):
       r = new DOMRect(left, top, right - left, bottom - top)
       return r
     }
+    // A modal <dialog> (the Astryx navigation drawer) makes the rest of the page inert: only what it holds is on screen to use.
+    const modal = document.querySelector("dialog:modal")
     const isShown = (el: Element) => {
+      if (modal && !modal.contains(el)) return false
       // Tailwind's .sr-only (skip link, "Close" labels) is intentionally collapsed and clipped to 1px.
       if (el.closest(".sr-only")) return false
       // Content of a closed <details> is not rendered (content-visibility: hidden) though it keeps a stale box.
@@ -87,6 +90,9 @@ export async function collectLayoutReport(page: Page, opts: { touch: boolean }):
     const clipped: string[] = []
     for (const el of document.body.querySelectorAll("*")) {
       if (el.closest("svg, canvas") || !isShown(el)) continue
+      // A visually hidden helper (Astryx's skip link and VisuallyHidden text) is collapsed to 1px on purpose.
+      const own = el.getBoundingClientRect()
+      if (isTiny(own)) continue
       const cs = getComputedStyle(el)
       if (!/(hidden|clip)/.test(cs.overflowX) || isScrollable(cs)) continue
       if (cs.textOverflow === "ellipsis" || exempt(el, "clip")) continue

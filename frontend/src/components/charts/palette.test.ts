@@ -18,8 +18,8 @@ describe("chart palette", () => {
 
   it("steps the sequential tint with the value and clamps", () => {
     expect(sequentialFill(0, 10)).toContain("12%")
-    expect(sequentialFill(10, 10)).toContain("62%")
-    expect(sequentialFill(99, 10)).toContain("62%")
+    expect(sequentialFill(10, 10)).toContain("50%")
+    expect(sequentialFill(99, 10)).toContain("50%")
     expect(sequentialFill(5, 0)).toContain("12%")
   })
 })

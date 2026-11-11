@@ -130,7 +130,7 @@ export default function GlobeView({ shapes, countries, colors, focus, onSelectCo
       el.setAttribute("aria-label", c.aria)
       el.textContent = c.code
       el.className =
-        "pointer-events-auto flex size-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-2 border-background bg-primary text-xs font-bold text-primary-foreground shadow-lift outline-offset-2 transition-[scale] duration-(--duration-fast) ease-(--ease-out) focus-visible:outline-2 active:scale-95"
+        "pointer-events-auto flex size-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-2 border-background bg-primary text-xs font-bold text-primary-foreground shadow-lift outline-offset-2 transition-[scale] duration-(--a2g-duration-fast) ease-(--ease-out) focus-visible:outline-2 active:scale-95"
       el.onclick = () => select.current(c.code)
       return el
     },

@@ -2,7 +2,7 @@
 
 import type { EChartsOption, ECharts } from "echarts"
 import * as React from "react"
-import { useDocumentTheme } from "@/hooks/use-document-theme"
+import { useDocumentTheme, useThemeSignature } from "@/hooks/use-document-theme"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import { canvasFontFamily, resolveCssColor } from "@/lib/css-color"
 import { CHART_ANIMATION_MS } from "./palette"
@@ -29,10 +29,12 @@ export function EChart({ option, ariaLabel, className, height = 280, onReady }: 
   const host = React.useRef<HTMLDivElement>(null)
   const chartRef = React.useRef<ECharts | null>(null)
   const docTheme = useDocumentTheme()
+  const themeSignature = useThemeSignature()
   const reduced = useReducedMotion()
   const [ready, setReady] = React.useState(false)
 
   const themed = React.useMemo<EChartsOption>(() => {
+    void themeSignature // tokens are re-read whenever the Astryx theme or scheme changes
     const text = resolveCssColor("--foreground", docTheme === "dark" ? "#f1ede9" : "#2a2420")
     const muted = resolveCssColor("--muted-foreground", "#7a716a")
     const line = resolveCssColor("--chart-grid", "#e5e0db")
@@ -51,7 +53,7 @@ export function EChart({ option, ariaLabel, className, height = 280, onReady }: 
       ...option,
     }
     // Theme and motion are the invalidation keys; `option` identity is the caller's.
-  }, [option, docTheme, reduced])
+  }, [option, docTheme, themeSignature, reduced])
 
   React.useEffect(() => {
     let disposed = false

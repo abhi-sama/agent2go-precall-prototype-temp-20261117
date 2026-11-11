@@ -1,0 +1,5 @@
+/*
+ * Imported first by the root layout, before any stylesheet that names a layer (Astryx migration-setup: a bundler
+ * hoists CSS imports above an inline @layer line, so the order must arrive in its own file). Later layers win.
+ */
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;

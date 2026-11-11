@@ -3,6 +3,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
+/** Legacy label for the native `Input`. Astryx fields (TextInput, Selector ...) render their own label via `label`. */
 function Label({ className, ...props }: React.ComponentProps<"label">) {
   return (
     <label

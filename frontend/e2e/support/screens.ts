@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test"
+import { cacheFor, lookName, type Look } from "./appearance"
 
 /**
  * Every screen (and meaningful screen state) merged to main, checked at every viewport in `viewports.ts` by
@@ -24,23 +25,37 @@ const heading = (name: string, level = 1) => (page: Page) =>
 const toastsGone = (page: Page) => expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 12_000 })
 const testId = (id: string) => (page: Page) => expect(page.getByTestId(id).first()).toBeVisible()
 
-const STATE_APPEARANCES = [
-  { name: "warm-light", style: "warm", mode: "light" },
-  { name: "warm-charcoal", style: "warm", mode: "charcoal" },
-  { name: "warm-black", style: "warm", mode: "black" },
-  { name: "clinical-light", style: "clinical", mode: "light" },
-  { name: "clinical-charcoal", style: "clinical", mode: "charcoal" },
-  { name: "clinical-black", style: "clinical", mode: "black" },
-] as const
+/** The state family is checked in the default theme both ways and in the dark-only theme. */
+const STATE_LOOKS: Look[] = [
+  { theme: "neutral", scheme: "light" },
+  { theme: "neutral", scheme: "dark" },
+  { theme: "gothic", scheme: "dark" },
+]
 
-async function setStateAppearance(page: Page, appearance: (typeof STATE_APPEARANCES)[number]) {
-  await page.evaluate(({ style, mode }) => {
+/**
+ * Switch the look in place (no reload, so a prepared screen state survives): the same attributes the boot script and
+ * the root Theme write, on <html> and on the root Theme wrapper.
+ */
+async function applyLook(page: Page, look: Look) {
+  await page.evaluate(({ theme, scheme }) => {
     const root = document.documentElement
-    root.dataset.style = style
-    root.classList.toggle("dark", mode !== "light")
-    if (mode === "black") root.dataset.mode = "black"
-    else delete root.dataset.mode
-  }, appearance)
+    root.setAttribute("data-astryx-theme", theme)
+    root.setAttribute("data-color-scheme", scheme)
+    root.classList.toggle("dark", scheme === "dark")
+    const wrapper = document.querySelector<HTMLElement>("body [data-astryx-theme]")
+    wrapper?.setAttribute("data-astryx-theme", theme)
+    // The wrapper's own colour scheme comes from the Theme's mode; pin it the way a saved choice would.
+    if (wrapper) wrapper.style.colorScheme = scheme
+  }, look)
+}
+
+/** Save the look for the current person and reload, so it applies exactly as a returning visit would. */
+async function setStateAppearance(page: Page, look: Look) {
+  const userId = await page.evaluate(() => window.localStorage.getItem("a2g.local.userId") ?? "u-msl-ne-01")
+  await page.evaluate((cache) => window.localStorage.setItem("a2g.appearance", cache), cacheFor(userId, look))
+  await page.reload()
+  await expect(page.getByTestId("state-family-preview")).toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-astryx-theme"))).toBe(look.theme)
 }
 
 /** Waits until the 3D globe's markers stop moving (the camera is placed a frame or two after mount, slower under load). */
@@ -72,7 +87,7 @@ export const SCREENS: ScreenSpec[] = [
       const menu = page.getByTestId("sidebar-menu")
       if (await menu.isVisible()) {
         await menu.click()
-        await expect(page.getByTestId("sidebar-sheet")).toBeVisible()
+        await expect(page.getByRole("dialog", { name: "Navigation" })).toBeVisible()
       }
     },
   },
@@ -208,17 +223,12 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   {
-    name: "director-insights-3d-selected-black-warm",
+    name: "director-insights-3d-selected-gothic-dark",
     path: "/director/insights",
     userId: "u-dir-ne",
     ready: testId("topic-heatmap"),
     prepare: async (page) => {
-      await page.evaluate(() => {
-        const root = document.documentElement
-        root.classList.add("dark")
-        root.dataset.mode = "black"
-        root.dataset.style = "warm"
-      })
+      await applyLook(page, { theme: "gothic", scheme: "dark" })
       await page.getByTestId("heatmap-view-3d").click()
       await expect(page.getByTestId("bar-field")).toHaveAttribute("data-intro", "done", { timeout: 20_000 })
       // Select the front-left bar by tapping where the local-build probe says its top is.
@@ -681,45 +691,31 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   { name: "design-system", path: "/design", ready: async (page) => { await heading("Design system")(page); await testId("echart")(page) } },
-  // The other appearances (docs/design/direction.md): the same screens in true black and in the other style.
+  // Other Astryx looks: the same screens in further themes and the dark scheme.
   {
-    name: "director-landing-black-warm",
+    name: "director-landing-gothic-dark",
     path: "/director",
     userId: "u-dir-ne",
     ready: testId("director-overview"),
     prepare: async (page) => {
-      await page.evaluate(() => {
-        const root = document.documentElement
-        root.classList.add("dark")
-        root.dataset.mode = "black"
-        root.dataset.style = "warm"
-      })
+      await applyLook(page, { theme: "gothic", scheme: "dark" })
     },
   },
   {
-    name: "msl-landing-charcoal-clinical",
+    name: "msl-landing-stone-dark",
     path: "/msl",
     ready: testId("kpi-calls"),
     prepare: async (page) => {
-      await page.evaluate(() => {
-        const root = document.documentElement
-        root.classList.add("dark")
-        root.dataset.style = "clinical"
-      })
+      await applyLook(page, { theme: "stone", scheme: "dark" })
     },
   },
   // AI-content look (ticket D3): facts, AI summaries and suggestions in the appearances where the washes are hardest to tell apart.
   {
-    name: "chat-answer-black-clinical",
+    name: "chat-answer-neutral-dark",
     path: "/chat",
     ready: testId("chat-input"),
     prepare: async (page) => {
-      await page.evaluate(() => {
-        const root = document.documentElement
-        root.classList.add("dark")
-        root.dataset.mode = "black"
-        root.dataset.style = "clinical"
-      })
+      await applyLook(page, { theme: "neutral", scheme: "dark" })
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
       await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
@@ -727,42 +723,28 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   {
-    name: "director-insights-themes-charcoal-warm",
+    name: "director-insights-themes-chocolate-dark",
     path: "/director/insights",
     userId: "u-dir-ne",
     ready: testId("theme-card"),
     prepare: async (page) => {
-      await page.evaluate(() => {
-        const root = document.documentElement
-        root.classList.add("dark")
-        root.dataset.style = "warm"
-      })
+      await applyLook(page, { theme: "chocolate", scheme: "dark" })
     },
   },
   {
-    name: "precall-brief-black-clinical",
+    name: "precall-brief-neutral-dark",
     path: "/msl/briefs?brief=br-20261103090000-aaaaaaaa",
     ready: testId("brief"),
     prepare: async (page) => {
-      await page.evaluate(() => {
-        const root = document.documentElement
-        root.classList.add("dark")
-        root.dataset.mode = "black"
-        root.dataset.style = "clinical"
-      })
+      await applyLook(page, { theme: "neutral", scheme: "dark" })
     },
   },
   {
-    name: "chat-drawer-black-clinical",
+    name: "chat-drawer-neutral-dark",
     path: "/msl",
     ready: testId("kpi-calls"),
     prepare: async (page) => {
-      await page.evaluate(() => {
-        const root = document.documentElement
-        root.classList.add("dark")
-        root.dataset.mode = "black"
-        root.dataset.style = "clinical"
-      })
+      await applyLook(page, { theme: "neutral", scheme: "dark" })
       await page.getByTestId("chat-open").click()
       await page.getByTestId("chat-input").fill("Compare my calls by product")
       await page.getByTestId("chat-send").click()
@@ -770,16 +752,12 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   {
-    name: "chat-drawer-charcoal-warm",
+    name: "chat-drawer-chocolate-dark",
     path: "/director",
     userId: "u-dir-ne",
     ready: testId("director-overview"),
     prepare: async (page) => {
-      await page.evaluate(() => {
-        const root = document.documentElement
-        root.classList.add("dark")
-        root.dataset.style = "warm"
-      })
+      await applyLook(page, { theme: "chocolate", scheme: "dark" })
       await page.getByTestId("chat-open").click()
       await expect(page.getByTestId("chat-drawer")).toBeVisible()
     },
@@ -824,10 +802,10 @@ export const SCREENS: ScreenSpec[] = [
   { name: "msl-landing-empty", path: "/msl?scenario=empty", ready: testId("state-empty") },
   { name: "msl-landing-error", path: "/msl?scenario=error", ready: testId("state-error") },
   { name: "role-gate", path: "/executive", ready: testId("role-gate") },
-  ...STATE_APPEARANCES.map((appearance): ScreenSpec => ({
-    name: `state-family-${appearance.name}`,
+  ...STATE_LOOKS.map((look): ScreenSpec => ({
+    name: `state-family-${lookName(look)}`,
     path: "/design",
     ready: testId("state-family-preview"),
-    prepare: (page) => setStateAppearance(page, appearance),
+    prepare: (page) => setStateAppearance(page, look),
   })),
 ]

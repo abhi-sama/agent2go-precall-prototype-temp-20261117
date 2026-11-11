@@ -31,7 +31,7 @@ export function assignSeries<K extends string>(keys: readonly K[]): { colors: Re
 
 /** Sequential magnitude: one hue (the accent), light to dark, mixed over the surface so it works in both modes. */
 export const SEQ_MIN = 12
-export const SEQ_MAX = 62
+export const SEQ_MAX = 50
 export function sequentialFill(value: number, max: number, slot: SeriesSlot = 1): string {
   const t = max <= 0 ? 0 : Math.min(1, Math.max(0, value / max))
   return `color-mix(in oklab, ${seriesColor(slot)} ${Math.round(SEQ_MIN + t * (SEQ_MAX - SEQ_MIN))}%, var(--card))`

@@ -4,7 +4,7 @@ import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react"
 import dynamic from "next/dynamic"
 import * as React from "react"
 import { BlockSkeleton } from "@/components/state/states"
-import { useDocumentTheme } from "@/hooks/use-document-theme"
+import { useDocumentTheme, useThemeSignature } from "@/hooks/use-document-theme"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import { resolveCssColor } from "@/lib/css-color"
 import { IS_LOCAL_BUILD } from "@/lib/env"
@@ -65,6 +65,7 @@ class SceneBoundary extends React.Component<{ onError: () => void; children: Rea
 export function BarField({ rows, cols, cells, max, unit, selected, onSelect, readout, onUnavailable, className }: BarFieldProps) {
   const reducedMotion = useReducedMotion()
   const theme = useDocumentTheme()
+  const themeSignature = useThemeSignature()
   const host = React.useRef<HTMLDivElement>(null)
   const controlsRef = React.useRef<FieldControls | null>(null)
   const rowLabels = React.useRef<(HTMLElement | null)[]>([])
@@ -83,6 +84,7 @@ export function BarField({ rows, cols, cells, max, unit, selected, onSelect, rea
   const selectedIndex = selected ? bars.findIndex((b) => b.rowId === selected.rowId && b.colId === selected.colId) : -1
 
   const colors = React.useMemo<FieldColors>(() => {
+    void themeSignature // tokens are re-read whenever the Astryx theme or scheme changes
     const dark = theme === "dark"
     const card = resolveCssColor("--card", dark ? "#262120" : "#ffffff")
     const primary = resolveCssColor("--primary", "#ea580c")
@@ -95,7 +97,7 @@ export function BarField({ rows, cols, cells, max, unit, selected, onSelect, rea
       grid: resolveCssColor("--chart-grid", dark ? "#3a3430" : "#e5e0db"),
       ink,
     }
-  }, [theme])
+  }, [theme, themeSignature])
 
   const rowLabel = React.useCallback((id: string) => rows.find((r) => r.id === id)?.label ?? id, [rows])
   const colLabel = React.useCallback((id: string) => cols.find((c) => c.id === id)?.label ?? id, [cols])

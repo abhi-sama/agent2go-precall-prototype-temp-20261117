@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 test("desktop navigation collapses with the keyboard and restores the saved preference", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.setViewportSize({ width: 1366, height: 900 })
   await page.goto("/msl")
   await page.evaluate(() => window.localStorage.removeItem("a2g.sidebar.collapsed"))
 
@@ -21,7 +21,7 @@ test("desktop navigation collapses with the keyboard and restores the saved pref
   await expect(rail).toHaveAttribute("data-collapsed", "false")
 })
 
-test("iPad portrait opens an accessible navigation sheet and closes after navigation", async ({ page }) => {
+test("iPad portrait opens an accessible navigation drawer and closes after navigation", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 1366 })
   await page.goto("/msl")
 
@@ -30,9 +30,9 @@ test("iPad portrait opens an accessible navigation sheet and closes after naviga
   await menu.focus()
   await page.keyboard.press("Enter")
   await expect(menu).toHaveAttribute("aria-expanded", "true")
-  const sheet = page.getByTestId("sidebar-sheet")
+  const sheet = page.getByRole("dialog", { name: "Navigation" })
   await expect(sheet).toBeVisible()
-  await expect(sheet.getByRole("navigation", { name: "Primary" })).toBeVisible()
+  await expect(sheet.getByRole("navigation")).toBeVisible()
   await sheet.getByRole("link", { name: "My activity" }).click()
   await expect(page).toHaveURL(/\/msl\/activity$/)
   await expect(sheet).toBeHidden()
@@ -51,7 +51,7 @@ test("each persona sees its own permitted navigation only", async ({ page }) => 
     await page.addInitScript((userId) => window.localStorage.setItem("a2g.local.userId", userId), persona.userId)
     await page.goto(persona.path)
     await page.getByTestId("sidebar-menu").click()
-    const sheet = page.getByTestId("sidebar-sheet")
+    const sheet = page.getByRole("dialog", { name: "Navigation" })
     await expect(sheet.getByText(persona.expected, { exact: true })).toBeVisible()
     await expect(sheet.getByText(persona.forbidden, { exact: true })).toHaveCount(0)
     await page.keyboard.press("Escape")

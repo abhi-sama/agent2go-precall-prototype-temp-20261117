@@ -1,18 +1,18 @@
 "use client"
 
-import { useTheme } from "next-themes"
 import { Toaster as SonnerToaster, type ToasterProps } from "sonner"
+import { useAppearance } from "@/lib/appearance/appearance-provider"
 
 /**
  * The one toaster, mounted in the root layout. Call `toast()` from "sonner" anywhere.
- * Colours come from the design tokens so toasts follow light and dark; `offset` keeps them
+ * Still on sonner (see docs/astryx-migration.md); colours come from the Astryx tokens so toasts follow the theme and scheme; `offset` keeps them
  * clear of the iPad home indicator. Toasts confirm or report; never put names, emails or HCP text in one.
  */
 function Toaster(props: ToasterProps) {
-  const { resolvedTheme } = useTheme()
+  const { resolvedScheme } = useAppearance()
   return (
     <SonnerToaster
-      theme={resolvedTheme === "dark" ? "dark" : "light"}
+      theme={resolvedScheme}
       position="bottom-center"
       offset={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
       closeButton
@@ -26,7 +26,7 @@ function Toaster(props: ToasterProps) {
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius-lg)",
+          "--border-radius": "var(--radius-container)",
         } as React.CSSProperties
       }
       {...props}

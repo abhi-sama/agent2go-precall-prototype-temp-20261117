@@ -55,11 +55,12 @@ test.describe("MSL landing", () => {
 
   test("touch targets are at least 44pt", async ({ page }) => {
     await page.goto("/msl")
-    for (const id of ["theme-toggle", "persona-switch", "range-30d"]) {
-      const box = await page.getByTestId(id).boundingBox()
-      expect(box, id).not.toBeNull()
-      expect(box!.height, `${id} height`).toBeGreaterThanOrEqual(44)
-      expect(box!.width, `${id} width`).toBeGreaterThanOrEqual(44)
+    for (const id of ["appearance-settings", "persona-switch", "range-30d"]) {
+      const target = page.getByTestId(id)
+      await expect(target).toBeVisible()
+      // Layout size, polled: the header settles into its touch layout after hydration.
+      const size = () => target.evaluate((el) => Math.min(el.getBoundingClientRect().width, el.getBoundingClientRect().height))
+      await expect.poll(size, { message: `${id} smaller side` }).toBeGreaterThanOrEqual(44)
     }
   })
 
@@ -160,16 +161,16 @@ test.describe("states", () => {
   })
 })
 
-test("theme toggle switches light and dark", async ({ page }) => {
+test("appearance settings switch light and dark", async ({ page }) => {
   await page.goto("/msl")
   const html = page.locator("html")
-  const toggle = page.getByTestId("theme-toggle")
-  await expect(toggle).toBeVisible()
-  const startedDark = await html.evaluate((el) => el.classList.contains("dark"))
-  await toggle.click()
-  await expect.poll(() => html.evaluate((el) => el.classList.contains("dark"))).toBe(!startedDark)
-  await toggle.click()
-  await expect.poll(() => html.evaluate((el) => el.classList.contains("dark"))).toBe(startedDark)
+  await page.getByTestId("appearance-settings").click()
+  await page.getByTestId("appearance-mode-dark").click()
+  await expect(html).toHaveAttribute("data-color-scheme", "dark")
+  await expect.poll(() => html.evaluate((el) => el.classList.contains("dark"))).toBe(true)
+  await page.getByTestId("appearance-mode-light").click()
+  await expect(html).toHaveAttribute("data-color-scheme", "light")
+  await expect.poll(() => html.evaluate((el) => el.classList.contains("dark"))).toBe(false)
 })
 
 test("persona quick-switch changes landing route, scope and data", async ({ page }) => {

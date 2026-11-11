@@ -4,10 +4,16 @@ import { fetchAuthSession } from "aws-amplify/auth"
 import { LogIn } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
-import { Button } from "@/components/ui/button"
+import { Banner } from "@astryxdesign/core/Banner"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Text } from "@astryxdesign/core/Text"
+import { TextInput } from "@astryxdesign/core/TextInput"
+import { VStack } from "@astryxdesign/core/VStack"
 import { BrandMark } from "@/components/brand/brand-mark"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { AppearanceSettings } from "@/components/shell/appearance-settings"
 import { PERSONA_HOME } from "@/lib/data/fixtures"
 import type { Persona } from "@/lib/data/types"
 import { DATA_ADAPTER } from "@/lib/env"
@@ -62,72 +68,105 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex w-full max-w-md flex-col gap-6">
-      <div className="flex items-center gap-3">
+    <VStack gap={6} width="100%" maxWidth={448}>
+      <HStack gap={3} vAlign="center">
         <BrandMark className="size-11" priority />
-        <div className="flex flex-col leading-tight">
-          <h1 className="text-2xl font-semibold tracking-tight">Sign in to MSL Agent</h1>
-          <p className="text-sm text-muted-foreground">Use your organisation account.</p>
-        </div>
-      </div>
+        <VStack gap={0.5}>
+          <Heading level={1} textWrap="balance">
+            Sign in to MSL Agent
+          </Heading>
+          <Text type="supporting">Use your organisation account.</Text>
+        </VStack>
+      </HStack>
 
-      <form
-        className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm"
-        onSubmit={(e) => {
-          e.preventDefault()
-          void attempt("form", email.trim(), password)
-        }}
-      >
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="username"
-            autoCapitalize="none"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="h-11"
-            data-testid="login-email"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="password">Password</Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="h-11"
-            data-testid="login-password"
-          />
-        </div>
-        {error && (
-          <p role="alert" data-testid="login-error" className="text-sm font-medium text-destructive">
-            {error}
-          </p>
-        )}
-        <Button type="submit" size="lg" disabled={busy !== null} data-testid="login-submit">
-          <LogIn aria-hidden />
-          {busy === "form" ? "Signing in…" : "Sign in"}
-        </Button>
-      </form>
+      <Card padding={5} elevation="low">
+        {/* MWG autofill-sign-in-form: stable ids and names, username + current-password autocomplete, a real submit button. */}
+        <form
+          method="post"
+          onSubmit={(e) => {
+            e.preventDefault()
+            // The fields are aria-required rather than natively required, so empty input is caught here.
+            if (!email.trim() || !password) {
+              setError("Enter your email and password.")
+              return
+            }
+            void attempt("form", email.trim(), password)
+          }}
+        >
+          <VStack gap={4}>
+            <TextInput
+              id="email"
+              htmlName="email"
+              label="Email"
+              type="email"
+              autoComplete="username"
+              autoCapitalize="none"
+              inputMode="email"
+              isRequired
+              size="lg"
+              width="100%"
+              value={email}
+              onChange={(value) => setEmail(value)}
+              data-testid="login-email"
+            />
+            <TextInput
+              id="password"
+              htmlName="password"
+              label="Password"
+              type="password"
+              autoComplete="current-password"
+              isRequired
+              size="lg"
+              width="100%"
+              value={password}
+              onChange={(value) => setPassword(value)}
+              data-testid="login-password"
+            />
+            {error && (
+              <Banner
+                status="error"
+                title="Sign-in failed"
+                collapsible={false}
+                description={
+                  <Text role="alert" data-testid="login-error">
+                    {error}
+                  </Text>
+                }
+              />
+            )}
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              width="100%"
+              icon={<LogIn aria-hidden />}
+              label={busy === "form" ? "Signing in…" : "Sign in"}
+              isLoading={busy === "form"}
+              isDisabled={busy !== null && busy !== "form"}
+              data-testid="login-submit"
+            />
+          </VStack>
+        </form>
+      </Card>
 
       {/* Inline env comparison (not IS_LOCAL_BUILD): the bundler only drops code for a literal it can fold here. */}
       {process.env.NEXT_PUBLIC_APP_ENV === "local" ? <SeededLogins busy={busy} onPick={(id, email, pass) => void attempt(id, email, pass)} /> : null}
-    </div>
+    </VStack>
   )
 }
 
 export default function LoginPage() {
   return (
-    <main id="main" className="safe-px safe-pt safe-pb flex min-h-dvh items-start justify-center bg-background py-10 sm:items-center">
-      <React.Suspense fallback={null}>
-        <LoginForm />
-      </React.Suspense>
-    </main>
+    <div className="safe-px safe-pt safe-pb flex min-h-dvh flex-col bg-background">
+      {/* The look can be chosen before signing in; it is remembered on this device (MWG dark-mode-toggle: a settings surface). */}
+      <header className="flex justify-end py-3">
+        <AppearanceSettings />
+      </header>
+      <main id="main" className="flex flex-1 items-start justify-center pt-4 pb-10 sm:items-center">
+        <React.Suspense fallback={null}>
+          <LoginForm />
+        </React.Suspense>
+      </main>
+    </div>
   )
 }
