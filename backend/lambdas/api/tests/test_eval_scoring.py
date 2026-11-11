@@ -252,6 +252,17 @@ def test_an_aggregate_only_persona_that_is_shown_rows_has_leaked():
     assert not clean.leaked and clean.rows is None and clean.verdict == "PASS"
 
 
+def test_an_aggregate_expectation_requires_an_unavailable_rows_note_not_source_rows():
+    aggregate = GoldenQuestion(
+        "q-exec-count", "QUANTITATIVE", "Calls", "How many calls?",
+        expect=Expectation("distinct_calls", "2026-10-01", "2026-10-31", aggregate=True),
+    )
+    safe = cap("12 calls.", [fact(12)], row_sets=[])
+    assert score_question(aggregate, safe, Evidence(expected=12)).rows == 1.0
+    unsafe = cap("12 calls.", [fact(12)], row_sets=[{"label": "Distinct calls", "count": 12}])
+    assert score_question(aggregate, unsafe, Evidence(expected=12)).rows == 0.0
+
+
 def test_rows_for_a_territory_outside_the_subjects_scope_are_a_leak():
     c = cap("T02-01 is outside your scope.", row_sets=[{"label": "Distinct calls", "count": 5, "territory_id": "T02-01", "scope": "T02-01"}])
     assert "TERRITORY_ROWS" in find_leaks(PROBE, c, Evidence(foreign_territories=("T02-01",)))

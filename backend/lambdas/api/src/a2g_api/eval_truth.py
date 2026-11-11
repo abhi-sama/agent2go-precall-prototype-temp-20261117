@@ -403,6 +403,13 @@ def _recount_executive_series(cur: psycopg.Cursor, v: Mapping[str, Any]) -> tupl
     if not points:
         return True, "no shown aggregate points"
     rows = _executive_cells(cur, frm, to)
+    overall = next((int(row[metric] or 0) for row in rows if row[0] == "TOTAL"), 0)
+    # A total-only Executive visual deliberately has one opaque aggregate
+    # point.  It is not a territory key and must be recounted against the
+    # governed TOTAL cell, never against the source-row territory surface.
+    if set(points) == {"total"}:
+        total = v.get("total")
+        return points["total"] == overall and total in (None, overall), "ok" if points["total"] == overall and total in (None, overall) else "total differs from Executive aggregate SQL"
     if all(_MONTH.match(key) for key in points):
         truth = {row[3].strftime("%Y-%m"): int(row[metric] or 0) for row in rows if row[0] == "MONTH" and row[3]}
     elif all(key.startswith("REGION-") for key in points):
@@ -412,7 +419,6 @@ def _recount_executive_series(cur: psycopg.Cursor, v: Mapping[str, Any]) -> tupl
     if not all(truth.get(key) == value for key, value in points.items()):
         return False, "points differ from Executive aggregate SQL"
     total = v.get("total")
-    overall = next((int(row[metric] or 0) for row in rows if row[0] == "TOTAL"), 0)
     return total in (None, overall), "ok" if total in (None, overall) else "total differs from Executive aggregate SQL"
 
 

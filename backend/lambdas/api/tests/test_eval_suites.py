@@ -78,7 +78,11 @@ def test_the_executive_gets_only_governed_aggregates_in_chat():
     assert aggregate
     assert all(q.expect.metric in {"distinct_calls", "engaged_hcps", "responses", "trend", "leader"} for q in aggregate)
     assert all(not q.no_access for q in aggregate)
-    assert all(q.no_access or q.kind == "LEAK_PROBE" or q.expect is not None for q in suite.questions)
+    assert not next(q for q in suite.questions if q.question_id == "executive-topic-t01").no_access
+    assert all(
+        q.no_access or q.kind == "LEAK_PROBE" or q.expect is not None or q.question_id == "executive-topic-t01"
+        for q in suite.questions
+    )
 
 
 def test_no_prompt_is_both_answerable_and_no_access_within_a_persona_suite():

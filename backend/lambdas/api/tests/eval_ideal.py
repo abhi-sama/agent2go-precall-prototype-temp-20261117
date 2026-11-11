@@ -78,7 +78,7 @@ def ideal(q: GoldenQuestion, *, wrong: bool = False) -> tuple[Capture, Evidence]
     if q.visual == "chart":
         visuals = [{"phase": "ready", "kind": q.draws or "bar", "title": "Chart", "metric": "calls", "total": 12, "points": [{"key": "a", "value": 12}]}]
     cap = Capture(text=text, facts=facts, citations=cites, visuals=visuals, computed=set(numbers_in(text)))
-    if e.metric in ROW_METRICS:
+    if e.metric in ROW_METRICS and not e.aggregate:
         # A counted answer comes with the rows it counted: one row set per figure, each listing exactly that many rows.
         # The share's numerator and denominator both have a set.
         counts = [35, 21] if e.metric == "answer_share" else [12]

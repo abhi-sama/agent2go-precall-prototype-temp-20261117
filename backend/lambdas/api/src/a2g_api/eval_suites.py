@@ -643,10 +643,11 @@ def _executive_suite() -> tuple[GoldenQuestion, ...]:
     def NT(
         chain: str, turn: int, title: str, prompt: str, kind: Kind = "QUANTITATIVE", probe: Probe | None = None,
         expect: Expectation | None = None, visual: str | None = None, draws: str | None = None,
+        no_access: bool | None = None,
     ) -> GoldenQuestion:
         return GoldenQuestion(
             f"executive-{chain}-t{turn:02d}", kind, title, prompt, category="FOLLOW_UP_CHAIN", chain=f"executive-{chain}", turn=turn,
-            no_access=expect is None, probe=probe, expect=expect, visual=visual, draws=draws,
+            no_access=expect is None if no_access is None else no_access, probe=probe, expect=expect, visual=visual, draws=draws,
         )
 
     counts = [
@@ -701,7 +702,7 @@ def _executive_suite() -> tuple[GoldenQuestion, ...]:
         NT("activity", 9, "Back to the start", "Go back to my very first question: how many calls was that in October?", expect=Expectation("distinct_calls", *OCT, aggregate=True), visual="kpi"),
     ]
     chain_b = [
-        NT("topic", 1, "Themes raised", f"What themes did HCPs raise in my region {_w(LATEST)}?", "QUALITATIVE"),
+        NT("topic", 1, "Themes raised", f"What themes did HCPs raise in my region {_w(LATEST)}?", "QUALITATIVE", no_access=False),
         NT("topic", 2, "Sequencing matches", "How many recorded responses mention sequencing in that same period?"),
         NT("topic", 3, "Quote one", "Quote one of them.", "QUALITATIVE"),
         NT("topic", 4, "Biomarker matches", "How many mention biomarker testing in that period?"),

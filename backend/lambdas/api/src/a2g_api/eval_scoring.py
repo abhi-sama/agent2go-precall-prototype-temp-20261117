@@ -562,6 +562,16 @@ def score_rows(question: GoldenQuestion, cap: Capture, ev: Evidence) -> tuple[fl
     """
     if question.no_access or cap.error:
         return None, [], []
+    # Executive activity facts are governed, suppressed aggregates.  They are
+    # valid evidence, but never have source rows: requiring a row set here
+    # would either fail every aggregate answer or encourage a record-level
+    # disclosure.  ``score_question`` separately rejects any row set for an
+    # aggregate-only persona as ``NO_ACCESS_DATA``.
+    if question.expect is not None and question.expect.aggregate:
+        # No source rows is the security property. ``rows_unavailable`` is a
+        # UI affordance and may have been emitted before the event capture
+        # window, so it is not evidence required to prove that property.
+        return (1.0 if not cap.row_sets else 0.0), ([] if not cap.row_sets else ["ROWS_MISSING"]), []
     truth = _truth_of(question, ev)
     required = (
         question.chain is None
