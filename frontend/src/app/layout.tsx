@@ -24,6 +24,9 @@ export const metadata: Metadata = {
   title: { default: "MSL Agent", template: "%s · MSL Agent" },
   description: "Field insight workspace for Medical Science Liaisons.",
   appleWebApp: { capable: true, title: "MSL Agent", statusBarStyle: "default" },
+  // MWG respect-os-text-scale: supporting browsers scale the root `rem` value for the user's OS preference.
+  // Unsupported browsers retain their standard zoom behavior.
+  other: { "text-scale": "scale" },
 }
 
 export const viewport: Viewport = {
