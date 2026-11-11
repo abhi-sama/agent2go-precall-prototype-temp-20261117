@@ -1,14 +1,21 @@
 "use client"
 
+import { Badge } from "@astryxdesign/core/Badge"
+import { Banner } from "@astryxdesign/core/Banner"
+import { Card } from "@astryxdesign/core/Card"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList"
+import { Text } from "@astryxdesign/core/Text"
+import { TreeList, type TreeListItemData } from "@astryxdesign/core/TreeList"
+import { VStack } from "@astryxdesign/core/VStack"
+import { GitBranch, Network } from "lucide-react"
 import { useMemo, useState } from "react"
-import { AlertTriangle, ChevronRight, CircleAlert, GitBranch, Network } from "lucide-react"
-import { Expand } from "@/components/motion/expand"
+import { SectionCard } from "@/components/admin/section-card"
 import { BlockSkeleton, ErrorState } from "@/components/state/states"
-import { Badge } from "@/components/ui/badge"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { FindingCode, HierarchyFinding, HierarchyNode, HierarchyValidation } from "@/lib/data/governance"
 import { useQuery } from "@/lib/data/use-query"
-import { cn } from "@/lib/utils"
 
 const FINDING_LABEL: Record<FindingCode, string> = {
   CYCLE: "Cycle",
@@ -19,7 +26,7 @@ const FINDING_LABEL: Record<FindingCode, string> = {
 }
 
 function FindingBadge({ severity, code }: { severity: "ERROR" | "WARNING"; code: FindingCode }) {
-  return <Badge variant={severity === "ERROR" ? "destructive" : "outline"}>{FINDING_LABEL[code]}</Badge>
+  return <Badge variant={severity === "ERROR" ? "error" : "warning"} label={FINDING_LABEL[code]} />
 }
 
 function severityOf(node: HierarchyNode, findings: HierarchyFinding[]): "ERROR" | "WARNING" | null {
@@ -28,112 +35,91 @@ function severityOf(node: HierarchyNode, findings: HierarchyFinding[]): "ERROR" 
   return mine.length ? "WARNING" : null
 }
 
+/** Who holds a territory: assigned there, or inherited from a region above. */
 function Holders({ node }: { node: HierarchyNode }) {
   const row = (label: string, items: HierarchyNode["directHolders"]) => (
-    <div className="min-w-0">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+    <MetadataListItem label={label}>
       {items.length === 0 ? (
-        <p className="mt-1 text-sm text-muted-foreground">Nobody</p>
+        <Text color="secondary">Nobody</Text>
       ) : (
-        <ul className="mt-1 flex flex-col gap-1 text-sm">
+        <VStack as="ul" gap={1}>
           {items.map((h) => (
             <li key={`${h.userId}-${h.assignmentType}-${h.viaTerritoryId}`} className="break-words">
-              <span className="font-medium">{h.displayName || h.userId}</span>{" "}
-              <span className="text-muted-foreground">
+              <Text weight="medium">{h.displayName || h.userId}</Text>{" "}
+              <Text color="secondary">
                 {h.assignmentType}
                 {h.viaTerritoryId !== node.territoryId ? ` via ${h.viaTerritoryId}` : ""}
-              </span>
+              </Text>
             </li>
           ))}
-        </ul>
+        </VStack>
       )}
-    </div>
+    </MetadataListItem>
   )
   return (
-    <div className="grid gap-4 pb-3 pl-2 pt-1 sm:grid-cols-2">
+    <MetadataList label={{ position: "top" }}>
       {row("Assigned here", node.directHolders)}
       {row("Inherited from above", node.inheritedHolders)}
-    </div>
+    </MetadataList>
   )
 }
 
-function TreeRow({
-  id, nodes, findings, path, depth, open, toggle,
-}: {
-  id: string
-  nodes: Map<string, HierarchyNode>
-  findings: HierarchyFinding[]
-  path: string[]
-  depth: number
-  open: Set<string>
-  toggle: (key: string) => void
-}) {
+/** One tree item per path, so a territory with two parents shows under each and a loop ends in a marker. */
+function buildItems(
+  id: string,
+  nodes: Map<string, HierarchyNode>,
+  findings: HierarchyFinding[],
+  path: string[],
+  selected: string | null,
+  select: (territoryId: string) => void,
+): TreeListItemData | null {
   const node = nodes.get(id)
   if (!node) return null
-  const key = [...path, id].join(">")
-  const expanded = open.has(key)
-  const severity = severityOf(node, findings)
   // A node already on this path is a cycle: show it once more as a marker and stop descending.
   const looping = path.includes(id)
-  const children = looping ? [] : node.childIds
-  return (
-    <li>
-      <div className={cn("flex min-h-11 items-center gap-2 rounded-lg pr-2", severity === "ERROR" && "bg-destructive/5")} style={{ paddingLeft: `${Math.min(depth, 6) * 14}px` }}>
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-label={`${expanded ? "Hide" : "Show"} details for ${node.territoryId}`}
-          onClick={() => toggle(key)}
-          className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
-        >
-          <ChevronRight className={cn("size-4 transition-transform duration-(--duration-base) ease-(--ease-out)", expanded && "rotate-90")} aria-hidden />
-        </button>
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="break-all font-medium">{node.territoryId}</span>
-          <span className="text-xs text-muted-foreground">{node.kind === "REGION" ? "Region" : "Territory"}</span>
-          {looping && <Badge variant="destructive">Loops back</Badge>}
-          {node.findingCodes.map((code) => (
-            <FindingBadge key={code} code={code} severity={findings.find((f) => f.code === code && f.territoryIds.includes(node.territoryId))?.severity ?? "WARNING"} />
-          ))}
-        </div>
-      </div>
-      <Expand open={expanded}>
-        <div style={{ paddingLeft: `${Math.min(depth, 6) * 14 + 44}px` }}><Holders node={node} /></div>
-      </Expand>
-      {children.length > 0 && (
-        <ul>
-          {children.map((child) => (
-            <TreeRow key={child} id={child} nodes={nodes} findings={findings} path={[...path, id]} depth={depth + 1} open={open} toggle={toggle} />
-          ))}
-        </ul>
-      )}
-    </li>
-  )
+  const children = looping ? [] : node.childIds.map((child) => buildItems(child, nodes, findings, [...path, id], selected, select)).filter((c): c is TreeListItemData => c !== null)
+  return {
+    id: [...path, id].join(">"),
+    label: <span className="break-all">{node.territoryId}</span>,
+    description: node.kind === "REGION" ? "Region" : "Territory",
+    isSelected: selected === node.territoryId,
+    isExpanded: true,
+    onClick: () => select(node.territoryId),
+    endContent: (
+      <HStack gap={1} wrap="wrap" justify="end">
+        {looping && <Badge variant="error" label="Loops back" />}
+        {node.findingCodes.map((code) => (
+          <FindingBadge key={code} code={code} severity={findings.find((f) => f.code === code && f.territoryIds.includes(node.territoryId))?.severity ?? "WARNING"} />
+        ))}
+        {severityOf(node, findings) === "ERROR" && <Text type="supporting">Fix needed</Text>}
+      </HStack>
+    ),
+    children: children.length ? children : undefined,
+  }
 }
 
 function Findings({ findings }: { findings: HierarchyFinding[] }) {
   if (findings.length === 0) {
-    return <p className="rounded-xl bg-card p-4 text-sm text-muted-foreground ring-1 ring-foreground/10" data-testid="hierarchy-clean">No problems found. Every territory is linked, acyclic and covered.</p>
+    return <Banner status="success" title="No problems found" description="Every territory is linked, acyclic and covered." data-testid="hierarchy-clean" />
   }
   return (
-    <ul className="grid gap-2" data-testid="hierarchy-findings">
+    <VStack gap={2} data-testid="hierarchy-findings">
       {findings.map((f) => (
-        <li key={`${f.code}-${f.territoryIds.join("|")}`} className={cn("flex items-start gap-3 rounded-xl bg-card p-3 ring-1", f.severity === "ERROR" ? "ring-destructive/40" : "ring-foreground/10")}>
-          {f.severity === "ERROR" ? <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden /> : <AlertTriangle className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />}
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2"><FindingBadge code={f.code} severity={f.severity} /><span className="text-xs text-muted-foreground">{f.severity === "ERROR" ? "Fix needed" : "Review"}</span></div>
-            <p className="mt-1 break-words text-sm">{f.message}</p>
-          </div>
-        </li>
+        <Banner
+          key={`${f.code}-${f.territoryIds.join("|")}`}
+          status={f.severity === "ERROR" ? "error" : "warning"}
+          title={`${FINDING_LABEL[f.code]}: ${f.severity === "ERROR" ? "fix needed" : "review"}`}
+          description={<span className="break-words">{f.message}</span>}
+        />
       ))}
-    </ul>
+    </VStack>
   )
 }
 
 function Tree({ graph }: { graph: HierarchyValidation }) {
-  const [open, setOpen] = useState<Set<string>>(new Set())
+  const [selected, setSelected] = useState<string | null>(null)
   const nodes = useMemo(() => new Map(graph.nodes.map((n) => [n.territoryId, n])), [graph])
-  const roots = graph.nodes.filter((n) => n.parentIds.length === 0 && n.childIds.length > 0).map((n) => n.territoryId)
+  const roots = useMemo(() => graph.nodes.filter((n) => n.parentIds.length === 0 && n.childIds.length > 0).map((n) => n.territoryId), [graph])
   const reached = useMemo(() => {
     const seen = new Set<string>()
     const walk = (id: string) => { if (seen.has(id)) return; seen.add(id); nodes.get(id)?.childIds.forEach(walk) }
@@ -141,21 +127,34 @@ function Tree({ graph }: { graph: HierarchyValidation }) {
     return seen
   }, [nodes, roots])
   const stray = graph.nodes.filter((n) => !reached.has(n.territoryId)).map((n) => n.territoryId)
-  const toggle = (key: string) => setOpen((cur) => { const next = new Set(cur); if (next.has(key)) next.delete(key); else next.add(key); return next })
+  const items = (ids: string[]) => ids.map((id) => buildItems(id, nodes, graph.findings, [], selected, setSelected)).filter((i): i is TreeListItemData => i !== null)
+  const detail = selected ? nodes.get(selected) : undefined
   return (
-    <div className="flex flex-col gap-4">
-      <ul data-testid="hierarchy-tree" aria-label="Territory hierarchy">
-        {roots.map((id) => <TreeRow key={id} id={id} nodes={nodes} findings={graph.findings} path={[]} depth={0} open={open} toggle={toggle} />)}
-      </ul>
-      {stray.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold">Not reachable from any root</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Orphans and cycles: no region leads down to these, so nobody inherits access to them.</p>
-          <ul className="mt-2" data-testid="hierarchy-unreached">
-            {stray.map((id) => <TreeRow key={id} id={id} nodes={nodes} findings={graph.findings} path={[]} depth={0} open={open} toggle={toggle} />)}
-          </ul>
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <VStack gap={4}>
+        <div data-testid="hierarchy-tree">
+          <TreeList items={items(roots)} density="spacious" header={<Text type="label">Territory hierarchy</Text>} />
         </div>
-      )}
+        {stray.length > 0 && (
+          <VStack gap={2}>
+            <Heading level={3}>Not reachable from any root</Heading>
+            <Text type="supporting" as="p">Orphans and cycles: no region leads down to these, so nobody inherits access to them.</Text>
+            <div data-testid="hierarchy-unreached">
+              <TreeList items={items(stray)} density="spacious" header={<Text type="label">Unreached territories</Text>} />
+            </div>
+          </VStack>
+        )}
+      </VStack>
+      <Card aria-live="polite" data-testid="hierarchy-detail">
+        {detail ? (
+          <VStack gap={3}>
+            <Heading level={3}><span className="break-all">{detail.territoryId}</span></Heading>
+            <Holders node={detail} />
+          </VStack>
+        ) : (
+          <Text color="secondary" as="p">Select a territory to see who holds it, directly or by inheritance.</Text>
+        )}
+      </Card>
     </div>
   )
 }
@@ -168,25 +167,23 @@ export function HierarchyView() {
   if (graph.status === "error") return <ErrorState error={graph.error} onRetry={graph.refetch} />
   const data = graph.data
   return (
-    <div className="flex flex-col gap-6">
-      <section aria-labelledby="validation-heading" className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 id="validation-heading" className="flex items-center gap-2 text-lg font-semibold tracking-tight"><Network className="size-5 text-accent-text" aria-hidden />Validation</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Cycles, orphans, missing links, overlaps and inheritance, checked against what access really follows.</p>
-          </div>
-          <div className="flex gap-2" data-testid="hierarchy-counts">
-            <Badge variant={data.errorCount ? "destructive" : "secondary"}>{data.errorCount} to fix</Badge>
-            <Badge variant="outline">{data.warningCount} to review</Badge>
-          </div>
-        </div>
+    <VStack gap={6}>
+      <SectionCard
+        title="Validation"
+        icon={Network}
+        description="Cycles, orphans, missing links, overlaps and inheritance, checked against what access really follows."
+        end={
+          <HStack gap={2} data-testid="hierarchy-counts">
+            <Badge variant={data.errorCount ? "error" : "success"} label={`${data.errorCount} to fix`} />
+            <Badge variant="warning" label={`${data.warningCount} to review`} />
+          </HStack>
+        }
+      >
         <Findings findings={data.findings} />
-      </section>
-      <section aria-labelledby="tree-heading" className="rounded-xl bg-card p-3 ring-1 ring-foreground/10 sm:p-4">
-        <h2 id="tree-heading" className="flex items-center gap-2 text-lg font-semibold tracking-tight"><GitBranch className="size-5 text-accent-text" aria-hidden />Hierarchy</h2>
-        <p className="mb-2 mt-1 text-sm text-muted-foreground">A territory with two parents appears under each. Open a row to see who holds it, directly or by inheritance.</p>
+      </SectionCard>
+      <SectionCard title="Hierarchy" icon={GitBranch} description="A territory with two parents appears under each. Select a row to see who holds it, directly or by inheritance.">
         <Tree graph={data} />
-      </section>
-    </div>
+      </SectionCard>
+    </VStack>
   )
 }

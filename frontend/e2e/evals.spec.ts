@@ -43,7 +43,7 @@ test.describe("administrator", () => {
   test("history lists runs and two runs can be diffed", async ({ page }) => {
     await page.goto("/admin/evals")
     await tab(page, "History").click()
-    await expect(page.getByTestId("run-history").locator("li")).toHaveCount(3)
+    await expect(page.getByTestId("run-history").locator('[data-testid^="open-"]')).toHaveCount(3)
     await expect(page.getByTestId("history-trend")).toBeVisible()
 
     await tab(page, "Compare runs").click()
@@ -53,10 +53,13 @@ test.describe("administrator", () => {
     await expect(page.getByTestId("diff-msl-theme-sequenc")).toHaveAttribute("data-change", "IMPROVED")
 
     // Swap the two runs: the same pair now reads as a regression.
-    const base = await page.getByTestId("compare-base").inputValue()
-    const head = await page.getByTestId("compare-head").inputValue()
-    await page.getByTestId("compare-base").selectOption(head)
-    await page.getByTestId("compare-head").selectOption(base)
+    const base = (await page.getByTestId("compare-base").innerText()).trim()
+    const head = (await page.getByTestId("compare-head").innerText()).trim()
+    expect(base).not.toBe(head)
+    await page.getByTestId("compare-base").click()
+    await page.getByRole("option", { name: head }).click()
+    await page.getByTestId("compare-head").click()
+    await page.getByRole("option", { name: base }).click()
     await expect(page.getByTestId("diff-view").getByTestId("change-badge").first()).toHaveAttribute("data-change", "REGRESSED")
   })
 

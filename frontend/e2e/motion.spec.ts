@@ -119,19 +119,15 @@ test.describe("planned motion plays", () => {
     await expect(page.getByTestId("globe")).toHaveCount(0)
   })
 
-  test("hierarchy rows open and close with an expand, not a pop", async ({ page }) => {
+  test("hierarchy rows select to show who holds them and collapse with their children", async ({ page }) => {
     await signInAs(page, "u-admin-sec")
     await page.goto("/admin/governance")
     await expect(page.getByTestId("hierarchy-tree")).toBeVisible()
-    const toggle = page.getByRole("button", { name: "Show details for NE-02" }).first()
-    await toggle.click()
-    const expand = page.locator(".expand").first()
-    await expect(expand).toHaveAttribute("data-open", "true")
-    await expect(page.getByText("Inherited from above").first()).toBeVisible()
-    await page.getByRole("button", { name: "Hide details for NE-02" }).first().click()
-    await expect(expand).toHaveAttribute("data-open", "false")
-    // Unmounted once the close has finished.
-    await expect(page.locator(".expand")).toHaveCount(0)
+    await page.getByRole("treeitem", { name: "NE-02" }).first().click()
+    await expect(page.getByTestId("hierarchy-detail").getByText("Inherited from above")).toBeVisible()
+    // Collapsing the region takes its children out of the tree once the close has finished.
+    await page.getByRole("treeitem", { name: "REGION-NE" }).first().getByRole("button", { name: "Toggle children" }).click()
+    await expect(page.getByRole("treeitem", { name: "NE-02" })).toHaveCount(0)
   })
 })
 

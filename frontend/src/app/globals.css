@@ -197,34 +197,6 @@
   /* Spring for the expressive tier (cards, counters, parallax): a damped spring sampled as an easing. */
   --ease-spring: linear(0, 0.2178 2.1%, 0.7565 7.6%, 1.0124 11.5%, 1.0768 13.5%, 1.0996 15.5%, 1.0976 17.7%, 1.0724 20.3%, 1.0203 25.2%, 0.9984 29%, 0.9934 33.5%, 0.9989 41%, 1);
   --duration-spring: 550ms;
-
-  /* State family: semantic illustration colours and geometry; components never supply their own values. */
-  --state-scene-size: 7rem;
-  --state-scene-inset: calc(var(--state-scene-size) / 6);
-  --state-scene-depth: calc(var(--state-scene-size) / 12);
-  --state-scene-shift: calc(var(--state-scene-size) / -28);
-  --state-scene-angle: 14deg;
-  --state-scene-radius: calc(var(--radius) * 2);
-  --state-scene-stroke: 1px;
-  --state-scene-round: 999px;
-  --state-scene-back-layer: -1;
-  --state-scene-back-opacity: .72;
-  --state-scene-double: 2;
-  --state-scene-third: 3;
-  --state-scene-quarter: 4;
-  --state-scene-border-mix: 40%;
-  --state-scene-surface-mix: 52%;
-  --state-scene-platform-mix: 32%;
-  --state-scene-panel-mix: 44%;
-  --state-scene-signal-mix: 48%;
-  --state-empty: var(--primary);
-  --state-empty-soft: color-mix(in oklch, var(--primary) 10%, var(--card));
-  --state-access: var(--fact);
-  --state-access-soft: color-mix(in oklch, var(--fact) 10%, var(--card));
-  --state-error: var(--destructive);
-  --state-error-soft: color-mix(in oklch, var(--destructive) 10%, var(--card));
-  --state-first-run: var(--suggest);
-  --state-first-run-soft: color-mix(in oklch, var(--suggest) 10%, var(--card));
 }
 
 /*
@@ -390,10 +362,18 @@
    * first. In the utilities layer so it also lifts Astryx's compact desktop sizes; min-size only ever grows a control.
    */
   @media (pointer: coarse) {
-    :where(button, select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="range"]), [role="button"], [role="radio"], [role="tab"], [role="option"], [role="menuitem"], [role="combobox"], summary, nav a[href], .astryx-top-nav-heading a[href], a.astryx-top-nav-heading) {
+    :where(button, select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="range"]), [role="button"], [role="radio"], [role="tab"], [role="option"], [role="menuitem"], [role="combobox"], summary, nav a[href], .astryx-top-nav-heading a[href], a.astryx-top-nav-heading, a.astryx-button) {
       min-block-size: 44px;
       min-inline-size: 44px;
     }
+    /* Astryx paints a field's border on its control box, not on the native input inside. Lift the box with the input, so stacked fields do not overlap their hit areas. */
+    :where(.astryx-text-input, .astryx-number-input, .astryx-date-input, .astryx-time-input, .astryx-date-time-input-date-segment, .astryx-date-time-input-time-segment) {
+      min-block-size: 44px;
+    }
+  }
+  /* WCAG 1.4.11: Astryx draws a field's edge in its hairline border colour (about 1.5:1). A field is where people type, so its edge uses the text colour at two-thirds strength, which clears 3:1 on every theme's surface. */
+  :where(.astryx-text-input, .astryx-number-input, .astryx-date-input, .astryx-time-input, .astryx-date-time-input-date-segment, .astryx-date-time-input-time-segment, .astryx-selector, .astryx-text-area-control) {
+    border-color: color-mix(in oklab, var(--color-text-primary) 65%, transparent);
   }
   /* >=16px fields stop iOS Safari zooming on focus. In the utilities layer so it also reaches Astryx inputs on touch. */
   @media (pointer: coarse) {
@@ -454,90 +434,6 @@
       radial-gradient(60rem 24rem at 85% -10%, color-mix(in oklch, var(--primary) 14%, transparent), transparent 60%),
       radial-gradient(40rem 20rem at -10% 0%, color-mix(in oklch, var(--teal) 10%, transparent), transparent 60%);
   }
-}
-
-/* Illustrated 2D state scenes. Perspective is an enhancement, never a dependency. */
-.state-family {
-  --state-tone: var(--state-empty);
-  --state-tone-soft: var(--state-empty-soft);
-  gap: var(--card-pad);
-  border: var(--state-scene-stroke) dashed color-mix(in oklch, var(--state-tone) var(--state-scene-border-mix), var(--border));
-  border-radius: var(--state-scene-radius);
-  background: color-mix(in oklch, var(--state-tone-soft) var(--state-scene-surface-mix), var(--card));
-  padding: calc(var(--card-pad) * var(--state-scene-double));
-  box-shadow: var(--elev-card);
-  transition: opacity var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out);
-}
-.state-family[data-state-variant="access"] { --state-tone: var(--state-access); --state-tone-soft: var(--state-access-soft); }
-.state-family[data-state-variant="error"] { --state-tone: var(--state-error); --state-tone-soft: var(--state-error-soft); }
-.state-family[data-state-variant="first-run"] { --state-tone: var(--state-first-run); --state-tone-soft: var(--state-first-run-soft); }
-@starting-style {
-  .state-family { opacity: 0; transform: translateY(var(--state-scene-shift)); }
-}
-.state-scene {
-  position: relative;
-  width: var(--state-scene-size);
-  aspect-ratio: 1;
-  isolation: isolate;
-}
-.state-scene > span { position: absolute; display: block; }
-.state-scene__halo {
-  z-index: var(--state-scene-back-layer);
-  inset: var(--state-scene-inset);
-  border-radius: var(--state-scene-round);
-  background: var(--state-tone-soft);
-}
-.state-scene__platform {
-  right: var(--state-scene-inset);
-  bottom: var(--state-scene-inset);
-  left: var(--state-scene-inset);
-  height: var(--state-scene-depth);
-  border-radius: var(--state-scene-round);
-  background: color-mix(in oklch, var(--state-tone) var(--state-scene-platform-mix), var(--card));
-}
-.state-scene__panel {
-  border: var(--state-scene-stroke) solid color-mix(in oklch, var(--state-tone) var(--state-scene-panel-mix), var(--border));
-  border-radius: var(--state-scene-radius);
-  background: var(--card);
-  box-shadow: var(--elev-card);
-}
-.state-scene__panel--back {
-  inset: calc(var(--state-scene-inset) * var(--state-scene-double)) var(--state-scene-inset) calc(var(--state-scene-inset) * var(--state-scene-double)) calc(var(--state-scene-inset) * var(--state-scene-double));
-  opacity: var(--state-scene-back-opacity);
-}
-.state-scene__panel--front {
-  inset: var(--state-scene-inset) calc(var(--state-scene-inset) * var(--state-scene-double)) calc(var(--state-scene-inset) * var(--state-scene-double)) var(--state-scene-inset);
-  border-style: solid;
-}
-.state-scene__signal {
-  top: calc(var(--state-scene-inset) * var(--state-scene-double));
-  left: calc(var(--state-scene-inset) * var(--state-scene-double));
-  width: calc(var(--state-scene-size) / var(--state-scene-third));
-  aspect-ratio: 1;
-  border: var(--state-scene-stroke) solid color-mix(in oklch, var(--state-tone) var(--state-scene-signal-mix), var(--border));
-  border-radius: var(--state-scene-round);
-  background: var(--state-tone-soft);
-}
-.state-scene__marker {
-  right: calc(var(--state-scene-inset) * var(--state-scene-double));
-  bottom: calc(var(--state-scene-inset) * var(--state-scene-double));
-  width: calc(var(--state-scene-size) / var(--state-scene-quarter));
-  height: calc(var(--state-scene-size) / var(--state-scene-quarter));
-  border: var(--state-scene-stroke) solid var(--state-tone);
-  border-radius: var(--state-scene-radius);
-  background: var(--state-tone);
-}
-.state-family[data-state-variant="access"] .state-scene__signal { border-radius: var(--state-scene-radius); }
-.state-family[data-state-variant="error"] .state-scene__panel--front { border-style: dashed; }
-.state-family[data-state-variant="error"] .state-scene__marker { border-radius: var(--state-scene-round); }
-.state-family[data-state-variant="first-run"] .state-scene__signal { background: var(--state-tone); }
-.state-family[data-state-variant="first-run"] .state-scene__marker { background: var(--card); }
-@supports (transform-style: preserve-3d) {
-  .state-scene { perspective: var(--state-scene-size); transform-style: preserve-3d; }
-  .state-scene__platform { transform: rotateX(var(--state-scene-angle)); }
-  .state-scene__panel--back { transform: translateZ(calc(var(--state-scene-depth) * var(--state-scene-back-layer))); }
-  .state-scene__panel--front { transform: translateZ(var(--state-scene-depth)); }
-  .state-scene__marker { transform: translateZ(calc(var(--state-scene-depth) * var(--state-scene-double))); }
 }
 
 @keyframes spring-in {

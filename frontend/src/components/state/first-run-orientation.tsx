@@ -1,10 +1,10 @@
 "use client"
 
-import Link from "next/link"
+import { Button } from "@astryxdesign/core/Button"
+import NextLink from "next/link"
 import * as React from "react"
 import { PERSONA_CONFIG } from "@/components/shell/persona-config"
 import { FirstRunState } from "@/components/state/states"
-import { buttonVariants } from "@/components/ui/button"
 import { useSession } from "@/lib/session/session-provider"
 
 const FIRST_RUN_STORAGE_PREFIX = "a2g.first-run.v1"
@@ -30,7 +30,7 @@ function claimFirstRun(userId: string) {
   }
 }
 
-/** A deliberately non-blocking, once-per-user orientation that shares the state-family visual language. */
+/** A deliberately non-blocking, once-per-user orientation that shares the state family's look. */
 export function FirstRunOrientation() {
   const { user, userId, ready } = useSession()
   const [dismissedUserId, setDismissedUserId] = React.useState<string | null>(null)
@@ -42,13 +42,13 @@ export function FirstRunOrientation() {
     <div className="mb-[var(--page-gap)]" data-testid="first-run-orientation">
       <FirstRunState
         action={
-          <Link
+          <Button
+            as={NextLink}
             href={workspace.home}
-            className={buttonVariants({ variant: "default" })}
+            variant="primary"
+            label={`Open ${workspace.label} workspace`}
             onClick={() => setDismissedUserId(userId)}
-          >
-            Open {workspace.label} workspace
-          </Link>
+          />
         }
       />
     </div>

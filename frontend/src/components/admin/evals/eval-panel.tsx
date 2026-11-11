@@ -1,26 +1,36 @@
 "use client"
 
-import { FlaskConical, Play, ShieldCheck } from "lucide-react"
+import { Banner } from "@astryxdesign/core/Banner"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { EmptyState } from "@astryxdesign/core/EmptyState"
+import { Heading } from "@astryxdesign/core/Heading"
+import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
+import { Tab, TabList } from "@astryxdesign/core/TabList"
+import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
+import { Play, ShieldCheck } from "lucide-react"
 import * as React from "react"
-import { toast } from "sonner"
-import { ScopeLabel } from "@/components/shell/scope-label"
+import { AdminPageHeader } from "@/components/admin/page-header"
 import { ErrorState } from "@/components/state/states"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { CATEGORY_LABEL, EVAL_CATEGORIES, EVAL_PERSONAS, type EvalPersona, type EvalRun, type EvalRunSummary, type EvalSource } from "@/lib/data/evals"
 import { toDataError } from "@/lib/data/types"
 import { useQuery } from "@/lib/data/use-query"
 import { newCorrelationId } from "@/lib/log/logger"
 import { useSession } from "@/lib/session/session-provider"
-import { cn } from "@/lib/utils"
 import { ComparePicker, DiffView, RunHistory } from "./history-compare"
 import { PERSONA_LABEL, isFinished } from "./format"
 import { RatingsPanel } from "./ratings-panel"
 import { RunBody, RunHeader, RunSkeleton } from "./run-view"
 
-const TRIGGER = "min-h-11 px-3"
+const TABS = [
+  { value: "run", label: "Results" },
+  { value: "history", label: "History" },
+  { value: "compare", label: "Compare runs" },
+  { value: "ratings", label: "Human ratings" },
+] as const
 const POLL_MS = 2500
 
 /** Reads one run and keeps reading it while it is in progress. The last answer stays on screen between reads. */
@@ -78,37 +88,38 @@ function SuiteCard({
   const byType = EVAL_CATEGORIES.map((c) => ({ c, n: suite?.questions.filter((q) => q.category === c).length ?? 0 })).filter((x) => x.n > 0)
   const disabled = busy || running
   return (
-    <section data-testid="suite-card" aria-label="Golden suite" className="flex flex-col gap-4 rounded-2xl border bg-card p-4 sm:p-5 md:flex-row md:items-center md:justify-between">
-      <div className="min-w-0">
-        <h2 className="text-lg font-semibold tracking-tight">Golden suite for {PERSONA_LABEL[persona]}</h2>
-        {suite ? (
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            {suite.questions.length} questions: {byType.map(({ c, n }) => `${n} ${c === "FOLLOW_UP_CHAIN" ? `follow-up turns in ${chains} conversations` : CATEGORY_LABEL[c].toLowerCase()}`).join(", ")}. Asked as {suite.subjectLabel}, so every answer is read against exactly what that person may see.
-          </p>
-        ) : suites.status === "error" ? (
-          <p className="mt-1 text-sm text-destructive">The suite could not be loaded.</p>
-        ) : (
-          <Skeleton className="mt-2 h-4 w-96 max-w-full" />
-        )}
-      </div>
-      <div className="flex shrink-0 flex-wrap gap-2">
-        <Button data-testid="run-suite" size="lg" className="min-h-11 gap-2" disabled={disabled || !suite} onClick={() => onRun("AGENT")}>
-          <Play className="size-4" aria-hidden />
-          {running ? "Running…" : "Run suite"}
-        </Button>
-        <Button
-          data-testid="run-self-test"
-          variant="outline"
-          size="lg"
-          className="min-h-11 gap-2"
-          disabled={disabled || !suite}
-          onClick={() => onRun("LEAKY_CANARY")}
-          title="Asks the leak probes of a deliberately leaky stand-in to prove the detector fails a run that retrieves out-of-scope data"
-        >
-          <ShieldCheck className="size-4" aria-hidden />
-          Detector self-test
-        </Button>
-      </div>
+    <section data-testid="suite-card" aria-label="Golden suite">
+      <Card padding={5}>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <Heading level={2} weight="semibold">Golden suite for {PERSONA_LABEL[persona]}</Heading>
+            {suite ? (
+              <div className="mt-1 max-w-2xl">
+                <Text type="supporting" as="p" display="block">
+                  {suite.questions.length} questions: {byType.map(({ c, n }) => `${n} ${c === "FOLLOW_UP_CHAIN" ? `follow-up turns in ${chains} conversations` : CATEGORY_LABEL[c].toLowerCase()}`).join(", ")}. Asked as {suite.subjectLabel}, so every answer is read against exactly what that person may see.
+                </Text>
+              </div>
+            ) : suites.status === "error" ? (
+              <Text color="accent" as="p" display="block">The suite could not be loaded.</Text>
+            ) : (
+              <div className="mt-2"><Skeleton width={384} height={16} /></div>
+            )}
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button data-testid="run-suite" variant="primary" size="lg" icon={<Play aria-hidden />} label={running ? "Running…" : "Run suite"} isDisabled={disabled || !suite} onClick={() => onRun("AGENT")} />
+            <Button
+              data-testid="run-self-test"
+              variant="secondary"
+              size="lg"
+              icon={<ShieldCheck aria-hidden />}
+              label="Detector self-test"
+              isDisabled={disabled || !suite}
+              onClick={() => onRun("LEAKY_CANARY")}
+              tooltip="Asks the leak probes of a deliberately leaky stand-in to prove the detector fails a run that retrieves out-of-scope data"
+            />
+          </div>
+        </div>
+      </Card>
     </section>
   )
 }
@@ -121,6 +132,7 @@ export function EvalPanel() {
   const [chosen, setChosen] = React.useState<string | null>(null)
   const [pair, setPair] = React.useState<{ base: string; head: string } | null>(null)
   const [busy, setBusy] = React.useState(false)
+  const [startError, setStartError] = React.useState<string | null>(null)
 
   const runs = useQuery("evalRuns", `runs:${persona}`, (ctx) => adapter.evalRuns(ctx, persona, 30))
   const list: EvalRunSummary[] = runs.status === "success" ? runs.data : []
@@ -144,6 +156,7 @@ export function EvalPanel() {
 
   const start = async (source: EvalSource) => {
     setBusy(true)
+    setStartError(null)
     try {
       const run = await adapter.startEvalRun({ correlationId: newCorrelationId() }, { persona, source })
       setChosen(run.runId)
@@ -151,7 +164,7 @@ export function EvalPanel() {
       runs.refetch()
     } catch (err) {
       const error = toDataError(err)
-      toast.error(error.code === "BAD_REQUEST" ? "A run for this persona is already in progress" : "The evaluation could not be started")
+      setStartError(error.code === "BAD_REQUEST" ? "A run for this persona is already in progress" : "The evaluation could not be started")
     } finally {
       setBusy(false)
     }
@@ -162,111 +175,92 @@ export function EvalPanel() {
 
   return (
     <div className="flex flex-col gap-6 pb-8" data-testid="eval-panel">
-      <header className="flex flex-col gap-3 border-b pb-6">
-        <div className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-2xl bg-accent text-accent-text">
-            <FlaskConical className="size-6" aria-hidden />
-          </span>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">AI evaluation</h1>
-        </div>
-        <p className="max-w-3xl text-muted-foreground">
-          Run each persona&apos;s golden questions against the real agent. Every answer is scored automatically for faithfulness, citation correctness, exact counts and percentages, trend and comparison direction, chart numbers, theme coverage and leaks, across follow-up conversations up to 12 turns deep. Any leak of out-of-scope data fails the run.
-        </p>
-        <div>
-          <ScopeLabel label={user.scopeLabel} />
-        </div>
-      </header>
+      <AdminPageHeader
+        title="AI evaluation"
+        scopeLabel={user.scopeLabel}
+        description="Run each persona's golden questions against the real agent. Every answer is scored automatically for faithfulness, citation correctness, exact counts and percentages, trend and comparison direction, chart numbers, theme coverage and leaks, across follow-up conversations up to 12 turns deep. Any leak of out-of-scope data fails the run."
+      />
 
-      <div role="radiogroup" aria-label="Persona to evaluate" data-testid="persona-picker" className="flex flex-wrap gap-2">
-        {EVAL_PERSONAS.map((p) => (
-          <button
-            key={p}
-            type="button"
-            role="radio"
-            aria-checked={persona === p}
-            data-testid={`persona-${p}`}
-            onClick={() => choosePersona(p)}
-            className={cn(
-              "min-h-11 rounded-full border px-4 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-              persona === p ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted",
-            )}
-          >
-            {PERSONA_LABEL[p]}
-          </button>
-        ))}
+      <div data-testid="persona-picker">
+        <SegmentedControl label="Persona to evaluate" value={persona} onChange={(value) => choosePersona(value as EvalPersona)}>
+          {EVAL_PERSONAS.map((p) => (
+            <SegmentedControlItem key={p} value={p} label={PERSONA_LABEL[p]} data-testid={`persona-${p}`} />
+          ))}
+        </SegmentedControl>
       </div>
 
       <SuiteCard persona={persona} busy={busy} running={running} onRun={start} />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
-        <TabsList className="h-auto! w-full flex-wrap gap-1 sm:w-fit">
-          <TabsTrigger value="run" className={TRIGGER}>Results</TabsTrigger>
-          <TabsTrigger value="history" className={TRIGGER}>History</TabsTrigger>
-          <TabsTrigger value="compare" className={TRIGGER}>Compare runs</TabsTrigger>
-          <TabsTrigger value="ratings" className={TRIGGER}>Human ratings</TabsTrigger>
-        </TabsList>
+      {startError && <Banner status="error" title={startError} isDismissable onDismiss={() => setStartError(null)} dismissLabel="Dismiss" />}
 
-        <TabsContent value="run" className="pt-4">
-          {runs.status === "loading" ? (
-            <RunSkeleton />
-          ) : runs.status === "error" ? (
-            <ErrorState error={runs.error} onRetry={runs.refetch} />
-          ) : shown ? (
-            <RunSection key={shown} runId={shown} onSettled={onSettled} />
-          ) : (
-            <p data-testid="no-runs" className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
-              The {PERSONA_LABEL[persona]} suite has not been run yet. Choose Run suite to ask the agent the golden questions.
-            </p>
-          )}
-        </TabsContent>
+      <VStack gap={4}>
+        <TabList role="tablist" aria-label="Evaluation views" value={tab} onChange={setTab} hasDivider>
+          {TABS.map((t) => (
+            <Tab key={t.value} value={t.value} label={t.label} panelId={`eval-panel-${t.value}`} />
+          ))}
+        </TabList>
 
-        <TabsContent value="history" className="pt-4">
-          {runs.status === "success" ? (
-            <RunHistory
-              runs={list}
-              onOpen={(id) => {
-                setChosen(id)
-                setTab("run")
-              }}
-            />
-          ) : runs.status === "error" ? (
-            <ErrorState error={runs.error} onRetry={runs.refetch} />
-          ) : (
-            <RunSkeleton />
-          )}
-        </TabsContent>
+        <div role="tabpanel" id={`eval-panel-${tab}`} aria-label={TABS.find((t) => t.value === tab)?.label} tabIndex={0} className="flex flex-col gap-5 focus-visible:outline-none">
+          {tab === "run" &&
+            (runs.status === "loading" ? (
+              <RunSkeleton />
+            ) : runs.status === "error" ? (
+              <ErrorState error={runs.error} onRetry={runs.refetch} />
+            ) : shown ? (
+              <RunSection key={shown} runId={shown} onSettled={onSettled} />
+            ) : (
+              <div data-testid="no-runs">
+                <EmptyState title="No runs yet" description={`The ${PERSONA_LABEL[persona]} suite has not been run yet. Choose Run suite to ask the agent the golden questions.`} />
+              </div>
+            ))}
 
-        <TabsContent value="compare" className="flex flex-col gap-5 pt-4">
-          {done.length < 2 ? (
-            <p data-testid="compare-empty" className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
-              Two finished runs of the {PERSONA_LABEL[persona]} suite are needed to compare. Run it again to see what changed.
-            </p>
-          ) : (
-            <>
-              <ComparePicker runs={list} base={base} head={head} onChange={(b, h) => setPair({ base: b, head: h })} />
-              {!canCompare ? (
-                <p role="note" className="rounded-xl border bg-muted/40 p-3 text-sm">Choose two different runs.</p>
-              ) : diff.status === "success" ? (
-                <DiffView diff={diff.data} />
-              ) : diff.status === "error" ? (
-                <ErrorState error={diff.error} onRetry={diff.refetch} />
-              ) : (
-                <RunSkeleton />
-              )}
-            </>
-          )}
-        </TabsContent>
+          {tab === "history" &&
+            (runs.status === "success" ? (
+              <RunHistory
+                runs={list}
+                onOpen={(id) => {
+                  setChosen(id)
+                  setTab("run")
+                }}
+              />
+            ) : runs.status === "error" ? (
+              <ErrorState error={runs.error} onRetry={runs.refetch} />
+            ) : (
+              <RunSkeleton />
+            ))}
 
-        <TabsContent value="ratings" className="pt-4">
-          {ratings.status === "success" ? (
-            <RatingsPanel ratings={ratings.data} personaLabel={PERSONA_LABEL[persona]} />
-          ) : ratings.status === "error" ? (
-            <ErrorState error={ratings.error} onRetry={ratings.refetch} />
-          ) : (
-            <RunSkeleton />
-          )}
-        </TabsContent>
-      </Tabs>
+          {tab === "compare" &&
+            (done.length < 2 ? (
+              <div data-testid="compare-empty">
+                <EmptyState title="Nothing to compare yet" description={`Two finished runs of the ${PERSONA_LABEL[persona]} suite are needed to compare. Run it again to see what changed.`} />
+              </div>
+            ) : (
+              <>
+                <ComparePicker runs={list} base={base} head={head} onChange={(b, h) => setPair({ base: b, head: h })} />
+                {!canCompare ? (
+                  <div role="note">
+                    <Banner status="info" collapsible={false} title="Choose two different runs." />
+                  </div>
+                ) : diff.status === "success" ? (
+                  <DiffView diff={diff.data} />
+                ) : diff.status === "error" ? (
+                  <ErrorState error={diff.error} onRetry={diff.refetch} />
+                ) : (
+                  <RunSkeleton />
+                )}
+              </>
+            ))}
+
+          {tab === "ratings" &&
+            (ratings.status === "success" ? (
+              <RatingsPanel ratings={ratings.data} personaLabel={PERSONA_LABEL[persona]} />
+            ) : ratings.status === "error" ? (
+              <ErrorState error={ratings.error} onRetry={ratings.refetch} />
+            ) : (
+              <RunSkeleton />
+            ))}
+        </div>
+      </VStack>
     </div>
   )
 }

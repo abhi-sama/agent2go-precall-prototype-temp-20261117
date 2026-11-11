@@ -1,6 +1,8 @@
+import { Badge } from "@astryxdesign/core/Badge"
+import { Button } from "@astryxdesign/core/Button"
+import { Heading } from "@astryxdesign/core/Heading"
 import { Database, Download, FileText, Lightbulb, Sparkles } from "lucide-react"
 import * as React from "react"
-import { Button } from "@/components/ui/button"
 import { KIND_LABEL, type ProvenanceKind } from "@/lib/provenance"
 import { cn } from "@/lib/utils"
 
@@ -13,7 +15,8 @@ import { cn } from "@/lib/utils"
  *  - AiSummary:  model-written prose over source data. Soft orange card, sparkle "AI summary" badge, citation chips.
  *  - Suggestion: a proposal for the user to accept or dismiss. Dashed outline, lightbulb, the word "Suggestion".
  *
- * Tokens only (`--ai*`, `--suggest*`, `--elev-card`, `--radius`), so both styles and all three modes work unchanged.
+ * The badge is an Astryx `Badge` and the title an Astryx `Heading`; the frames use tokens only (`--ai*`, `--suggest*`,
+ * `--elev-card`, `--radius`), which follow every Astryx theme and colour scheme.
  */
 
 export interface ProvenanceCitation {
@@ -52,21 +55,13 @@ const FRAME: Record<ProvenanceKind, string> = {
   suggestion: "border-2 border-dashed border-suggest/60 bg-suggest-soft",
 }
 
-const CHIP: Record<ProvenanceKind, string> = {
-  fact: "border border-border bg-muted text-muted-foreground",
-  ai: "border border-ai/35 bg-ai/12 text-ai",
-  suggestion: "border border-suggest/40 bg-suggest/14 text-suggest",
-}
+/** The badge text stays on the theme's neutral badge (always AA); the kind shows in its icon, whose `--ai` / `--suggest` tints are mixed per theme to stay legible. */
+const ICON_TONE: Record<ProvenanceKind, string> = { fact: "text-muted-foreground", ai: "text-ai", suggestion: "text-suggest" }
 
 /** The kind's badge: icon plus words. Also used on its own on small cards (`AiBadge`). */
-export function KindBadge({ kind, label, className, ...rest }: { kind: ProvenanceKind; label?: string } & React.ComponentProps<"span">) {
+export function KindBadge({ kind, label, className, ...rest }: { kind: ProvenanceKind; label?: string } & Omit<React.ComponentProps<"span">, "children">) {
   const Icon = ICON[kind]
-  return (
-    <span {...rest} data-kind-badge={kind} className={cn("inline-flex min-h-6 w-fit shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold whitespace-nowrap", CHIP[kind], className)}>
-      <Icon className="size-3.5" aria-hidden />
-      {label ?? KIND_LABEL[kind]}
-    </span>
-  )
+  return <Badge {...rest} data-kind-badge={kind} className={cn("w-fit shrink-0 whitespace-nowrap", className)} variant="neutral" icon={<Icon className={cn("size-3.5", ICON_TONE[kind])} aria-hidden />} label={label ?? KIND_LABEL[kind]} />
 }
 
 /** The sparkle badge for AI-derived content that is not a whole `AiSummary`, e.g. a derived-theme pill. */
@@ -117,7 +112,7 @@ function Frame({ kind, title, label, className, children, meta, actions, citatio
     <section aria-label={label ?? KIND_LABEL[kind]} {...rest} data-provenance={kind} className={cn("relative min-w-0 rounded-xl p-(--card-pad) sm:p-4", FRAME[kind], className)}>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <KindBadge kind={kind} label={label} />
-        {title && <h4 className="text-sm font-semibold">{title}</h4>}
+        {title && <Heading level={4}>{title}</Heading>}
       </div>
       <div className="text-sm leading-relaxed">{children}</div>
       {citations && citations.length > 0 && <Citations items={citations} kind={kind} />}
@@ -146,8 +141,6 @@ export function Suggestion(props: ProvenanceProps) {
 /** The same Export action wherever AI content can leave the app. The file keeps the kind of every block. */
 export function ExportButton({ onExport, label = "Download", testId = "export-answer", disabled }: { onExport: () => void; label?: string; testId?: string; disabled?: boolean }) {
   return (
-    <Button type="button" variant="outline" size="sm" data-testid={testId} disabled={disabled} onClick={onExport} className="print:hidden">
-      <Download aria-hidden /> {label}
-    </Button>
+    <Button variant="secondary" size="sm" icon={<Download aria-hidden />} label={label} data-testid={testId} isDisabled={disabled} onClick={onExport} className="print:hidden" />
   )
 }

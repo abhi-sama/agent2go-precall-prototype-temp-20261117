@@ -1,36 +1,31 @@
-import Link from "next/link"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { EmptyState as AstryxEmptyState } from "@astryxdesign/core/EmptyState"
+import { Icon } from "@astryxdesign/core/Icon"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
+import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
+import { CalendarSearch, LockKeyhole, Sparkles, TriangleAlert } from "lucide-react"
+import NextLink from "next/link"
 import type * as React from "react"
-import { ResetFiltersAction, ReloadAction, WorkspaceAction } from "@/components/state/state-actions"
-import { buttonVariants } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { ReloadAction, ResetFiltersAction, WorkspaceAction } from "@/components/state/state-actions"
 import type { DataError } from "@/lib/data/types"
 import { cn } from "@/lib/utils"
 
 export type StateVariant = "empty" | "access" | "error" | "first-run"
 
-/**
- * An illustrated scene is the baseline renderer: it works without WebGL and remains legible when
- * motion is reduced. CSS adds a little perspective where supported, without making access to the
- * state depend on a canvas or a GPU.
- */
-function StateScene({ variant }: { variant: StateVariant }) {
-  return (
-    <div
-      aria-hidden="true"
-      className="state-scene"
-      data-scene-fallback="illustrated-2d"
-      data-state-scene={variant}
-    >
-      <span className="state-scene__halo" />
-      <span className="state-scene__platform" />
-      <span className="state-scene__panel state-scene__panel--back" />
-      <span className="state-scene__panel state-scene__panel--front" />
-      <span className="state-scene__signal" />
-      <span className="state-scene__marker" />
-    </div>
-  )
+const ICON: Record<StateVariant, { icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; color: "accent" | "info" | "error" | "warning" }> = {
+  empty: { icon: CalendarSearch, color: "accent" },
+  access: { icon: LockKeyhole, color: "info" },
+  error: { icon: TriangleAlert, color: "error" },
+  "first-run": { icon: Sparkles, color: "accent" },
 }
 
+/**
+ * One family for the four moments a view has nothing to show: a quiet empty range, an entitlement boundary, a
+ * recoverable failure and first-run orientation. An Astryx `EmptyState` inside a muted `Card`, so every theme and
+ * colour scheme draws it. `role` tells assistive tech whether it is a status or an alert.
+ */
 function StateShell({
   variant,
   title,
@@ -46,22 +41,25 @@ function StateShell({
   testId: string
   className?: string
 }) {
+  const { icon, color } = ICON[variant]
+  const text = typeof children === "string" ? children : undefined
+  const extra = typeof children === "string" ? null : children
   return (
-    <section
-      data-testid={testId}
-      data-state-variant={variant}
-      role={variant === "error" ? "alert" : "status"}
-      className={cn(
-        "state-family mx-auto flex w-full max-w-2xl flex-col items-center text-center",
-        className,
-      )}
-    >
-      <StateScene variant={variant} />
-      <div className="state-family__copy">
-        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-        {children && <p className="mt-2 max-w-prose text-sm text-muted-foreground">{children}</p>}
-        {actions && <div className="mt-5 flex flex-wrap justify-center gap-2">{actions}</div>}
-      </div>
+    <section data-testid={testId} data-state-variant={variant} role={variant === "error" ? "alert" : "status"} className={cn("mx-auto w-full max-w-2xl", className)}>
+      <Card padding={4}>
+        <AstryxEmptyState
+          icon={<Icon icon={icon} size="lg" color={color} />}
+          title={title}
+          description={text}
+          headingLevel={2}
+          actions={actions}
+        />
+        {extra && (
+          <VStack align="center" paddingBlockEnd={2}>
+            <Text type="supporting" as="p">{extra}</Text>
+          </VStack>
+        )}
+      </Card>
     </section>
   )
 }
@@ -76,12 +74,7 @@ export function EmptyState({
   actions?: React.ReactNode
 }) {
   return (
-    <StateShell
-      variant="empty"
-      testId="state-empty"
-      title={title}
-      actions={actions ?? <ResetFiltersAction />}
-    >
+    <StateShell variant="empty" testId="state-empty" title={title} actions={actions ?? <ResetFiltersAction />}>
       {children}
     </StateShell>
   )
@@ -103,11 +96,7 @@ export function ErrorState({ error, onRetry }: { error: DataError; onRetry?: () 
   const retryable = error.code !== "FORBIDDEN" && error.code !== "NO_SCOPE" && error.code !== "UNAUTHENTICATED"
   if (copy.locked) {
     return (
-      <NoAccessState
-        testId="state-error"
-        title={copy.title}
-        actionLabel={error.code === "NO_SCOPE" ? "Go to my workspace" : "Return to my workspace"}
-      >
+      <NoAccessState testId="state-error" title={copy.title} actionLabel={error.code === "NO_SCOPE" ? "Go to my workspace" : "Return to my workspace"}>
         {copy.body}
       </NoAccessState>
     )
@@ -117,18 +106,12 @@ export function ErrorState({ error, onRetry }: { error: DataError; onRetry?: () 
       testId="state-error"
       variant="error"
       title={copy.title}
-      actions={
-        retryable ? <ReloadAction onRetry={onRetry} /> : (
-          <Link href="/login" className={buttonVariants({ variant: "outline" })}>
-            Sign in again
-          </Link>
-        )
-      }
+      actions={retryable ? <ReloadAction onRetry={onRetry} /> : <Button href="/login" as={NextLink} variant="secondary" label="Sign in again" />}
     >
-      {copy.body}
-      {error.correlationId && (
-        <span className="mt-2 block font-mono text-xs">Reference {error.correlationId.slice(0, 8)}</span>
-      )}
+      <>
+        {copy.body}
+        {error.correlationId && <Text type="code" as="span" display="block">Reference {error.correlationId.slice(0, 8)}</Text>}
+      </>
     </StateShell>
   )
 }
@@ -145,14 +128,7 @@ export function NoAccessState({
   testId?: string
 }) {
   return (
-    <StateShell
-      variant="access"
-      testId={testId}
-      title={title}
-      actions={
-        <WorkspaceAction actionLabel={actionLabel} />
-      }
-    >
+    <StateShell variant="access" testId={testId} title={title} actions={<WorkspaceAction actionLabel={actionLabel} />}>
       {children}
     </StateShell>
   )
@@ -176,14 +152,16 @@ export function FirstRunState({
 
 export function KpiSkeleton() {
   return (
-    <div data-testid="state-loading" aria-busy="true" aria-label="Loading" className="rounded-2xl border bg-card p-5 shadow-card">
-      <Skeleton className="h-4 w-28" />
-      <Skeleton className="mt-5 h-10 w-24" />
-      <Skeleton className="mt-4 h-3 w-40" />
-    </div>
+    <Card data-testid="state-loading" aria-busy="true" aria-label="Loading">
+      <VStack gap={4}>
+        <Skeleton width={112} height={16} />
+        <Skeleton width={96} height={40} />
+        <Skeleton width={160} height={12} />
+      </VStack>
+    </Card>
   )
 }
 
 export function BlockSkeleton({ className }: { className?: string }) {
-  return <Skeleton aria-hidden className={cn("rounded-2xl", className)} />
+  return <Skeleton aria-hidden className={className} />
 }

@@ -139,8 +139,18 @@ export async function collectContrastReport(page: Page): Promise<ContrastReport>
       const cs = getComputedStyle(el)
       const bg = backdrop(el.parentElement ?? el)
       if (!bg) continue
-      const edge = parse(cs.borderTopWidth !== "0px" && cs.borderTopStyle !== "none" ? cs.borderTopColor : "rgba(0,0,0,0)")
-      const fill = parse(cs.backgroundColor)
+      const edgeOf = (c: CSSStyleDeclaration) => parse(c.borderTopWidth !== "0px" && c.borderTopStyle !== "none" ? c.borderTopColor : "rgba(0,0,0,0)")
+      let edge = edgeOf(cs)
+      let fill = parse(cs.backgroundColor)
+      // An Astryx field draws its border and fill on the control box around the native input, so read the box.
+      if (edge[3] === 0 && fill[3] === 0) {
+        const box = el.closest<HTMLElement>("[class*='astryx-'][class*='-input'], [class*='astryx-'][class*='-segment']")
+        if (box) {
+          const bcs = getComputedStyle(box)
+          edge = edgeOf(bcs)
+          fill = parse(bcs.backgroundColor)
+        }
+      }
       const boundary = edge[3] > 0 ? over(edge, bg) : fill[3] > 0 ? over(fill, bg) : null
       checked++
       if (!boundary) {

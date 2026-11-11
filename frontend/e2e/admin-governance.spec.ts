@@ -37,9 +37,9 @@ test("administrator validates the hierarchy, approves coverage, and keeps catalo
   await expect(page.getByTestId("hierarchy-tree")).toContainText("REGION-NE")
 
   // Inheritance is one tap away.
-  await page.getByRole("button", { name: "Show details for NE-02" }).first().click()
-  await expect(page.getByText("Inherited from above").first()).toBeVisible()
-  await expect(page.getByText("Dana Whitfield primary via REGION-NE").first()).toBeVisible()
+  await page.getByRole("treeitem", { name: "NE-02" }).first().click()
+  await expect(page.getByTestId("hierarchy-detail").getByText("Inherited from above")).toBeVisible()
+  await expect(page.getByTestId("hierarchy-detail").getByText("Dana Whitfield primary via REGION-NE")).toBeVisible()
 
   // Temporary coverage needs an end date; a request is approved by a different administrator.
   await tab(page, "Access timeline").click()
@@ -52,9 +52,10 @@ test("administrator validates the hierarchy, approves coverage, and keeps catalo
   await expect(page.getByTestId("access-timeline")).toContainText("scheduled")
 
   const form = page.getByTestId("scope-change-form")
-  await expect(form.getByLabel("Expires (required)")).toBeVisible()
-  await form.getByLabel("Type").selectOption("TRANSFER")
-  await expect(form.getByLabel("Expires (required)")).toHaveCount(0)
+  await expect(form.getByText("Expires")).toBeVisible()
+  await form.getByRole("combobox", { name: "Type" }).click()
+  await page.getByRole("option", { name: "Transfer" }).click()
+  await expect(form.getByText("Expires")).toHaveCount(0)
   await expect(form.getByLabel("Moves from")).toBeVisible()
 
   // Catalog visibility and response access are separate controls.
@@ -75,7 +76,8 @@ test("administrator validates the hierarchy, approves coverage, and keeps catalo
   const verification = page.getByTestId("authorization-verification-grid")
   await expect(verification).toContainText("128 / 128 passed")
   await expect(verification).toContainText("Offline caches")
-  await verification.getByLabel("Authorization grid scope condition").selectOption("coverage_expired")
+  await verification.getByRole("combobox", { name: "Authorization grid scope condition" }).click()
+  await page.getByRole("option", { name: "Coverage ended" }).click()
   await expect(verification).toContainText("Coverage ended")
 
   // The ticket 17 governance controls preserve provenance, versions, audit history and a
@@ -114,7 +116,7 @@ test.describe("viewport matrix", () => {
         // Wait out the panel cross-fade and the mock adapter's latency.
         await expect(page.getByRole("tabpanel", { name }).getByRole("status").or(page.getByRole("tabpanel", { name }).locator("[data-testid], [data-slot=card]").first())).toBeVisible()
         await page.waitForTimeout(600)
-        if (name === "Hierarchy") await page.getByRole("button", { name: "Show details for NE-01" }).first().click()
+        if (name === "Hierarchy") await page.getByRole("treeitem", { name: "NE-01" }).first().click()
 
         const report = await page.evaluate(() => {
           const doc = document.documentElement
