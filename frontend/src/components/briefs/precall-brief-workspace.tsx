@@ -4,10 +4,12 @@ import { ChevronRight, ClipboardList, Lock, Search, Sparkles, UserRound } from "
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
+import { FormLayout } from "@astryxdesign/core/FormLayout"
+import { TextArea } from "@astryxdesign/core/TextArea"
+import { TextInput } from "@astryxdesign/core/TextInput"
 import { ErrorState } from "@/components/state/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
 import { toDataError, type DataError, type HcpSearchResult, type PreCallBrief } from "@/lib/data/types"
@@ -131,13 +133,15 @@ export function PreCallBriefWorkspace() {
             </h2>
 
             <form className="mt-4 flex gap-2" onSubmit={submitSearch} role="search">
-              <Input
+              <TextInput
                 data-testid="brief-hcp-search"
-                aria-label="Search HCPs"
+                label="Search HCPs"
+                isLabelHidden
+                type="search"
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={setDraft}
                 placeholder="Find an HCP by name, institution or territory"
-                className="h-11 text-base"
+                enterKeyHint="search"
               />
               <Button type="submit" size="lg" variant="outline" aria-label="Search" className="shrink-0"><Search aria-hidden /></Button>
             </form>
@@ -185,17 +189,17 @@ export function PreCallBriefWorkspace() {
               )}
             </div>
 
-            <label htmlFor="new-objective" className="mt-4 block text-sm font-medium">Call objective</label>
-            <textarea
-              id="new-objective"
+            <div className="mt-4"><FormLayout>
+            <TextArea
               data-testid="brief-new-objective"
+              label="Call objective"
               value={objective}
               maxLength={500}
               rows={3}
-              onChange={(e) => setObjective(e.target.value)}
+              onChange={setObjective}
               placeholder="What do you want from the next call?"
-              className="mt-1 w-full resize-y rounded-lg border bg-background px-3 py-2 text-base focus-visible:ring-2 focus-visible:ring-ring md:text-sm"
             />
+            </FormLayout></div>
             <p className="mt-1 text-xs text-muted-foreground tabular-nums">{objective.trim().length}/500</p>
 
             <Button data-testid="brief-generate" size="lg" className="mt-4 w-full" disabled={!canGenerate} onClick={() => activeHcp && generate(activeHcp.hcpId, objective)}>

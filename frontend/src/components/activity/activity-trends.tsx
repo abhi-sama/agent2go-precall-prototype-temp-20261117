@@ -2,12 +2,13 @@
 
 import { Stethoscope, Users } from "lucide-react"
 import * as React from "react"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { KpiCard } from "@/components/landing/kpi-card"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { ActivityMetric } from "@/lib/data/types"
 import { useQuery } from "@/lib/data/use-query"
@@ -162,7 +163,8 @@ function ChartCard({
   children: React.ReactNode
 }) {
   return (
-    <section data-testid={`chart-card-${id}`} aria-labelledby={`chart-${id}-title`} className="rounded-2xl border bg-card p-5 shadow-card">
+    <Card data-testid={`chart-card-${id}`} padding={5} elevation="low">
+      <section aria-labelledby={`chart-${id}-title`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 id={`chart-${id}-title`} className="text-lg font-semibold tracking-tight">
@@ -170,12 +172,11 @@ function ChartCard({
           </h2>
           <p className="text-sm text-muted-foreground">{note}</p>
         </div>
-        <Button variant="outline" onClick={onEvidence} disabled={!ready} data-testid={`evidence-open-${id}`}>
-          View evidence
-        </Button>
+        <Button label="View evidence" variant="secondary" onClick={onEvidence} isDisabled={!ready} data-testid={`evidence-open-${id}`} />
       </div>
-      <div className="mt-4">{ready ? children : <Skeleton aria-busy="true" data-testid="state-loading" className="aspect-[16/8] w-full rounded-xl" />}</div>
+      <div className="mt-4">{ready ? children : <Skeleton aria-busy="true" data-testid="state-loading" height="18rem" radius={3} />}</div>
       <p className="mt-2 text-xs text-muted-foreground">Tap a bar to see the records behind it.</p>
-    </section>
+      </section>
+    </Card>
   )
 }

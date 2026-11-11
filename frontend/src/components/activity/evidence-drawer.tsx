@@ -2,6 +2,8 @@
 
 import { ChevronLeft, ChevronRight, Flag as FlagIcon } from "lucide-react"
 import * as React from "react"
+import { Pagination } from "@astryxdesign/core/Pagination"
+import { Table } from "@astryxdesign/core/Table"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { ErrorState } from "@/components/state/states"
 import { Button } from "@/components/ui/button"
@@ -73,6 +75,8 @@ function EvidenceView({
 }) {
   const adapter = useDataAdapter()
   const { metric, month, channel } = state
+  const [page, setPage] = React.useState(1)
+  const pageSize = 10
   const evidence = useQuery("activityEvidence", `${metric}:${month}:${channel ?? "all"}`, (ctx) =>
     adapter.activityEvidence(ctx, { metric, month, channel, limit: 50 }),
   )
@@ -91,6 +95,10 @@ function EvidenceView({
         label: r.hcpName ?? undefined,
       },
     })
+
+  const totalPages = evidence.status === "success" ? Math.max(1, Math.ceil(evidence.data.records.length / pageSize)) : 1
+  const activePage = Math.min(page, totalPages)
+  const visibleRecords = evidence.status === "success" ? evidence.data.records.slice((activePage - 1) * pageSize, activePage * pageSize) : []
 
   return (
     <>
@@ -191,49 +199,24 @@ function EvidenceView({
                 No records for this month. That means none were recorded in your scope, not that access is missing.
               </p>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border">
-                <table data-testid="evidence-table" className="w-full min-w-[40rem] text-left text-sm">
-                  <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
-                    <tr>
-                      <th scope="col" className="px-3 py-2.5 font-semibold">{metric === "CALLS" ? "Call" : "HCP"}</th>
-                      <th scope="col" className="px-3 py-2.5 font-semibold">{metric === "CALLS" ? "HCP" : "Calls"}</th>
-                      <th scope="col" className="px-3 py-2.5 font-semibold">Interaction date</th>
-                      <th scope="col" className="px-3 py-2.5 font-semibold">Loaded</th>
-                      <th scope="col" className="px-3 py-2.5"><span className="sr-only">Flag</span></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {evidence.data.records.map((r) => (
-                      <tr key={`${r.kind}:${r.recordId}`} data-testid="evidence-row">
-                        <td className="px-3 py-2.5 font-mono text-xs whitespace-nowrap">{r.recordId}</td>
-                        <td className="px-3 py-2.5">
-                          {metric === "CALLS" ? (
-                            <>
-                              <span className="font-mono text-xs whitespace-nowrap">{r.hcpId}</span>
-                              {r.hcpName && <span className="block text-xs text-muted-foreground">{r.hcpName}</span>}
-                            </>
-                          ) : (
-                            <>
-                              {r.callCount}
-                              {r.hcpName && <span className="block text-xs text-muted-foreground">{r.hcpName}</span>}
-                            </>
-                          )}
-                        </td>
-                        <td data-testid="evidence-interaction-date" className="px-3 py-2.5 whitespace-nowrap">
-                          {formatDay(r.interactionDate, true)}
-                        </td>
-                        <td data-testid="evidence-loaded" className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">
-                          {r.loadedAt ? formatInstant(r.loadedAt) : "Unknown"}
-                        </td>
-                        <td className="px-3 py-1.5 text-right">
-                          <Button variant="ghost" size="sm" onClick={() => flagRecord(r)} aria-label={`Flag ${r.recordId}`} data-testid="evidence-flag">
-                            <FlagIcon aria-hidden /> Flag
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div data-testid="evidence-table">
+                <Table<EvidenceRecord & Record<string, unknown>>
+                  data={visibleRecords as Array<EvidenceRecord & Record<string, unknown>>}
+                  idKey={(record) => `${record.kind}:${record.recordId}`}
+                  density="compact"
+                  dividers="rows"
+                  hasHover
+                  rowIndexStart={(activePage - 1) * pageSize + 1}
+                  rowCount={evidence.data.records.length}
+                  columns={[
+                    { key: "recordId", header: metric === "CALLS" ? "Call" : "HCP", renderCell: (record) => <span data-testid="evidence-row" className="font-mono text-xs">{record.recordId}</span> },
+                    { key: "hcpId", header: metric === "CALLS" ? "HCP" : "Calls", renderCell: (record) => metric === "CALLS" ? <span><span className="font-mono text-xs">{record.hcpId}</span>{record.hcpName && <span className="block text-xs text-muted-foreground">{record.hcpName}</span>}</span> : <span>{record.callCount}{record.hcpName && <span className="block text-xs text-muted-foreground">{record.hcpName}</span>}</span> },
+                    { key: "interactionDate", header: "Interaction date", renderCell: (record) => <span data-testid="evidence-interaction-date">{formatDay(record.interactionDate, true)}</span> },
+                    { key: "loadedAt", header: "Loaded", renderCell: (record) => <span data-testid="evidence-loaded" className="text-muted-foreground">{record.loadedAt ? formatInstant(record.loadedAt) : "Unknown"}</span> },
+                    { key: "action", header: "Actions", renderCell: (record) => <Button variant="ghost" size="sm" onClick={() => flagRecord(record)} aria-label={`Flag ${record.recordId}`} data-testid="evidence-flag"><FlagIcon aria-hidden /> Flag</Button> },
+                  ]}
+                />
+                {evidence.data.records.length > pageSize ? <div className="mt-4"><Pagination page={activePage} onChange={setPage} totalItems={evidence.data.records.length} pageSize={pageSize} variant="pages" size="sm" label="Evidence pages" /></div> : null}
               </div>
             )}
           </>

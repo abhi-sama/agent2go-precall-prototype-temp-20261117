@@ -1,33 +1,29 @@
 "use client"
 
 import { Building2, ChevronRight, ClipboardList, Search, UserRound } from "lucide-react"
-import Link from "next/link"
 import * as React from "react"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { EmptyState } from "@astryxdesign/core/EmptyState"
+import { List, ListItem } from "@astryxdesign/core/List"
+import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
+import { TextInput } from "@astryxdesign/core/TextInput"
 import { ErrorState } from "@/components/state/states"
 import { Badge } from "@/components/ui/badge"
-import { Button, buttonVariants } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
 import type { HcpField } from "@/lib/data/types"
-import { cn } from "@/lib/utils"
 import { HcpTimeline } from "./hcp-timeline"
 
 const PROFILE_FIELDS: readonly { key: "specialty" | "discipline" | "type" | "institution" | "credentials" | "territory"; label: string }[] = [
-  { key: "specialty", label: "Specialty" },
-  { key: "discipline", label: "Discipline" },
-  { key: "type", label: "Type" },
-  { key: "institution", label: "Institution" },
-  { key: "credentials", label: "Credentials" },
-  { key: "territory", label: "Territory" },
+  { key: "specialty", label: "Specialty" }, { key: "discipline", label: "Discipline" }, { key: "type", label: "Type" },
+  { key: "institution", label: "Institution" }, { key: "credentials", label: "Credentials" }, { key: "territory", label: "Territory" },
 ]
 
 function Fact({ field }: { field: HcpField }) {
-  if (field.state === "MISSING") {
-    return <span className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground"><Badge variant="outline">Missing</Badge>Not available</span>
-  }
-  // An empty source value is deliberately not styled as a missing one.
-  return <span>{field.value === "" ? "Empty value" : field.value}</span>
+  if (field.state === "MISSING") return <span className="inline-flex max-w-full flex-wrap items-center gap-2"><Badge variant="outline">Missing</Badge><span>Not available</span></span>
+  return <>{field.value === "" ? "Empty value" : field.value}</>
 }
 
 /** Search and profile facts always come from the canonical-ID AppSync endpoints. */
@@ -48,100 +44,36 @@ export function HcpSearch() {
   }
 
   return (
-    <section aria-labelledby="hcp-search-heading" className="overflow-hidden rounded-2xl border bg-card shadow-card">
-      <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.78fr)] lg:gap-8">
-        <div>
-          <div className="flex items-start gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground"><Search className="size-5" aria-hidden /></span>
-            <div>
-              <h2 id="hcp-search-heading" className="text-xl font-semibold tracking-tight">Find an HCP</h2>
-              <p className="mt-1 max-w-xl text-sm text-muted-foreground">Search authorized records by name, institution, or territory.</p>
+    <Card padding={5} elevation="low">
+      <section aria-labelledby="hcp-search-heading" className="space-y-6">
+        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,.8fr)]">
+          <div className="min-w-0">
+            <div className="flex items-start gap-3">
+              <Search className="mt-1 size-5 text-[var(--color-accent)]" aria-hidden />
+              <div><h2 id="hcp-search-heading" className="text-xl font-semibold tracking-tight">Find an HCP</h2><p className="mt-1 max-w-xl text-sm text-muted-foreground">Search authorized records by name, institution, or territory.</p></div>
             </div>
+            <form className="mt-5 flex min-w-0 flex-wrap items-end gap-2" onSubmit={submit} role="search">
+              <div className="min-w-0 flex-1"><TextInput data-testid="hcp-search-input" label="Search HCPs" isLabelHidden type="search" value={draft} onChange={setDraft} placeholder="Name, institution, or territory" startIcon={Search} hasClear enterKeyHint="search" width="100%" /></div>
+              <Button data-testid="hcp-search-submit" label="Search" type="submit" variant="primary" size="lg" />
+            </form>
+            {query && <div className="mt-5" aria-live="polite">
+              {results.status === "loading" ? <Skeleton height={176} radius={3} /> : null}
+              {results.status === "error" ? <ErrorState error={results.error} onRetry={results.refetch} /> : null}
+              {results.status === "success" && results.data.length === 0 ? <EmptyState title="No authorized HCPs match" description="Try a name, institution, or territory from your assigned scope." headingLevel={3} isCompact icon={<Search />} /> : null}
+              {results.status === "success" && results.data.length > 0 ? <List data-testid="hcp-results" hasDividers edge="outset" header={<h3 className="sr-only">Matching HCPs</h3>}>
+                {results.data.map((result) => <ListItem key={result.hcpId} data-testid={`hcp-result-${result.hcpId}`} onClick={() => setSelectedId(result.hcpId)} startContent={<UserRound className="size-5 text-[var(--color-accent)]" aria-hidden />} endContent={<ChevronRight className="size-5 text-muted-foreground" aria-hidden />} label={<span className="font-semibold"><Fact field={result.name} /></span>} description={<span className="block"><span className="flex items-center gap-1"><Building2 className="size-3.5" aria-hidden /><Fact field={result.institution} /></span><span className="block text-xs"><Fact field={result.territory} /></span></span>} />)}
+              </List> : null}
+            </div>}
           </div>
-
-          <form className="mt-5 flex gap-2" onSubmit={submit}>
-            <Input
-              data-testid="hcp-search-input"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Name, institution, or territory"
-              aria-label="Search HCPs"
-              className="h-12 text-base"
-            />
-            <Button data-testid="hcp-search-submit" type="submit" size="lg" className="shrink-0">Search</Button>
-          </form>
-
-          {query && (
-            <div className="mt-5" aria-live="polite">
-              {results.status === "loading" ? (
-                <p className="py-6 text-sm text-muted-foreground">Searching authorized HCPs…</p>
-              ) : results.status === "error" ? (
-                <ErrorState error={results.error} onRetry={results.refetch} />
-              ) : results.data.length === 0 ? (
-                <p data-testid="hcp-search-empty" className="rounded-xl bg-muted/60 px-4 py-5 text-sm text-muted-foreground">No authorized HCPs match that search.</p>
-              ) : (
-                <ul data-testid="hcp-results" className="divide-y overflow-hidden rounded-xl border">
-                  {results.data.map((result) => (
-                    <li key={result.hcpId}>
-                      <button
-                        type="button"
-                        data-testid={`hcp-result-${result.hcpId}`}
-                        onClick={() => setSelectedId(result.hcpId)}
-                        className={cn(
-                          "flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:bg-accent",
-                          selectedId === result.hcpId && "bg-accent",
-                        )}
-                      >
-                        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-fact-soft text-fact"><UserRound className="size-5" aria-hidden /></span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-semibold"><Fact field={result.name} /></span>
-                          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground"><Building2 className="size-3.5 shrink-0" aria-hidden /><span className="truncate"><Fact field={result.institution} /></span></span>
-                          <span className="mt-0.5 block truncate text-xs text-muted-foreground"><Fact field={result.territory} /></span>
-                        </span>
-                        <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+          <div className="min-w-0 border-t pt-6 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
+            {!selectedId ? <EmptyState data-testid="hcp-profile-placeholder" title="Profile details" description="Select an authorized HCP to review the available source facts." headingLevel={3} isCompact icon={<UserRound />} /> : null}
+            {selectedId && profile.status === "loading" ? <Skeleton aria-busy="true" height={260} radius={3} /> : null}
+            {selectedId && profile.status === "error" ? <ErrorState error={profile.error} onRetry={profile.refetch} /> : null}
+            {selectedId && profile.status === "success" ? <div data-testid="hcp-profile" className="space-y-5"><div><p className="text-sm font-medium text-muted-foreground">HCP profile</p><h3 className="mt-1 text-xl font-semibold tracking-tight"><Fact field={profile.data.name} /></h3></div><MetadataList columns="multi" label={{ position: "top" }}>{PROFILE_FIELDS.map(({ key, label }) => <MetadataListItem key={key} label={label}><Fact field={profile.data[key]} /></MetadataListItem>)}</MetadataList><Button data-testid="hcp-prepare-brief" href={`/msl/briefs?hcp=${encodeURIComponent(selectedId)}`} label="Prepare a pre-call brief" icon={<ClipboardList />} variant="primary" width="100%" /></div> : null}
+          </div>
         </div>
-
-        <div className="border-t pt-5 lg:border-t-0 lg:border-l lg:pl-8 lg:pt-0">
-          {!selectedId ? (
-            <div data-testid="hcp-profile-placeholder" className="flex min-h-48 flex-col justify-center rounded-xl bg-muted/45 p-5">
-              <p className="font-semibold">Profile details</p>
-              <p className="mt-1 text-sm text-muted-foreground">Select an authorized HCP to review the available source facts.</p>
-            </div>
-          ) : profile.status === "loading" ? (
-            <div aria-busy="true" className="min-h-48 animate-pulse rounded-xl bg-muted/55" />
-          ) : profile.status === "error" ? (
-            <ErrorState error={profile.error} onRetry={profile.refetch} />
-          ) : (
-            <div data-testid="hcp-profile" className="rounded-xl bg-fact-soft p-5">
-              <p className="text-sm font-medium text-fact">HCP profile</p>
-              <h3 className="mt-1 text-xl font-semibold tracking-tight"><Fact field={profile.data.name} /></h3>
-              <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
-                {PROFILE_FIELDS.map(({ key, label }) => (
-                  <div key={key} className="min-w-0">
-                    <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</dt>
-                    <dd className="mt-1 break-words font-medium"><Fact field={profile.data[key]} /></dd>
-                  </div>
-                ))}
-              </dl>
-              <Link
-                data-testid="hcp-prepare-brief"
-                href={`/msl/briefs?hcp=${encodeURIComponent(selectedId)}`}
-                className={cn(buttonVariants({ size: "lg" }), "mt-5 w-full")}
-              >
-                <ClipboardList aria-hidden /> Prepare a pre-call brief
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
-      {selectedId && profile.status === "success" ? <div className="px-5 pb-5 sm:px-6 sm:pb-6"><HcpTimeline hcpId={selectedId} /></div> : null}
-    </section>
+        {selectedId && profile.status === "success" ? <HcpTimeline hcpId={selectedId} /> : null}
+      </section>
+    </Card>
   )
 }
