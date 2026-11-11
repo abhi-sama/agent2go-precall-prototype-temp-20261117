@@ -1,7 +1,16 @@
 "use client"
 
-import { CalendarCheck, EyeOff, Layers, MessagesSquare, ShieldCheck, Stethoscope, Users } from "lucide-react"
+import { CalendarCheck, Layers, MessagesSquare, Stethoscope, Users } from "lucide-react"
 import * as React from "react"
+import { Banner } from "@astryxdesign/core/Banner"
+import { Card } from "@astryxdesign/core/Card"
+import { Grid } from "@astryxdesign/core/Grid"
+import { Heading } from "@astryxdesign/core/Heading"
+import { Section as AstryxSection } from "@astryxdesign/core/Section"
+import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl"
+import { Selector } from "@astryxdesign/core/Selector"
+import { Stack } from "@astryxdesign/core/Stack"
+import { Text } from "@astryxdesign/core/Text"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -60,25 +69,22 @@ export function ExecutiveOverview() {
 
   return (
     <div data-testid="executive-overview" aria-busy={busy} className={cn("flex flex-col gap-8 transition-opacity", busy && "opacity-70")}>
-      <div className="flex flex-wrap items-center gap-2">
-        <div role="group" aria-label="Period" className="flex gap-1 rounded-xl border bg-muted/40 p-1">
-          {PERIODS.map((p) => (
-            <button key={p.id} type="button" data-testid={`period-${p.id}`} aria-pressed={period === p.id} onClick={() => setPeriod(p.id)} className={cn("min-h-11 rounded-lg px-3.5 text-sm font-medium", period === p.id ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          Rank by
-          <select data-testid="rank-by" value={rankBy} onChange={(e) => setRankBy(e.target.value as ExecutiveRankBy)} className="h-(--control-h) rounded-lg border bg-background px-3 text-sm text-foreground">
-            {EXECUTIVE_RANK_BY.map((r) => (
-              <option key={r} value={r}>{RANK_LABEL[r]}</option>
-            ))}
-          </select>
-        </label>
+      <Stack direction="horizontal" gap={2} vAlign="center" wrap="wrap">
+        <SegmentedControl label="Period" value={period} onChange={(value) => setPeriod(value as (typeof PERIODS)[number]["id"])} size="lg">
+          {PERIODS.map((p) => <SegmentedControlItem key={p.id} value={p.id} label={p.label} data-testid={`period-${p.id}`} />)}
+        </SegmentedControl>
+        <Selector
+          data-testid="rank-by"
+          label="Rank by"
+          value={rankBy}
+          onChange={(value) => setRankBy(value as ExecutiveRankBy)}
+          options={EXECUTIVE_RANK_BY.map((rank) => ({ value: rank, label: RANK_LABEL[rank] }))}
+          variant="secondary"
+          presentation="adaptive"
+        />
         <DataThroughBadge dataThrough={data.dataThrough} className="ml-auto" />
-        <span data-testid="exec-range" className="text-sm text-muted-foreground">{formatDay(data.from, true)} to {formatDay(data.to, true)}</span>
-      </div>
+        <Text data-testid="exec-range" type="supporting">{formatDay(data.from, true)} to {formatDay(data.to, true)}</Text>
+      </Stack>
 
       <AccessBanner data={data} />
 
@@ -86,12 +92,12 @@ export function ExecutiveOverview() {
         <EmptyState title="No activity in this period">No calls or responses were recorded in your authorized regions between these dates. Try a longer period.</EmptyState>
       ) : (
         <>
-          <div data-testid="exec-kpis" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Grid data-testid="exec-kpis" columns={{ minWidth: 220, max: 4 }} gap={4}>
             <Kpi id="calls" index={0} label="Distinct calls" icon={Stethoscope} count={data.kpis.calls} min={min} note="Each call counted once, however many products it covers." />
             <Kpi id="hcps" index={1} label="Engaged HCPs" icon={Users} count={data.kpis.engagedHcps} min={min} note={data.engagement.callsPerEngagedHcp !== null ? `${data.engagement.callsPerEngagedHcp.toFixed(2)} calls per engaged HCP` : "HCPs reached at least once, counted once."} />
             <Kpi id="responses" index={2} label="Responses" icon={MessagesSquare} count={data.kpis.responses} min={min} note="Insight responses recorded in the period." />
             <CompletenessCard value={data.kpis.reportingCompleteness} />
-          </div>
+          </Grid>
 
           <Section id="trends" title="Monthly trends" note="Distinct calls, responses and engaged HCPs per month across your authorized regions.">
             <Freshness data={data} />
@@ -99,10 +105,10 @@ export function ExecutiveOverview() {
           </Section>
 
           <Section id="regions" title="Regional comparison" note={`Ranked by ${RANK_LABEL[data.rankBy].toLowerCase()}. One period and one set of definitions for every region and territory.`}>
-            <div className="grid gap-4 xl:grid-cols-2">
+            <Grid columns={{ minWidth: 360, max: 2 }} gap={4}>
               <RankedUnits id="regions" title={`Regions (${data.regions.length})`} units={data.regions} rankBy={data.rankBy} minCell={min} onDrill={data.drilldownAllowed ? (u) => setDrill(target(u)) : undefined} />
               <RankedUnits id="territories" title={`Territories (${data.territories.length})`} units={data.territories} rankBy={data.rankBy} minCell={min} onDrill={data.drilldownAllowed ? (u) => setDrill(target(u)) : undefined} />
-            </div>
+            </Grid>
           </Section>
 
           <Section id="engagement" title="Engagement patterns" note="How many HCPs were reached how often, and through which channel. Counts of HCPs only, never who they are.">
@@ -147,20 +153,14 @@ const target = (u: ExecutiveUnit): DrillTarget => ({ scopeId: u.id, label: u.nam
 function AccessBanner({ data }: { data: Overview }) {
   if (data.accessLevel === "RECORD_DRILLDOWN") {
     return (
-      <p data-testid="access-banner" data-level="RECORD_DRILLDOWN" className="flex items-start gap-2 rounded-2xl border border-fact/30 bg-fact-soft px-4 py-3 text-sm">
-        <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
-        <span>You hold record-level permission, so small groups are not withheld and each region or territory opens its supporting records.</span>
-      </p>
+      <Banner data-testid="access-banner" data-level="RECORD_DRILLDOWN" status="success" title="Record-level access" description="You hold record-level permission, so small groups are not withheld and each region or territory opens its supporting records." />
     )
   }
   return (
-    <p data-testid="access-banner" data-level="AGGREGATE_ONLY" className="flex items-start gap-2 rounded-2xl border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-      <EyeOff className="mt-0.5 size-4 shrink-0" aria-hidden />
-      <span data-testid="disclosure-text">
+    <Banner data-testid="access-banner" data-level="AGGREGATE_ONLY" status="info" title="Aggregate-only access" description={<span data-testid="disclosure-text">
         Aggregate-only view for {data.scopeLabel}. {data.disclosure.text} Individual records are not available to your role.
         {data.disclosure.suppressedCells > 0 && <strong data-testid="suppressed-cells" className="ml-1 text-foreground">{data.disclosure.suppressedCells} values withheld in this view.</strong>}
-      </span>
-    </p>
+      </span>} />
   )
 }
 
@@ -181,9 +181,9 @@ function Engagement({ data }: { data: Overview }) {
   const maxBand = Math.max(1, ...engagement.depth.map((d) => d.hcps.value ?? 0))
   const maxChannel = Math.max(1, ...engagement.channels.map((c) => c.calls.value ?? 0))
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <article data-testid="depth" className="rounded-2xl border bg-card p-5">
-        <h3 className="text-sm font-semibold text-muted-foreground">HCPs by number of calls received</h3>
+    <Grid columns={{ minWidth: 320, max: 2 }} gap={4}>
+      <Card data-testid="depth" padding={4}>
+        <Heading level={3} color="secondary">HCPs by number of calls received</Heading>
         <ul className="mt-3 flex flex-col gap-2">
           {engagement.depth.map((d) => (
             <li key={d.band} data-testid="depth-row" className="grid grid-cols-[5rem_minmax(0,1fr)_auto] items-center gap-3 text-sm">
@@ -193,9 +193,9 @@ function Engagement({ data }: { data: Overview }) {
             </li>
           ))}
         </ul>
-      </article>
-      <article data-testid="channels" className="rounded-2xl border bg-card p-5">
-        <h3 className="text-sm font-semibold text-muted-foreground">Calls by channel</h3>
+      </Card>
+      <Card data-testid="channels" padding={4}>
+        <Heading level={3} color="secondary">Calls by channel</Heading>
         <ul className="mt-3 flex flex-col gap-2">
           {engagement.channels.map((c) => (
             <li key={c.channel} className="grid grid-cols-[5rem_minmax(0,1fr)_auto] items-center gap-3 text-sm">
@@ -205,62 +205,62 @@ function Engagement({ data }: { data: Overview }) {
             </li>
           ))}
         </ul>
-      </article>
+      </Card>
       {engagement.coverage.status === "AVAILABLE" ? (
-        <article data-testid="coverage-available" className="rounded-2xl border bg-card p-5 md:col-span-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">Coverage of the target population</h3>
-          <p className="mt-2 text-4xl font-semibold tabular-nums" data-testid="coverage-value">{engagement.coverage.percentage}%</p>
-          <p className="mt-2 text-sm text-muted-foreground">Engaged target HCPs over the approved target population, for {engagement.coverage.territoriesWithTargets} of {engagement.coverage.territoriesInScope} territories.</p>
-        </article>
+        <Card data-testid="coverage-available" padding={4}>
+          <Heading level={3} color="secondary">Coverage of the target population</Heading>
+          <Text data-testid="coverage-value" type="display-2" weight="semibold" hasTabularNumbers display="block" className="mt-2">{engagement.coverage.percentage}%</Text>
+          <Text as="p" type="supporting" display="block" className="mt-2">Engaged target HCPs over the approved target population, for {engagement.coverage.territoriesWithTargets} of {engagement.coverage.territoriesInScope} territories.</Text>
+        </Card>
       ) : (
-        <article data-testid="coverage-withheld" className="rounded-2xl border border-dashed bg-muted/40 p-5 md:col-span-2">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground"><Layers className="size-4" aria-hidden /> Coverage is not shown</h3>
-          <p className="mt-2 text-sm">
+        <Card data-testid="coverage-withheld" padding={4} variant="muted">
+          <Heading level={3} color="secondary"><Layers className="mr-2 inline size-4" aria-hidden /> Coverage is not shown</Heading>
+          <Text as="p" display="block" className="mt-2">
             {engagement.coverage.status === "SUPPRESSED" ? "The target population is too small to show without identifying individuals." : "There is no approved target population for this scope, so a coverage percentage cannot be calculated. Engaged HCPs are not a substitute for a target list."}
-          </p>
-        </article>
+          </Text>
+        </Card>
       )}
-    </div>
+    </Grid>
   )
 }
 
 function Kpi({ id, label, icon: Icon, count, min, note, index = 0 }: { id: string; label: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; count: Overview["kpis"]["calls"]; min: number; note: string; index?: number }) {
   const enter = useEnter(`exec-kpi-${id}`, index)
   return (
-    <article data-testid={`exec-kpi-${id}`} style={enter.style} className={cn("relative overflow-hidden rounded-2xl border bg-card p-5 shadow-card", enter.className)}>
+    <Card data-testid={`exec-kpi-${id}`} padding={4} elevation="low" style={enter.style} className={cn("relative overflow-hidden", enter.className)}>
       <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-primary" />
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-muted-foreground">{label}</h3>
+        <Heading level={3} color="secondary">{label}</Heading>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-accent-text"><Icon className="size-5" aria-hidden /></span>
       </div>
-      <p className="mt-3 text-5xl font-semibold tracking-tight"><CountValue testId={`exec-kpi-${id}-value`} count={count} minCell={min} countUp={`exec-${id}`} /></p>
-      <p className="mt-3 text-sm text-muted-foreground">{note}</p>
-    </article>
+      <Text type="display-1" weight="semibold" hasTabularNumbers display="block" className="mt-3"><CountValue testId={`exec-kpi-${id}-value`} count={count} minCell={min} countUp={`exec-${id}`} /></Text>
+      <Text as="p" type="supporting" display="block" className="mt-3">{note}</Text>
+    </Card>
   )
 }
 
 function CompletenessCard({ value }: { value: number | null }) {
   const enter = useEnter("exec-kpi-completeness", 3)
   return (
-    <article data-testid="exec-kpi-completeness" style={enter.style} className={cn("relative overflow-hidden rounded-2xl border bg-card p-5 shadow-card", enter.className)}>
+    <Card data-testid="exec-kpi-completeness" padding={4} elevation="low" style={enter.style} className={cn("relative overflow-hidden", enter.className)}>
       <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-warning" />
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-muted-foreground">Reporting completeness</h3>
+        <Heading level={3} color="secondary">Reporting completeness</Heading>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning/15"><CalendarCheck className="size-5" aria-hidden /></span>
       </div>
-      <p data-testid="exec-kpi-completeness-value" className="mt-3 text-5xl font-semibold tracking-tight tabular-nums">{percent(value)}</p>
-      <p className="mt-3 text-sm text-muted-foreground">Territory-months with a recorded call. It describes reporting, not performance.</p>
-    </article>
+      <Text data-testid="exec-kpi-completeness-value" type="display-1" weight="semibold" hasTabularNumbers display="block" className="mt-3">{percent(value)}</Text>
+      <Text as="p" type="supporting" display="block" className="mt-3">Territory-months with a recorded call. It describes reporting, not performance.</Text>
+    </Card>
   )
 }
 
 function Section({ id, title, note, children }: { id: string; title: string; note: string; children: React.ReactNode }) {
   return (
-    <section data-testid={`section-${id}`} aria-labelledby={`section-${id}-title`} className="min-w-0">
-      <h2 id={`section-${id}-title`} className="text-xl font-semibold tracking-tight">{title}</h2>
-      <p className="mb-3 mt-0.5 max-w-3xl text-sm text-muted-foreground">{note}</p>
+    <AstryxSection data-testid={`section-${id}`} aria-labelledby={`section-${id}-title`} variant="transparent" padding={0}>
+      <Heading id={`section-${id}-title`} level={2}>{title}</Heading>
+      <Text as="p" type="supporting" display="block" className="mb-3 mt-1 max-w-3xl">{note}</Text>
       {children}
-    </section>
+    </AstryxSection>
   )
 }
 

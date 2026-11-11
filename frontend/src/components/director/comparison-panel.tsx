@@ -2,6 +2,8 @@
 
 import { Info, Scale } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts"
+import { Card } from "@astryxdesign/core/Card"
+import { Table, proportional } from "@astryxdesign/core/Table"
 import { ErrorState } from "@/components/state/states"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
@@ -14,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { isUnequal, num, pct } from "./format"
 
 type Metric = { id: string; title: string; note: string; value: (t: TerritoryRow) => number | null; format: (n: number) => string }
+type ComparisonTableRow = TerritoryRow & Record<string, unknown>
 
 const METRICS: Metric[] = [
   { id: "calls", title: "Distinct calls", note: "Each call once.", value: (t) => t.distinctCalls, format: num },
@@ -80,7 +83,7 @@ function ComparisonBody({ data }: { data: TerritoryComparison }) {
         ))}
       </div>
 
-      <div data-testid="compare-coverage" className="rounded-xl border p-4 text-sm">
+      <Card data-testid="compare-coverage" padding={3}>
         <h4 className="font-semibold">Coverage</h4>
         {withCoverage ? (
           <ul className="mt-2 grid gap-1 sm:grid-cols-2">
@@ -97,35 +100,24 @@ function ComparisonBody({ data }: { data: TerritoryComparison }) {
               : "Coverage is not shown: no approved target population exists for these territories."}
           </p>
         )}
-      </div>
+      </Card>
 
-      <div className="overflow-x-auto rounded-xl border">
-        <table data-testid="compare-table" className="w-full table-fixed text-sm">
-          <caption className="sr-only">Territory comparison values</caption>
-          <thead>
-            <tr className="border-b text-left text-xs text-muted-foreground">
-              <th scope="col" className="w-[26%] px-3 py-2 font-medium">Territory</th>
-              <th scope="col" className="px-2 py-2 text-right font-medium">Calls</th>
-              <th scope="col" className="px-2 py-2 text-right font-medium">HCPs</th>
-              <th scope="col" className="px-2 py-2 text-right font-medium">Members</th>
-              <th scope="col" className="px-2 py-2 text-right font-medium">Rostered</th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">Complete</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.territories.map((t) => (
-              <tr key={t.territoryId} data-testid="compare-row" data-territory={t.territoryId} className="border-b last:border-b-0">
-                <th scope="row" className="truncate px-3 py-2 text-left font-medium">{t.territoryId} · {t.name}</th>
-                <td className="px-2 py-2 text-right tabular-nums">{num(t.distinctCalls)}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{num(t.distinctEngagedHcps)}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{t.reportingMembers}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{t.rosteredMembers}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{pct(t.reportingCompleteness)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Table<ComparisonTableRow>
+        data-testid="compare-table"
+        data={data.territories as ComparisonTableRow[]}
+        idKey="territoryId"
+        density="balanced"
+        dividers="rows"
+        textOverflow="truncate"
+        columns={[
+          { key: "territoryId", header: "Territory", width: proportional(2, { minWidth: 200 }), renderCell: (row) => <span data-testid="compare-row" data-territory={row.territoryId}>{row.territoryId} · {row.name}</span> },
+          { key: "distinctCalls", header: "Calls", align: "end", renderCell: (row) => num(row.distinctCalls) },
+          { key: "distinctEngagedHcps", header: "HCPs", align: "end", renderCell: (row) => num(row.distinctEngagedHcps) },
+          { key: "reportingMembers", header: "Members", align: "end" },
+          { key: "rosteredMembers", header: "Rostered", align: "end" },
+          { key: "reportingCompleteness", header: "Complete", align: "end", renderCell: (row) => pct(row.reportingCompleteness) },
+        ]}
+      />
 
       {data.disclosures.filter((d) => !isUnequal(d)).length > 0 && (
         <ul className="list-disc pl-5 text-xs text-muted-foreground">

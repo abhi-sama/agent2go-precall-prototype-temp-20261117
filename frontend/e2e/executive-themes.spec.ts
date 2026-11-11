@@ -33,7 +33,7 @@ test.describe("Executive themes", () => {
     await expect(first.getByTestId("derived-badge")).toBeVisible()
     for (const facet of ["MOLECULE", "DISEASE_AREA", "STUDY"]) {
       await page.getByTestId(`facet-${facet}`).click()
-      await expect(page.getByTestId("facet-" + facet)).toHaveAttribute("aria-pressed", "true")
+      await expect(page.getByTestId("facet-" + facet)).toBeChecked()
       await expect(page.getByTestId("theme-group")).toHaveCount(4)
       await expect(page.getByTestId("theme-cards")).toHaveAttribute("data-facet", facet)
       await expect(page.getByTestId("topic-matrix")).toHaveAttribute("data-facet", facet)

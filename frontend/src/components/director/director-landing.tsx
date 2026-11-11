@@ -2,9 +2,8 @@
 
 import { Lightbulb } from "lucide-react"
 import Link from "next/link"
+import { Button } from "@astryxdesign/core/Button"
 import { LandingSection } from "@/components/landing/landing-section"
-import { buttonVariants } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
 import { DirectorOverview } from "./director-overview"
 
 /** The Director landing: the shared map, KPIs and filters, with the team overview in between. */
@@ -16,9 +15,15 @@ export function DirectorLanding() {
     >
       {({ range }) => (
         <>
-          <Link href="/director/insights" data-testid="insights-link" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-fit")}>
-            <Lightbulb aria-hidden /> Open Director insights: themes, emerging topics, exceptions
-          </Link>
+          <Button
+            as={Link}
+            href="/director/insights"
+            data-testid="insights-link"
+            label="Open Director insights: themes, emerging topics, exceptions"
+            icon={<Lightbulb aria-hidden />}
+            size="lg"
+            variant="secondary"
+          />
           <DirectorOverview range={range} />
         </>
       )}

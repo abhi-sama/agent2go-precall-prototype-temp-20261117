@@ -1,14 +1,19 @@
 "use client"
 
-import { ArrowLeft, EyeOff, ShieldCheck } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
+import { Banner } from "@astryxdesign/core/Banner"
+import { Button } from "@astryxdesign/core/Button"
+import { Heading } from "@astryxdesign/core/Heading"
+import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl"
+import { Selector } from "@astryxdesign/core/Selector"
+import { Text } from "@astryxdesign/core/Text"
 import { CitationHost, InsightSection, PanelLoading, PanelMeta } from "@/components/director/insights/shared"
 import { FilterBar } from "@/components/filters/filter-bar"
 import { useSharedFilters } from "@/components/filters/filter-context"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { EmptyState, ErrorState } from "@/components/state/states"
-import { buttonVariants } from "@/components/ui/button"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { EXECUTIVE_THEME_FACETS, FACET_LABEL, type ExecutiveThemeFacet, type ExecutiveThemes } from "@/lib/data/executive-themes"
 import type { DateRange } from "@/lib/data/types"
@@ -26,31 +31,21 @@ const DEFAULT_PRESET = "30d" as const
 function AccessBanner({ themes }: { themes: ExecutiveThemes }) {
   if (themes.accessLevel === "RECORD_DRILLDOWN") {
     return (
-      <p data-testid="access-banner" data-level="RECORD_DRILLDOWN" className="flex items-start gap-2 rounded-2xl border border-fact/30 bg-fact-soft px-4 py-3 text-sm">
-        <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
-        <span>You hold record-level permission, so nothing is withheld and cards cite the responses themselves.</span>
-      </p>
+      <Banner data-testid="access-banner" data-level="RECORD_DRILLDOWN" status="success" title="Record-level access" description="You hold record-level permission, so nothing is withheld and cards cite the responses themselves." />
     )
   }
   return (
-    <p data-testid="access-banner" data-level="AGGREGATE_ONLY" className="flex items-start gap-2 rounded-2xl border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-      <EyeOff className="mt-0.5 size-4 shrink-0" aria-hidden />
-      <span data-testid="disclosure-text">
+    <Banner data-testid="access-banner" data-level="AGGREGATE_ONLY" status="info" title="Aggregate-only access" description={<span data-testid="disclosure-text">
         Aggregate-only view for {themes.scopeLabel}. {themes.disclosure.text} Cards cite the set of responses behind each figure, not individual responses.
-      </span>
-    </p>
+      </span>} />
   )
 }
 
 function FacetTabs({ facet, onChange }: { facet: ExecutiveThemeFacet; onChange: (facet: ExecutiveThemeFacet) => void }) {
   return (
-    <div role="group" aria-label="Group themes by" data-testid="facet-tabs" className="flex flex-wrap gap-1 rounded-xl border bg-muted/40 p-1">
-      {EXECUTIVE_THEME_FACETS.map((f) => (
-        <button key={f} type="button" data-testid={`facet-${f}`} aria-pressed={facet === f} onClick={() => onChange(f)} className={cn("min-h-11 rounded-lg px-3.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none", facet === f ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-          {FACET_LABEL[f]}
-        </button>
-      ))}
-    </div>
+    <SegmentedControl data-testid="facet-tabs" label="Group themes by" value={facet} onChange={(value) => onChange(value as ExecutiveThemeFacet)} layout="fill">
+      {EXECUTIVE_THEME_FACETS.map((f) => <SegmentedControlItem key={f} value={f} label={FACET_LABEL[f]} data-testid={`facet-${f}`} />)}
+    </SegmentedControl>
   )
 }
 
@@ -87,9 +82,9 @@ export function ExecutiveThemesWorkspace() {
       <div data-testid="executive-themes" className="flex flex-col gap-10">
         <header className="flex flex-col gap-3">
           <div>
-            <Link href="/executive" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-ml-2 mb-1")}><ArrowLeft aria-hidden /> Overview</Link>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Themes &amp; summaries</h1>
-            <p className="mt-1 max-w-2xl text-muted-foreground">What recorded responses mention across your regions, which topics are rising in more than one, and a source-linked summary you can save and export.</p>
+            <Button as={Link} href="/executive" label="Overview" icon={<ArrowLeft aria-hidden />} variant="ghost" size="sm" />
+            <Heading level={1} type="display-2" textWrap="balance">Themes &amp; summaries</Heading>
+            <Text as="p" type="supporting" display="block" className="mt-1 max-w-2xl">What recorded responses mention across your regions, which topics are rising in more than one, and a source-linked summary you can save and export.</Text>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <ScopeLabel label={me.status === "success" ? me.data.scopeLabel : undefined} loading={me.status !== "success"} />
@@ -126,12 +121,7 @@ export function ExecutiveThemesWorkspace() {
           note="Which topics moved, and where. A topic rising in two or more regions at once is marked. Trends are judged on share of free text against the approved thresholds, and describe what was recorded, never why."
           meta={
             facet !== "PORTFOLIO" && values.length > 0 ? (
-              <label className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                {FACET_LABEL[facet]}
-                <select data-testid="matrix-facet-value" value={facetValue ?? ""} onChange={(e) => setPicked(e.target.value)} className="h-(--control-h) rounded-lg border bg-background px-3 text-sm capitalize text-foreground">
-                  {values.map((v) => <option key={v} value={v}>{v}</option>)}
-                </select>
-              </label>
+              <Selector data-testid="matrix-facet-value" label={FACET_LABEL[facet]} value={facetValue ?? ""} onChange={setPicked} options={values.map((value) => ({ value, label: value }))} presentation="adaptive" />
             ) : undefined
           }
         >

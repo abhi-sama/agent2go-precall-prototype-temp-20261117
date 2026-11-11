@@ -1,6 +1,10 @@
 "use client"
 
 import * as React from "react"
+import { Card } from "@astryxdesign/core/Card"
+import { Grid } from "@astryxdesign/core/Grid"
+import { Heading } from "@astryxdesign/core/Heading"
+import { Text } from "@astryxdesign/core/Text"
 import { DerivedBadge, num } from "@/components/director/insights/shared"
 import { useCountUp } from "@/hooks/use-count-up"
 import type { ExecutiveThemeCard, ExecutiveThemeGroup, ExecutiveThemes } from "@/lib/data/executive-themes"
@@ -26,21 +30,23 @@ function AnimatedNumber({ value, className, testId }: { value: number; className
 
 function ThemeCard({ card, minCell, index }: { card: ExecutiveThemeCard; minCell: number; index: number }) {
   return (
-    <article
+    <Card
       data-testid="theme-card"
       data-topic={card.topic}
       data-trend={card.trend}
       style={{ animationDelay: `${Math.min(index, 5) * 45}ms` }}
-      className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 shadow-card animate-in fade-in-0 slide-in-from-bottom-1 duration-200 fill-mode-backwards motion-reduce:animate-none sm:p-5"
+      padding={4}
+      elevation="low"
+      className="flex min-w-0 flex-col gap-3 animate-in fade-in-0 slide-in-from-bottom-1 duration-200 fill-mode-backwards motion-reduce:animate-none"
     >
       <header className="flex flex-wrap items-start justify-between gap-2">
-        <h4 className="min-w-0 break-words text-base font-semibold">{card.topic}</h4>
+        <Heading level={4} className="min-w-0">{card.topic}</Heading>
         <TrendIndicator trend={card.trend} />
       </header>
-      <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><DerivedBadge />Grouped from free text by keyword</p>
+      <Text as="p" type="supporting" display="block"><DerivedBadge />Grouped from free text by keyword</Text>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <p className="text-4xl font-semibold tracking-tight"><Figure count={card.responses} minCell={minCell} testId="card-responses" /></p>
-        <p className="text-sm text-muted-foreground">free-text responses{card.share !== null && <span data-testid="card-share" className="ml-1 tabular-nums">· {pct(card.share)} of the group</span>}</p>
+        <Text as="p" type="display-2" weight="semibold" hasTabularNumbers><Figure count={card.responses} minCell={minCell} testId="card-responses" /></Text>
+        <Text as="p" type="supporting">free-text responses{card.share !== null && <span data-testid="card-share" className="ml-1 tabular-nums">· {pct(card.share)} of the group</span>}</Text>
       </div>
       <dl className="grid grid-cols-3 gap-3 text-sm">
         <div><dt className="text-xs text-muted-foreground">Distinct HCPs</dt><dd className="font-semibold"><CountValue count={card.distinctHcps} minCell={minCell} testId="card-hcps" /></dd></div>
@@ -48,7 +54,7 @@ function ThemeCard({ card, minCell, index }: { card: ExecutiveThemeCard; minCell
         <div><dt className="text-xs text-muted-foreground">Earlier period</dt><dd className="font-semibold"><CountValue count={card.priorResponses} minCell={minCell} /></dd></div>
       </dl>
       <div className="mt-auto"><CitationList citations={card.citations} label={`Sources for ${card.topic}`} /></div>
-    </article>
+    </Card>
   )
 }
 
@@ -57,18 +63,18 @@ function Group({ group, minCell, showHeading }: { group: ExecutiveThemeGroup; mi
     <section data-testid="theme-group" data-facet-value={group.facetValue} aria-label={group.facetValue} className="flex min-w-0 flex-col gap-3">
       {showHeading && (
         <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h3 className="text-lg font-semibold capitalize">{group.facetValue}</h3>
-          <p className="text-sm text-muted-foreground">
+          <Heading level={3}>{group.facetValue}</Heading>
+          <Text as="p" type="supporting">
             <Figure count={group.freeTextResponses} minCell={minCell} className="font-semibold text-foreground" /> free-text responses in {group.regionCount} region{group.regionCount === 1 ? "" : "s"}
-          </p>
+          </Text>
         </header>
       )}
       {group.cards.length === 0 ? (
         <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No free-text responses in this period for {group.facetValue}.</p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <Grid columns={{ minWidth: 280, max: 2 }} gap={4}>
           {group.cards.map((card, i) => <ThemeCard key={card.cardId} card={card} minCell={minCell} index={i} />)}
-        </div>
+        </Grid>
       )}
     </section>
   )

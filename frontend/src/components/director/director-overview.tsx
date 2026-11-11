@@ -2,6 +2,12 @@
 
 import { BookOpen, CalendarCheck, Layers, MapPinned, Users } from "lucide-react"
 import * as React from "react"
+import { Card } from "@astryxdesign/core/Card"
+import { Grid } from "@astryxdesign/core/Grid"
+import { Heading } from "@astryxdesign/core/Heading"
+import { Section as AstryxSection } from "@astryxdesign/core/Section"
+import { Stack } from "@astryxdesign/core/Stack"
+import { Text } from "@astryxdesign/core/Text"
 import { KpiCard } from "@/components/landing/kpi-card"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -37,12 +43,12 @@ export function DirectorOverview({ range }: { range: DateRange }) {
   if (query.status === "loading") {
     return (
       <div data-testid="director-loading" aria-busy="true" className="flex flex-col gap-4">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Grid columns={{ minWidth: 220, max: 4 }} gap={4}>
           <KpiSkeleton />
           <KpiSkeleton />
           <KpiSkeleton />
           <KpiSkeleton />
-        </div>
+        </Grid>
         <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
     )
@@ -60,7 +66,7 @@ export function DirectorOverview({ range }: { range: DateRange }) {
 
   return (
     <div data-testid="director-overview" className="flex flex-col gap-8">
-      <div data-testid="overview-kpis" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <Grid data-testid="overview-kpis" columns={{ minWidth: 220, max: 4 }} gap={4}>
         <KpiCard
           id="members"
           index={0}
@@ -96,7 +102,7 @@ export function DirectorOverview({ range }: { range: DateRange }) {
           icon={Layers}
           tone="orange"
         />
-      </div>
+      </Grid>
 
       <Section id="territories" title="Territories" note="Only territories in your approved scope. Select two to six to compare them.">
         <TerritoryTable rows={data.territories} selected={chosen} onToggle={toggle} max={MAX_COMPARE} />
@@ -146,59 +152,57 @@ export function DirectorOverview({ range }: { range: DateRange }) {
 function Engagement({ overview }: { overview: Overview }) {
   const { coverage, kpis } = overview
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <article data-testid="engaged-hcps" className="rounded-2xl border bg-card p-5">
-        <h3 className="text-sm font-semibold text-muted-foreground">Distinct engaged HCPs</h3>
-        <p className="mt-2 text-4xl font-semibold tabular-nums" data-value={kpis.distinctEngagedHcps}>{num(kpis.distinctEngagedHcps)}</p>
-        <p className="mt-2 text-sm text-muted-foreground">Each HCP counted once across the whole scope, even when several territories reached them.</p>
-      </article>
+    <Grid columns={{ minWidth: 320, max: 2 }} gap={4}>
+      <Card data-testid="engaged-hcps" padding={4}>
+        <Heading level={3} color="secondary">Distinct engaged HCPs</Heading>
+        <Text type="display-2" weight="semibold" hasTabularNumbers display="block" className="mt-2" data-value={kpis.distinctEngagedHcps}>{num(kpis.distinctEngagedHcps)}</Text>
+        <Text as="p" type="supporting" display="block" className="mt-2">Each HCP counted once across the whole scope, even when several territories reached them.</Text>
+      </Card>
       {coverage.status === "AVAILABLE" ? (
-        <article data-testid="coverage-available" className="rounded-2xl border bg-card p-5">
-          <h3 className="text-sm font-semibold text-muted-foreground">Coverage of the target population</h3>
-          <p className="mt-2 text-4xl font-semibold tabular-nums" data-testid="coverage-value">{coverage.percentage}%</p>
-          <p className="mt-2 text-sm text-muted-foreground">
+        <Card data-testid="coverage-available" padding={4}>
+          <Heading level={3} color="secondary">Coverage of the target population</Heading>
+          <Text data-testid="coverage-value" type="display-2" weight="semibold" hasTabularNumbers display="block" className="mt-2">{coverage.percentage}%</Text>
+          <Text as="p" type="supporting" display="block" className="mt-2">
             {num(coverage.engagedTargetHcps ?? 0)} of {num(coverage.targetHcps ?? 0)} approved target HCPs engaged in this period, as of {coverage.asOf}.
             {coverage.territoriesWithTargets < coverage.territoriesInScope &&
               ` Covers ${coverage.territoriesWithTargets} of ${coverage.territoriesInScope} territories; the rest have no approved target population.`}
-          </p>
-        </article>
+          </Text>
+        </Card>
       ) : (
-        <article data-testid="coverage-withheld" className="rounded-2xl border border-dashed bg-muted/40 p-5">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-            <BookOpen className="size-4" aria-hidden /> Coverage is not shown
-          </h3>
-          <p className="mt-2 text-sm">
+        <Card data-testid="coverage-withheld" padding={4} variant="muted">
+          <Heading level={3} color="secondary"><BookOpen className="mr-2 inline size-4" aria-hidden /> Coverage is not shown</Heading>
+          <Text as="p" display="block" className="mt-2">
             There is no approved target population for this scope, so a coverage percentage cannot be calculated. Engaged HCPs are not a substitute for a target list.
-          </p>
-        </article>
+          </Text>
+        </Card>
       )}
-    </div>
+    </Grid>
   )
 }
 
 function Section({ id, title, note, children }: { id: string; title: string; note: string; children: React.ReactNode }) {
   return (
-    <section data-testid={`section-${id}`} aria-labelledby={`section-${id}-title`} className="min-w-0">
-      <h2 id={`section-${id}-title`} className="text-xl font-semibold tracking-tight">{title}</h2>
-      <p className="mb-3 mt-0.5 max-w-3xl text-sm text-muted-foreground">{note}</p>
+    <AstryxSection data-testid={`section-${id}`} aria-labelledby={`section-${id}-title`} variant="transparent" padding={0}>
+      <Heading id={`section-${id}-title`} level={2}>{title}</Heading>
+      <Text as="p" type="supporting" display="block" className="mb-3 mt-1 max-w-3xl">{note}</Text>
       {children}
-    </section>
+    </AstryxSection>
   )
 }
 
 function StatCard({ id, label, value, definition, icon: Icon, index = 0 }: { id: string; label: string; value: string; definition: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; index?: number }) {
   const enter = useEnter(`kpi-${id}`, index)
   return (
-    <article data-testid={`kpi-${id}`} style={enter.style} className={cn("relative overflow-hidden rounded-2xl border bg-card p-5 shadow-card", enter.className)}>
+    <Card data-testid={`kpi-${id}`} padding={4} elevation="low" style={enter.style} className={cn("relative overflow-hidden", enter.className)}>
       <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-warning" />
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-muted-foreground">{label}</h3>
+      <Stack direction="horizontal" hAlign="between" vAlign="start" gap={3}>
+        <Heading level={3} color="secondary">{label}</Heading>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning/15">
           <Icon className="size-5" aria-hidden />
         </span>
-      </div>
-      <p data-testid={`kpi-${id}-value`} className="mt-3 text-5xl font-semibold tracking-tight tabular-nums">{value}</p>
-      <p className="mt-3 text-sm text-muted-foreground">{definition}</p>
-    </article>
+      </Stack>
+      <Text data-testid={`kpi-${id}-value`} type="display-1" weight="semibold" hasTabularNumbers display="block" className="mt-3">{value}</Text>
+      <Text as="p" type="supporting" display="block" className="mt-3">{definition}</Text>
+    </Card>
   )
 }

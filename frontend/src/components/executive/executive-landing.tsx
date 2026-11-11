@@ -2,6 +2,11 @@
 
 import { ArrowRight, Sparkles } from "lucide-react"
 import Link from "next/link"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { Heading } from "@astryxdesign/core/Heading"
+import { Stack } from "@astryxdesign/core/Stack"
+import { Text } from "@astryxdesign/core/Text"
 import { LandingSection } from "@/components/landing/landing-section"
 import { ExecutiveOverview } from "./executive-overview"
 
@@ -14,20 +19,18 @@ export function ExecutiveLanding() {
     >
       {() => (
         <div className="flex flex-col gap-6">
-          <Link
-            href="/executive/themes"
-            data-testid="themes-link"
-            className="group flex min-h-16 items-center justify-between gap-4 rounded-2xl border bg-card p-4 shadow-card transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:p-5"
-          >
-            <span className="flex items-center gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-accent-text"><Sparkles className="size-5" aria-hidden /></span>
-              <span>
-                <span className="block font-semibold">Themes &amp; summaries</span>
-                <span className="block text-sm text-muted-foreground">Theme cards, topics rising across regions, and a leadership summary you can save and export.</span>
-              </span>
-            </span>
-            <ArrowRight className="size-5 shrink-0 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden />
-          </Link>
+          <Card padding={4} elevation="low">
+            <Stack direction="horizontal" hAlign="between" vAlign="center" gap={3}>
+              <Stack direction="horizontal" vAlign="center" gap={3}>
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-accent-text"><Sparkles className="size-5" aria-hidden /></span>
+                <span>
+                  <Heading level={2}>Themes &amp; summaries</Heading>
+                  <Text as="p" type="supporting" display="block">Theme cards, topics rising across regions, and a leadership summary you can save and export.</Text>
+                </span>
+              </Stack>
+              <Button as={Link} href="/executive/themes" data-testid="themes-link" label="Open themes and summaries" icon={<ArrowRight aria-hidden />} variant="secondary" />
+            </Stack>
+          </Card>
           <ExecutiveOverview />
         </div>
       )}

@@ -2,6 +2,10 @@
 
 import type { LucideIcon } from "lucide-react"
 import { usePathname } from "next/navigation"
+import { Card } from "@astryxdesign/core/Card"
+import { Heading } from "@astryxdesign/core/Heading"
+import { Stack } from "@astryxdesign/core/Stack"
+import { Text } from "@astryxdesign/core/Text"
 import { useCountUp } from "@/hooks/use-count-up"
 import { useEnter } from "@/hooks/use-enter"
 import { cn } from "@/lib/utils"
@@ -35,31 +39,37 @@ export function KpiTile({ id, label, value, definition, caption, icon: Icon, ser
   const enter = useEnter(`kpi-${id}`, index)
   const color = seriesColor(series)
   return (
-    <article
+    <Card
       data-testid={`kpi-${id}`}
       style={enter.style}
-      className={cn("group relative snap-item overflow-hidden rounded-2xl border bg-card p-5 shadow-card transition-shadow duration-(--duration-base) ease-(--ease-out) hover:shadow-lift", enter.className, className)}
+      padding={4}
+      elevation="low"
+      className={cn("group relative snap-item overflow-hidden transition-shadow duration-(--a2g-duration-fast) ease-(--ease-out) hover:shadow-lift", enter.className, className)}
     >
       <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: color }} />
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-semibold text-muted-foreground">{label}</p>
+      <Stack direction="horizontal" hAlign="between" vAlign="start" gap={3}>
+        <Heading level={3} type="display-3" color="secondary">{label}</Heading>
         <span
           className="grid size-10 shrink-0 place-items-center rounded-xl"
           style={{ backgroundColor: `color-mix(in oklab, ${color} 14%, var(--card))`, color: `color-mix(in oklab, ${color} 70%, var(--foreground))` }}
         >
           <Icon className="size-5" aria-hidden />
         </span>
-      </div>
-      <p
+      </Stack>
+      <Text
         data-testid={`kpi-${id}-value`}
         data-value={value}
-        className="mt-3 text-5xl font-semibold tracking-tight tabular-nums"
+        type="display-1"
+        weight="semibold"
+        hasTabularNumbers
+        display="block"
+        className="mt-3"
         aria-label={`${label}: ${value.toLocaleString("en-US")}`}
       >
         {shown.toLocaleString("en-US")}
-      </p>
-      <p className="mt-3 text-sm text-muted-foreground">{definition}</p>
-      {caption && <p className="mt-1 text-xs font-medium text-muted-foreground">{caption}</p>}
-    </article>
+      </Text>
+      <Text as="p" type="supporting" display="block" className="mt-3">{definition}</Text>
+      {caption && <Text as="p" type="supporting" weight="medium" display="block" className="mt-1">{caption}</Text>}
+    </Card>
   )
 }
