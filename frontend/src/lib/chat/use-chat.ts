@@ -122,6 +122,19 @@ export function useChat(adapter: DataAdapter) {
     setThreadId(newId())
   }, [commit])
 
+  /** Stop the current local polling loop and leave its partial answer visible. */
+  const stop = React.useCallback(() => {
+    abort.current?.abort()
+    abort.current = null
+    commit(
+      turnsRef.current.map((turn) =>
+        turn.answer.status === "running"
+          ? { ...turn, answer: { ...turn.answer, status: "error", error: "Answer stopped." } }
+          : turn,
+      ),
+    )
+  }, [commit])
+
   /** Put a stored conversation back after a reload (or `null` when there is none). Until then `hydrated` is false. */
   const restore = React.useCallback(
     (stored: { turns: ChatTurn[]; threadId: string } | null) => {
@@ -134,5 +147,5 @@ export function useChat(adapter: DataAdapter) {
     [commit],
   )
 
-  return { turns, running, send, reset, restore, hydrated, threadId }
+  return { turns, running, send, reset, stop, restore, hydrated, threadId }
 }

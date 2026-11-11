@@ -76,7 +76,7 @@ export function ChatDrawer() {
   const pathname = usePathname()
   const { open, setOpen, turns, running, reset, screen } = useChatSession()
   const presentation = useChatPresentation()
-  const input = React.useRef<HTMLTextAreaElement>(null)
+  const input = React.useRef<HTMLElement>(null)
   if (pathname === "/chat") return null
   const sheet = presentation === "sheet"
   const starters = startersFor(screen.context, STARTERS)

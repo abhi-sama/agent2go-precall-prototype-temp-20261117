@@ -1,7 +1,12 @@
 "use client"
 
-import { AlertTriangle, BarChart3, FileText, Info, Loader2, Lock } from "lucide-react"
+import { AlertTriangle, BarChart3, FileText, Info, Lock } from "lucide-react"
 import * as React from "react"
+import { Avatar } from "@astryxdesign/core/Avatar"
+import { Button } from "@astryxdesign/core/Button"
+import { Citation } from "@astryxdesign/core/Citation"
+import { ChatMessage, ChatMessageBubble, ChatToolCalls } from "@astryxdesign/core/Chat"
+import { Markdown } from "@astryxdesign/core/Markdown"
 import { AnswerFeedback } from "@/components/chat/answer-feedback"
 import { AnswerRows } from "@/components/chat/answer-rows"
 import { VisualCard } from "@/components/chat/visual-card"
@@ -10,7 +15,6 @@ import { Badge } from "@/components/ui/badge"
 import { useCountUp } from "@/hooks/use-count-up"
 import { citationNumber, citationsForFact, factsAreComparable, isAggregateCitation, type AssistantTurn, type CitationItem, type FactItem } from "@/lib/chat/events"
 import { buildProvenanceExport, downloadText, type ExportBlock } from "@/lib/provenance"
-import { cn } from "@/lib/utils"
 
 const TOOL_LABELS: Record<string, string> = {
   get_activity_summary: "Counting calls, HCPs and responses",
@@ -55,7 +59,19 @@ function formatThrough(iso: string | null): string | null {
 function CitationLink({ citation, citations, onOpen }: { citation: CitationItem; citations: CitationItem[]; onOpen: (citation: CitationItem) => void }) {
   const number = citationNumber(citations, citation)
   if (number < 1) return null
-  return <button type="button" data-testid="inline-citation" onClick={() => onOpen(citation)} className="ml-1 inline-flex min-h-6 items-center justify-center rounded-md px-1 align-middle pointer-coarse:min-h-11 pointer-coarse:min-w-11 font-mono text-xs font-semibold text-fact underline decoration-fact/40 underline-offset-2 hover:bg-fact/10 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none" aria-label={`Open source ${number}: ${citation.label}`}>[{number}]</button>
+  return (
+    <Citation
+      data-testid="inline-citation"
+      source={{ title: citation.label, url: `#citation-${number}` }}
+      number={number}
+      variant="number"
+      aria-label={`Open source ${number}: ${citation.label}`}
+      onClick={(event) => {
+        event.preventDefault()
+        onOpen(citation)
+      }}
+    />
+  )
 }
 
 /** Keep every deterministic claim in the streamed prose adjacent to its evidence. */
@@ -65,7 +81,7 @@ function CitedParagraph({ text, turn, onOpenCitation }: { text: string; turn: As
     // Qualitative claims may not repeat a number, but still need their retrieved records beside them.
     const evidence = matchingFacts.length > 0 ? matchingFacts.flatMap((fact) => citationsForFact(fact, turn.citations)) : turn.citations
     const unique = evidence.filter((citation, itemIndex) => evidence.findIndex((item) => item.dataset === citation.dataset && item.recordId === citation.recordId) === itemIndex)
-    return <React.Fragment key={`${sentence}-${index}`}>{index > 0 && " "}{sentence}{unique.map((citation) => <CitationLink key={`${citation.dataset}:${citation.recordId}`} citation={citation} citations={turn.citations} onOpen={onOpenCitation} />)}</React.Fragment>
+    return <React.Fragment key={`${sentence}-${index}`}>{index > 0 && " "}<Markdown display="inline" isStreaming={turn.status === "running"}>{sentence}</Markdown>{unique.map((citation) => <CitationLink key={`${citation.dataset}:${citation.recordId}`} citation={citation} citations={turn.citations} onOpen={onOpenCitation} />)}</React.Fragment>
   })}</>
 }
 
@@ -127,12 +143,21 @@ export function AssistantTurnView({
   }))
 
   return (
-    <div data-testid="assistant-turn" data-status={turn.status} className="flex flex-col gap-3">
-      {running && activeTools.length > 0 && turn.text === "" && (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
-          <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />
-          {TOOL_LABELS[activeTools[activeTools.length - 1].name]}…
-        </p>
+    <ChatMessage sender="assistant" name="Agent" avatar={<Avatar name="Agent" size="sm" />} data-testid="assistant-turn" data-status={turn.status}>
+      <ChatMessageBubble variant="ghost" width="100%">
+        <div className="flex min-w-0 flex-col gap-3">
+      {activeTools.length > 0 && (
+        <ChatToolCalls
+          calls={activeTools.map((tool) => ({
+            key: tool.name,
+            name: tool.name,
+            target: TOOL_LABELS[tool.name],
+            status: running ? "running" : turn.status === "error" ? "error" : "complete",
+            ...(turn.status === "error" && turn.error ? { errorMessage: turn.error } : {}),
+          }))}
+          label="Agent activity"
+          defaultIsExpanded={running}
+        />
       )}
 
       {turn.facts.length > 0 && (
@@ -257,21 +282,16 @@ export function AssistantTurnView({
 
       {turn.status === "done" && turn.suggestions.length > 0 && (
         <Suggestion title="You could ask next">
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-wrap gap-2">
             {turn.suggestions.map((s) => (
               <li key={s}>
-                <button
-                  type="button"
+                <Button
                   data-testid="suggestion"
-                  disabled={!canAsk}
+                  label={s}
+                  variant="secondary"
+                  isDisabled={!canAsk}
                   onClick={() => onAsk(s)}
-                  className={cn(
-                    "min-h-11 w-full rounded-xl border border-suggest/40 bg-background/70 px-3 py-2 text-left text-sm hover:bg-suggest/10 disabled:opacity-50",
-                    "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-                  )}
-                >
-                  {s}
-                </button>
+                />
               </li>
             ))}
           </ul>
@@ -291,6 +311,8 @@ export function AssistantTurnView({
       )}
 
       {turn.status === "done" && turn.text !== "" && <AnswerFeedback runId={turn.runId} />}
-    </div>
+        </div>
+      </ChatMessageBubble>
+    </ChatMessage>
   )
 }

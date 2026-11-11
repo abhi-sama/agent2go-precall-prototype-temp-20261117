@@ -17,6 +17,7 @@ export interface ChatSession {
   turns: ChatTurn[]
   running: boolean
   send: (question: string, context?: ChatContext) => Promise<void>
+  stop: () => void
   reset: () => void
   /** False until a stored conversation has been put back (it is read after hydration, never during it). */
   hydrated: boolean
@@ -45,7 +46,7 @@ function ChatSessionProvider({ userId, children }: { userId: string; children: R
   const adapter = useDataAdapter()
   const pathname = usePathname()
   const { filters } = useSharedFilters()
-  const { turns, running, send, reset, restore, hydrated, threadId } = useChat(adapter)
+  const { turns, running, send, stop, reset, restore, hydrated, threadId } = useChat(adapter)
   // Open for one screen: a route change (or the full page, which is the same conversation) closes the panel.
   const [openPath, setOpenPath] = React.useState<string | null>(null)
   const open = openPath === pathname && pathname !== "/chat"
@@ -78,8 +79,8 @@ function ChatSessionProvider({ userId, children }: { userId: string; children: R
 
   const screen = React.useMemo(() => screenContextFor(pathname, filters), [pathname, filters])
   const value = React.useMemo<ChatSession>(
-    () => ({ open, setOpen, turns, running, send, reset, hydrated, screen }),
-    [open, setOpen, turns, running, send, reset, hydrated, screen],
+    () => ({ open, setOpen, turns, running, send, stop, reset, hydrated, screen }),
+    [open, setOpen, turns, running, send, stop, reset, hydrated, screen],
   )
   return <ChatSessionContext.Provider value={value}>{children}</ChatSessionContext.Provider>
 }
