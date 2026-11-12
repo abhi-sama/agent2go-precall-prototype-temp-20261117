@@ -389,3 +389,60 @@ async def test_computed_figures_list_what_the_tools_returned(settings, repositor
     events = await collect(agent, make_invocation())
     figures = next(e for e in events if e.get("name") == "computed_figures")["value"]["figures"]
     assert "2" in figures and all(isinstance(f, str) for f in figures)
+
+
+def _activity_chain_history() -> list[Message]:
+    """The golden activity chain up to its last turn: October first, then September, then a Q3 product count."""
+    return [
+        Message(role="user", content="How many distinct calls did I have between 2026-10-01 and 2026-10-31?"),
+        Message(role="assistant", content="You had 2 distinct calls between 2026-10-01 and 2026-10-31."),
+        Message(role="user", content="And between 2026-09-01 and 2026-09-30?"),
+        Message(role="assistant", content="You had 1 distinct call between 2026-09-01 and 2026-09-30."),
+        Message(role="user", content="And for the third quarter, 2026-07-01 to 2026-09-30, the same count?"),
+        Message(role="assistant", content="You had 1 distinct call between 2026-07-01 and 2026-09-30."),
+        Message(role="user", content="Which month of that quarter had the most such calls?"),
+        Message(role="assistant", content="September had the most."),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_quantitative_fallback_resolves_go_back_to_my_first_question_to_that_questions_period(
+    settings, repository
+) -> None:
+    # A model that answers a back-reference from memory, with no tool call, must not have its
+    # figure "verified" against the most recent intervening period (the third quarter).
+    question = "Go back to my very first question: how many distinct calls was that in October, across all products?"
+    agent, writer = runtime(settings, repository, ["That was the October count from earlier."])
+    invocation = make_invocation(question=question).model_copy(
+        update={"messages": [*_activity_chain_history(), Message(role="user", content=question)]}
+    )
+
+    await collect(agent, invocation)
+
+    assert "for 2026-10-01 to 2026-10-31." in writer.turns[0].assistant_text
+    assert "2026-07-01" not in writer.turns[0].assistant_text
+
+
+@pytest.mark.parametrize(
+    ("question", "window"),
+    [
+        # A named month in this turn wins over a more recent turn's dates; the year comes from context.
+        ("How many distinct calls was that in October, across all products?", ("2026-10-01", "2026-10-31")),
+        # A reference to the first question takes that question's period, not the latest one.
+        ("Finally, back to my first question: how many distinct calls was that?", ("2026-10-01", "2026-10-31")),
+        ("Back to my original question: how many calls?", ("2026-10-01", "2026-10-31")),
+        # Without either, the most recent stated period still applies.
+        ("And how many calls was that again?", ("2026-07-01", "2026-09-30")),
+        # Explicit dates in this turn always win.
+        ("How many calls between 2026-08-01 and 2026-08-31?", ("2026-08-01", "2026-08-31")),
+        # "may" as a verb is not the month of May.
+        ("How many calls may I count for that quarter?", ("2026-07-01", "2026-09-30")),
+    ],
+)
+def test_conversation_window_resolves_references_to_earlier_turns(question, window) -> None:
+    history = [message.content for message in _activity_chain_history()]
+
+    tool, arguments = MslAgent._quantitative_fallback_request(question, history)
+
+    assert tool == "get_activity_summary"
+    assert (arguments["from_date"], arguments["to_date"]) == window

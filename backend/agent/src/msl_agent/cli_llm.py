@@ -77,34 +77,148 @@ class ModelReply(BaseModel):
 
 
 class CliFailure(RuntimeError):
-    """A non-successful CLI invocation; Claude failures may use the fallback."""
+    """A non-successful CLI invocation; Claude failures may use the fallback.
+
+    ``kind`` is a fixed category (unavailable, timeout, exit or contract) that is
+    safe to log; the CLI's own output never is.
+    """
+
+    def __init__(self, kind: Literal["unavailable", "timeout", "exit", "contract"]) -> None:
+        super().__init__(f"CLI failure: {kind}")
+        self.kind = kind
 
 
-# This is deliberately hand-written instead of using Pydantic's schema output.
+# Every reply schema is hand-written instead of using Pydantic's schema output.
 # Codex's strict structured-output endpoint requires every object to forbid extra
-# properties, while tool arguments themselves remain arbitrary JSON objects.
-REPLY_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["kind", "content", "tool_calls"],
-    "properties": {
-        "kind": {"type": "string", "enum": ["text", "tool_calls"]},
-        "content": {"type": ["string", "null"]},
-        "tool_calls": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["id", "name", "input_json"],
-                "properties": {
-                    "id": {"type": "string", "minLength": 1, "maxLength": 128},
-                    "name": {"type": "string", "minLength": 1, "maxLength": 128},
-                    "input_json": {"type": "string"},
-                },
-            },
+# properties and to list every property as required.
+_STRICT_SCALARS = frozenset({"string", "integer", "number", "boolean", "null"})
+_STRICT_KEYWORDS = ("description", "enum")
+
+
+def _strict(schema: Any) -> dict[str, Any] | None:
+    """Translate one tool-parameter JSON schema into strict structured-output form.
+
+    Optional properties become required-but-nullable, because strict mode cannot
+    express an omitted property; ``_drop_optional_nulls`` restores the omission
+    before the arguments reach the agent. ``None`` means the schema uses a
+    construct this translation does not understand.
+    """
+    if not isinstance(schema, dict):
+        return None
+    if "anyOf" in schema:
+        options = [_strict(option) for option in schema["anyOf"]]
+        return None if any(option is None for option in options) else {"anyOf": options}
+    kind = schema.get("type")
+    kept = {key: schema[key] for key in _STRICT_KEYWORDS if key in schema}
+    if kind == "object":
+        properties = schema.get("properties", {})
+        if not isinstance(properties, dict) or schema.get("additionalProperties") not in (None, False):
+            return None
+        required = set(schema.get("required", []))
+        strict_properties: dict[str, Any] = {}
+        for name, value in properties.items():
+            translated = _strict(value)
+            if translated is None:
+                return None
+            strict_properties[name] = translated if name in required else _nullable(translated)
+        return {
+            **kept,
+            "type": "object",
+            "additionalProperties": False,
+            "required": list(strict_properties),
+            "properties": strict_properties,
+        }
+    if kind == "array":
+        items = _strict(schema.get("items", {"type": "string"}))
+        return None if items is None else {**kept, "type": "array", "items": items}
+    if isinstance(kind, str) and kind in _STRICT_SCALARS:
+        return {**kept, "type": kind}
+    if isinstance(kind, list) and kind and all(isinstance(item, str) and item in _STRICT_SCALARS for item in kind):
+        return {**kept, "type": kind}
+    return None
+
+
+def _nullable(schema: dict[str, Any]) -> dict[str, Any]:
+    if "anyOf" in schema:
+        options = schema["anyOf"]
+        return schema if {"type": "null"} in options else {"anyOf": [*options, {"type": "null"}]}
+    kind = schema["type"]
+    kinds = kind if isinstance(kind, list) else [kind]
+    if "null" in kinds:
+        return schema
+    if "enum" in schema:
+        return {"anyOf": [schema, {"type": "null"}]}
+    return {**schema, "type": [*kinds, "null"]}
+
+
+def _tool_function(tool: Any) -> dict[str, Any] | None:
+    function = tool.get("function") if isinstance(tool, dict) else None
+    name = function.get("name") if isinstance(function, dict) else None
+    return function if isinstance(name, str) and name else None
+
+
+def _tool_call_schema(function: dict[str, Any]) -> dict[str, Any]:
+    """The reply shape for one declared tool: its exact name and its own argument schema.
+
+    Arguments are a structured object, never a JSON document inside a string: the
+    CLI's constrained decoder can enforce an object's structure, but a string field
+    accepts any text, and Codex intermittently continued an ``input_json`` string
+    with leaked reasoning tokens instead of closing it.
+    """
+    name = {"type": "string", "enum": [function["name"]]}
+    parameters = _strict(function.get("parameters") or {"type": "object", "properties": {}})
+    if parameters is None or parameters.get("type") != "object":
+        # A schema strict mode cannot express still gets a pinned name; its
+        # arguments use the serialized fallback and are validated on parse.
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["name", "input_json"],
+            "properties": {"name": name, "input_json": {"type": "string"}},
+        }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["name", "input"],
+        "properties": {"name": name, "input": parameters},
+    }
+
+
+def reply_schema(tools: list[Any]) -> dict[str, Any]:
+    """The strict reply contract for one request, generated from the tools it declares."""
+    functions = [function for tool in tools if (function := _tool_function(tool)) is not None]
+    if functions:
+        kinds = ["text", "tool_calls"]
+        item: dict[str, Any] = {"anyOf": [_tool_call_schema(function) for function in functions]}
+    else:
+        # Nothing is callable, so only a text reply is valid.
+        kinds = ["text"]
+        item = {"type": "object", "additionalProperties": False, "required": [], "properties": {}}
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["kind", "content", "tool_calls"],
+        "properties": {
+            "kind": {"type": "string", "enum": kinds},
+            "content": {"type": ["string", "null"]},
+            "tool_calls": {"type": "array", "items": item},
         },
-    },
-}
+    }
+
+
+def _drop_optional_nulls(value: Any, schema: Any) -> Any:
+    """Undo ``_strict``'s nullable stand-in for an omitted optional argument."""
+    if not isinstance(value, dict) or not isinstance(schema, dict) or schema.get("type") != "object":
+        return value
+    properties = schema.get("properties", {})
+    required = set(schema.get("required", []))
+    return {
+        key: _drop_optional_nulls(item, properties.get(key))
+        for key, item in value.items()
+        if item is not None or key in required
+    }
+
+
 app = FastAPI(title="agent2go local CLI LLM", docs_url=None, redoc_url=None)
 _capacity = asyncio.Semaphore(MAX_IN_FLIGHT)
 
@@ -112,9 +226,9 @@ _capacity = asyncio.Semaphore(MAX_IN_FLIGHT)
 class CliToolCall(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=128)
-    input_json: str
+    input: dict[str, Any] | None = None
+    input_json: str | None = None
 
 
 class CliReply(BaseModel):
@@ -170,7 +284,8 @@ def _normalise_request(request: dict[str, Any]) -> dict[str, Any]:
 
 _ADAPTER_SYSTEM_PROMPT = """You are a model adapter, not an agent. Do not use tools, browse, read files, or execute commands.
 Answer the conversation encoded below. Tool definitions are declarative: if a tool is needed, return a tool_calls
-reply. Every tool call's input_json must be a serialized JSON object. Tool-result messages are prior results and must
+reply. Give every tool call the declared tool's name and its arguments as the input object, using null for an optional
+argument you leave out. Tool-result messages are prior results and must
 be used as conversational context. Return exactly one JSON object that conforms to the supplied schema, with no
 Markdown or explanation. In a data-grounded answer, use double quotation marks only for exact, verbatim text from a
 tool result. Do not quote your own framing, paraphrases, labels, dates, or explanations."""
@@ -292,49 +407,66 @@ async def _run(command: list[str], prompt: str, cwd: Path, timeout: int) -> str:
             cwd=cwd,
         )
     except FileNotFoundError as error:
-        raise CliFailure(f"CLI unavailable: {command[0]}") from error
+        raise CliFailure("unavailable") from error
     try:
-        stdout, stderr = await asyncio.wait_for(process.communicate(prompt.encode()), timeout=timeout)
+        stdout, _stderr = await asyncio.wait_for(process.communicate(prompt.encode()), timeout=timeout)
     except TimeoutError as error:
         process.kill()
         await process.wait()
-        raise CliFailure("CLI timed out") from error
+        raise CliFailure("timeout") from error
     if process.returncode:
         # stderr can include model output or account details; never return or log it.
-        raise CliFailure(f"CLI exited {process.returncode}")
+        raise CliFailure("exit")
     return stdout.decode("utf-8", errors="replace")
 
 
-def _parse_reply(raw: str) -> ModelReply:
+def _parse_reply(raw: str, tools: list[Any]) -> ModelReply:
+    """Validate a CLI reply against the request's own tools.
+
+    Call ids are transport metadata owned by the bridge: the CLI never sees an
+    id field, and every call gets one that is unique across the conversation.
+    """
+    parameters = {function["name"]: function.get("parameters") for tool in tools if (function := _tool_function(tool))}
     try:
         parsed = CliReply.model_validate_json(raw)
-        calls = [
-            ToolCall(id=call.id, name=call.name, input=json.loads(call.input_json)) for call in parsed.tool_calls
-        ]
-        if any(not isinstance(call.input, dict) for call in calls):
-            raise ValueError("tool input_json must decode to an object")
+        calls: list[ToolCall] = []
+        for call in parsed.tool_calls:
+            if call.name not in parameters or (call.input is None) == (call.input_json is None):
+                raise ValueError("tool call must name a declared tool and carry one argument form")
+            arguments = call.input if call.input is not None else json.loads(call.input_json or "")
+            if not isinstance(arguments, dict):
+                raise ValueError("tool arguments must be an object")
+            calls.append(
+                ToolCall(
+                    id=f"a2g_{uuid.uuid4().hex}",
+                    name=call.name,
+                    input=_drop_optional_nulls(arguments, parameters[call.name]),
+                )
+            )
         return ModelReply(kind=parsed.kind, content=parsed.content, tool_calls=calls)
     except (json.JSONDecodeError, ValueError) as error:
-        raise CliFailure("CLI returned an invalid model contract") from error
+        raise CliFailure("contract") from error
 
 
-def _parse_claude(raw: str) -> ModelReply:
+def _parse_claude(raw: str, tools: list[Any]) -> ModelReply:
     try:
         result = json.loads(raw)
         text = result.get("result", result) if isinstance(result, dict) else result
-        return _parse_reply(text if isinstance(text, str) else json.dumps(text))
+        return _parse_reply(text if isinstance(text, str) else json.dumps(text), tools)
     except (json.JSONDecodeError, ValueError) as error:
-        raise CliFailure("Claude returned an invalid model contract") from error
+        raise CliFailure("contract") from error
 
 
-async def _claude(prompt: str, model: str, cwd: Path, timeout: int, system_prompt: str) -> ModelReply:
+async def _claude(
+    prompt: str, model: str, cwd: Path, timeout: int, system_prompt: str, tools: list[Any]
+) -> ModelReply:
     command = [
         "claude",
         "-p",
         "--output-format",
         "json",
         "--json-schema",
-        json.dumps(REPLY_SCHEMA),
+        json.dumps(reply_schema(tools)),
         "--model",
         _model_alias(model),
         "--system-prompt",
@@ -350,13 +482,14 @@ async def _claude(prompt: str, model: str, cwd: Path, timeout: int, system_promp
         "--permission-prompts",
         "none",
     ]
-    return _parse_claude(await _run(command, prompt, cwd, timeout))
+    return _parse_claude(await _run(command, prompt, cwd, timeout), tools)
 
 
-async def _codex(prompt: str, cwd: Path, timeout: int) -> ModelReply:
+async def _codex(prompt: str, cwd: Path, timeout: int, tools: list[Any]) -> ModelReply:
     schema = cwd / "reply-schema.json"
     output = cwd / "reply.json"
-    schema.write_text(json.dumps(REPLY_SCHEMA), encoding="utf-8")
+    output.unlink(missing_ok=True)  # a retry must never read the previous attempt's reply
+    schema.write_text(json.dumps(reply_schema(tools)), encoding="utf-8")
     command = [
         "codex",
         "exec",
@@ -366,6 +499,17 @@ async def _codex(prompt: str, cwd: Path, timeout: int) -> ModelReply:
         str(cwd),
         "--sandbox",
         "read-only",
+        # The bridge is a model adapter, so the operator's interactive Codex
+        # setup must not run inside it: no lifecycle hooks, MCP servers, plugins
+        # or turn notifications. The configured model and effort still apply.
+        "--disable",
+        "hooks",
+        "-c",
+        "mcp_servers={}",
+        "-c",
+        "plugins={}",
+        "-c",
+        "notify=[]",
         "--output-schema",
         str(schema),
         "--output-last-message",
@@ -374,9 +518,27 @@ async def _codex(prompt: str, cwd: Path, timeout: int) -> ModelReply:
     ]
     await _run(command, prompt, cwd, timeout)
     try:
-        return _parse_reply(output.read_text(encoding="utf-8"))
-    except (FileNotFoundError, ValueError) as error:
-        raise CliFailure("Codex returned an invalid model contract") from error
+        raw = output.read_text(encoding="utf-8")
+    except FileNotFoundError as error:
+        raise CliFailure("contract") from error
+    return _parse_reply(raw, tools)
+
+
+async def _codex_answer(payload: dict[str, Any], cwd: Path, timeout: int) -> ModelReply:
+    """Ask Codex once more after an unusable reply, failed exit or stall.
+
+    Structured arguments remove the known malformed-reply cause, but a
+    subscription CLI can still fail transiently (a falsely flagged prompt, a
+    stalled stream); one bounded retry keeps that from failing the user's whole
+    chat turn. Two timeouts stay inside the agent's model read timeout.
+    """
+    try:
+        return await _codex(_codex_prompt(payload), cwd, timeout, payload["tools"])
+    except CliFailure as error:
+        if error.kind == "unavailable":
+            raise
+        log.warning(f"CLI completion retried backend=codex-cli failure={error.kind}")
+        return await _codex(_codex_prompt(payload), cwd, timeout, payload["tools"])
 
 
 async def _complete(request: dict[str, Any]) -> ModelReply:
@@ -389,30 +551,28 @@ async def _complete(request: dict[str, Any]) -> ModelReply:
         with tempfile.TemporaryDirectory(prefix="a2g-cli-llm-") as temporary:
             cwd = Path(temporary)
             if backend == "codex-cli":
-                reply = await _codex(_codex_prompt(payload), cwd, timeout)
+                reply = await _codex_answer(payload, cwd, timeout)
                 log.warning(f"CLI completion served backend=codex-cli reply_kind={reply.kind}")
                 return _ground_quotes(reply, payload)
+            model = str(request.get("model", "sonnet"))
             try:
                 reply = await _claude(
-                    _prompt(payload, include_system=False),
-                    str(request.get("model", "sonnet")),
-                    cwd,
-                    timeout,
-                    _claude_system_prompt(payload),
+                    _prompt(payload, include_system=False), model, cwd, timeout,
+                    _claude_system_prompt(payload), payload["tools"],
                 )
                 if _must_retry_for_tool(reply, payload):
                     reply = await _claude(
                         _prompt(payload, include_system=False)
                         + "\n\nA declared tool is available. Do not claim it is unavailable; return tool_calls for the needed tool.",
-                        str(request.get("model", "sonnet")), cwd, timeout, _claude_system_prompt(payload),
+                        model, cwd, timeout, _claude_system_prompt(payload), payload["tools"],
                     )
                 log.warning(f"CLI completion served backend=claude-cli reply_kind={reply.kind}")
                 return _ground_quotes(reply, payload)
-            except CliFailure:
+            except CliFailure as error:
                 # A failure includes subscription limits and transient CLI errors.  The
                 # fallback has the identical strict contract, so callers see no change.
-                log.warning("CLI completion fell back backend=claude-cli to_backend=codex-cli")
-                reply = await _codex(_codex_prompt(payload), cwd, timeout)
+                log.warning(f"CLI completion fell back backend=claude-cli to_backend=codex-cli failure={error.kind}")
+                reply = await _codex_answer(payload, cwd, timeout)
                 log.warning(f"CLI completion served backend=codex-cli reply_kind={reply.kind}")
                 return _ground_quotes(reply, payload)
 
@@ -473,6 +633,7 @@ async def chat_completions(request: dict[str, Any]):
     try:
         reply = await _complete(request)
     except CliFailure as error:
+        log.warning(f"CLI completion failed failure={error.kind}")
         # Do not let framework exception traces render a prompt or model response.
         raise HTTPException(status_code=503, detail="local model backend unavailable") from error
     completion = _completion(reply, str(request.get("model", "claude-sonnet-5-5")))

@@ -90,6 +90,47 @@ _SCOPE_QUESTION = re.compile(
     re.I,
 )
 
+#: An explicit reference to the conversation's opening question ("go back to my first question").
+_FIRST_QUESTION_REFERENCE = re.compile(
+    r"\b(?:(?:very\s+)?first|original|initial|opening)\s+question\b|\bback\s+to\s+the\s+(?:start|beginning)\b",
+    re.I,
+)
+
+
+def _conversation_window(question: str, history: list[str]) -> tuple[str, str]:
+    """Resolve the period a turn asks about, honouring what it says about earlier turns.
+
+    In order: dates stated in this turn; a single month this turn names (its year
+    taken from the conversation); the opening question's period when the turn
+    refers back to it; otherwise the most recently stated period. Choosing the most
+    recent period for "go back to my first question ... in October" answered the
+    wrong quarter. ``history`` is oldest first.
+    """
+    if len(dates := _ISO_DATE.findall(question)) >= 2:
+        return dates[0], dates[1]
+    newest_first = list(reversed(history))
+    months = {month.lower() for month in _MONTH.findall(question)}
+    if "may" in months and not re.search(r"\bin\s+may\b|\bmay\s+20\d{2}\b", question, re.I):
+        months.discard("may")  # the modal verb, as in "how many calls may I see"
+    if len(months) == 1:
+        number = _MONTH_NUMBERS[months.pop()]
+        stated = [date for turn in (question, *newest_first) for date in _ISO_DATE.findall(turn)]
+        year_match = _YEAR.search(question)
+        year = (
+            int(year_match.group(1))
+            if year_match
+            else next(
+                (int(date[:4]) for date in stated if int(date[5:7]) == number),
+                int(stated[0][:4]) if stated else None,
+            )
+        )
+        if year is not None:
+            return f"{year:04d}-{number:02d}-01", f"{year:04d}-{number:02d}-{calendar.monthrange(year, number)[1]:02d}"
+    turns = history if _FIRST_QUESTION_REFERENCE.search(question) else newest_first
+    dates = next((found for turn in turns if len(found := _ISO_DATE.findall(turn)) >= 2), [])
+    return (dates[0], dates[1]) if dates else ("", "")
+
+
 DEFAULT_SUGGESTIONS = [
     "How many calls did I have in the last 90 days?",
     "What have HCPs recorded about osimertinib?",
@@ -430,11 +471,11 @@ class MslAgent:
         if _QUALITATIVE_HCP_QUESTION.search(question) or not _QUANTITATIVE.search(question):
             return None
         turns = [question, *reversed(history or [])]
-        dates = next((found for turn in turns if len(found := _ISO_DATE.findall(turn)) >= 2), [])
+        from_date, to_date = _conversation_window(question, history or [])
         territory = next((found for turn in turns if (found := _TERRITORY_ID.search(turn))), None)
         arguments = {
-            "from_date": dates[0] if dates else "",
-            "to_date": dates[1] if len(dates) > 1 else (dates[0] if dates else ""),
+            "from_date": from_date,
+            "to_date": to_date,
             "territory_id": territory.group(1).upper() if territory else "",
         }
         if question_id := next((found for turn in turns if (found := _QUESTION_ID.search(turn))), None):
@@ -467,11 +508,11 @@ class MslAgent:
         if not _QUALITATIVE_HCP_QUESTION.search(question):
             return []
         turns = [question, *reversed(history or [])]
-        dates = next((found for turn in turns if len(found := _ISO_DATE.findall(turn)) >= 2), [])
+        from_date, to_date = _conversation_window(question, history or [])
         territory = next((found for turn in turns if (found := _TERRITORY_ID.search(turn))), None)
         arguments = {
-            "from_date": dates[0] if dates else "",
-            "to_date": dates[1] if len(dates) > 1 else (dates[0] if dates else ""),
+            "from_date": from_date,
+            "to_date": to_date,
             "territory_id": territory.group(1).upper() if territory else "",
         }
         requests: list[tuple[str, dict[str, str]]] = [("get_topic_trends", arguments)]
@@ -758,7 +799,15 @@ class MslAgent:
                 yield event
         except Exception as exc:
             # Type only: exception text from the SDK or database can quote request or row values.
-            log.error("run failed", run_id=run_id, error_type=type(exc).__name__, outcome="error")
+            # Strands wraps a failure in a later model round as EventLoopException, so name the
+            # innermost cause as well; the wrapper alone cannot tell a model error from a tool bug.
+            root: BaseException = exc
+            for _ in range(8):  # bounded: a cause chain can be cyclic
+                if root.__cause__ is None:
+                    break
+                root = root.__cause__
+            error_type = type(exc).__name__ if root is exc else f"{type(exc).__name__}:{type(root).__name__}"
+            log.error("run failed", run_id=run_id, error_type=error_type, outcome="error")
             if text_open:
                 yield ag_ui.text_end(message_id)
             yield ag_ui.run_error(

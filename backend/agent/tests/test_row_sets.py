@@ -114,3 +114,28 @@ def test_a_run_describes_a_bounded_number_of_sets(repository) -> None:
         ctx.add_row_set("responses", f"set {i}", 5, day, day, "your scope", topic=f"t{i}")
     assert len(ctx.row_sets) == MAX_ROW_SETS
     assert ctx.add_row_set("calls", "empty", 0, day, day, "your scope") is None
+
+
+def test_a_zero_match_search_asks_for_the_users_own_words_and_a_numeric_answer(repository, monkeypatch) -> None:
+    import dataclasses
+    import json
+
+    from msl_agent.tools import RunContext, build_tools
+
+    real = repository.search_responses
+
+    def literal(identity, *, topic, **kwargs):
+        # The real search is a literal phrase match: a reworded phrase can find nothing.
+        result = real(identity, topic=topic, **kwargs)
+        return result if topic == "osimertinib" else dataclasses.replace(result, matches=0, examples=(), citations=())
+
+    monkeypatch.setattr(repository, "search_responses", literal)
+    ctx = RunContext(identity=make_invocation().identity, repository=repository)
+    search = {t.tool_name: t for t in build_tools(ctx)}["search_recorded_responses"]
+
+    nothing = json.loads(search(topic="access reimbursement"))
+    found = json.loads(search(topic="osimertinib"))
+
+    assert nothing["matching_responses"] == 0
+    assert "exact words" in nothing["instruction"] and "0 matching responses" in nothing["instruction"]
+    assert found["matching_responses"] > 0 and "exact words" not in found["instruction"]

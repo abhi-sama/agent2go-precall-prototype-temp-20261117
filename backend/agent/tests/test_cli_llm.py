@@ -28,12 +28,103 @@ def test_tool_call_contract_allows_and_discards_model_preface():
     assert "content" not in cli_llm._completion(reply, "sonnet")["choices"][0]["message"]
 
 
-def test_strict_cli_contract_decodes_tool_arguments():
+LOOKUP = {
+    "type": "function",
+    "function": {
+        "name": "lookup",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "What to look up."},
+                "from_date": {"type": "string", "default": ""},
+                "limit": {"type": "integer", "default": 5},
+            },
+            "required": ["query"],
+        },
+    },
+}
+FOLLOW_UPS = {
+    "type": "function",
+    "function": {
+        "name": "suggest_follow_ups",
+        "parameters": {
+            "type": "object",
+            "properties": {"questions": {"type": "array", "items": {"type": "string"}}},
+            "required": ["questions"],
+        },
+    },
+}
+
+
+def test_reply_schema_gives_each_declared_tool_its_own_strict_argument_object():
+    schema = cli_llm.reply_schema([LOOKUP, FOLLOW_UPS])
+
+    lookup, follow_ups = schema["properties"]["tool_calls"]["items"]["anyOf"]
+    assert lookup["properties"]["name"] == {"type": "string", "enum": ["lookup"]}
+    arguments = lookup["properties"]["input"]
+    assert arguments["additionalProperties"] is False
+    assert arguments["required"] == ["query", "from_date", "limit"]
+    assert arguments["properties"]["query"] == {"description": "What to look up.", "type": "string"}
+    assert arguments["properties"]["from_date"] == {"type": ["string", "null"]}
+    assert arguments["properties"]["limit"] == {"type": ["integer", "null"]}
+    assert follow_ups["properties"]["input"]["properties"]["questions"] == {"type": "array", "items": {"type": "string"}}
+    assert "input_json" not in json.dumps(schema)
+
+
+def test_reply_schema_without_tools_only_allows_text():
+    assert cli_llm.reply_schema([])["properties"]["kind"]["enum"] == ["text"]
+
+
+def test_reply_schema_keeps_a_serialized_fallback_for_an_untranslatable_tool():
+    odd = {"type": "function", "function": {"name": "odd", "parameters": {"type": "object", "additionalProperties": True}}}
+
+    (item,) = cli_llm.reply_schema([odd])["properties"]["tool_calls"]["items"]["anyOf"]
+
+    assert item["required"] == ["name", "input_json"]
+    reply = cli_llm._parse_reply(
+        '{"kind":"tool_calls","content":null,"tool_calls":[{"name":"odd","input_json":"{\\"x\\":1}"}]}', [odd]
+    )
+    assert reply.tool_calls[0].input == {"x": 1}
+
+
+def test_strict_cli_contract_decodes_structured_arguments_and_drops_omitted_optionals():
     reply = cli_llm._parse_reply(
         '{"kind":"tool_calls","content":null,"tool_calls":['
-        '{"id":"call_1","name":"lookup","input_json":"{\\"query\\":\\"x\\"}"}]}'
+        '{"name":"lookup","input":{"query":"x","from_date":null,"limit":null}},'
+        '{"name":"lookup","input":{"query":"y","from_date":"2026-10-01","limit":2}}]}',
+        [LOOKUP],
     )
-    assert reply.tool_calls[0].input == {"query": "x"}
+
+    assert [call.input for call in reply.tool_calls] == [
+        {"query": "x"},
+        {"query": "y", "from_date": "2026-10-01", "limit": 2},
+    ]
+    ids = [call.id for call in reply.tool_calls]
+    assert all(call_id.startswith("a2g_") for call_id in ids) and len(set(ids)) == 2
+
+
+def test_strict_cli_contract_rejects_an_undeclared_tool():
+    try:
+        cli_llm._parse_reply('{"kind":"tool_calls","content":null,"tool_calls":[{"name":"exec","input":{}}]}', [LOOKUP])
+    except cli_llm.CliFailure as error:
+        assert error.kind == "contract"
+    else:
+        raise AssertionError("an undeclared tool must not reach the agent")
+
+
+def test_strict_cli_contract_rejects_the_observed_runaway_argument_string():
+    # Captured from a failing eval turn: the serialized arguments never closed and
+    # continued with leaked reasoning tokens. This is why arguments are now objects.
+    runaway = (
+        '{"kind":"tool_calls","content":null,"tool_calls":[{"name":"suggest_follow_ups","input_json":'
+        '"{\\"questions\\":[\\"What themes are emerging?\\"]}]}]} assistant to=functions.exec no. final"}]}'
+    )
+    try:
+        cli_llm._parse_reply(runaway, [{"type": "function", "function": {"name": "suggest_follow_ups"}}])
+    except cli_llm.CliFailure as error:
+        assert error.kind == "contract"
+    else:
+        raise AssertionError("a runaway argument string must be rejected")
 
 
 def test_prompt_preserves_system_history_and_tool_results():
@@ -73,7 +164,7 @@ def test_grounded_quote_reads_bedrock_tool_result_content_blocks():
 def test_claude_receives_the_api_system_prompt_at_system_priority(monkeypatch):
     captured: dict[str, str] = {}
 
-    async def fake_claude(prompt, _model, _cwd, _timeout, system_prompt):
+    async def fake_claude(prompt, _model, _cwd, _timeout, system_prompt, _tools):
         captured["prompt"] = prompt
         captured["system_prompt"] = system_prompt
         return cli_llm.ModelReply(kind="text", content="ok")
@@ -157,7 +248,7 @@ def test_claude_command_sets_the_system_prompt_flag(monkeypatch, tmp_path):
         return json.dumps({"result": json.dumps({"kind": "text", "content": "ok", "tool_calls": []})})
 
     monkeypatch.setattr(cli_llm, "_run", fake_run)
-    reply = asyncio.run(cli_llm._claude("conversation", "claude-haiku-5-5", tmp_path, 31, "API system"))
+    reply = asyncio.run(cli_llm._claude("conversation", "claude-haiku-5-5", tmp_path, 31, "API system", [LOOKUP]))
 
     assert reply.content == "ok"
     command = captured["command"]
@@ -165,6 +256,7 @@ def test_claude_command_sets_the_system_prompt_flag(monkeypatch, tmp_path):
     assert command[command.index("--system-prompt") + 1] == "API system"
     assert captured["prompt"] == "conversation"
     assert captured["cwd"] == tmp_path and captured["timeout"] == 31
+    assert json.loads(command[command.index("--json-schema") + 1]) == cli_llm.reply_schema([LOOKUP])
 
 
 def test_codex_prompt_makes_system_rules_and_tools_explicit():
@@ -225,7 +317,7 @@ def test_at_most_two_cli_calls_run_at_once(monkeypatch):
 
 def test_claude_failure_uses_codex_fallback(monkeypatch):
     async def unavailable(*_args):
-        raise cli_llm.CliFailure("usage limit")
+        raise cli_llm.CliFailure("exit")
 
     async def codex(*_args):
         return cli_llm.ModelReply(kind="text", content="fallback")
@@ -235,6 +327,72 @@ def test_claude_failure_uses_codex_fallback(monkeypatch):
     monkeypatch.setattr(cli_llm, "_codex", codex)
     reply = asyncio.run(cli_llm._complete({"messages": [{"role": "user", "content": "hi"}]}))
     assert reply.content == "fallback"
+
+
+def test_codex_retries_once_after_an_unusable_reply(monkeypatch):
+    attempts: list[int] = []
+
+    async def codex(*_args):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise cli_llm.CliFailure("contract")
+        return cli_llm.ModelReply(kind="text", content="second attempt")
+
+    monkeypatch.setenv("LLM_BACKEND", "codex-cli")
+    monkeypatch.setattr(cli_llm, "_codex", codex)
+    reply = asyncio.run(cli_llm._complete({"messages": [{"role": "user", "content": "hi"}]}))
+
+    assert reply.content == "second attempt" and len(attempts) == 2
+
+
+def test_codex_retries_a_stall_once_then_gives_up(monkeypatch):
+    attempts: list[int] = []
+
+    async def codex(*_args):
+        attempts.append(1)
+        raise cli_llm.CliFailure("timeout")
+
+    monkeypatch.setenv("LLM_BACKEND", "codex-cli")
+    monkeypatch.setattr(cli_llm, "_codex", codex)
+    try:
+        asyncio.run(cli_llm._complete({"messages": [{"role": "user", "content": "hi"}]}))
+    except cli_llm.CliFailure as error:
+        assert error.kind == "timeout"
+    else:
+        raise AssertionError("a second stall must fail the request")
+    assert len(attempts) == 2
+
+
+def test_codex_does_not_retry_a_missing_cli(monkeypatch):
+    attempts: list[int] = []
+
+    async def codex(*_args):
+        attempts.append(1)
+        raise cli_llm.CliFailure("unavailable")
+
+    monkeypatch.setenv("LLM_BACKEND", "codex-cli")
+    monkeypatch.setattr(cli_llm, "_codex", codex)
+    try:
+        asyncio.run(cli_llm._complete({"messages": [{"role": "user", "content": "hi"}]}))
+    except cli_llm.CliFailure:
+        pass
+    assert len(attempts) == 1
+
+
+def test_codex_writes_the_request_schema_and_ignores_a_stale_reply(monkeypatch, tmp_path):
+    (tmp_path / "reply.json").write_text('{"kind":"text","content":"stale","tool_calls":[]}')
+
+    async def fake_run(command, _prompt, _cwd, _timeout):
+        schema = json.loads((tmp_path / "reply-schema.json").read_text())
+        assert schema == cli_llm.reply_schema([LOOKUP])
+        raise cli_llm.CliFailure("exit")
+
+    monkeypatch.setattr(cli_llm, "_run", fake_run)
+    try:
+        asyncio.run(cli_llm._codex("prompt", tmp_path, 5, [LOOKUP]))
+    except cli_llm.CliFailure:
+        pass
+    assert not (tmp_path / "reply.json").exists()
 
 
 def test_stream_emits_openai_sse_chunks():
