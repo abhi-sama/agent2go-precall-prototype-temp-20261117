@@ -23,6 +23,8 @@ interface ChatConversationProps {
   layout: "page" | "panel"
   /** Where the cursor goes when the panel opens (fine pointers only: a touch screen would raise the keyboard). */
   inputRef?: React.Ref<HTMLElement>
+  /** Context the person can review or remove directly above the question composer. */
+  composerDrawer?: React.ReactNode
 }
 
 function setRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
@@ -31,7 +33,7 @@ function setRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
 }
 
 /** The thread, the empty state and the composer. Shared by the full `/chat` page and the slide-in panel. */
-export function ChatConversation({ context, starters, layout, inputRef }: ChatConversationProps) {
+export function ChatConversation({ context, starters, layout, inputRef, composerDrawer }: ChatConversationProps) {
   const adapter = useDataAdapter()
   const { userId, ready } = useSession()
   const me = useQuery("me", userId, (ctx) => adapter.me(ctx), ready)
@@ -42,7 +44,10 @@ export function ChatConversation({ context, starters, layout, inputRef }: ChatCo
   const setComposerInput = React.useCallback(
     (root: HTMLDivElement | null) => {
       const editable = root?.querySelector<HTMLElement>("[contenteditable=true]") ?? null
-      if (editable) editable.dataset.testid = "chat-input"
+      if (editable) {
+        editable.dataset.testid = "chat-input"
+        editable.classList.add("a2g-chat-composer-editor")
+      }
       setRef(inputRef, editable)
     },
     [inputRef],
@@ -84,6 +89,7 @@ export function ChatConversation({ context, starters, layout, inputRef }: ChatCo
             onStop={stop}
             isStopShown={running}
             placeholder="Ask about your calls, HCPs or recorded responses"
+            drawer={composerDrawer}
             input={
               <ChatComposerInput
                 ref={setComposerInput}

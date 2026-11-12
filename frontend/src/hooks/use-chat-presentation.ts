@@ -3,24 +3,27 @@
 import * as React from "react"
 
 /**
- * `sheet`: a full-screen sheet, on an iPad held upright (portrait, touch) and on phone-width windows.
- * `panel`: the slide-in panel from the right, everywhere else. Capability queries, never a device guess.
+ * `docked`: a supporting pane that makes the page reflow on desktop. `sheet`: a touch-first bottom sheet for
+ * portrait iPad and phone. `drawer`: a transient side panel between those two widths.
  */
-const SHEET_QUERY = "(max-width: 639px), (orientation: portrait) and (pointer: coarse)"
+// Portrait leaves too little inline room for a useful inspector on iPad as well as on phones. Orientation is more
+// reliable than pointer capability in embedded and automated tablet browsers, where touch can report as fine.
+const SHEET_QUERY = "(max-width: 639px), (orientation: portrait)"
+const DOCKED_QUERY = "(min-width: 1366px)"
 
 function subscribe(onChange: () => void) {
-  const query = window.matchMedia(SHEET_QUERY)
-  query.addEventListener("change", onChange)
-  return () => query.removeEventListener("change", onChange)
+  const queries = [window.matchMedia(SHEET_QUERY), window.matchMedia(DOCKED_QUERY)]
+  for (const query of queries) query.addEventListener("change", onChange)
+  return () => { for (const query of queries) query.removeEventListener("change", onChange) }
 }
 
-export type ChatPresentation = "panel" | "sheet"
+export type ChatPresentation = "docked" | "drawer" | "sheet"
 
 export function useChatPresentation(): ChatPresentation {
-  const sheet = React.useSyncExternalStore(
+  const presentation = React.useSyncExternalStore<ChatPresentation>(
     subscribe,
-    () => window.matchMedia(SHEET_QUERY).matches,
-    () => false,
+    () => window.matchMedia(DOCKED_QUERY).matches ? "docked" : window.matchMedia(SHEET_QUERY).matches ? "sheet" : "drawer",
+    () => "drawer",
   )
-  return sheet ? "sheet" : "panel"
+  return presentation
 }

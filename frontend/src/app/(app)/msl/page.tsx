@@ -11,10 +11,8 @@ export default function MslLandingPage() {
       <LandingSection
         title="My territory"
         description="Your calls, engaged HCPs and insight responses, limited to the territory you are assigned."
+        supporting={<HcpSearch />}
       />
-      <div className="mt-8">
-        <HcpSearch />
-      </div>
     </RoleGate>
   )
 }

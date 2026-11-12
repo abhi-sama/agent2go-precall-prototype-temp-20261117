@@ -199,6 +199,76 @@
   --duration-spring: 550ms;
 }
 
+/* Shared dashboard contract: one track by default, 12 once a 1024px iPad leaves a useful 896px content region. */
+.a2g-dashboard-scope {
+  container: dashboard / inline-size;
+}
+
+@container dashboard (min-width: 56rem) {
+  .a2g-dashboard-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  }
+
+  .a2g-dashboard-item--primary {
+    grid-column: span 8 !important;
+  }
+
+  .a2g-dashboard-item--secondary {
+    grid-column: span 4 !important;
+  }
+
+  .a2g-dashboard-item--focus {
+    grid-column: span 7 !important;
+  }
+
+  .a2g-dashboard-item--detail {
+    grid-column: span 5 !important;
+  }
+
+  .a2g-dashboard-item--half {
+    grid-column: span 6 !important;
+  }
+
+  .a2g-dashboard-item--full {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+/* The HCP lookup can appear in a narrow supporting pane. Its profile only splits once its own card, not the
+   browser viewport, can support two useful reading columns. */
+.a2g-hcp-search {
+  container: hcp-search / inline-size;
+}
+
+@container hcp-search (min-width: 42rem) {
+  .a2g-hcp-search-details {
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.8fr);
+  }
+
+  .a2g-hcp-search-profile {
+    border-left-width: 1px;
+    border-top-width: 0;
+    padding-left: 1.5rem;
+    padding-top: 0;
+  }
+}
+
+/* Response cards stay readable when their dashboard column narrows behind a docked inspector. */
+.a2g-distribution-scope {
+  container: distribution / inline-size;
+}
+
+@container distribution (min-width: 40rem) {
+  .a2g-distribution-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Astryx owns the composer frame; this marks its editable surface as a complete touch target on the panel. */
+.a2g-chat-composer-editor {
+  min-block-size: 2.75rem;
+}
+
 /*
  * Legacy design tokens, now backed by the active Astryx theme (see docs/astryx-migration.md).
  * Pages that still use the shadcn-style utilities (bg-card, text-muted-foreground, border-border ...) follow the

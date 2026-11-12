@@ -233,6 +233,10 @@ _Avoid_: error, violation
 The territory, question, dates and view a chat was opened from; a default for the agent's tools and never extra access.
 _Avoid_: scope (scope means the territories a user may see)
 
+**Ask the agent**:
+The single chat experience available from the global header. It opens beside the workspace on desktop and as an overlay on narrower screens; its full-screen route is `/chat`.
+_Avoid_: Ask AI, assistant, chat drawer
+
 ## Governance
 
 **Ingestion run**:

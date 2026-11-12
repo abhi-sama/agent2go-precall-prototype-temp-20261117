@@ -54,6 +54,7 @@ test("each persona sees its own permitted navigation only", async ({ page }) => 
     const sheet = page.getByRole("dialog", { name: "Navigation" })
     await expect(sheet.getByText(persona.expected, { exact: true })).toBeVisible()
     await expect(sheet.getByText(persona.forbidden, { exact: true })).toHaveCount(0)
+    await expect(sheet.getByRole("link", { name: "Ask the agent" })).toHaveCount(0)
     await page.keyboard.press("Escape")
     await expect(sheet).toBeHidden()
   }

@@ -17,14 +17,16 @@ describe("screenContextFor", () => {
   it("sends the route and the filters on a screen that shows filters, with a chip for each", () => {
     const { context, chips } = screenContextFor("/director/insights", filters)
     expect(context).toEqual({ view: "director-insights", from: "2026-10-05", to: "2026-11-04", territoryId: "NE-01", questionId: "Q-0001" })
-    expect(chips.map((c) => c.kind)).toEqual(["screen", "range", "territory", "question"])
+    expect(chips.map((c) => c.kind)).toEqual(["screen", "range", "territory", "product", "question"])
     expect(chips[0].label).toBe("Director insights")
+    expect(chips[3].label).toBe("Product osimertinib")
     expect(chips[1].label).toBe("Oct 5 – Nov 4, 2026")
   })
 
-  it("never sends a facet the agent contract does not carry", () => {
-    const { context } = screenContextFor("/msl", filters)
+  it("shows a product filter without widening the agent contract", () => {
+    const { context, chips } = screenContextFor("/msl", filters)
     expect(JSON.stringify(context)).not.toContain("osimertinib")
+    expect(chips).toContainEqual({ kind: "product", label: "Product osimertinib" })
   })
 
   it("sends only the route from a screen that does not show filters", () => {

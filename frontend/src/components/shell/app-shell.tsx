@@ -4,6 +4,7 @@ import { AppShell as AstryxAppShell, useAppShellMobile } from "@astryxdesign/cor
 import { Badge } from "@astryxdesign/core/Badge"
 import { HStack } from "@astryxdesign/core/HStack"
 import { IconButton } from "@astryxdesign/core/IconButton"
+import { Layout, LayoutContent, LayoutPanel } from "@astryxdesign/core/Layout"
 import { MobileNavToggle } from "@astryxdesign/core/MobileNav"
 import { SideNav, SideNavCollapseButton, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav"
 import { TopNav, TopNavHeading, useTopNavRenderMode } from "@astryxdesign/core/TopNav"
@@ -11,14 +12,16 @@ import { LogOut } from "lucide-react"
 import dynamic from "next/dynamic"
 import { usePathname } from "next/navigation"
 import * as React from "react"
-import { ChatDrawer, ChatTrigger } from "@/components/chat/chat-drawer"
-import { ChatProvider } from "@/components/chat/chat-provider"
+import { ChatDock, ChatDrawer, ChatTrigger } from "@/components/chat/chat-drawer"
+import { ChatProvider, useChatSession } from "@/components/chat/chat-provider"
+import { PageFrame } from "@/components/layout/page-frame"
 import { PERSONA_CONFIG } from "@/components/shell/persona-config"
 import { AppearanceSettings } from "@/components/shell/appearance-settings"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { FirstRunOrientation } from "@/components/state/first-run-orientation"
 import { OfflineStatus } from "@/components/shell/offline-status"
 import { SharedFilterProvider } from "@/components/filters/filter-context"
+import { useChatPresentation } from "@/hooks/use-chat-presentation"
 import { IS_LOCAL_BUILD } from "@/lib/env"
 import { useSession } from "@/lib/session/session-provider"
 
@@ -133,57 +136,90 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     />
   )
 
-  const sideNav = (
-    <SideNav
-      aria-label="Primary"
-      data-testid="sidebar-rail"
-      data-collapsed={String(collapsed)}
-      collapsible={collapsible}
-      footerIcons={
-        <SideNavCollapseButton
-          data-testid="sidebar-collapse"
-          collapsible={collapsible}
-          label={collapsed ? "Expand navigation" : "Collapse navigation"}
-        />
-      }
-    >
-      <SideNavSection title={config.tagline}>
-        {config.nav.map((item) => (
-          <SideNavItem
-            key={item.label}
-            label={item.label}
-            icon={item.icon}
-            href={item.href ?? undefined}
-            isSelected={item.label === activeLabel}
-            isDisabled={!item.href}
-            size="lg"
-            endContent={item.href ? undefined : <Badge variant="neutral" label="Soon" />}
-          />
-        ))}
-      </SideNavSection>
-    </SideNav>
-  )
+  const renderSideNav = (docked: boolean) => {
+    // A docked inspector turns the shell into a three-pane workspace. Keep navigation available as an icon rail so
+    // the primary workspace still has the minimum width needed for dashboard pairs at the 1366px docking threshold.
+    const isCollapsed = docked || collapsed
+    const dockAwareCollapsible = { ...collapsible, isCollapsed }
+    return (
+      <SideNav
+        aria-label="Primary"
+        data-testid="sidebar-rail"
+        data-collapsed={String(isCollapsed)}
+        collapsible={dockAwareCollapsible}
+        footerIcons={
+          docked ? undefined : (
+            <SideNavCollapseButton
+              data-testid="sidebar-collapse"
+              collapsible={dockAwareCollapsible}
+              label={isCollapsed ? "Expand navigation" : "Collapse navigation"}
+            />
+          )
+        }
+      >
+        <SideNavSection title={config.tagline}>
+          {config.nav.map((item) => (
+            <SideNavItem
+              key={item.label}
+              label={item.label}
+              icon={item.icon}
+              href={item.href ?? undefined}
+              isSelected={item.label === activeLabel}
+              isDisabled={!item.href}
+              size="lg"
+              endContent={item.href ? undefined : <Badge variant="neutral" label="Soon" />}
+            />
+          ))}
+        </SideNavSection>
+      </SideNav>
+    )
+  }
 
   return (
     <SharedFilterProvider>
       <ChatProvider>
-        <AstryxAppShell
-          height="auto"
-          variant="section"
-          topNav={topNav}
-          sideNav={sideNav}
-          mobileNav={{ hasToggle: false, breakpoint: MOBILE_BREAKPOINT }}
-        >
-          <CloseDrawerOnNavigate />
-          <div className="safe-px safe-pb py-6 lg:py-8">
-            <div className="mx-auto w-full max-w-[84rem]">
-              <FirstRunOrientation />
-              {children}
-            </div>
-          </div>
-        </AstryxAppShell>
-        <ChatDrawer />
+        <WorkspaceShell topNav={topNav} renderSideNav={renderSideNav}>{children}</WorkspaceShell>
       </ChatProvider>
     </SharedFilterProvider>
+  )
+}
+
+/** Owns the main/supporting-pane split once the chat session context is available. */
+function WorkspaceShell({ topNav, renderSideNav, children }: { topNav: React.ReactNode; renderSideNav: (docked: boolean) => React.ReactNode; children: React.ReactNode }) {
+  const { open } = useChatSession()
+  const presentation = useChatPresentation()
+  const docked = open && presentation === "docked"
+
+  return (
+    <>
+      <AstryxAppShell
+        height={docked ? "fill" : "auto"}
+        variant="section"
+        topNav={topNav}
+        sideNav={renderSideNav(docked)}
+        mobileNav={{ hasToggle: false, breakpoint: MOBILE_BREAKPOINT }}
+      >
+        <CloseDrawerOnNavigate />
+        <Layout
+          height={docked ? "fill" : "auto"}
+          content={
+            <LayoutContent padding={0} isScrollable={docked}>
+              <PageFrame>
+                <FirstRunOrientation />
+                {children}
+              </PageFrame>
+            </LayoutContent>
+          }
+          end={
+            docked ? (
+              <LayoutPanel data-testid="chat-dock" width={420} padding={0} hasDivider isScrollable={false} role="complementary" label="Ask the agent">
+                <ChatDock />
+              </LayoutPanel>
+            ) : undefined
+          }
+        />
+      </AstryxAppShell>
+      <ChatDrawer />
+    </>
   )
 }

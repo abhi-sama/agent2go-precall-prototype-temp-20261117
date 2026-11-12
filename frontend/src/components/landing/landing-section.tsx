@@ -8,6 +8,7 @@ import { useSharedFilters } from "@/components/filters/filter-context"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { ParallaxScene, SceneLayers } from "@/components/motion/parallax-scene"
 import { KpiCard } from "@/components/landing/kpi-card"
+import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
 import { TerritoryMap } from "@/components/map/territory-map"
@@ -25,11 +26,14 @@ export function LandingSection({
   title,
   description,
   showMap = true,
+  supporting,
   children,
 }: {
   title: string
   description: string
   showMap?: boolean
+  /** Optional supporting pane for a dashboard's primary visual; used by the MSL workspace for fast HCP lookup. */
+  supporting?: React.ReactNode
   /** Persona-specific sections rendered after the headline KPIs, given the active date range. */
   children?: (context: { range: DateRange }) => React.ReactNode
 }) {
@@ -59,7 +63,7 @@ export function LandingSection({
 
   return (
     <div className="flex flex-col gap-6">
-      <ParallaxScene as="header" layers={<SceneLayers />} className="flex flex-col gap-3">
+      <ParallaxScene as="header" layers={<SceneLayers />} className="flex flex-col gap-3" stageClassName="inset-x-0">
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
@@ -77,17 +81,6 @@ export function LandingSection({
       </ParallaxScene>
 
       <AnalyticsFilterBar discovery={discovery.status === "success" ? discovery.data : undefined} loading={loading || discovery.status === "loading"} unavailable={discoveryForbidden} />
-
-      {showMap &&
-        (geo ? (
-          <div aria-busy={geoQuery.status === "loading"} className={geoQuery.status === "loading" ? "opacity-70 transition-opacity" : "transition-opacity"}>
-            <TerritoryMap activity={geo} persona={user.persona} />
-          </div>
-        ) : geoQuery.status === "error" ? (
-          <ErrorState error={geoQuery.error} onRetry={geoQuery.refetch} />
-        ) : (
-          <div data-testid="territory-loading" aria-busy="true" className="h-[22rem] animate-pulse rounded-2xl border bg-muted/60" />
-        ))}
 
       {aggregateOnly ? (
         <p data-testid="aggregate-only-note" className="rounded-2xl border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
@@ -150,14 +143,30 @@ export function LandingSection({
         </div>
       )}
 
+      {showMap &&
+        <DashboardGrid>
+          <DashboardGridItem area={supporting ? "focus" : "full"}>
+            {geo ? (
+              <div aria-busy={geoQuery.status === "loading"} className={geoQuery.status === "loading" ? "opacity-70 transition-opacity" : "transition-opacity"}>
+                <TerritoryMap activity={geo} persona={user.persona} />
+              </div>
+            ) : geoQuery.status === "error" ? (
+              <ErrorState error={geoQuery.error} onRetry={geoQuery.refetch} />
+            ) : (
+              <div data-testid="territory-loading" aria-busy="true" className="h-[22rem] animate-pulse rounded-2xl border bg-muted/60" />
+            )}
+          </DashboardGridItem>
+          {supporting && <DashboardGridItem area="detail">{supporting}</DashboardGridItem>}
+        </DashboardGrid>}
+
       {children?.({ range })}
 
       {discovery.status === "error" ? (aggregateOnly && discoveryForbidden ? null : <ErrorState error={discovery.error} onRetry={discovery.refetch} />) : discovery.status === "success" && (
-        <div className="flex flex-col gap-10">
-          <ResponseDistributions discovery={discovery.data} />
-          <QualitativeInsights discovery={discovery.data} />
-          <QuestionDiscovery discovery={discovery.data} />
-        </div>
+        <DashboardGrid>
+          <DashboardGridItem area="primary"><ResponseDistributions discovery={discovery.data} /></DashboardGridItem>
+          <DashboardGridItem area="secondary"><QualitativeInsights discovery={discovery.data} /></DashboardGridItem>
+          <DashboardGridItem area="full"><QuestionDiscovery discovery={discovery.data} /></DashboardGridItem>
+        </DashboardGrid>
       )}
     </div>
   )

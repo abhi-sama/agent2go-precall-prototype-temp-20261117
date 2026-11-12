@@ -44,9 +44,9 @@ export function HcpSearch() {
   }
 
   return (
-    <Card padding={5} elevation="low">
+    <Card padding={5} elevation="low" className="a2g-hcp-search">
       <section aria-labelledby="hcp-search-heading" className="space-y-6">
-        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,.8fr)]">
+        <div className="a2g-hcp-search-details grid min-w-0 gap-6">
           <div className="min-w-0">
             <div className="flex items-start gap-3">
               <Search className="mt-1 size-5 text-[var(--color-accent)]" aria-hidden />
@@ -65,7 +65,7 @@ export function HcpSearch() {
               </List> : null}
             </div>}
           </div>
-          <div className="min-w-0 border-t pt-6 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
+          <div className="a2g-hcp-search-profile min-w-0 border-t pt-6">
             {!selectedId ? <EmptyState data-testid="hcp-profile-placeholder" title="Profile details" description="Select an authorized HCP to review the available source facts." headingLevel={3} isCompact icon={<UserRound />} /> : null}
             {selectedId && profile.status === "loading" ? <Skeleton aria-busy="true" height={260} radius={3} /> : null}
             {selectedId && profile.status === "error" ? <ErrorState error={profile.error} onRetry={profile.refetch} /> : null}

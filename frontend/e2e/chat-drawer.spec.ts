@@ -27,26 +27,37 @@ async function ask(page: Page, question: string) {
   await expect(page.getByTestId("assistant-turn").last()).toHaveAttribute("data-status", "done", { timeout: 20_000 })
 }
 
-test("opens over the screen without navigating, as a right panel or (iPad portrait) a full-screen sheet", async ({ page }) => {
+/** Escape is proven after the transition below; use the visible close action in stateful flows. */
+async function closeChat(page: Page) {
+  const drawer = page.getByTestId("chat-drawer")
+  await drawer.getByRole("button", { name: "Close" }).click()
+  await expect(drawer).toBeHidden()
+}
+
+test("opens over the screen without navigating, as a right drawer or (iPad portrait) a tall sheet", async ({ page }) => {
   await page.goto("/msl")
   await expect(page.getByTestId("kpi-calls").first()).toBeVisible()
   const url = page.url()
 
   await page.getByTestId("chat-open").click()
   const drawer = page.getByTestId("chat-drawer")
+  const panel = page.getByRole("dialog", { name: "Ask the agent" })
   await expect(drawer).toBeVisible()
+  await expect(panel).toBeVisible()
   expect(page.url()).toBe(url)
-  await expect(drawer).toHaveAttribute("data-presentation", portrait(page) ? "sheet" : "panel")
+  await expect(drawer).toHaveAttribute("data-presentation", portrait(page) ? "sheet" : "drawer")
   // Let the slide finish before measuring.
   await page.waitForTimeout(500)
 
   const size = page.viewportSize()!
-  const box = (await drawer.boundingBox())!
+  const box = (await panel.boundingBox())!
   if (portrait(page)) {
-    expect(Math.round(box.width)).toBe(size.width)
-    expect(Math.round(box.height)).toBe(size.height)
-    expect(Math.round(box.x)).toBe(0)
-    expect(Math.round(box.y)).toBe(0)
+    expect(box.width).toBeLessThanOrEqual(size.width)
+    expect(box.width).toBeGreaterThanOrEqual(600)
+    expect(box.height).toBeGreaterThan(size.height * 0.8)
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(size.width)
+    expect(Math.round(box.y + box.height)).toBe(size.height)
   } else {
     expect(Math.round(box.x + box.width)).toBe(size.width)
     expect(Math.round(box.y)).toBe(0)
@@ -56,21 +67,45 @@ test("opens over the screen without navigating, as a right panel or (iPad portra
   }
 
   // Touch targets stay 44pt or larger.
-  for (const id of ["chat-close", "chat-send", "starter"]) {
-    const target = (await page.getByTestId(id).first().boundingBox())!
-    expect(target.height, id).toBeGreaterThanOrEqual(44)
-    expect(target.width, id).toBeGreaterThanOrEqual(44)
+  for (const [name, target] of [
+    ["close", panel.getByRole("button", { name: "Close" })],
+    ["send", page.getByTestId("chat-send")],
+    ["starter", page.getByTestId("starter")],
+  ] as const) {
+    const box = (await target.first().boundingBox())!
+    expect(box.height, name).toBeGreaterThanOrEqual(44)
+    expect(box.width, name).toBeGreaterThanOrEqual(44)
   }
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   expect(overflow).toBeLessThanOrEqual(0)
 
-  // Escape and the close button both close it; the screen underneath is untouched.
+  // Escape closes it; the screen underneath is untouched.
   await page.keyboard.press("Escape")
-  await expect(drawer).toHaveCount(0)
+  await expect(drawer).toBeHidden()
   await page.getByTestId("chat-open").click()
-  await page.getByTestId("chat-close").click()
-  await expect(drawer).toHaveCount(0)
+  await closeChat(page)
   expect(page.url()).toBe(url)
+})
+
+test("docks as a supporting pane and reflows content at desktop width", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.goto("/msl")
+  await expect(page.getByTestId("kpi-calls")).toBeVisible()
+
+  await page.getByTestId("chat-open").click()
+  const dock = page.getByTestId("chat-dock")
+  await expect(dock).toBeVisible()
+  await expect(page.getByTestId("chat-drawer")).toHaveCount(0)
+  const dockBox = await dock.boundingBox()
+  expect(dockBox).not.toBeNull()
+  expect(dockBox!.width).toBeGreaterThanOrEqual(400)
+  expect(dockBox!.x + dockBox!.width).toBeLessThanOrEqual(1440)
+  await expect(page.getByTestId("sidebar-rail")).toHaveAttribute("data-collapsed", "true")
+  const columns = await page.getByTestId("dashboard-grid").first().evaluate((element) => getComputedStyle(element).gridTemplateColumns)
+  expect(columns.trim().split(/\s+/)).toHaveLength(12)
+  await dock.getByRole("button", { name: "Close" }).click()
+  await expect(dock).toHaveCount(0)
+  await expect(page.getByTestId("sidebar-rail")).toHaveAttribute("data-collapsed", "false")
 })
 
 test("opens from every persona's screens", async ({ page }) => {
@@ -84,17 +119,17 @@ test("opens from every persona's screens", async ({ page }) => {
     await page.getByTestId("chat-open").click()
     await expect(page.getByTestId("chat-drawer")).toBeVisible()
     await expect(page.getByTestId("chat-chip").first()).toHaveAttribute("data-kind", "screen")
-    await page.keyboard.press("Escape")
-    await expect(page.getByTestId("chat-drawer")).toHaveCount(0)
+    await closeChat(page)
   }
 })
 
-test("shows the current filters as chips and sends them with the question", async ({ page }) => {
+test("shows current scope as removable chips and sends serializable filters with the question", async ({ page }) => {
   await page.goto("/msl")
   await expect(page.getByTestId("filter-bar")).toBeVisible()
   await page.getByTestId("range-7d").click()
-  await page.locator("#filter-question").selectOption("Q-0001")
-  await expect(page.getByTestId("distribution-Q-0001")).toBeVisible()
+  await page.locator("#filter-molecule").selectOption("osimertinib")
+  await page.locator("#filter-question").selectOption("Q-0002")
+  await expect(page.getByTestId("distribution-Q-0002")).toBeVisible()
   const range = (await page.getByTestId("range-7d").getAttribute("aria-pressed")) === "true"
   expect(range).toBe(true)
 
@@ -103,14 +138,18 @@ test("shows the current filters as chips and sends them with the question", asyn
   await expect(page.getByTestId("chat-chips")).toBeVisible()
   await expect(page.locator('[data-testid="chat-chip"][data-kind="screen"]')).toHaveText("My territory")
   await expect(page.locator('[data-testid="chat-chip"][data-kind="range"]')).toContainText("–")
-  await expect(page.locator('[data-testid="chat-chip"][data-kind="question"]')).toHaveText("Question Q-0001")
+  await expect(page.locator('[data-testid="chat-chip"][data-kind="product"]')).toHaveText("Product osimertinib")
+  await expect(page.locator('[data-testid="chat-chip"][data-kind="question"]')).toHaveText("Question Q-0002")
   const shown = await chips.allTextContents()
 
+  await page.getByRole("button", { name: "Remove Product osimertinib" }).click()
+  await expect(page.locator('[data-testid="chat-chip"][data-kind="product"]')).toHaveCount(0)
+
   await ask(page, "How many calls did I have?")
-  // The line under the question is what was sent as context: the route and the same filters the chips showed.
+  // The line under the question is the serializable context: the route, question, and date range.
   const sent = await page.getByTestId("turn-context").textContent()
   expect(sent).toContain("My territory")
-  expect(sent).toContain("Q-0001")
+  expect(sent).toContain("Q-0002")
   expect(sent).toContain(shown[1])
 })
 
@@ -118,11 +157,11 @@ test("a filter change updates the chips and a screen without filters sends only 
   await page.goto("/msl")
   await page.getByTestId("chat-open").click()
   const before = await page.locator('[data-testid="chat-chip"][data-kind="range"]').textContent()
-  await page.keyboard.press("Escape")
+  await closeChat(page)
   await page.getByTestId("range-90d").click()
   await page.getByTestId("chat-open").click()
   await expect(page.locator('[data-testid="chat-chip"][data-kind="range"]')).not.toHaveText(before!)
-  await page.keyboard.press("Escape")
+  await closeChat(page)
 
   await page.goto("/msl/briefs")
   await page.getByTestId("chat-open").click()
@@ -137,11 +176,11 @@ test("keeps the conversation across close, reopen, navigation and reload", async
   await ask(page, "How many calls did I have in the last 90 days?")
   const calls = await page.getByTestId("fact-f1").getAttribute("data-value")
 
-  await page.keyboard.press("Escape")
+  await closeChat(page)
   await page.getByTestId("chat-open").click()
   await expect(page.getByTestId("chat-turn")).toHaveCount(1)
   await expect(page.getByTestId("fact-f1")).toHaveAttribute("data-value", calls!)
-  await page.keyboard.press("Escape")
+  await closeChat(page)
 
   // Another screen, same conversation.
   // The nav link is not reachable on every viewport (iPad Air 11 hides it, a known issue on main
@@ -152,7 +191,7 @@ test("keeps the conversation across close, reopen, navigation and reload", async
   await expect(page).toHaveURL(/\/msl\/activity/)
   await page.getByTestId("chat-open").click()
   await expect(page.getByTestId("chat-turn")).toHaveCount(1)
-  await page.keyboard.press("Escape")
+  await closeChat(page)
 
   // A reload.
   await page.reload()
@@ -163,7 +202,7 @@ test("keeps the conversation across close, reopen, navigation and reload", async
   await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done")
 
   // The full page is the same conversation, and has no panel button of its own.
-  await page.keyboard.press("Escape")
+  await closeChat(page)
   await page.goto("/chat")
   await expect(page.getByTestId("chat-turn")).toHaveCount(1)
   await expect(page.getByTestId("chat-open")).toHaveCount(0)
@@ -179,7 +218,7 @@ test("a different person does not see the conversation", async ({ page }) => {
   await page.goto("/msl")
   await page.getByTestId("chat-open").click()
   await ask(page, "How many calls did I have in the last 90 days?")
-  await page.keyboard.press("Escape")
+  await closeChat(page)
   await page.evaluate(() => window.localStorage.setItem("a2g.local.userId", "u-dir-ne"))
   await page.goto("/director")
   await page.getByTestId("chat-open").click()

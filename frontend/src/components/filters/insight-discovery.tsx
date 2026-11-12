@@ -99,13 +99,13 @@ function grouped(rows: ResponseDistribution[]) {
 export function ResponseDistributions({ discovery }: { discovery: InsightDiscovery }) {
   const groups = grouped(discovery.distributions)
   return (
-    <section aria-labelledby="response-distributions-heading" className="flex flex-col gap-4">
+    <section aria-labelledby="response-distributions-heading" className="a2g-distribution-scope flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div><h2 id="response-distributions-heading" className="text-xl font-semibold tracking-tight">Response distributions</h2><p className="mt-1 text-sm text-muted-foreground">Each response set has its own question and denominator; answers are never combined across prompts.</p></div>
         <Badge variant="outline"><ClipboardList aria-hidden /> Question-level</Badge>
       </div>
       {Object.keys(groups).length === 0 ? <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">No recorded responses match this filter set.</p> : (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="a2g-distribution-grid grid gap-4">
           {Object.entries(groups).map(([id, rows]) => <DistributionCard key={id} rows={rows} />)}
         </div>
       )}

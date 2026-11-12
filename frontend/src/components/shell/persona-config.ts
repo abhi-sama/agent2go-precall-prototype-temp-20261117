@@ -1,4 +1,4 @@
-import { Activity, BarChart3, ClipboardList, FileSearch, FlaskConical, LayoutDashboard, Map, MessagesSquare, Network, ShieldCheck, Sparkles, Users } from "lucide-react"
+import { Activity, BarChart3, ClipboardList, FileSearch, FlaskConical, LayoutDashboard, Map, Network, ShieldCheck, Sparkles, Users } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { Persona } from "@/lib/data/types"
 
@@ -29,7 +29,6 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
       { label: "Pre-call brief", href: "/msl/briefs", icon: ClipboardList },
       { label: "Post-call workflow", href: "/msl/follow-up", icon: ClipboardList },
       { label: "Insights", href: "/msl", icon: BarChart3 },
-      { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],
   },
   director: {
@@ -40,7 +39,6 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
     nav: [
       { label: "My region", href: "/director", icon: Users },
       { label: "Insights", href: "/director/insights", icon: BarChart3 },
-      { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],
   },
   executive: {
@@ -52,7 +50,6 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
       { label: "Overview", href: "/executive", icon: LayoutDashboard },
       { label: "Themes & summaries", href: "/executive/themes", icon: Sparkles },
       { label: "Trends", href: null, icon: BarChart3 },
-      { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],
   },
   admin: {
@@ -65,7 +62,6 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
       { label: "Hierarchy and coverage", href: "/admin/governance", icon: Network },
       { label: "Data loads", href: null, icon: FileSearch },
       { label: "AI evaluation", href: "/admin/evals", icon: FlaskConical },
-      { label: "Ask the agent", href: "/chat", icon: MessagesSquare },
     ],
   },
 }

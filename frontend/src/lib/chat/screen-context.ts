@@ -4,7 +4,7 @@ import { formatRange } from "@/lib/dates"
 
 /** What the slide-in chat panel tells the agent, and the chips that show the person exactly that. */
 export interface ContextChip {
-  kind: "screen" | "range" | "territory" | "question"
+  kind: "screen" | "range" | "territory" | "product" | "question"
   label: string
 }
 
@@ -76,6 +76,9 @@ export function screenContextFor(pathname: string, filters: InsightFilters): Scr
     context.territoryId = filters.territoryId
     chips.push({ kind: "territory", label: `Territory ${filters.territoryId}` })
   }
+  // The chat API deliberately has no molecule field. Keep the active product visible and removable rather than
+  // widening the approved request contract in this layout-only change.
+  if (filters.molecule) chips.push({ kind: "product", label: `Product ${filters.molecule}` })
   if (filters.questionId && /^[A-Za-z0-9_.:-]{1,64}$/.test(filters.questionId)) {
     context.questionId = filters.questionId
     chips.push({ kind: "question", label: `Question ${filters.questionId}` })

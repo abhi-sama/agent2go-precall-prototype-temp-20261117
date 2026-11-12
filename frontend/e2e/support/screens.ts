@@ -24,6 +24,8 @@ const heading = (name: string, level = 1) => (page: Page) =>
 /** A toast is a transient overlay (a confirmation, not part of the screen), so measure once it has gone. */
 const toastsGone = (page: Page) => expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 12_000 })
 const testId = (id: string) => (page: Page) => expect(page.getByTestId(id).first()).toBeVisible()
+/** Wide workspaces reserve a supporting pane; smaller screens use the overlay with identical chat content. */
+const chatSurface = (page: Page) => page.getByTestId(page.viewportSize()!.width >= 1366 ? "chat-dock" : "chat-drawer")
 
 /** The state family is checked in the default theme both ways and in the dark-only theme. */
 const STATE_LOOKS: Look[] = [
@@ -627,14 +629,14 @@ export const SCREENS: ScreenSpec[] = [
       await expect(page.getByTestId("visual-sheet")).toBeVisible()
     },
   },
-  // The slide-in chat (ticket #53): a right panel on laptops and landscape iPads, a full-screen sheet in iPad portrait.
+  // Ask the agent adapts from overlay to a reflowing supporting pane at the wide workspace threshold.
   {
     name: "chat-drawer-open",
     path: "/msl",
     ready: testId("kpi-calls"),
     prepare: async (page) => {
       await page.getByTestId("chat-open").click()
-      await expect(page.getByTestId("chat-drawer")).toBeVisible()
+      await expect(chatSurface(page)).toBeVisible()
       await expect(page.getByTestId("chat-empty")).toBeVisible()
     },
   },
@@ -645,7 +647,7 @@ export const SCREENS: ScreenSpec[] = [
     ready: testId("topic-heatmap"),
     prepare: async (page) => {
       await page.getByTestId("chat-open").click()
-      await expect(page.getByTestId("chat-drawer")).toBeVisible()
+      await expect(chatSurface(page)).toBeVisible()
       await expect(page.locator('[data-testid="chat-chip"][data-kind="range"]')).toBeVisible()
     },
   },
@@ -686,7 +688,7 @@ export const SCREENS: ScreenSpec[] = [
       await page.getByTestId("chat-send").click()
       await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       // Scoped to the panel: /msl has AI-content cards of its own with citations underneath it.
-      await page.getByTestId("chat-drawer").getByTestId("citation").first().click()
+      await chatSurface(page).getByTestId("citation").first().click()
       await expect(page.getByTestId("citation-sheet")).toBeVisible()
     },
   },
@@ -759,7 +761,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await applyLook(page, { theme: "chocolate", scheme: "dark" })
       await page.getByTestId("chat-open").click()
-      await expect(page.getByTestId("chat-drawer")).toBeVisible()
+      await expect(chatSurface(page)).toBeVisible()
     },
   },
   {
