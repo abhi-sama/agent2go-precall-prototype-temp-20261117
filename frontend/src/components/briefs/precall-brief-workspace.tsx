@@ -116,16 +116,16 @@ export function PreCallBriefWorkspace() {
   const canGenerate = activeHcp !== null && objectiveOk && !generating
 
   return (
-    <div className="space-y-6">
+    <div className="@container space-y-4">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Pre-call brief</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Pre-call brief</h1>
         <p className="mt-1 max-w-2xl text-muted-foreground">
           Choose an HCP you are authorized to see, say what you want from the next call, and get a brief where every statement links to the call or response it came from.
         </p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] xl:items-start">
-        <div className="space-y-5">
+      <div className="grid gap-4 @4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @4xl:items-start">
+        <div className="space-y-4">
           <section aria-labelledby="new-brief-h" className="rounded-2xl border bg-card p-5 shadow-card">
             <h2 id="new-brief-h" className="flex items-center gap-2 text-lg font-semibold">
               <span className="grid size-9 place-items-center rounded-lg bg-accent text-accent-foreground"><ClipboardList className="size-4" aria-hidden /></span>
@@ -260,7 +260,7 @@ export function PreCallBriefWorkspace() {
           </section>
         </div>
 
-        <div className={cn("min-w-0", (briefId !== null || generating) && "max-xl:order-first")} aria-live="polite">
+        <div className={cn("min-w-0", (briefId !== null || generating) && "order-first @4xl:order-none")} aria-live="polite">
           {generating && !shown ? (
             <GeneratingPanel />
           ) : briefId === null ? (

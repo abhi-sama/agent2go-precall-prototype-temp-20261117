@@ -66,7 +66,7 @@ export function LandingSection({
       <ParallaxScene as="header" layers={<SceneLayers />} className="flex flex-col gap-3" stageClassName="inset-x-0">
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
             <p className="mt-1 max-w-2xl text-muted-foreground">{description}</p>
           </div>
         </div>

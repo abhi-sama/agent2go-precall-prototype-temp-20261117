@@ -57,7 +57,7 @@ export function AnalyticsFilterBar({ discovery, loading, unavailable = false }: 
     } catch { setSaveError("This view could not be saved. Try again.") } finally { setSaving(false) }
   }
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       <FilterBar
         range={range}
         onRangeChange={(next) => setFilters((current) => ({ ...current, ...next }))}
@@ -67,7 +67,7 @@ export function AnalyticsFilterBar({ discovery, loading, unavailable = false }: 
         disabled={loading}
         selectsDisabled={unavailable}
       />
-      <section aria-label="Saved views" className="flex flex-col gap-3 rounded-xl bg-secondary/55 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+      <section aria-label="Saved views" className="flex flex-col gap-2 rounded-xl bg-secondary/55 p-2 sm:flex-row sm:items-center sm:justify-between sm:px-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <span className="flex items-center gap-2 text-sm font-semibold"><SlidersHorizontal className="size-4 text-accent-text" aria-hidden /> Saved views</span>
           {views.status === "success" && views.data.length === 0 && <span className="text-sm text-muted-foreground">Save a filter set to reopen it in one tap.</span>}
@@ -77,7 +77,7 @@ export function AnalyticsFilterBar({ discovery, loading, unavailable = false }: 
             </Button>
           ))}
         </div>
-        <div className="flex flex-col gap-1 sm:w-[23rem]">
+        <div className="flex flex-col gap-1 sm:w-80">
           <div className="flex gap-2">
             <Input aria-label="Saved view name" value={name} maxLength={80} placeholder="Name this filter set" onChange={(event) => setName(event.target.value)} />
             <Button type="button" className="shrink-0" onClick={() => void save()} disabled={saving}>
@@ -102,7 +102,7 @@ export function ResponseDistributions({ discovery }: { discovery: InsightDiscove
     <section aria-labelledby="response-distributions-heading" className="a2g-distribution-scope flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div><h2 id="response-distributions-heading" className="text-xl font-semibold tracking-tight">Response distributions</h2><p className="mt-1 text-sm text-muted-foreground">Each response set has its own question and denominator; answers are never combined across prompts.</p></div>
-        <Badge variant="outline"><ClipboardList aria-hidden /> Question-level</Badge>
+        <Badge variant="outline" className="shrink-0 whitespace-nowrap"><ClipboardList aria-hidden /> Question-level</Badge>
       </div>
       {Object.keys(groups).length === 0 ? <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">No recorded responses match this filter set.</p> : (
         <div className="a2g-distribution-grid grid gap-4">
@@ -128,11 +128,11 @@ function DistributionCard({ rows }: { rows: ResponseDistribution[] }) {
 }
 
 export function QuestionDiscovery({ discovery }: { discovery: InsightDiscovery }) {
-  return <section aria-labelledby="question-catalog-heading" className="flex flex-col gap-4">
+  return <section aria-labelledby="question-catalog-heading" className="@container flex flex-col gap-4">
     <div><h2 id="question-catalog-heading" className="text-xl font-semibold tracking-tight">Question catalog</h2><p className="mt-1 text-sm text-muted-foreground">Filter by topic, molecule, tumor type, study, survey, or question to find the right approved prompt.</p></div>
-    {discovery.questions.length === 0 ? <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">No catalog questions match this filter set.</p> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    {discovery.questions.length === 0 ? <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">No catalog questions match this filter set.</p> : <div className="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">
       {discovery.questions.map((question) => <Card key={question.questionId} data-testid={`question-${question.questionId}`} className="ring-1 ring-foreground/10">
-        <CardHeader><div className="flex items-start justify-between gap-3"><CardTitle>{question.questionText}</CardTitle><Badge variant={question.status.toLowerCase() === "active" ? "default" : "outline"}>{question.status}</Badge></div><CardDescription>{question.applicability}</CardDescription></CardHeader>
+        <CardHeader><div className="flex items-start justify-between gap-3"><CardTitle className="min-w-0">{question.questionText}</CardTitle><Badge className="shrink-0" variant={question.status.toLowerCase() === "active" ? "default" : "outline"}>{question.status}</Badge></div><CardDescription>{question.applicability}</CardDescription></CardHeader>
         <CardContent className="flex flex-wrap gap-1.5">{[question.topic, question.molecule, question.tumorType, question.study, question.survey].filter(Boolean).map((tag) => <Badge key={tag} variant="outline">{tag}</Badge>)}</CardContent>
         <CardContent className="pt-3 text-xs text-muted-foreground">Effective {readableDate(question.effectiveFrom)} · {question.effectiveTo ? `ends ${readableDate(question.effectiveTo)}` : "currently open"}</CardContent>
       </Card>)}

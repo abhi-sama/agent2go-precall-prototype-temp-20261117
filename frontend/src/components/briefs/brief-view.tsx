@@ -298,7 +298,7 @@ export function BriefView({
   const stub = brief.modelMode === "stub"
 
   return (
-    <article data-testid="brief" data-brief-id={brief.briefId} className="space-y-5 animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">
+    <article data-testid="brief" data-brief-id={brief.briefId} className="@container space-y-4 animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">
       <header className="rounded-2xl border bg-card p-5 shadow-card sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -332,7 +332,7 @@ export function BriefView({
         />
         {dirty && <p id="brief-export-save-first" className="mt-1 text-sm text-muted-foreground">Save or discard your edits before exporting the saved brief.</p>}
 
-        <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+        <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm @xl:grid-cols-2 @4xl:grid-cols-4">
           <div>
             <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Scope</dt>
             <dd data-testid="brief-scope" className="mt-0.5 font-medium">{brief.scopeLabel}</dd>
@@ -384,7 +384,7 @@ export function BriefView({
         </p>
       )}
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-4 @2xl:grid-cols-2">
         <div className="space-y-5">
           <SourceFact
             title="Counted from your records"
@@ -433,7 +433,7 @@ export function BriefView({
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-4 @2xl:grid-cols-2">
         <section data-testid="brief-missing" aria-labelledby="brief-missing-h" className="rounded-2xl border bg-card p-5">
           <h3 id="brief-missing-h" className="flex items-center gap-2 font-semibold">
             <ClipboardList className="size-4 text-muted-foreground" aria-hidden /> Missing information

@@ -35,9 +35,9 @@ test.describe("personal activity trends", () => {
     await expect(page.getByTestId("evidence-freshness")).toContainText("Interaction date")
     await expect(page.getByTestId("evidence-freshness")).toContainText("Load date")
     await expect(drawer.getByTestId("data-through")).toBeVisible()
-    const row = page.getByTestId("evidence-row").first()
-    const interaction = await row.getByTestId("evidence-interaction-date").innerText()
-    const loaded = await row.getByTestId("evidence-loaded").innerText()
+    // The table renders each field as its own cell, so the first row's cells are the first of each test id.
+    const interaction = await page.getByTestId("evidence-interaction-date").first().innerText()
+    const loaded = await page.getByTestId("evidence-loaded").first().innerText()
     expect(interaction).not.toEqual(loaded)
     expect(loaded).toMatch(/UTC$/)
 

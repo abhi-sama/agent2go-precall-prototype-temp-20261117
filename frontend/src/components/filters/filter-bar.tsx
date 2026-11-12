@@ -64,7 +64,7 @@ export function FilterBar({ range, onRangeChange, defaultRange, onReset, selects
     <section
       aria-label="Filters"
       data-testid="filter-bar"
-      className={cn("flex flex-col gap-3 rounded-2xl border bg-card p-3 shadow-card sm:p-4", className)}
+      className={cn("flex flex-col gap-2.5 rounded-2xl border bg-card p-3 shadow-card", className)}
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <span className="flex items-center gap-2 text-sm font-semibold">
@@ -112,15 +112,15 @@ export function FilterBar({ range, onRangeChange, defaultRange, onReset, selects
       </div>
 
       {(showCustom || (selects && selects.length > 0)) && (
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] items-end gap-x-3 gap-y-2">
           {showCustom && (
             <>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex min-w-0 flex-col gap-1.5">
                 <Label htmlFor="range-from" className="text-xs">From</Label>
                 <Input
                   id="range-from"
                   type="date"
-                  className="h-11 w-44"
+                  className="h-11 w-full"
                   value={draft.from}
                   max={draft.to || undefined}
                   disabled={disabled}
@@ -128,12 +128,12 @@ export function FilterBar({ range, onRangeChange, defaultRange, onReset, selects
                   onChange={(e) => setDraftField("from", e.target.value)}
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex min-w-0 flex-col gap-1.5">
                 <Label htmlFor="range-to" className="text-xs">To</Label>
                 <Input
                   id="range-to"
                   type="date"
-                  className="h-11 w-44"
+                  className="h-11 w-full"
                   value={draft.to}
                   min={draft.from || undefined}
                   disabled={disabled}
@@ -142,7 +142,7 @@ export function FilterBar({ range, onRangeChange, defaultRange, onReset, selects
                 />
               </div>
               {!draftValid && (
-                <p role="alert" className="pb-3 text-sm text-destructive">
+                <p role="alert" className="col-span-full text-sm text-destructive">
                   Pick a start date on or before the end date.
                 </p>
               )}
@@ -156,7 +156,7 @@ export function FilterBar({ range, onRangeChange, defaultRange, onReset, selects
                 value={s.value}
                 disabled={disabled || selectsDisabled}
                 onChange={(e) => s.onChange(e.target.value)}
-                className="h-11 w-full min-w-44 max-w-[min(100%,22rem)] truncate rounded-lg border border-input bg-background px-3 text-sm"
+                className="h-11 w-full min-w-0 truncate rounded-lg border border-input bg-background px-3 text-sm"
               >
                 {s.options.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
