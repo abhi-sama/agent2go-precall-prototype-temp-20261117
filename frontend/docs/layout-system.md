@@ -142,3 +142,28 @@ After - the supporting pane reflows the map and evidence work, while Ask the age
 5. Use `LayoutPanel`, `Drawer`, or `BottomSheet` for secondary work instead of raw positioned elements.
 6. Check 1024x1366, 1366x1024, 1440x1000, text zoom, keyboard order, and no horizontal overflow.
 7. Capture before and after evidence at those viewports and add the page to the responsive Playwright matrix.
+
+## Scroll-screen audit
+
+Page height divided by viewport height (1.00 means no scrolling), measured on a production build with the mock adapter and the default look; `/login` is not listed because the local build redirects it to `/msl`. Only the changed cells show before → after. Pages that are table or evidence streams (`/admin/evals`, `/director/insights`, `/design`) stay long by content, not by layout.
+
+| Page | iPad portrait 1024x1366 | iPad landscape 1366x1024 | Desktop 1470x956 | Desktop 1920x1080 |
+|---|---|---|---|---|
+| `/msl` | 1.72 | 2.27 | 2.31 | 2.00 |
+| `/msl/follow-up` | 1.00 | 1.00 | 1.00 | 1.00 |
+| `/msl/activity` | 1.00 | 1.28 | 1.42 | 1.45 |
+| `/msl/insights` | 1.00 | 1.00 | 1.00 | 1.00 |
+| `/msl/briefs` | 1.00 | 1.00 | 1.00 | 1.00 |
+| `/director` | 3.65 → **3.52** | 4.70 → **4.51** | 4.86 → **4.63** | 4.19 → **4.10** |
+| `/director/insights` | 7.62 → **7.55** | 9.80 → **9.71** | 9.96 → **9.86** | 8.19 → **8.10** |
+| `/executive` | 3.29 | 4.32 | 4.41 | 3.75 |
+| `/executive/themes` | 2.61 | 3.27 | 3.33 | 2.37 |
+| `/executive/trends` | 1.69 | 2.13 | 2.22 | 1.89 |
+| `/admin` | 2.77 → **2.62** | 3.70 → **3.50** | 3.79 → **3.58** | 3.32 → **3.11** |
+| `/admin/ingestion` | 1.00 | 1.33 | 1.40 | 1.24 |
+| `/admin/governance` | 1.29 | 1.72 | 1.78 | 1.57 |
+| `/admin/evals` | 3.50 | 4.39 | 4.64 | 4.10 |
+| `/chat` | 1.00 | 1.00 | 1.00 | 1.00 |
+| `/design` | 8.84 → **8.70** | 11.72 → **11.53** | 11.68 → **11.48** | 10.36 → **10.18** |
+
+Remaining stragglers worth a dedicated pass: the Director insights exceptions table and theme cards, the Executive territory and engagement stacks, and the Admin assignment and audit forms, which are form-dense and need their own list-detail design.

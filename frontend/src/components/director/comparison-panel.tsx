@@ -45,7 +45,7 @@ export function ComparisonPanel({ ids, range }: { ids: string[]; range: DateRang
 
   if (ids.length < 2) {
     return (
-      <Card data-testid="compare-hint" variant="muted" padding={4}>
+      <Card data-testid="compare-hint" padding={4} className="border-dashed">
         <Text as="p" type="supporting">
           Choose two to six territories in the table above to compare them over the same period and with the same definitions.
         </Text>

@@ -31,7 +31,7 @@ const CHAPTERS = [
 export function DesignSystemShowcase() {
   const [chapter, setChapter] = React.useState<string>(CHAPTERS[0][0])
   return (
-    <VStack data-testid="design-showcase" gap={10} paddingBlockEnd={8} className="min-w-0">
+    <VStack data-testid="design-showcase" gap={6} paddingBlockEnd={8} className="min-w-0">
       <VStack as="header" gap={3}>
         <Heading level={1} type="display-3">Design system</Heading>
         <VStack className="max-w-3xl">

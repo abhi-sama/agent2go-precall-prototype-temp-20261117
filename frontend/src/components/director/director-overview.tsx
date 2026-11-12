@@ -132,13 +132,19 @@ export function DirectorOverview({ range }: { range: DateRange }) {
           </Section>
         </DashboardGridItem>
 
-        <DashboardGridItem area="primary">
+        <DashboardGridItem area="full">
+          <Section id="compare" title="Compare territories" note="One period and one set of definitions for every territory.">
+            <ComparisonPanel ids={chosen} range={{ from: data.from, to: data.to }} />
+          </Section>
+        </DashboardGridItem>
+
+        <DashboardGridItem area="full">
           <Section id="engagement" title="Engagement and coverage" note="Distinct engaged HCPs, and coverage only where an approved target population exists.">
             <Engagement overview={data} />
           </Section>
         </DashboardGridItem>
 
-        <DashboardGridItem area="secondary">
+        <DashboardGridItem area="full">
           <Section id="definitions" title="How these numbers are counted" note={`Definitions ${data.definitionVersion}. Counts are computed in the database, never by AI.`}>
             <MetadataList data-testid="definitions" columns="multi">
               {data.definitions.map((d) => (
@@ -152,12 +158,6 @@ export function DirectorOverview({ range }: { range: DateRange }) {
                 ))}
               </List>
             )}
-          </Section>
-        </DashboardGridItem>
-
-        <DashboardGridItem area="full">
-          <Section id="compare" title="Compare territories" note="One period and one set of definitions for every territory.">
-            <ComparisonPanel ids={chosen} range={{ from: data.from, to: data.to }} />
           </Section>
         </DashboardGridItem>
       </DashboardGrid>

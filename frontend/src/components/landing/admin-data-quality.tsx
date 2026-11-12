@@ -215,16 +215,18 @@ function QualityWorkspace({ data, onRefresh }: { data: AdminDataQuality; onRefre
         title={hasLoadIssue ? "Pipeline attention required" : "All monitored loads are current"}
         collapsible={false}
       />
-      <IngestionPanel runs={data.ingestionRuns} onRefresh={onRefresh} />
-      <LoadTimeline runs={data.ingestionRuns} />
+      <DashboardGrid>
+        <DashboardGridItem area="focus"><IngestionPanel runs={data.ingestionRuns} onRefresh={onRefresh} /></DashboardGridItem>
+        <DashboardGridItem area="detail"><LoadTimeline runs={data.ingestionRuns} /></DashboardGridItem>
+      </DashboardGrid>
       <DashboardGrid>
         <DashboardGridItem area="third"><Stat title="Identity reconciliation" value={data.identities.matched.toLocaleString()} caption={`matched identities · ${data.identities.unmatched} unmatched`} /></DashboardGridItem>
         <DashboardGridItem area="third"><Stat title="Duplicate keys" value={data.duplicateKeyCount.toLocaleString()} caption="duplicate response-key groups" /></DashboardGridItem>
         <DashboardGridItem area="third"><Stat title="Record grain" value={data.recordGrain.callProductRows.toLocaleString()} caption={`call-product rows · ${data.recordGrain.distinctCalls.toLocaleString()} distinct calls`} /></DashboardGridItem>
       </DashboardGrid>
       <DashboardGrid>
-        <DashboardGridItem area="primary"><IssueList issues={data.issues} /></DashboardGridItem>
-        <DashboardGridItem area="secondary"><DependencyGraph graph={data.questionGraph} /></DashboardGridItem>
+        <DashboardGridItem area="focus"><IssueList issues={data.issues} /></DashboardGridItem>
+        <DashboardGridItem area="detail"><DependencyGraph graph={data.questionGraph} /></DashboardGridItem>
       </DashboardGrid>
       <RecordIndex issues={data.issues} />
     </>

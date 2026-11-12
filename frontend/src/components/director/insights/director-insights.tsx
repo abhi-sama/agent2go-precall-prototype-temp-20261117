@@ -49,7 +49,7 @@ export function DirectorInsights() {
 
   return (
     <CitationHost>
-      <VStack gap={10}>
+      <VStack gap={6}>
         <VStack as="header" gap={3}>
           <VStack gap={1} align="start">
             <Button href="/director" as={NextLink} variant="ghost" size="sm" label="My region" icon={<Icon icon={ArrowLeft} />} />
