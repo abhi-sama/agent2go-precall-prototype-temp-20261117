@@ -1,16 +1,21 @@
 "use client"
 
+import { Badge } from "@astryxdesign/core/Badge"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
+import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
 import { FileText, Minus, MoveDownRight, MoveUpRight, CircleHelp } from "lucide-react"
 import * as React from "react"
 import { CitationSheet } from "@/components/chat/citation-sheet"
 import { CitationChip } from "@/components/provenance/provenance"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
-import { Badge } from "@/components/ui/badge"
 import type { CitationItem } from "@/lib/chat/events"
 import type { EmergingStatus } from "@/lib/data/director-insights"
 import type { IsoDate, IsoDateTime } from "@/lib/data/types"
 import { formatDay } from "@/lib/dates"
-import { cn } from "@/lib/utils"
 
 const CitationContext = React.createContext<((item: CitationItem) => void) | null>(null)
 
@@ -42,7 +47,7 @@ export function EvidenceChip({ recordId, label }: { recordId: string; label?: st
       onOpen={() => open({ recordId, dataset: "hcp_raw_insights", label: label ?? "Recorded HCP response" })}
       className="min-h-9 gap-1.5 rounded-lg px-2.5 font-mono"
     >
-      <FileText className="size-3.5 shrink-0" aria-hidden />
+      <Icon icon={FileText} size="xsm" />
       {recordId}
     </CitationChip>
   )
@@ -51,28 +56,21 @@ export function EvidenceChip({ recordId, label }: { recordId: string; label?: st
 /** States the method: grouped from free text by keyword. The AI look comes from the card around it, not this pill. */
 export function DerivedBadge() {
   return (
-    <Badge variant="outline" data-testid="derived-badge">
-      Derived
-    </Badge>
+    <Badge variant="neutral" label="Derived" data-testid="derived-badge" />
   )
 }
 
-const STATUS: Record<EmergingStatus, { label: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; className: string }> = {
-  EMERGING: { label: "Emerging", icon: MoveUpRight, className: "border-primary/50 bg-primary/12 text-foreground" },
-  DECLINING: { label: "Declining", icon: MoveDownRight, className: "border-fact/40 bg-fact-soft text-fact" },
-  STABLE: { label: "Stable", icon: Minus, className: "border-border bg-muted text-muted-foreground" },
-  INSUFFICIENT_SAMPLE: { label: "Not enough responses", icon: CircleHelp, className: "border-warning/50 bg-warning/10 text-foreground" },
+const STATUS: Record<EmergingStatus, { label: string; icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; variant: "info" | "purple" | "neutral" | "warning" }> = {
+  EMERGING: { label: "Emerging", icon: MoveUpRight, variant: "info" },
+  DECLINING: { label: "Declining", icon: MoveDownRight, variant: "purple" },
+  STABLE: { label: "Stable", icon: Minus, variant: "neutral" },
+  INSUFFICIENT_SAMPLE: { label: "Not enough responses", icon: CircleHelp, variant: "warning" },
 }
 
 /** The status is the database's verdict. This only draws it: an icon and a word, never colour alone. */
 export function StatusBadge({ status }: { status: EmergingStatus }) {
-  const { label, icon: Icon, className } = STATUS[status]
-  return (
-    <span data-testid="status-badge" data-status={status} className={cn("inline-flex min-h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold", className)}>
-      <Icon className="size-3.5" aria-hidden />
-      {label}
-    </span>
-  )
+  const { label, icon, variant } = STATUS[status]
+  return <Badge variant={variant} label={label} icon={<Icon icon={icon} size="xsm" />} data-testid="status-badge" data-status={status} />
 }
 
 export const num = (n: number) => n.toLocaleString("en-US")
@@ -81,25 +79,28 @@ export const pctText = (n: number | null) => (n === null ? "—" : `${n.toFixed(
 /** Dates, denominator and data-through that every chart or panel states. */
 export function PanelMeta({ from, to, dataThrough, children }: { from: IsoDate; to: IsoDate; dataThrough: IsoDateTime | null; children?: React.ReactNode }) {
   return (
-    <div data-testid="panel-meta" className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
-      <span className="tabular-nums">{formatDay(from, true)} to {formatDay(to, true)}</span>
-      {children}
+    <HStack data-testid="panel-meta" gap={3} align="center" wrap="wrap">
+      <Text type="supporting" hasTabularNumbers>{formatDay(from, true)} to {formatDay(to, true)}</Text>
+      {children && <Text type="supporting">{children}</Text>}
       <DataThroughBadge dataThrough={dataThrough} className="min-h-8 text-xs" />
-    </div>
+    </HStack>
   )
 }
 
 export function InsightSection({ id, title, note, meta, children }: { id: string; title: string; note: string; meta?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section data-testid={`section-${id}`} aria-labelledby={`section-${id}-title`} className="min-w-0 animate-in fade-in-0 duration-200 ease-out motion-reduce:animate-none">
-      <h2 id={`section-${id}-title`} className="text-xl font-semibold tracking-tight">{title}</h2>
-      <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">{note}</p>
-      {meta && <div className="mb-3 mt-2">{meta}</div>}
-      <div className={meta ? "" : "mt-3"}>{children}</div>
-    </section>
+    <VStack as="section" gap={3} data-testid={`section-${id}`} aria-labelledby={`section-${id}-title`} className="min-w-0 animate-in fade-in-0 duration-200 ease-out motion-reduce:animate-none">
+      <VStack gap={1}>
+        <Heading level={2} id={`section-${id}-title`}>{title}</Heading>
+        <Text type="supporting" as="p" className="max-w-3xl">{note}</Text>
+      </VStack>
+      {meta}
+      {children}
+    </VStack>
   )
 }
 
-export function PanelLoading({ testId, height = "h-64" }: { testId: string; height?: string }) {
-  return <div data-testid={testId} aria-busy="true" className={cn("animate-pulse rounded-2xl border bg-muted/50", height)} />
+/** Height in px of the loading placeholder; the real panel replaces it. */
+export function PanelLoading({ testId, height = 256 }: { testId: string; height?: number }) {
+  return <Skeleton data-testid={testId} aria-busy="true" width="100%" height={height} radius={4} />
 }

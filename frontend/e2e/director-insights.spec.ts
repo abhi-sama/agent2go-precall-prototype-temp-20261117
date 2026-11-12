@@ -101,7 +101,8 @@ test.describe("Director insights", () => {
     await page.getByTestId("question-search").fill("supportive")
     await expect(page.getByTestId("question-option")).toHaveCount(1)
     await page.getByTestId("question-search").fill("")
-    await page.getByTestId("question-type").selectOption("yes_no")
+    await page.getByTestId("question-type").click()
+    await page.getByRole("option", { name: "Yes / no" }).click()
     await expect(page.getByTestId("question-option")).toHaveCount(1)
   })
 

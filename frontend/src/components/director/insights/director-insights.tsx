@@ -1,18 +1,22 @@
 "use client"
 
+import { Button } from "@astryxdesign/core/Button"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
 import { ArrowLeft } from "lucide-react"
-import Link from "next/link"
+import NextLink from "next/link"
 import * as React from "react"
 import { FilterBar } from "@/components/filters/filter-bar"
 import { useSharedFilters } from "@/components/filters/filter-context"
 import { ScopeLabel } from "@/components/shell/scope-label"
-import { buttonVariants } from "@/components/ui/button"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { DateRange } from "@/lib/data/types"
 import { useQuery } from "@/lib/data/use-query"
 import { presetRange } from "@/lib/dates"
 import { useSession } from "@/lib/session/session-provider"
-import { cn } from "@/lib/utils"
 import { DrilldownPanel } from "./drilldown-panel"
 import { EmergingPanel } from "./emerging-panel"
 import { ExceptionsPanel } from "./exceptions-panel"
@@ -45,18 +49,18 @@ export function DirectorInsights() {
 
   return (
     <CitationHost>
-      <div className="flex flex-col gap-10">
-        <header className="flex flex-col gap-3">
-          <div>
-            <Link href="/director" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mb-1")}><ArrowLeft aria-hidden /> My region</Link>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Insights</h1>
-            <p className="mt-1 max-w-2xl text-muted-foreground">Themes, emerging topics, question-level answers and data exceptions across the territories you are approved to see.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+      <VStack gap={10}>
+        <VStack as="header" gap={3}>
+          <VStack gap={1} align="start">
+            <Button href="/director" as={NextLink} variant="ghost" size="sm" label="My region" icon={<Icon icon={ArrowLeft} />} />
+            <Heading level={1}>Insights</Heading>
+            <Text type="supporting" as="p" className="max-w-2xl">Themes, emerging topics, question-level answers and data exceptions across the territories you are approved to see.</Text>
+          </VStack>
+          <HStack gap={2} align="center" wrap="wrap">
             <ScopeLabel label={me.status === "success" ? me.data.scopeLabel : undefined} loading={me.status !== "success"} />
-          </div>
+          </HStack>
           <FilterBar range={range} defaultRange={defaultRange} onRangeChange={(r) => setFilters((current) => ({ ...current, ...r }))} onReset={() => setFilters((current) => ({ ...current, ...defaultRange }))} />
-        </header>
+        </VStack>
 
         <SummariesPanel range={range} />
         <HeatmapPanel range={range} filters={facetFilters} />
@@ -64,7 +68,7 @@ export function DirectorInsights() {
         <QuestionPanel range={range} filters={facetFilters} />
         <DrilldownPanel range={range} />
         <ExceptionsPanel range={range} />
-      </div>
+      </VStack>
     </CitationHost>
   )
 }

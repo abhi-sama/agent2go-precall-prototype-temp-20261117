@@ -1,6 +1,10 @@
 "use client"
 
 import { FileSearch } from "lucide-react"
+import { Card } from "@astryxdesign/core/Card"
+import { Heading } from "@astryxdesign/core/Heading"
+import { Icon } from "@astryxdesign/core/Icon"
+import { IconButton } from "@astryxdesign/core/IconButton"
 import type { ExecutiveRankBy, ExecutiveUnit } from "@/lib/data/types"
 import { cn } from "@/lib/utils"
 import { CountValue, num, percent } from "./count"
@@ -39,8 +43,8 @@ export function RankedUnits({
 }) {
   const max = Math.max(1, ...units.map((u) => metricOf(u, rankBy) ?? 0))
   return (
-    <div data-testid={`ranked-${id}`} className="min-w-0 rounded-2xl border bg-card p-4 sm:p-5">
-      <h3 className="mb-3 text-base font-semibold">{title}</h3>
+    <Card data-testid={`ranked-${id}`} padding={4} className="min-w-0">
+      <Heading level={3} className="mb-3">{title}</Heading>
       <ol className="flex flex-col gap-1">
         {units.map((u) => {
           const value = metricOf(u, rankBy)
@@ -76,21 +80,20 @@ export function RankedUnits({
                   />
                 )}
                 {onDrill && (
-                  <button
-                    type="button"
+                  <IconButton
                     data-testid="drill-open"
+                    variant="secondary"
+                    size="lg"
                     onClick={() => onDrill(u)}
-                    className="inline-flex size-11 items-center justify-center rounded-lg border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
-                    aria-label={`Open the records behind ${u.name}`}
-                  >
-                    <FileSearch className="size-4" aria-hidden />
-                  </button>
+                    label={`Open the records behind ${u.name}`}
+                    icon={<Icon icon={FileSearch} />}
+                  />
                 )}
               </span>
             </li>
           )
         })}
       </ol>
-    </div>
+    </Card>
   )
 }

@@ -1,5 +1,12 @@
 "use client"
 
+import { Banner } from "@astryxdesign/core/Banner"
+import { Button } from "@astryxdesign/core/Button"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
+import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
 import { MessagesSquare, Stethoscope, Users } from "lucide-react"
 import * as React from "react"
 import { AnalyticsFilterBar, QuestionDiscovery, ResponseDistributions } from "@/components/filters/insight-discovery"
@@ -12,7 +19,6 @@ import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
 import { TerritoryMap } from "@/components/map/territory-map"
-import { Button } from "@/components/ui/button"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
 import type { DateRange, GeoActivity } from "@/lib/data/types"
@@ -64,36 +70,36 @@ export function LandingSection({
   return (
     <div className="flex flex-col gap-6">
       <ParallaxScene as="header" layers={<SceneLayers />} className="flex flex-col gap-3" stageClassName="inset-x-0">
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-            <p className="mt-1 max-w-2xl text-muted-foreground">{description}</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <VStack gap={1}>
+          <Heading level={1} type="display-3">{title}</Heading>
+          <Text as="p" type="large" color="secondary" display="block" className="max-w-2xl">{description}</Text>
+        </VStack>
+        <HStack gap={2} align="center" wrap="wrap">
           <ScopeLabel label={scopeLabel} loading={loading || (kpis.status === "error" && !aggregateOnly)} />
           {kpis.status === "success" && <DataThroughBadge dataThrough={kpis.data.dataThrough} />}
           {aggregateOnly && <DataThroughBadge dataThrough={geo.dataThrough} />}
-          <span className="text-sm text-muted-foreground" data-testid="range-label">
+          <Text type="supporting" data-testid="range-label">
             {formatRange(range)}
-          </span>
-        </div>
+          </Text>
+        </HStack>
       </ParallaxScene>
 
       <AnalyticsFilterBar discovery={discovery.status === "success" ? discovery.data : undefined} loading={loading || discovery.status === "loading"} unavailable={discoveryForbidden} />
 
       {aggregateOnly ? (
-        <p data-testid="aggregate-only-note" className="rounded-2xl border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          Record-level totals are not shown to this role. The map above shows aggregate counts for your scope only.
-        </p>
+        <Banner
+          data-testid="aggregate-only-note"
+          status="info"
+          title="Record-level totals are not shown to this role."
+          description="The map shows aggregate counts for your scope only."
+          collapsible={false}
+        />
       ) : kpis.status === "error" ? (
         <ErrorState error={kpis.error} onRetry={kpis.refetch} />
       ) : allZero ? (
         <EmptyState
           actions={
-            <Button variant="outline" onClick={() => setFilters((current) => ({ ...current, ...presetRange("90d") }))}>
-              Show 90 days
-            </Button>
+            <Button variant="secondary" label="Show 90 days" onClick={() => setFilters((current) => ({ ...current, ...presetRange("90d") }))} />
           }
         />
       ) : (
@@ -153,7 +159,7 @@ export function LandingSection({
             ) : geoQuery.status === "error" ? (
               <ErrorState error={geoQuery.error} onRetry={geoQuery.refetch} />
             ) : (
-              <div data-testid="territory-loading" aria-busy="true" className="h-[22rem] animate-pulse rounded-2xl border bg-muted/60" />
+              <Skeleton data-testid="territory-loading" aria-busy="true" height={352} radius={4} />
             )}
           </DashboardGridItem>
           {supporting && <DashboardGridItem area="detail">{supporting}</DashboardGridItem>}

@@ -1,16 +1,16 @@
 "use client"
 
+import { Text } from "@astryxdesign/core/Text"
 import * as React from "react"
-import { cn } from "@/lib/utils"
 
 export const fmt = (n: number): string => n.toLocaleString("en-US")
 
 /** The value-first readout above a chart: what the pointer, tap or keyboard focus is on. Always in the DOM so screen readers hear it. */
 export function Readout({ children, testId = "viz-readout", idle }: { children?: React.ReactNode; testId?: string; idle: string }) {
   return (
-    <p data-testid={testId} aria-live="polite" className={cn("min-h-6 text-sm tabular-nums", children ? "text-foreground" : "text-muted-foreground")}>
+    <Text as="p" display="block" hasTabularNumbers data-testid={testId} aria-live="polite" color={children ? "primary" : "secondary"} className="min-h-6">
       {children ?? idle}
-    </p>
+    </Text>
   )
 }
 

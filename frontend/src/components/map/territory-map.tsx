@@ -1,6 +1,15 @@
 "use client"
 
-import { ChevronRight, Globe2, Lock, MapPin, Navigation } from "lucide-react"
+import { Badge } from "@astryxdesign/core/Badge"
+import { BreadcrumbItem, Breadcrumbs } from "@astryxdesign/core/Breadcrumbs"
+import { Button } from "@astryxdesign/core/Button"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { Text } from "@astryxdesign/core/Text"
+import { ToggleButton } from "@astryxdesign/core/ToggleButton"
+import { VStack } from "@astryxdesign/core/VStack"
+import { Globe2, Lock, MapPin, Navigation } from "lucide-react"
 import dynamic from "next/dynamic"
 import * as React from "react"
 import { BlockSkeleton } from "@/components/state/states"
@@ -227,38 +236,26 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
       className={cn("overflow-hidden rounded-2xl border bg-card shadow-card", className)}
     >
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-3">
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold tracking-tight">Territory map</h2>
-          <nav aria-label="Map level" className="mt-0.5 flex flex-wrap items-center gap-0.5 text-sm">
-            {crumbs.map((c, i) => (
-              <React.Fragment key={c.id}>
-                {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden />}
-                {c.to ? (
-                  <button
-                    type="button"
-                    data-testid={`crumb-${c.id}`}
-                    aria-current={i === crumbs.length - 1 ? "location" : undefined}
-                    disabled={i === crumbs.length - 1 && crumbs.length === 1}
-                    onClick={() => go(c.to!)}
-                    className={cn(
-                      "-mx-1 inline-flex min-h-11 items-center rounded-lg px-2 font-medium hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent",
-                      i === crumbs.length - 1 ? "text-foreground" : "text-muted-foreground",
-                    )}
-                  >
-                    {c.label}
-                  </button>
-                ) : (
-                  <span aria-current="location" className="px-2 font-medium">
-                    {c.label}
-                  </span>
-                )}
-              </React.Fragment>
-            ))}
-          </nav>
-        </div>
-        <p className="text-xs text-muted-foreground" data-testid="map-range">
+        <VStack gap={0.5} className="min-w-0">
+          <Heading level={2}>Territory map</Heading>
+          <Breadcrumbs label="Map level" variant="supporting" separator={<Icon icon="chevronRight" size="xsm" />}>
+            {crumbs.map((c, i) => {
+              const last = i === crumbs.length - 1
+              return c.to && !last ? (
+                <BreadcrumbItem key={c.id} data-testid={`crumb-${c.id}`} onClick={() => go(c.to!)}>
+                  {c.label}
+                </BreadcrumbItem>
+              ) : (
+                <BreadcrumbItem key={c.id} data-testid={c.to ? `crumb-${c.id}` : undefined} isCurrent>
+                  {c.label}
+                </BreadcrumbItem>
+              )
+            })}
+          </Breadcrumbs>
+        </VStack>
+        <Text type="supporting" data-testid="map-range">
           Distinct calls · {formatRange({ from: activity.from, to: activity.to })}
-        </p>
+        </Text>
       </div>
 
       <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -331,12 +328,12 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
           <div className="mt-auto flex flex-col gap-2 border-t pt-3 text-xs text-muted-foreground">
             <Legend extent={extent} colors={colors} />
             {anySuppressed && (
-              <p className="flex items-center gap-1.5" data-testid="suppression-note">
-                <Lock className="size-3.5 shrink-0" aria-hidden />
-                Groups of fewer than 5 calls are hidden for aggregate-only access.
-              </p>
+              <HStack gap={1.5} align="center" data-testid="suppression-note">
+                <Icon icon={Lock} size="sm" />
+                <Text type="supporting">Groups of fewer than 5 calls are hidden for aggregate-only access.</Text>
+              </HStack>
             )}
-            <p>{activity.scopeLabel}</p>
+            <Text as="p" type="supporting" display="block">{activity.scopeLabel}</Text>
           </div>
         </aside>
       </div>
@@ -347,7 +344,7 @@ export function TerritoryMap({ activity, persona, className }: { activity: GeoAc
 function Legend({ extent, colors }: { extent: ReturnType<typeof extentOf>; colors: MapColors }) {
   return (
     <div data-testid="map-legend" className="flex flex-col gap-1">
-      <span className="font-medium text-foreground">Distinct calls</span>
+      <Text type="supporting" weight="medium" color="primary">Distinct calls</Text>
       <span
         aria-hidden
         className="h-2.5 w-full rounded-full border"
@@ -361,20 +358,23 @@ function Legend({ extent, colors }: { extent: ReturnType<typeof extentOf>; color
   )
 }
 
-function Row({ children, selected, onClick, testId }: { children: React.ReactNode; selected?: boolean; onClick: () => void; testId: string }) {
-  return (
-    <button
-      type="button"
-      data-testid={testId}
-      aria-pressed={selected}
-      onClick={onClick}
-      className={cn(
-        "flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border px-3 text-left text-sm font-medium",
-        selected ? "border-primary bg-accent text-accent-foreground" : "hover:bg-muted",
-      )}
-    >
-      {children}
-    </button>
+function Row({ name: textName, label, value, selected, onClick, testId }: { name: string; label: React.ReactNode; value: string; selected?: boolean; onClick: () => void; testId: string }) {
+  const content = (
+    <HStack justify="between" align="center" gap={3} className="w-full min-w-0">
+      <span className="truncate">{label}</span>
+      <Text color="inherit" hasTabularNumbers>{value}</Text>
+    </HStack>
+  )
+  // The accessible name is the visible text: the row label and its count.
+  const name = `${textName} ${value}`
+  return selected === undefined ? (
+    <Button data-testid={testId} label={name} width="100%" onClick={onClick}>
+      {content}
+    </Button>
+  ) : (
+    <ToggleButton data-testid={testId} label={name} isPressed={selected} onPressedChange={() => onClick()} className="w-full">
+      {content}
+    </ToggleButton>
   )
 }
 
@@ -396,17 +396,21 @@ function PanelContent({
   if (view.level === "world") {
     return (
       <div className="flex flex-col gap-2">
-        <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          <Globe2 className="size-3.5" aria-hidden /> Countries
-        </p>
-        <p className="text-sm text-muted-foreground">Tap a country to open its map.</p>
+        <HStack gap={1.5} align="center">
+          <Icon icon={Globe2} size="sm" color="secondary" />
+          <Text type="label" color="secondary" className="uppercase">Countries</Text>
+        </HStack>
+        <Text as="p" type="supporting" display="block">Tap a country to open its map.</Text>
         <ul className="flex flex-col gap-1.5">
           {activity.countries.map((c) => (
             <li key={c.countryCode}>
-              <Row testId={`country-option-${c.countryCode}`} onClick={() => onCountry(c.countryCode)}>
-                <span className="truncate">{c.countryName}</span>
-                <span className="text-xs font-normal text-muted-foreground tabular-nums">{c.suppressed || c.distinctCalls === null ? "hidden" : formatCount(c.distinctCalls)}</span>
-              </Row>
+              <Row
+                testId={`country-option-${c.countryCode}`}
+                name={c.countryName}
+                label={c.countryName}
+                value={c.suppressed || c.distinctCalls === null ? "hidden" : formatCount(c.distinctCalls)}
+                onClick={() => onCountry(c.countryCode)}
+              />
             </li>
           ))}
         </ul>
@@ -418,48 +422,55 @@ function PanelContent({
     <div className="flex flex-col gap-4">
       {territory ? (
         <div data-testid="territory-detail" className="flex flex-col gap-1">
-          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{territory.regionName}</p>
-          <p className="text-lg font-semibold tracking-tight">
+          <Text as="p" type="label" color="secondary" display="block" className="uppercase">{territory.regionName}</Text>
+          <Text as="p" type="large" weight="semibold" display="block">
             {territory.name}{" "}
-            <span className="font-mono text-xs font-normal text-muted-foreground">{territory.territoryId}</span>
-          </p>
-          <p className="flex items-center gap-1 text-sm text-muted-foreground">
-            <MapPin className="size-3.5" aria-hidden /> {territory.subdivisionName}, {territory.countryName}
-          </p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums" data-testid="territory-calls">
+            <Text type="code" color="secondary">{territory.territoryId}</Text>
+          </Text>
+          <HStack gap={1} align="center">
+            <Icon icon={MapPin} size="sm" color="secondary" />
+            <Text type="supporting">{territory.subdivisionName}, {territory.countryName}</Text>
+          </HStack>
+          <Text as="p" type="display-2" weight="semibold" hasTabularNumbers display="block" className="mt-2" data-testid="territory-calls">
             {territory.suppressed || territory.distinctCalls === null ? "Hidden" : formatCount(territory.distinctCalls)}
-          </p>
-          <p className="text-xs text-muted-foreground">{territory.suppressed ? "Fewer than 5 distinct calls" : "Distinct calls"}</p>
+          </Text>
+          <Text as="p" type="supporting" display="block">{territory.suppressed ? "Fewer than 5 distinct calls" : "Distinct calls"}</Text>
           {territory.isOwn && (
-            <p className="mt-1 flex w-fit items-center gap-1 rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground">
-              <Navigation className="size-3" aria-hidden /> Your territory
-            </p>
+            <div className="mt-1 w-fit">
+              <Badge variant="info" icon={<Icon icon={Navigation} size="xsm" />} label="Your territory" />
+            </div>
           )}
         </div>
       ) : (
         country && (
           <div data-testid="country-detail" className="flex flex-col gap-1">
-            <p className="text-lg font-semibold tracking-tight">{country.countryName}</p>
-            <p className="text-3xl font-semibold tracking-tight tabular-nums" data-testid="country-calls">
+            <Text as="p" type="large" weight="semibold" display="block">{country.countryName}</Text>
+            <Text as="p" type="display-2" weight="semibold" hasTabularNumbers display="block" data-testid="country-calls">
               {country.suppressed || country.distinctCalls === null ? "Hidden" : formatCount(country.distinctCalls)}
-            </p>
-            <p className="text-xs text-muted-foreground">
+            </Text>
+            <Text as="p" type="supporting" display="block">
               Distinct calls across {country.territoryCount} {country.territoryCount === 1 ? "territory" : "territories"}
-            </p>
+            </Text>
           </div>
         )
       )}
       <div className="flex flex-col gap-2">
-        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Territories</p>
+        <Text as="p" type="label" color="secondary" display="block" className="uppercase">Territories</Text>
         <ul className="flex flex-col gap-1.5">
           {inCountry.map((t) => (
             <li key={t.territoryId}>
-              <Row testId={`territory-option-${t.territoryId}`} selected={territory?.territoryId === t.territoryId} onClick={() => onTerritory(t)}>
-                <span className="truncate">
-                  {t.name} <span className="font-normal text-muted-foreground">· {t.subdivisionCode}</span>
-                </span>
-                <span className="text-xs font-normal text-muted-foreground tabular-nums">{t.suppressed || t.distinctCalls === null ? "hidden" : formatCount(t.distinctCalls)}</span>
-              </Row>
+              <Row
+                testId={`territory-option-${t.territoryId}`}
+                name={`${t.name} ${t.subdivisionCode}`}
+                label={
+                  <>
+                    {t.name} <Text type="supporting">· {t.subdivisionCode}</Text>
+                  </>
+                }
+                value={t.suppressed || t.distinctCalls === null ? "hidden" : formatCount(t.distinctCalls)}
+                selected={territory?.territoryId === t.territoryId}
+                onClick={() => onTerritory(t)}
+              />
             </li>
           ))}
         </ul>

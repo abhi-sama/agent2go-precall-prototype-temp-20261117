@@ -6,14 +6,19 @@ import { Banner } from "@astryxdesign/core/Banner"
 import { Card } from "@astryxdesign/core/Card"
 import { Grid } from "@astryxdesign/core/Grid"
 import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { List, ListItem } from "@astryxdesign/core/List"
+import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList"
 import { Section as AstryxSection } from "@astryxdesign/core/Section"
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl"
 import { Selector } from "@astryxdesign/core/Selector"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
 import { Stack } from "@astryxdesign/core/Stack"
 import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useEnter } from "@/hooks/use-enter"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { EXECUTIVE_RANK_BY, type ExecutiveOverview as Overview, type ExecutiveRankBy, type ExecutiveUnit } from "@/lib/data/types"
@@ -52,15 +57,15 @@ export function ExecutiveOverview() {
   if (query.status === "error" && !data) return <ErrorState error={query.error} onRetry={query.refetch} />
   if (!data) {
     return (
-      <div data-testid="executive-loading" aria-busy="true" className="flex flex-col gap-4">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <VStack data-testid="executive-loading" aria-busy="true" gap={4}>
+        <Grid columns={{ minWidth: 220, max: 4 }} gap={4}>
           <KpiSkeleton />
           <KpiSkeleton />
           <KpiSkeleton />
           <KpiSkeleton />
-        </div>
-        <Skeleton className="h-64 w-full rounded-2xl" />
-      </div>
+        </Grid>
+        <Skeleton width="100%" height="16rem" radius={4} />
+      </VStack>
     )
   }
   const min = data.disclosure.minCell
@@ -68,7 +73,7 @@ export function ExecutiveOverview() {
   const busy = query.status === "loading"
 
   return (
-    <div data-testid="executive-overview" aria-busy={busy} className={cn("flex flex-col gap-8 transition-opacity", busy && "opacity-70")}>
+    <VStack data-testid="executive-overview" aria-busy={busy} gap={8} className={cn("transition-opacity", busy && "opacity-70")}>
       <Stack direction="horizontal" gap={2} vAlign="center" wrap="wrap">
         <SegmentedControl label="Period" value={period} onChange={(value) => setPeriod(value as (typeof PERIODS)[number]["id"])} size="lg">
           {PERIODS.map((p) => <SegmentedControlItem key={p.id} value={p.id} label={p.label} data-testid={`period-${p.id}`} />)}
@@ -118,25 +123,22 @@ export function ExecutiveOverview() {
       )}
 
       <Section id="definitions" title="How these numbers are counted" note={`Definitions ${data.definitionVersion}. Counts are computed in the database, never by AI.`}>
-        <dl data-testid="definitions" className="grid gap-x-8 gap-y-3 text-sm md:grid-cols-2">
+        <MetadataList data-testid="definitions" columns="multi">
           {data.definitions.map((d) => (
-            <div key={d.key}>
-              <dt className="font-semibold">{d.label}</dt>
-              <dd className="text-muted-foreground">{d.text}</dd>
-            </div>
+            <MetadataListItem key={d.key} label={d.label}>{d.text}</MetadataListItem>
           ))}
-        </dl>
+        </MetadataList>
         {data.notes.length > 0 && (
-          <ul data-testid="overview-notes" className="mt-4 flex list-disc flex-col gap-1 pl-5 text-xs text-muted-foreground">
+          <List data-testid="overview-notes" listStyle="disc" density="compact" className="mt-4">
             {data.notes.map((n) => (
-              <li key={n.code} data-code={n.code}>{n.message}</li>
+              <ListItem key={n.code} data-code={n.code} label={n.message} />
             ))}
-          </ul>
+          </List>
         )}
       </Section>
 
       <RecordDrilldown target={drill} months={data.months} onClose={() => setDrill(null)} />
-    </div>
+    </VStack>
   )
 }
 
@@ -167,11 +169,11 @@ function AccessBanner({ data }: { data: Overview }) {
 function Freshness({ data }: { data: Overview }) {
   const f = data.freshness
   return (
-    <p data-testid="freshness" data-status={f.status} className="mb-3 text-sm text-muted-foreground">
+    <Text as="p" type="supporting" data-testid="freshness" data-status={f.status} className="mb-3">
       {f.monthsShown} months shown.{" "}
       {f.status === "PARTIAL" ? "The period runs past the latest load, so later months are left out rather than shown as zero." : f.status === "NO_DATA" ? "No data has been loaded yet." : "Every month in the period has been loaded."}
       {f.sourceLagDays ? ` Calls and responses were loaded ${f.sourceLagDays} days apart.` : ""}
-    </p>
+    </Text>
   )
 }
 
@@ -214,7 +216,7 @@ function Engagement({ data }: { data: Overview }) {
         </Card>
       ) : (
         <Card data-testid="coverage-withheld" padding={4} variant="muted">
-          <Heading level={3} color="secondary"><Layers className="mr-2 inline size-4" aria-hidden /> Coverage is not shown</Heading>
+          <Heading level={3} color="secondary"><Icon icon={Layers} size="sm" className="mr-2 inline" /> Coverage is not shown</Heading>
           <Text as="p" display="block" className="mt-2">
             {engagement.coverage.status === "SUPPRESSED" ? "The target population is too small to show without identifying individuals." : "There is no approved target population for this scope, so a coverage percentage cannot be calculated. Engaged HCPs are not a substitute for a target list."}
           </Text>
@@ -224,15 +226,15 @@ function Engagement({ data }: { data: Overview }) {
   )
 }
 
-function Kpi({ id, label, icon: Icon, count, min, note, index = 0 }: { id: string; label: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; count: Overview["kpis"]["calls"]; min: number; note: string; index?: number }) {
+function Kpi({ id, label, icon, count, min, note, index = 0 }: { id: string; label: string; icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; count: Overview["kpis"]["calls"]; min: number; note: string; index?: number }) {
   const enter = useEnter(`exec-kpi-${id}`, index)
   return (
     <Card data-testid={`exec-kpi-${id}`} padding={4} elevation="low" style={enter.style} className={cn("relative overflow-hidden", enter.className)}>
       <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-primary" />
-      <div className="flex items-start justify-between gap-3">
+      <HStack justify="between" align="start" gap={3}>
         <Heading level={3} color="secondary">{label}</Heading>
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-accent-text"><Icon className="size-5" aria-hidden /></span>
-      </div>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-accent-text"><Icon icon={icon} size="md" /></span>
+      </HStack>
       <Text type="display-1" weight="semibold" hasTabularNumbers display="block" className="mt-3"><CountValue testId={`exec-kpi-${id}-value`} count={count} minCell={min} countUp={`exec-${id}`} /></Text>
       <Text as="p" type="supporting" display="block" className="mt-3">{note}</Text>
     </Card>
@@ -244,10 +246,10 @@ function CompletenessCard({ value }: { value: number | null }) {
   return (
     <Card data-testid="exec-kpi-completeness" padding={4} elevation="low" style={enter.style} className={cn("relative overflow-hidden", enter.className)}>
       <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-warning" />
-      <div className="flex items-start justify-between gap-3">
+      <HStack justify="between" align="start" gap={3}>
         <Heading level={3} color="secondary">Reporting completeness</Heading>
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning/15"><CalendarCheck className="size-5" aria-hidden /></span>
-      </div>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning/15"><Icon icon={CalendarCheck} size="md" /></span>
+      </HStack>
       <Text data-testid="exec-kpi-completeness-value" type="display-1" weight="semibold" hasTabularNumbers display="block" className="mt-3">{percent(value)}</Text>
       <Text as="p" type="supporting" display="block" className="mt-3">Territory-months with a recorded call. It describes reporting, not performance.</Text>
     </Card>

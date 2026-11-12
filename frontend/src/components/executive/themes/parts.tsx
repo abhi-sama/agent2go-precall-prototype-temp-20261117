@@ -1,17 +1,22 @@
 "use client"
 
-import { ArrowDownRight, ArrowUpRight, CircleHelp, EyeOff, FileText, Info, Minus } from "lucide-react"
+import { ArrowDownRight, ArrowUpRight, CircleHelp, EyeOff, FileText, Minus } from "lucide-react"
 import * as React from "react"
+import { Badge } from "@astryxdesign/core/Badge"
+import { Banner } from "@astryxdesign/core/Banner"
+import { Icon } from "@astryxdesign/core/Icon"
 import { EvidenceChip } from "@/components/director/insights/shared"
 import type { ExecutiveCitation, ExecutiveTrend } from "@/lib/data/executive-themes"
 import { cn } from "@/lib/utils"
 
-const TREND: Record<ExecutiveTrend, { label: string; short: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; className: string }> = {
-  RISING: { label: "Rising", short: "Rising", icon: ArrowUpRight, className: "border-primary/50 bg-primary/12 text-foreground" },
-  FALLING: { label: "Falling", short: "Falling", icon: ArrowDownRight, className: "border-fact/40 bg-fact-soft text-fact" },
-  STEADY: { label: "Steady", short: "Steady", icon: Minus, className: "border-border bg-muted text-muted-foreground" },
-  WITHHELD: { label: "Withheld: small group", short: "Withheld", icon: EyeOff, className: "border-dashed border-border bg-muted/60 text-muted-foreground" },
-  INSUFFICIENT_SAMPLE: { label: "Not enough responses", short: "Few responses", icon: CircleHelp, className: "border-warning/50 bg-warning/10 text-foreground" },
+type TrendIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>
+
+const TREND: Record<ExecutiveTrend, { label: string; short: string; icon: TrendIcon; variant: "info" | "success" | "neutral" | "warning" }> = {
+  RISING: { label: "Rising", short: "Rising", icon: ArrowUpRight, variant: "info" },
+  FALLING: { label: "Falling", short: "Falling", icon: ArrowDownRight, variant: "success" },
+  STEADY: { label: "Steady", short: "Steady", icon: Minus, variant: "neutral" },
+  WITHHELD: { label: "Withheld: small group", short: "Withheld", icon: EyeOff, variant: "neutral" },
+  INSUFFICIENT_SAMPLE: { label: "Not enough responses", short: "Few responses", icon: CircleHelp, variant: "warning" },
 }
 
 /**
@@ -19,17 +24,17 @@ const TREND: Record<ExecutiveTrend, { label: string; short: string; icon: React.
  * arrow lifts into place once (a short, purposeful cue that something moved); reduced motion removes it.
  */
 export function TrendIndicator({ trend, compact = false, className }: { trend: ExecutiveTrend; compact?: boolean; className?: string }) {
-  const { label, short, icon: Icon, className: tone } = TREND[trend]
+  const { label, short, icon, variant } = TREND[trend]
+  const motion = trend === "RISING" ? "animate-in slide-in-from-bottom-1 fade-in-0 duration-200 motion-reduce:animate-none" : trend === "FALLING" ? "animate-in slide-in-from-top-1 fade-in-0 duration-200 motion-reduce:animate-none" : undefined
   return (
-    <span
+    <Badge
       data-testid="trend"
       data-trend={trend}
-      title={label}
-      className={cn("inline-flex w-fit items-center gap-1 rounded-full border font-semibold", compact ? "min-h-6 px-1.5 text-[0.7rem]" : "min-h-7 px-2.5 text-xs", tone, className)}
-    >
-      <Icon className={cn("shrink-0", compact ? "size-3.5" : "size-4", trend === "RISING" && "animate-in slide-in-from-bottom-1 fade-in-0 duration-200 motion-reduce:animate-none", trend === "FALLING" && "animate-in slide-in-from-top-1 fade-in-0 duration-200 motion-reduce:animate-none")} aria-hidden />
-      <span>{compact ? short : label}</span>
-    </span>
+      variant={variant}
+      icon={<Icon icon={icon} size="sm" className={motion} />}
+      label={compact ? short : label}
+      className={cn("w-fit", className)}
+    />
   )
 }
 
@@ -37,12 +42,11 @@ export function TrendIndicator({ trend, compact = false, className }: { trend: E
 export function SampleLimitations({ items, className }: { items: string[]; className?: string }) {
   if (items.length === 0) return null
   return (
-    <section data-testid="sample-limitations" aria-label="Sample limitations" className={cn("rounded-xl border border-warning/40 bg-warning/8 p-3 text-sm", className)}>
-      <h4 className="flex items-center gap-2 text-sm font-semibold"><Info className="size-4 text-warning" aria-hidden />Sample limitations</h4>
-      <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">
+    <Banner data-testid="sample-limitations" aria-label="Sample limitations" status="warning" title="Sample limitations" collapsible={false} className={className}>
+      <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
         {items.map((item) => <li key={item}>{item}</li>)}
       </ul>
-    </section>
+    </Banner>
   )
 }
 
@@ -62,7 +66,7 @@ export function CitationList({ citations, label = "Sources" }: { citations: Exec
           </li>
         ) : (
           <li key={c.citationId} data-testid="source-chip" data-citation-id={c.citationId} data-kind="AGGREGATE" className="flex min-w-0 items-start gap-1.5 rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground">
-            <FileText className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <Icon icon={FileText} size="sm" className="mt-0.5 shrink-0" />
             <span className="min-w-0 break-words">{c.label}</span>
           </li>
         ),

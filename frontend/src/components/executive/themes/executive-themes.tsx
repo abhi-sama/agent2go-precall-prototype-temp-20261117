@@ -6,6 +6,7 @@ import * as React from "react"
 import { Banner } from "@astryxdesign/core/Banner"
 import { Button } from "@astryxdesign/core/Button"
 import { Heading } from "@astryxdesign/core/Heading"
+import { Icon } from "@astryxdesign/core/Icon"
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl"
 import { Selector } from "@astryxdesign/core/Selector"
 import { Text } from "@astryxdesign/core/Text"
@@ -82,7 +83,7 @@ export function ExecutiveThemesWorkspace() {
       <div data-testid="executive-themes" className="flex flex-col gap-10">
         <header className="flex flex-col gap-3">
           <div>
-            <Button as={Link} href="/executive" label="Overview" icon={<ArrowLeft aria-hidden />} variant="ghost" size="sm" />
+            <Button as={Link} href="/executive" label="Overview" icon={<Icon icon={ArrowLeft} />} variant="ghost" size="sm" />
             <Heading level={1} type="display-2" textWrap="balance">Themes &amp; summaries</Heading>
             <Text as="p" type="supporting" display="block" className="mt-1 max-w-2xl">What recorded responses mention across your regions, which topics are rising in more than one, and a source-linked summary you can save and export.</Text>
           </div>
@@ -107,7 +108,7 @@ export function ExecutiveThemesWorkspace() {
           {themes.status === "error" && !themeData ? (
             <ErrorState error={themes.error} onRetry={themes.refetch} />
           ) : !themeData ? (
-            <PanelLoading testId="themes-loading" height="h-72" />
+            <PanelLoading testId="themes-loading" height={288} />
           ) : noResponses ? (
             <EmptyState title="No free-text responses in this period" actions={<span />}>No open-text responses were recorded in your regions between these dates. Try a longer range.</EmptyState>
           ) : (
@@ -128,7 +129,7 @@ export function ExecutiveThemesWorkspace() {
           {matrix.status === "error" ? (
             <ErrorState error={matrix.error} onRetry={matrix.refetch} />
           ) : matrix.status !== "success" ? (
-            <PanelLoading testId="matrix-loading" height="h-96" />
+            <PanelLoading testId="matrix-loading" height={384} />
           ) : (
             <TopicMatrix data={matrix.data} />
           )}

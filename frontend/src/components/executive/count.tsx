@@ -1,6 +1,7 @@
 "use client"
 
 import { EyeOff } from "lucide-react"
+import { Icon } from "@astryxdesign/core/Icon"
 import { usePathname } from "next/navigation"
 import { useCountUp } from "@/hooks/use-count-up"
 import type { SuppressedCount } from "@/lib/data/types"
@@ -24,7 +25,7 @@ export function CountValue({ count, minCell, className, testId, countUp }: { cou
         title={`Fewer than ${minCell}, or hidden so a smaller group cannot be worked out. Withheld to protect small groups.`}
         className={cn("inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[0.8em] font-medium text-muted-foreground", className)}
       >
-        <EyeOff className="size-3.5 shrink-0" aria-hidden />
+        <Icon icon={EyeOff} size="sm" />
         <span>Withheld</span>
         <span className="sr-only"> (small group, fewer than {minCell})</span>
       </span>

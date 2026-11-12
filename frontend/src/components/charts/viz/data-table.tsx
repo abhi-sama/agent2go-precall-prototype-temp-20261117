@@ -1,5 +1,6 @@
 "use client"
 
+import { Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow } from "@astryxdesign/core/Table"
 import { fmt } from "./shared"
 
 /** The accessible twin of every chart, and the "table" visual itself: counts per row with right-aligned tabular numbers. */
@@ -16,32 +17,31 @@ export function DataTable({
 }) {
   return (
     <div data-testid={testId} className="rounded-xl border">
-      <table className="w-full table-fixed border-collapse text-sm">
-        <caption className="sr-only">{caption}</caption>
-        <thead>
-          <tr className="border-b text-left text-xs text-muted-foreground">
+      <Table aria-label={caption} density="balanced" dividers="rows">
+        <TableHeader>
+          <TableRow isHeaderRow>
             {columns.map((c, i) => (
-              <th key={c} scope="col" className={i === 0 ? "w-[34%] px-3 py-2 font-medium" : "px-3 py-2 text-right font-medium"}>
+              <TableHeaderCell key={c} scope="col" className={i === 0 ? "w-[34%]" : "text-right"}>
                 {c}
-              </th>
+              </TableHeaderCell>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((r) => (
-            <tr key={r.key} data-testid="table-row" data-key={r.key} className="border-b last:border-b-0">
-              <th scope="row" className="truncate px-3 py-2 text-left font-medium" title={r.label}>
-                {r.label}
-              </th>
+            <TableRow key={r.key} data-testid="table-row" data-key={r.key}>
+              <TableHeaderCell scope="row" className="max-w-0 truncate">
+                <span className="block truncate" title={r.label}>{r.label}</span>
+              </TableHeaderCell>
               {r.cells.map((cell, i) => (
-                <td key={i} data-value={typeof cell === "number" ? cell : undefined} className="px-3 py-2 text-right tabular-nums">
+                <TableCell key={i} data-value={typeof cell === "number" ? cell : undefined} className="text-right tabular-nums">
                   {typeof cell === "number" ? fmt(cell) : cell}
-                </td>
+                </TableCell>
               ))}
-            </tr>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   )
 }

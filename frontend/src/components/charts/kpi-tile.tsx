@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { Card } from "@astryxdesign/core/Card"
 import { Heading } from "@astryxdesign/core/Heading"
+import { Icon } from "@astryxdesign/core/Icon"
 import { Stack } from "@astryxdesign/core/Stack"
 import { Text } from "@astryxdesign/core/Text"
 import { useCountUp } from "@/hooks/use-count-up"
@@ -32,7 +33,7 @@ export interface KpiTileProps {
  * load (so a filter change never replays them; the figures just update), and both are instant or a plain
  * fade under reduced motion. Tabular figures keep the number from jittering.
  */
-export function KpiTile({ id, label, value, definition, caption, icon: Icon, series = 1, index = 0, className }: KpiTileProps) {
+export function KpiTile({ id, label, value, definition, caption, icon: Glyph, series = 1, index = 0, className }: KpiTileProps) {
   // Once per screen per page load: the same tile id on another screen is a different figure.
   const screen = usePathname()
   const shown = useCountUp(value, undefined, `kpi:${screen}:${id}`)
@@ -53,7 +54,7 @@ export function KpiTile({ id, label, value, definition, caption, icon: Icon, ser
           className="grid size-10 shrink-0 place-items-center rounded-xl"
           style={{ backgroundColor: `color-mix(in oklab, ${color} 14%, var(--card))`, color: `color-mix(in oklab, ${color} 70%, var(--foreground))` }}
         >
-          <Icon className="size-5" aria-hidden />
+          <Icon icon={Glyph} size="md" />
         </span>
       </Stack>
       <Text

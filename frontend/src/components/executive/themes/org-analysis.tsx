@@ -2,9 +2,13 @@
 
 import { MessagesSquare, Send } from "lucide-react"
 import * as React from "react"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { Icon } from "@astryxdesign/core/Icon"
+import { Text } from "@astryxdesign/core/Text"
+import { TextInput } from "@astryxdesign/core/TextInput"
 import { AssistantTurnView } from "@/components/chat/assistant-turn"
 import { useOpenCitation } from "@/components/director/insights/shared"
-import { Button } from "@/components/ui/button"
 import { MAX_QUESTION_CHARS, useChat } from "@/lib/chat/use-chat"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { ChatContext } from "@/lib/data/director-insights"
@@ -43,33 +47,34 @@ export function OrgAnalysis({ range, aggregateOnly = true }: { range: DateRange;
         }}
         className="flex flex-col gap-3"
       >
-        <label htmlFor="org-question" className="text-sm font-medium">Your question</label>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            id="org-question"
-            data-testid="org-question"
-            value={draft}
-            maxLength={MAX_QUESTION_CHARS}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="For example: which topics are rising in more than one region?"
-            className="h-11 min-w-0 flex-1 rounded-xl border bg-background px-3 text-base focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-          />
-          <Button type="submit" data-testid="org-ask" disabled={running || !draft.trim()} className="sm:w-auto"><Send aria-hidden />{running ? "Analysing…" : "Ask"}</Button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <TextInput
+              data-testid="org-question"
+              label="Your question"
+              value={draft}
+              onChange={(value) => setDraft(value.slice(0, MAX_QUESTION_CHARS))}
+              placeholder="For example: which topics are rising in more than one region?"
+              enterKeyHint="send"
+              width="100%"
+            />
+          </div>
+          <Button type="submit" data-testid="org-ask" isDisabled={running || !draft.trim()} variant="primary" icon={<Icon icon={Send} />} label={running ? "Analysing…" : "Ask"} />
         </div>
         <ul aria-label="Suggested questions" className="flex flex-wrap gap-2">
           {SUGGESTED.map((q) => (
             <li key={q}>
-              <button type="button" data-testid="org-suggestion" disabled={running} onClick={() => ask(q)} className="min-h-11 rounded-xl border border-suggest/40 bg-background px-3 py-2 text-left text-sm hover:bg-suggest/10 disabled:opacity-50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
-                {q}
-              </button>
+              <Button data-testid="org-suggestion" isDisabled={running} onClick={() => ask(q)} variant="secondary" label={q} />
             </li>
           ))}
         </ul>
-        <p className="text-xs text-muted-foreground">Answers use only your explicit scope for {range.from} to {range.to}. Counts below the disclosure threshold are withheld, and every answer states its sample limitations.</p>
+        <Text as="p" type="supporting">Answers use only your explicit scope for {range.from} to {range.to}. Counts below the disclosure threshold are withheld, and every answer states its sample limitations.</Text>
       </form>
 
       {turns.length === 0 ? (
-        <p className="flex items-center gap-2 rounded-xl border border-dashed p-4 text-sm text-muted-foreground"><MessagesSquare className="size-4" aria-hidden />Ask a question to see an answer with its sources and sample limitations.</p>
+        <Card variant="muted" padding={4}>
+          <Text as="p" type="supporting" className="flex items-center gap-2"><Icon icon={MessagesSquare} size="sm" />Ask a question to see an answer with its sources and sample limitations.</Text>
+        </Card>
       ) : (
         <ol className="flex flex-col gap-5" aria-label="Conversation">
           {turns.map((t) => (

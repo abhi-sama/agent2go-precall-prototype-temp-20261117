@@ -1,6 +1,12 @@
 "use client"
 
 import * as React from "react"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { HStack } from "@astryxdesign/core/HStack"
+import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl"
+import { Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow } from "@astryxdesign/core/Table"
+import { Text } from "@astryxdesign/core/Text"
 import { formatMonth, formatMonthShort } from "@/lib/dates"
 import type { ExecutiveMonth, SuppressedCount } from "@/lib/data/types"
 import { cn } from "@/lib/utils"
@@ -25,24 +31,13 @@ export function TrendColumns({ months, minCell }: { months: ExecutiveMonth[]; mi
   const max = Math.max(1, ...values.filter((v): v is number => v !== null))
   const dense = months.length > 12
   return (
-    <div data-testid="trend" className="rounded-2xl border bg-card p-4 sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div role="group" aria-label="Trend metric" className="flex gap-1 rounded-xl border bg-muted/40 p-1">
-          {METRICS.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              data-testid={`trend-metric-${m.id}`}
-              aria-pressed={metric === m.id}
-              onClick={() => setMetric(m.id)}
-              className={cn("min-h-11 rounded-lg px-3 text-sm font-medium transition-colors", metric === m.id ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">Outlined columns are partial months. Hatched columns are withheld small groups.</p>
-      </div>
+    <Card data-testid="trend" padding={4}>
+      <HStack justify="between" align="center" wrap="wrap" gap={2} className="mb-4">
+        <SegmentedControl label="Trend metric" value={metric} onChange={(value) => setMetric(value as Metric)} size="lg">
+          {METRICS.map((m) => <SegmentedControlItem key={m.id} value={m.id} label={m.label} data-testid={`trend-metric-${m.id}`} />)}
+        </SegmentedControl>
+        <Text as="p" type="supporting">Outlined columns are partial months. Hatched columns are withheld small groups.</Text>
+      </HStack>
       <ol className="flex h-56 items-end gap-1 sm:gap-1.5" data-testid="trend-columns" aria-label={`${METRICS.find((m) => m.id === metric)?.label} by month`}>
         {months.map((m, i) => {
           const count = m[metric] as SuppressedCount
@@ -69,42 +64,40 @@ export function TrendColumns({ months, minCell }: { months: ExecutiveMonth[]; mi
           )
         })}
       </ol>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
         data-testid="trend-table-toggle"
         aria-expanded={tableOpen}
         onClick={() => setTableOpen((v) => !v)}
-        className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-muted-foreground hover:text-foreground"
-      >
-        {tableOpen ? "Hide table view" : "Table view"}
-      </button>
+        label={tableOpen ? "Hide table view" : "Table view"}
+        className="mt-4"
+      />
       {tableOpen && (
-        <div className="mt-2 overflow-x-auto rounded-xl border">
-          <table data-testid="trend-table" className="w-full min-w-[34rem] text-left text-sm">
-            <caption className="sr-only">Monthly activity across your authorized regions</caption>
-            <thead className="bg-muted/50 text-xs text-muted-foreground">
-              <tr>
-                <th scope="col" className="px-3 py-2 font-medium">Month</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Calls</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Responses</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Engaged HCPs</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Territories reporting</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card padding={0} className="mt-2">
+          <Table data-testid="trend-table" aria-label="Monthly activity across your authorized regions">
+            <TableHeader>
+              <TableRow isHeaderRow>
+                <TableHeaderCell scope="col">Month</TableHeaderCell>
+                <TableHeaderCell scope="col" className="text-right">Calls</TableHeaderCell>
+                <TableHeaderCell scope="col" className="text-right">Responses</TableHeaderCell>
+                <TableHeaderCell scope="col" className="text-right">Engaged HCPs</TableHeaderCell>
+                <TableHeaderCell scope="col" className="text-right">Territories reporting</TableHeaderCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {months.map((m) => (
-                <tr key={m.month} className="border-t">
-                  <th scope="row" className="px-3 py-1.5 font-medium">{formatMonth(m.month)}{m.isPartial ? " (partial)" : ""}</th>
-                  <td className="px-3 py-1.5 text-right"><CountValue count={m.calls} minCell={minCell} /></td>
-                  <td className="px-3 py-1.5 text-right"><CountValue count={m.responses} minCell={minCell} /></td>
-                  <td className="px-3 py-1.5 text-right"><CountValue count={m.engagedHcps} minCell={minCell} /></td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{m.territoriesReporting} of {m.territoriesInScope}</td>
-                </tr>
+                <TableRow key={m.month}>
+                  <TableHeaderCell scope="row">{formatMonth(m.month)}{m.isPartial ? " (partial)" : ""}</TableHeaderCell>
+                  <TableCell className="text-right"><CountValue count={m.calls} minCell={minCell} /></TableCell>
+                  <TableCell className="text-right"><CountValue count={m.responses} minCell={minCell} /></TableCell>
+                  <TableCell className="text-right"><CountValue count={m.engagedHcps} minCell={minCell} /></TableCell>
+                  <TableCell className="text-right tabular-nums">{m.territoriesReporting} of {m.territoriesInScope}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
-    </div>
+    </Card>
   )
 }

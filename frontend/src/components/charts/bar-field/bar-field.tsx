@@ -1,5 +1,9 @@
 "use client"
 
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { IconButton } from "@astryxdesign/core/IconButton"
+import { Text } from "@astryxdesign/core/Text"
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react"
 import dynamic from "next/dynamic"
 import * as React from "react"
@@ -154,25 +158,22 @@ export function BarField({ rows, cols, cells, max, unit, selected, onSelect, rea
   return (
     <div className={cn("flex flex-col gap-2", className)} data-testid="bar-field-root">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p id="bar-field-help" className="min-w-0 text-xs text-muted-foreground">
+        <Text as="p" type="supporting" display="block" id="bar-field-help" className="min-w-0">
           Drag to rotate. Pinch, or Ctrl or ⌘ and scroll, to zoom. Tap a bar for detail.
           {reducedMotion ? " Reduced motion is on, so the view stays still until you move it." : ""}
-        </p>
-        <div role="group" aria-label="3D view controls" className="flex gap-1">
-          {([["zoom-in", "Zoom in", ZoomIn, "+"], ["zoom-out", "Zoom out", ZoomOut, "-"], ["reset", "Reset view", RotateCcw, "0"]] as const).map(([id, label, Icon, key]) => (
-            <button
+        </Text>
+        <HStack role="group" aria-label="3D view controls" gap={1}>
+          {([["zoom-in", "Zoom in", ZoomIn, "+"], ["zoom-out", "Zoom out", ZoomOut, "-"], ["reset", "Reset view", RotateCcw, "0"]] as const).map(([id, label, glyph, key]) => (
+            <IconButton
               key={id}
-              type="button"
               data-testid={`bar-field-${id}`}
-              aria-label={label}
-              title={label}
+              label={label}
+              tooltip={label}
+              icon={<Icon icon={glyph} />}
               onClick={() => controlsRef.current?.key(key)}
-              className="inline-flex size-11 items-center justify-center rounded-lg border bg-card transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.98]"
-            >
-              <Icon className="size-4" aria-hidden />
-            </button>
+            />
           ))}
-        </div>
+        </HStack>
       </div>
 
       <div
@@ -241,9 +242,9 @@ export function BarField({ rows, cols, cells, max, unit, selected, onSelect, rea
         </div>
       </div>
 
-      <p data-testid="bar-field-readout" aria-live="polite" className="min-h-5 text-sm text-muted-foreground">
+      <Text as="p" type="supporting" display="block" data-testid="bar-field-readout" aria-live="polite" className="min-h-5">
         {shown ? readout(shown.rowId, shown.colId) : "Rows are themes, columns are territories. Bar height and colour are the share of the territory's free-text responses."}
-      </p>
+      </Text>
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { Lightbulb } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@astryxdesign/core/Button"
+import { Icon } from "@astryxdesign/core/Icon"
 import { LandingSection } from "@/components/landing/landing-section"
 import { DirectorOverview } from "./director-overview"
 
@@ -20,7 +21,7 @@ export function DirectorLanding() {
             href="/director/insights"
             data-testid="insights-link"
             label="Open Director insights: themes, emerging topics, exceptions"
-            icon={<Lightbulb aria-hidden />}
+            icon={<Icon icon={Lightbulb} />}
             size="lg"
             variant="secondary"
           />

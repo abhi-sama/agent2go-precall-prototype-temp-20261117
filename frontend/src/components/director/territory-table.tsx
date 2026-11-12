@@ -1,7 +1,8 @@
 "use client"
 
-import { Check, Plus } from "lucide-react"
+import { Plus } from "lucide-react"
 import { Button } from "@astryxdesign/core/Button"
+import { Icon } from "@astryxdesign/core/Icon"
 import { Stack } from "@astryxdesign/core/Stack"
 import { Table, proportional } from "@astryxdesign/core/Table"
 import { Text } from "@astryxdesign/core/Text"
@@ -28,8 +29,8 @@ export function TerritoryTable({ rows, selected, onToggle, max }: { rows: Territ
           width: proportional(1, { minWidth: 120 }),
           renderCell: (row) => (
             <span data-testid="territory-row" data-territory={row.territoryId}>
-              <strong className="block">{row.territoryId}</strong>
-              <span className="block text-xs text-muted-foreground">{row.name}</span>
+              <Text weight="semibold" display="block">{row.territoryId}</Text>
+              <Text type="supporting" display="block">{row.name}</Text>
             </span>
           ),
         },
@@ -58,7 +59,7 @@ export function TerritoryTable({ rows, selected, onToggle, max }: { rows: Territ
           width: proportional(1, { minWidth: 132 }),
           renderCell: (row) => {
             const isSelected = selected.includes(row.territoryId)
-            return <Button data-testid="compare-toggle" label={isSelected ? "Selected" : "Compare"} icon={isSelected ? <Check aria-hidden /> : <Plus aria-hidden />} variant={isSelected ? "primary" : "secondary"} size="sm" isDisabled={!isSelected && selected.length >= max} onClick={() => onToggle(row.territoryId)} />
+            return <Button data-testid="compare-toggle" label={isSelected ? "Selected" : "Compare"} icon={<Icon icon={isSelected ? "check" : Plus} />} variant={isSelected ? "primary" : "secondary"} size="sm" isDisabled={!isSelected && selected.length >= max} onClick={() => onToggle(row.territoryId)} />
           },
         },
       ]}

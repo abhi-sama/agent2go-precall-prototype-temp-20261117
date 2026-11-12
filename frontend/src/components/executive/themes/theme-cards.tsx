@@ -70,7 +70,7 @@ function Group({ group, minCell, showHeading }: { group: ExecutiveThemeGroup; mi
         </header>
       )}
       {group.cards.length === 0 ? (
-        <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No free-text responses in this period for {group.facetValue}.</p>
+        <Card variant="muted" padding={4}><Text as="p" type="supporting">No free-text responses in this period for {group.facetValue}.</Text></Card>
       ) : (
         <Grid columns={{ minWidth: 280, max: 2 }} gap={4}>
           {group.cards.map((card, i) => <ThemeCard key={card.cardId} card={card} minCell={minCell} index={i} />)}
@@ -86,9 +86,9 @@ export function ThemeCards({ data }: { data: ExecutiveThemes }) {
   return (
     <div data-testid="theme-cards" data-facet={data.facet} className="flex flex-col gap-6">
       {data.groups.map((g) => <Group key={g.facetValue} group={g} minCell={min} showHeading={data.facet !== "PORTFOLIO"} />)}
-      {data.groupsLeftOut > 0 && <p className="text-sm text-muted-foreground">{num(data.groupsLeftOut)} more {data.facetLabel.toLowerCase()} values are not shown.</p>}
+      {data.groupsLeftOut > 0 && <Text as="p" type="supporting">{num(data.groupsLeftOut)} more {data.facetLabel.toLowerCase()} values are not shown.</Text>}
       <SampleLimitations items={data.sampleLimitations} />
-      <p className="text-xs text-muted-foreground">{data.note}</p>
+      <Text as="p" type="supporting">{data.note}</Text>
     </div>
   )
 }

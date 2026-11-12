@@ -1,7 +1,8 @@
-import { CircleAlert, CircleCheck, Hourglass } from "lucide-react"
+import { Badge } from "@astryxdesign/core/Badge"
+import { Icon } from "@astryxdesign/core/Icon"
+import { Hourglass } from "lucide-react"
 import { formatDay } from "@/lib/dates"
 import type { IsoDateTime } from "@/lib/data/types"
-import { cn } from "@/lib/utils"
 
 /** Loads older than this are flagged stale (deterministic rule, not AI judgement). */
 export const STALE_AFTER_HOURS = 48
@@ -21,23 +22,23 @@ export function DataThroughBadge({
   className?: string
 }) {
   const stale = isStale(dataThrough, now)
-  const Icon = !dataThrough ? Hourglass : stale ? CircleAlert : CircleCheck
+  const icon = !dataThrough ? Hourglass : stale ? "warning" : "success"
   const label = !dataThrough
     ? "No data load yet"
     : `Data through ${formatDay(dataThrough.slice(0, 10), true)}`
   return (
-    <span
+    <Badge
       data-testid="data-through"
       data-stale={stale}
-      className={cn(
-        "inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium",
-        stale ? "border-warning/50 bg-warning/12 text-foreground" : "border-success/40 bg-success/10 text-foreground",
-        className,
-      )}
-    >
-      <Icon className={cn("size-4 shrink-0", stale ? "text-warning" : "text-success")} aria-hidden />
-      {label}
-      {stale && dataThrough && <span className="text-xs font-semibold uppercase">· Stale</span>}
-    </span>
+      className={className}
+      variant={!dataThrough ? "neutral" : stale ? "warning" : "success"}
+      icon={<Icon icon={icon} size="sm" />}
+      label={
+        <>
+          {label}
+          {stale && dataThrough && <span className="text-xs font-semibold uppercase"> · Stale</span>}
+        </>
+      }
+    />
   )
 }

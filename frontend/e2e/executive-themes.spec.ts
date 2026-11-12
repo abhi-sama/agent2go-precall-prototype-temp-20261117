@@ -98,7 +98,7 @@ test.describe("Executive themes", () => {
     await expect(summary.getByTestId("summary-range")).toContainText(" to ")
     await expect(summary.getByTestId("summary-sources").locator("li").first()).toBeVisible()
     await expect(summary.getByTestId("sample-limitations")).toBeVisible()
-    await summary.getByTestId("summary-definitions").locator("summary").click()
+    await summary.getByTestId("summary-definitions").getByRole("button", { name: /Metric definitions/ }).click()
     await expect(summary.getByTestId("summary-definitions")).toContainText("Free-text responses")
     for (const statement of await summary.getByTestId("summary-statement").all()) await expect(statement.getByTestId("summary-cite").first()).toBeVisible()
     await expect(page.getByTestId("saved-summary")).toHaveCount(1)

@@ -1,6 +1,15 @@
 "use client"
 
-import { AlertOctagon, AlertTriangle, Info } from "lucide-react"
+import { Badge } from "@astryxdesign/core/Badge"
+import { Card } from "@astryxdesign/core/Card"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow } from "@astryxdesign/core/Table"
+import { Text } from "@astryxdesign/core/Text"
+import { ToggleButton } from "@astryxdesign/core/ToggleButton"
+import { VStack } from "@astryxdesign/core/VStack"
+import { AlertOctagon } from "lucide-react"
 import * as React from "react"
 import { EmptyState, ErrorState } from "@/components/state/states"
 import { useDataAdapter } from "@/lib/data/data-provider"
@@ -8,13 +17,12 @@ import type { DirectorException, ExceptionCategoryCode } from "@/lib/data/direct
 import type { DateRange } from "@/lib/data/types"
 import { useQuery } from "@/lib/data/use-query"
 import { useSession } from "@/lib/session/session-provider"
-import { cn } from "@/lib/utils"
 import { InsightSection, num, PanelLoading, PanelMeta } from "./shared"
 
 const SEVERITY = {
-  high: { label: "High", icon: AlertOctagon, className: "border-destructive/40 bg-destructive/10 text-foreground" },
-  medium: { label: "Medium", icon: AlertTriangle, className: "border-warning/50 bg-warning/10 text-foreground" },
-  low: { label: "Low", icon: Info, className: "border-border bg-muted text-muted-foreground" },
+  high: { label: "High", icon: AlertOctagon, variant: "error" },
+  medium: { label: "Medium", icon: "warning", variant: "warning" },
+  low: { label: "Low", icon: "info", variant: "neutral" },
 } as const
 
 /**
@@ -40,69 +48,70 @@ export function ExceptionsPanel({ range }: { range: DateRange }) {
       {query.status === "error" ? (
         <ErrorState error={query.error} onRetry={query.refetch} />
       ) : !data ? (
-        <PanelLoading testId="exceptions-loading" height="h-72" />
+        <PanelLoading testId="exceptions-loading" height={288} />
       ) : (
-        <div className="flex flex-col gap-4">
-          <div role="group" aria-label="Filter by category" className="flex flex-wrap gap-2">
-            <Chip on={category === "ALL"} id="ALL" label="All" count={data.exceptions.length} onPick={() => setCategory("ALL")} />
-            {data.categories.map((c) => <Chip key={c.category} on={category === c.category} id={c.category} label={c.label} count={c.count} onPick={() => setCategory(c.category)} />)}
-          </div>
+        <VStack gap={4}>
+          <HStack gap={2} wrap="wrap" role="group" aria-label="Filter by category">
+            <Chip id="ALL" label="All" count={data.exceptions.length} selected={category === "ALL"} onSelect={() => setCategory("ALL")} />
+            {data.categories.map((c) => <Chip key={c.category} id={c.category} label={c.label} count={c.count} selected={category === c.category} onSelect={() => setCategory(c.category)} />)}
+          </HStack>
           {rows.length === 0 ? (
             <EmptyState title="No exceptions in this category">Nothing was detected by the rules below.</EmptyState>
           ) : (
-            <div className="overflow-x-auto rounded-xl border" role="region" aria-label="Exceptions, scrolls sideways" tabIndex={0}>
-              <table data-testid="exceptions-table" className="w-full min-w-[46rem] border-collapse text-sm">
-                <caption className="sr-only">Exceptions in your approved scope</caption>
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-medium">Severity</th>
-                    <th scope="col" className="px-2 py-2 font-medium">Category</th>
-                    <th scope="col" className="px-2 py-2 font-medium">Territory</th>
-                    <th scope="col" className="px-2 py-2 font-medium">Finding</th>
-                    <th scope="col" className="px-2 py-2 text-right font-medium">Affected</th>
-                    <th scope="col" className="px-3 py-2 font-medium">Sample records</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => <Row key={row.exceptionId} row={row} />)}
-                </tbody>
-              </table>
-            </div>
+            <Table data-testid="exceptions-table" aria-label="Exceptions in your approved scope">
+              <TableHeader>
+                <TableRow isHeaderRow>
+                  <TableHeaderCell scope="col" className="w-28! max-w-none!">Severity</TableHeaderCell>
+                  <TableHeaderCell scope="col" className="w-28! max-w-none!">Category</TableHeaderCell>
+                  <TableHeaderCell scope="col" className="w-24! max-w-none!">Territory</TableHeaderCell>
+                  <TableHeaderCell scope="col">Finding</TableHeaderCell>
+                  <TableHeaderCell scope="col" className="w-20! max-w-none! text-right">Affected</TableHeaderCell>
+                  <TableHeaderCell scope="col" className="w-48! max-w-none!">Sample records</TableHeaderCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => <Row key={row.exceptionId} row={row} />)}
+              </TableBody>
+            </Table>
           )}
-          <section aria-label="How exceptions are detected" data-testid="exception-rules" className="rounded-2xl border bg-card p-4">
-            <h3 className="text-sm font-semibold">How each exception is detected</h3>
-            <dl className="mt-2 grid gap-x-8 gap-y-3 text-sm md:grid-cols-2">
-              {data.categories.map((c) => (
-                <div key={c.category}><dt className="font-medium">{c.label}</dt><dd className="text-muted-foreground">{c.rule}</dd></div>
-              ))}
-            </dl>
-            <p className="mt-3 text-xs text-muted-foreground">{data.note}</p>
-          </section>
-        </div>
+          <Card role="region" aria-label="How exceptions are detected" data-testid="exception-rules">
+            <VStack gap={2}>
+              <Heading level={3}>How each exception is detected</Heading>
+              <dl className="grid gap-x-8 gap-y-3 text-sm md:grid-cols-2">
+                {data.categories.map((c) => (
+                  <div key={c.category}><dt className="font-medium">{c.label}</dt><dd className="text-muted-foreground">{c.rule}</dd></div>
+                ))}
+              </dl>
+              <Text type="supporting" as="p">{data.note}</Text>
+            </VStack>
+          </Card>
+        </VStack>
       )}
     </InsightSection>
   )
 }
 
-function Chip({ on, id, label, count, onPick }: { on: boolean; id: string; label: string; count: number; onPick: () => void }) {
+function Chip({ id, label, count, selected, onSelect }: { id: string; label: string; count: number; selected: boolean; onSelect: () => void }) {
   return (
-    <button type="button" aria-pressed={on} data-testid={`exception-filter-${id}`} onClick={onPick} className={cn("inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors", on ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted")}>
-      {label} <span className={cn("rounded-full px-1.5 text-xs tabular-nums", on ? "bg-primary-foreground/20" : "bg-muted")}>{count}</span>
-    </button>
+    <ToggleButton isPressed={selected} onPressedChange={onSelect} data-testid={`exception-filter-${id}`} label={`${label} ${count}`}>
+      {label} <span className="tabular-nums">{count}</span>
+    </ToggleButton>
   )
 }
 
 function Row({ row }: { row: DirectorException }) {
   const sev = SEVERITY[row.severity]
-  const Icon = sev.icon
   return (
-    <tr data-testid="exception-row" data-category={row.category} data-severity={row.severity} className="border-b align-top last:border-b-0">
-      <td className="px-3 py-2"><span className={cn("inline-flex min-h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold", sev.className)}><Icon className="size-3.5" aria-hidden />{sev.label}</span></td>
-      <td className="px-2 py-2 font-medium">{row.categoryLabel}</td>
-      <td className="px-2 py-2 tabular-nums">{row.territoryId ?? <span className="text-muted-foreground">All</span>}</td>
-      <td className="max-w-md px-2 py-2"><p className="font-medium">{row.title}</p><p className="mt-0.5 text-muted-foreground">{row.detail}</p></td>
-      <td className="px-2 py-2 text-right tabular-nums">{row.affectedCount > 0 ? num(row.affectedCount) : "—"}</td>
-      <td className="px-3 py-2"><ul className="flex flex-wrap gap-1">{row.sampleRecordIds.map((id) => <li key={id} className="rounded-md border bg-background px-1.5 py-0.5 font-mono text-[0.7rem]">{id}</li>)}</ul>{row.sourceTable && <p className="mt-1 text-xs text-muted-foreground">{row.sourceTable}</p>}</td>
-    </tr>
+    <TableRow data-testid="exception-row" data-category={row.category} data-severity={row.severity}>
+      <TableCell><Badge variant={sev.variant} label={sev.label} icon={<Icon icon={sev.icon} size="xsm" />} /></TableCell>
+      <TableCell><Text weight="medium">{row.categoryLabel}</Text></TableCell>
+      <TableCell className="tabular-nums">{row.territoryId ?? <Text color="secondary">All</Text>}</TableCell>
+      <TableCell><VStack gap={1}><Text weight="medium" as="p">{row.title}</Text><Text type="supporting" as="p">{row.detail}</Text></VStack></TableCell>
+      <TableCell className="text-right tabular-nums">{row.affectedCount > 0 ? num(row.affectedCount) : "—"}</TableCell>
+      <TableCell>
+        <ul className="flex flex-wrap gap-1">{row.sampleRecordIds.map((id) => <li key={id}><Badge variant="neutral" label={id} /></li>)}</ul>
+        {row.sourceTable && <Text type="supporting" as="p">{row.sourceTable}</Text>}
+      </TableCell>
+    </TableRow>
   )
 }

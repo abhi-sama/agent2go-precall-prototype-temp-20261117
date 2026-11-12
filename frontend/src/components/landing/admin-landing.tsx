@@ -9,12 +9,13 @@ import { CheckboxList, CheckboxListItem } from "@astryxdesign/core/CheckboxList"
 import { DateTimeInput, type ISODateTimeString } from "@astryxdesign/core/DateTimeInput"
 import { Heading } from "@astryxdesign/core/Heading"
 import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { Selector } from "@astryxdesign/core/Selector"
 import { Table, proportional } from "@astryxdesign/core/Table"
 import { Text } from "@astryxdesign/core/Text"
 import { TextInput } from "@astryxdesign/core/TextInput"
 import { VStack } from "@astryxdesign/core/VStack"
-import { CircleAlert, Clock3, KeyRound, Search, UserCheck } from "lucide-react"
+import { CircleAlert, Clock3, KeyRound, UserCheck } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { AdminPageHeader } from "@/components/admin/page-header"
 import { SectionCard } from "@/components/admin/section-card"
@@ -140,7 +141,7 @@ function AuditSearch({ refreshKey }: { refreshKey: number }) {
           <DateTimeInput label="From time" isOptional hasClear value={(draft.from || undefined) as ISODateTimeString | undefined} onChange={(value) => set("from")(value)} />
           <DateTimeInput label="To time" isOptional hasClear value={(draft.to || undefined) as ISODateTimeString | undefined} onChange={(value) => set("to")(value)} />
         </div>
-        <div className="pt-4"><Button type="submit" variant="secondary" icon={<Search aria-hidden />} label="Search audit" /></div>
+        <div className="pt-4"><Button type="submit" variant="secondary" icon={<Icon icon="search" />} label="Search audit" /></div>
       </form>
       {audit.status === "loading" ? <BlockSkeleton className="h-28" /> : audit.status === "error" ? <ErrorState error={audit.error} onRetry={audit.refetch} /> : (
         <div data-testid="access-audit-results">
@@ -194,7 +195,7 @@ export function AdminLanding() {
 function IdentityActions({ match, onApprove }: { match: IdentityMatch; onApprove: (match: IdentityMatch, rosterSourceRowId: string) => Promise<void> }) {
   const [pending, setPending] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  if (match.flag === "matched") return <HStack gap={1} align="center"><UserCheck className="size-4" aria-hidden /><Text type="supporting">Approved</Text></HStack>
+  if (match.flag === "matched") return <HStack gap={1} align="center"><Icon icon={UserCheck} size="sm" /><Text type="supporting">Approved</Text></HStack>
   return (
     <HStack gap={2} wrap="wrap">
       {match.candidateRosterSourceRowIds.map((id) => <Button key={id} size="sm" variant="secondary" label={`Approve row ${id}`} onClick={() => setPending(id)} />)}
@@ -269,7 +270,7 @@ function AdminWorkspace({ overview, onRefresh, onApprove, mappingNotice, refresh
         <AssignmentForm onSaved={onRefresh} />
       </SectionCard>
       <AuditSearch refreshKey={refreshKey} />
-      <Banner status="info" icon={<CircleAlert aria-hidden className="size-5" />} title="Access changes are deterministic, effective-dated, and audited; they never depend on an AI decision." collapsible={false} />
+      <Banner status="info" icon={<Icon icon={CircleAlert} size="md" />} title="Access changes are deterministic, effective-dated, and audited; they never depend on an AI decision." collapsible={false} />
     </>
   )
 }

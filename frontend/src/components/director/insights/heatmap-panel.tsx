@@ -1,14 +1,24 @@
 "use client"
 
 import type { EChartsOption } from "echarts"
+import { Banner } from "@astryxdesign/core/Banner"
+import { Blockquote } from "@astryxdesign/core/Blockquote"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow } from "@astryxdesign/core/Table"
+import { Text } from "@astryxdesign/core/Text"
+import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton"
+import { VStack } from "@astryxdesign/core/VStack"
 import { Box, MessageSquareText, Rows3, Table2 } from "lucide-react"
-import Link from "next/link"
+import NextLink from "next/link"
 import * as React from "react"
 import { EChart } from "@/components/charts/echart"
 import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { AiSummary } from "@/components/provenance/provenance"
 import { EmptyState, ErrorState } from "@/components/state/states"
-import { buttonVariants } from "@/components/ui/button"
 import { useDocumentTheme, useThemeSignature } from "@/hooks/use-document-theme"
 import { chatLink } from "@/lib/chat/context"
 import { useDataAdapter } from "@/lib/data/data-provider"
@@ -18,7 +28,6 @@ import { useQuery } from "@/lib/data/use-query"
 import { detectWebGL } from "@/lib/webgl"
 import { resolveCssColor } from "@/lib/css-color"
 import { useSession } from "@/lib/session/session-provider"
-import { cn } from "@/lib/utils"
 import { Heatmap3D } from "./heatmap-3d"
 import { DerivedBadge, EvidenceChip, InsightSection, num, PanelLoading, PanelMeta, pctText } from "./shared"
 
@@ -83,56 +92,45 @@ export function HeatmapPanel({ range, filters }: { range: DateRange; filters: In
       {query.status === "error" && !data ? (
         <ErrorState error={query.error} onRetry={query.refetch} />
       ) : !data ? (
-        <PanelLoading testId="heatmap-loading" height="h-96" />
+        <PanelLoading testId="heatmap-loading" height={384} />
       ) : data.cells.length === 0 ? (
         <EmptyState title="No free-text responses in this period">There are no recorded free-text responses for your territories between these dates. Try a longer period.</EmptyState>
       ) : (
-        <div className="flex flex-col gap-6" aria-busy={query.status === "loading"}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div role="group" aria-label="Group theme cards by" className="flex flex-wrap gap-2">
-              {FACETS.map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  aria-pressed={facet === f.id}
-                  data-testid={`facet-${f.id}`}
-                  onClick={() => setFacet(f.id)}
-                  className={cn("min-h-11 rounded-full border px-4 text-sm font-medium transition-colors", facet === f.id ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted")}
-                >
-                  {f.label}
-                </button>
+        <VStack gap={6} aria-busy={query.status === "loading"}>
+          <HStack gap={3} align="center" justify="between" wrap="wrap">
+            <ToggleButtonGroup label="Group theme cards by" type="single" value={facet} onChange={(v) => { if (v) setFacet(v as ThemeFacet) }}>
+              {FACETS.map((f) => <ToggleButton key={f.id} value={f.id} label={f.label} data-testid={`facet-${f.id}`} />)}
+            </ToggleButtonGroup>
+            <ToggleButtonGroup label="Heatmap view" type="single" value={view} onChange={(v) => { if (v) chooseView(v as HeatmapView) }}>
+              {([["chart", "Chart", Rows3], ["3d", "3D", Box], ["table", "Table", Table2]] as const).map(([id, label, glyph]) => (
+                <ToggleButton key={id} value={id} label={label} icon={<Icon icon={glyph} />} data-testid={`heatmap-view-${id}`} />
               ))}
-            </div>
-            <div role="group" aria-label="Heatmap view" className="flex gap-1 rounded-xl border bg-card p-1">
-              {([["chart", "Chart", Rows3], ["3d", "3D", Box], ["table", "Table", Table2]] as const).map(([id, label, Icon]) => (
-                <button key={id} type="button" aria-pressed={view === id} data-testid={`heatmap-view-${id}`} onClick={() => chooseView(id)} className={cn("inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium", view === id ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>
-                  <Icon className="size-4" aria-hidden /> {label}
-                </button>
-              ))}
-            </div>
-          </div>
+            </ToggleButtonGroup>
+          </HStack>
 
           {fallback && (
-            <p role="status" data-testid="heatmap-3d-notice" className="rounded-xl border border-dashed bg-card p-3 text-sm text-muted-foreground">{FALLBACK_NOTICE[fallback]}</p>
+            <Banner status="info" role="status" data-testid="heatmap-3d-notice" title={FALLBACK_NOTICE[fallback]} />
           )}
 
           <DashboardGrid>
             <DashboardGridItem area="primary">
-              <div data-testid="topic-heatmap" data-view={view} className="min-w-0 rounded-2xl border bg-card p-3 sm:p-4">
-                {view === "chart" ? <HeatmapChart data={data} selected={selected} onSelect={setSelected} /> : view === "3d" ? <Heatmap3D data={data} selected={selected} onSelect={setSelected} onUnavailable={fallBackTo2D} /> : <HeatmapTable data={data} selected={selected} onSelect={setSelected} />}
-                <Legend max={Math.max(...data.cells.map((c) => c.share))} />
-              </div>
-              {selected && <CellDetail data={data} selected={selected} range={range} onClear={() => setSelected(null)} />}
+              <VStack gap={4}>
+                <Card data-testid="topic-heatmap" data-view={view} padding={3} className="min-w-0">
+                  {view === "chart" ? <HeatmapChart data={data} selected={selected} onSelect={setSelected} /> : view === "3d" ? <Heatmap3D data={data} selected={selected} onSelect={setSelected} onUnavailable={fallBackTo2D} /> : <HeatmapTable data={data} selected={selected} onSelect={setSelected} />}
+                  <Legend max={Math.max(...data.cells.map((c) => c.share))} />
+                </Card>
+                {selected && <CellDetail data={data} selected={selected} range={range} onClear={() => setSelected(null)} />}
+              </VStack>
             </DashboardGridItem>
 
             <DashboardGridItem area="secondary">
-              <div data-testid="theme-cards" data-facet={data.facet} className="flex flex-col gap-4">
-                <h3 className="text-lg font-semibold">{data.facetLabel ? `Theme cards by ${data.facetLabel.toLowerCase()}` : "Theme cards"}</h3>
+              <VStack gap={4} data-testid="theme-cards" data-facet={data.facet}>
+                <Heading level={3}>{data.facetLabel ? `Theme cards by ${data.facetLabel.toLowerCase()}` : "Theme cards"}</Heading>
                 <CardGroups cards={data.themeCards} grouped={data.facet !== "NONE"} />
-              </div>
+              </VStack>
             </DashboardGridItem>
           </DashboardGrid>
-        </div>
+        </VStack>
       )}
     </InsightSection>
   )
@@ -140,12 +138,12 @@ export function HeatmapPanel({ range, filters }: { range: DateRange; filters: In
 
 function Legend({ max }: { max: number }) {
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground" data-testid="heatmap-legend">
-      <span>Share of the territory&apos;s free-text responses</span>
+    <HStack gap={3} align="center" wrap="wrap" className="mt-3" data-testid="heatmap-legend">
+      <Text type="supporting" size="xsm">Share of the territory&apos;s free-text responses</Text>
       <span aria-hidden className="h-2.5 w-28 rounded-full bg-gradient-to-r from-muted to-primary" />
-      <span className="tabular-nums">0% to {max.toFixed(1)}%</span>
-      <span>↑ marks a theme on the emerging-topic watch list</span>
-    </div>
+      <Text type="supporting" size="xsm" hasTabularNumbers>0% to {max.toFixed(1)}%</Text>
+      <Text type="supporting" size="xsm">↑ marks a theme on the emerging-topic watch list</Text>
+    </HStack>
   )
 }
 
@@ -212,50 +210,49 @@ function HeatmapChart({ data, selected, onSelect }: { data: TopicHeatmap; select
 function HeatmapTable({ data, selected, onSelect }: { data: TopicHeatmap; selected: { territoryId: string; topic: string } | null; onSelect: (s: { territoryId: string; topic: string }) => void }) {
   const byKey = new Map(data.cells.map((c) => [`${c.territoryId}|${c.topic}`, c]))
   return (
-    <div className="overflow-x-auto" data-testid="heatmap-table-scroll" tabIndex={0} role="region" aria-label="Heatmap table, scrolls sideways">
-      <table data-testid="heatmap-table" className="w-full min-w-[40rem] border-collapse text-sm">
-        <caption className="sr-only">Share of each territory&apos;s free-text responses by derived theme</caption>
-        <thead>
-          <tr className="border-b text-xs text-muted-foreground">
-            <th scope="col" className="px-3 py-2 text-left font-medium">Theme</th>
-            {data.territories.map((t) => (
-              <th key={t.territoryId} scope="col" className="px-1 py-2 text-center font-medium">
-                {t.territoryId}
-                <span className="block text-[0.65rem] font-normal">n = {t.freeTextResponses}</span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.topics.map((topic) => (
-            <tr key={topic.topic} className="border-b last:border-b-0">
-              <th scope="row" className="px-3 py-1 text-left font-medium">{topic.topic}</th>
-              {data.territories.map((t) => {
-                const cell = byKey.get(`${t.territoryId}|${topic.topic}`)
-                const on = selected?.territoryId === t.territoryId && selected.topic === topic.topic
-                return (
-                  <td key={t.territoryId} className="px-0.5 py-0.5 text-center">
-                    <button
-                      type="button"
-                      data-testid="heatmap-cell"
-                      data-territory={t.territoryId}
-                      data-topic={topic.topic}
-                      aria-pressed={on}
-                      aria-label={`${topic.topic} in ${t.territoryId}: ${cell ? `${cell.responses} of ${cell.territoryResponses} responses, ${cell.share.toFixed(1)} percent` : "no responses"}`}
-                      onClick={() => onSelect({ territoryId: t.territoryId, topic: topic.topic })}
-                      className={cn("min-h-11 w-full min-w-11 rounded-md text-xs tabular-nums transition-colors hover:ring-2 hover:ring-primary/50", on && "ring-2 ring-foreground")}
-                      style={{ background: `color-mix(in oklch, var(--primary) ${Math.min(100, Math.round(((cell?.share ?? 0) / 25) * 100))}%, var(--muted))` }}
-                    >
-                      {cell ? cell.share.toFixed(1) : "–"}
-                    </button>
-                  </td>
-                )
-              })}
-            </tr>
+    <Table data-testid="heatmap-table" aria-label="Share of each territory's free-text responses by derived theme">
+      <TableHeader>
+        <TableRow isHeaderRow>
+          <TableHeaderCell scope="col">Theme</TableHeaderCell>
+          {data.territories.map((t) => (
+            <TableHeaderCell key={t.territoryId} scope="col" className="text-center">
+              {t.territoryId}
+              <Text type="supporting" as="div" size="2xs">n = {t.freeTextResponses}</Text>
+            </TableHeaderCell>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {data.topics.map((topic) => (
+          <TableRow key={topic.topic}>
+            <TableCell scope="row"><Text weight="medium">{topic.topic}</Text></TableCell>
+            {data.territories.map((t) => {
+              const cell = byKey.get(`${t.territoryId}|${topic.topic}`)
+              const on = selected?.territoryId === t.territoryId && selected.topic === topic.topic
+              return (
+                <TableCell key={t.territoryId} className="text-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    width="100%"
+                    data-testid="heatmap-cell"
+                    data-territory={t.territoryId}
+                    data-topic={topic.topic}
+                    aria-pressed={on}
+                    label={`${topic.topic} in ${t.territoryId}: ${cell ? `${cell.responses} of ${cell.territoryResponses} responses, ${cell.share.toFixed(1)} percent` : "no responses"}`}
+                    onClick={() => onSelect({ territoryId: t.territoryId, topic: topic.topic })}
+                    className={on ? "min-w-11 tabular-nums ring-2 ring-foreground" : "min-w-11 tabular-nums"}
+                    style={{ background: `color-mix(in oklch, var(--primary) ${Math.min(100, Math.round(((cell?.share ?? 0) / 25) * 100))}%, var(--muted))` }}
+                  >
+                    {cell ? cell.share.toFixed(1) : "–"}
+                  </Button>
+                </TableCell>
+              )
+            })}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }
 
@@ -263,26 +260,26 @@ function CellDetail({ data, selected, range, onClear }: { data: TopicHeatmap; se
   const cell: HeatmapCell | undefined = data.cells.find((c) => c.territoryId === selected.territoryId && c.topic === selected.topic)
   const territory = data.territories.find((t) => t.territoryId === selected.territoryId)
   return (
-    <aside data-testid="cell-detail" aria-label="Selected heatmap cell" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/40 bg-card p-4">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold">{selected.topic} <DerivedBadge /></p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {selected.territoryId}{territory?.name ? ` · ${territory.name}` : ""}:{" "}
-          {cell ? <><strong className="text-foreground tabular-nums">{num(cell.responses)}</strong> of {num(cell.territoryResponses)} free-text responses ({pctText(cell.share)}) from {num(cell.distinctHcps)} HCPs.</> : "no responses recorded."}
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Link href={chatLink({ view: "director-insights", territoryId: selected.territoryId, from: range.from, to: range.to })} data-testid="ask-agent-cell" className={cn(buttonVariants({ variant: "outline" }))}>
-          <MessageSquareText aria-hidden /> Ask the agent about {selected.territoryId}
-        </Link>
-        <button type="button" onClick={onClear} className={cn(buttonVariants({ variant: "ghost" }))}>Clear</button>
-      </div>
-    </aside>
+    <Card data-testid="cell-detail" role="complementary" aria-label="Selected heatmap cell" className="border border-primary/40">
+      <HStack gap={3} align="center" justify="between" wrap="wrap">
+        <VStack gap={1} className="min-w-0">
+          <Text weight="semibold" as="p">{selected.topic} <DerivedBadge /></Text>
+          <Text type="supporting" as="p">
+            {selected.territoryId}{territory?.name ? ` · ${territory.name}` : ""}:{" "}
+            {cell ? <><strong className="text-foreground tabular-nums">{num(cell.responses)}</strong> of {num(cell.territoryResponses)} free-text responses ({pctText(cell.share)}) from {num(cell.distinctHcps)} HCPs.</> : "no responses recorded."}
+          </Text>
+        </VStack>
+        <HStack gap={2} wrap="wrap">
+          <Button href={chatLink({ view: "director-insights", territoryId: selected.territoryId, from: range.from, to: range.to })} as={NextLink} data-testid="ask-agent-cell" variant="secondary" label={`Ask the agent about ${selected.territoryId}`} icon={<Icon icon={MessageSquareText} />} />
+          <Button variant="ghost" label="Clear" onClick={onClear} />
+        </HStack>
+      </HStack>
+    </Card>
   )
 }
 
 function CardGroups({ cards, grouped }: { cards: ThemeCard[]; grouped: boolean }) {
-  if (cards.length === 0) return <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No theme cards for these filters.</p>
+  if (cards.length === 0) return <Card variant="muted" className="border border-dashed"><Text type="supporting" as="p">No theme cards for these filters.</Text></Card>
   const groups = grouped ? [...new Set(cards.map((c) => c.facetValue ?? ""))] : [""]
   return (
     <div className="a2g-theme-cards-scope flex flex-col gap-6">
@@ -291,9 +288,9 @@ function CardGroups({ cards, grouped }: { cards: ThemeCard[]; grouped: boolean }
         return (
           <div key={value} className="flex flex-col gap-3">
             {grouped && (
-              <h4 data-testid="facet-group" className="text-sm font-semibold text-muted-foreground">
-                {value} <span className="font-normal">· {num(list[0]?.facetResponses ?? 0)} free-text responses</span>
-              </h4>
+              <Heading level={4} data-testid="facet-group" color="secondary">
+                {value} <Text weight="normal">· {num(list[0]?.facetResponses ?? 0)} free-text responses</Text>
+              </Heading>
             )}
             <div className="a2g-theme-cards-grid grid gap-4">
               {list.map((card) => (
@@ -317,12 +314,12 @@ function ThemeCardView({ card }: { card: ThemeCard }) {
       meta={<DerivedBadge />}
     >
       <div className="flex flex-col gap-3">
-        <p className="text-muted-foreground">
+        <Text type="supporting" as="p">
           <strong className="text-foreground tabular-nums">{num(card.responses)}</strong> responses ({pctText(card.share)} of {num(card.facetResponses)}) · {num(card.distinctHcps)} HCPs · {card.territoryCount} territories
-        </p>
+        </Text>
         {card.evidence.map((e) => (
           <figure key={e.recordId} className="flex flex-col gap-2">
-            <blockquote className="border-l-2 border-ai/50 pl-3 italic text-muted-foreground">“{e.excerpt}”</blockquote>
+            <Blockquote>“{e.excerpt}”</Blockquote>
             <figcaption className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <EvidenceChip recordId={e.recordId} />
               <span>{e.territoryId}{e.interactionDate ? ` · ${e.interactionDate}` : ""}</span>

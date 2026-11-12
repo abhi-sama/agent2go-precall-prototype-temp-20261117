@@ -5,13 +5,17 @@ import * as React from "react"
 import { Card } from "@astryxdesign/core/Card"
 import { Grid } from "@astryxdesign/core/Grid"
 import { Heading } from "@astryxdesign/core/Heading"
+import { Icon } from "@astryxdesign/core/Icon"
+import { List, ListItem } from "@astryxdesign/core/List"
+import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList"
 import { Section as AstryxSection } from "@astryxdesign/core/Section"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
 import { Stack } from "@astryxdesign/core/Stack"
 import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
 import { KpiCard } from "@/components/landing/kpi-card"
 import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useEnter } from "@/hooks/use-enter"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { DateRange, DirectorOverview as Overview } from "@/lib/data/types"
@@ -43,15 +47,15 @@ export function DirectorOverview({ range }: { range: DateRange }) {
   if (query.status === "error") return <ErrorState error={query.error} onRetry={query.refetch} />
   if (query.status === "loading") {
     return (
-      <div data-testid="director-loading" aria-busy="true" className="flex flex-col gap-4">
+      <VStack data-testid="director-loading" aria-busy="true" gap={4}>
         <Grid columns={{ minWidth: 256, max: 4 }} gap={4}>
           <KpiSkeleton />
           <KpiSkeleton />
           <KpiSkeleton />
           <KpiSkeleton />
         </Grid>
-        <Skeleton className="h-64 w-full rounded-2xl" />
-      </div>
+        <Skeleton width="100%" height="16rem" radius={4} />
+      </VStack>
     )
   }
   const data = query.data
@@ -66,7 +70,7 @@ export function DirectorOverview({ range }: { range: DateRange }) {
   const chosen = selected.filter((id) => inScope.has(id))
 
   return (
-    <div data-testid="director-overview" className="flex flex-col gap-6">
+    <VStack data-testid="director-overview" gap={6}>
       <Grid data-testid="overview-kpis" columns={{ minWidth: 256, max: 4 }} gap={4}>
         <KpiCard
           id="members"
@@ -136,20 +140,17 @@ export function DirectorOverview({ range }: { range: DateRange }) {
 
         <DashboardGridItem area="secondary">
           <Section id="definitions" title="How these numbers are counted" note={`Definitions ${data.definitionVersion}. Counts are computed in the database, never by AI.`}>
-            <dl data-testid="definitions" className="grid gap-x-8 gap-y-3 text-sm md:grid-cols-2">
+            <MetadataList data-testid="definitions" columns="multi">
               {data.definitions.map((d) => (
-                <div key={d.key}>
-                  <dt className="font-semibold">{d.label}</dt>
-                  <dd className="text-muted-foreground">{d.text}</dd>
-                </div>
+                <MetadataListItem key={d.key} label={d.label}>{d.text}</MetadataListItem>
               ))}
-            </dl>
+            </MetadataList>
             {data.notes.length > 0 && (
-              <ul data-testid="overview-notes" className="mt-4 flex list-disc flex-col gap-1 pl-5 text-xs text-muted-foreground">
+              <List data-testid="overview-notes" listStyle="disc" density="compact" className="mt-4">
                 {data.notes.map((n) => (
-                  <li key={n.code} data-code={n.code}>{n.message}</li>
+                  <ListItem key={n.code} data-code={n.code} label={<Text type="supporting">{n.message}</Text>} />
                 ))}
-              </ul>
+              </List>
             )}
           </Section>
         </DashboardGridItem>
@@ -160,7 +161,7 @@ export function DirectorOverview({ range }: { range: DateRange }) {
           </Section>
         </DashboardGridItem>
       </DashboardGrid>
-    </div>
+    </VStack>
   )
 }
 
@@ -185,7 +186,7 @@ function Engagement({ overview }: { overview: Overview }) {
         </Card>
       ) : (
         <Card data-testid="coverage-withheld" padding={4} variant="muted">
-          <Heading level={3} color="secondary"><BookOpen className="mr-2 inline size-4" aria-hidden /> Coverage is not shown</Heading>
+          <Heading level={3} color="secondary"><Icon icon={BookOpen} size="sm" className="mr-2 inline align-text-bottom" /> Coverage is not shown</Heading>
           <Text as="p" display="block" className="mt-2">
             There is no approved target population for this scope, so a coverage percentage cannot be calculated. Engaged HCPs are not a substitute for a target list.
           </Text>
@@ -205,7 +206,7 @@ function Section({ id, title, note, children }: { id: string; title: string; not
   )
 }
 
-function StatCard({ id, label, value, definition, icon: Icon, index = 0 }: { id: string; label: string; value: string; definition: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; index?: number }) {
+function StatCard({ id, label, value, definition, icon: StatIcon, index = 0 }: { id: string; label: string; value: string; definition: string; icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; index?: number }) {
   const enter = useEnter(`kpi-${id}`, index)
   return (
     <Card data-testid={`kpi-${id}`} padding={4} elevation="low" style={enter.style} className={cn("relative overflow-hidden", enter.className)}>
@@ -213,7 +214,7 @@ function StatCard({ id, label, value, definition, icon: Icon, index = 0 }: { id:
       <Stack direction="horizontal" hAlign="between" vAlign="start" gap={3}>
         <Heading level={3} color="secondary">{label}</Heading>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning/15">
-          <Icon className="size-5" aria-hidden />
+          <Icon icon={StatIcon} size="md" />
         </span>
       </Stack>
       <Text data-testid={`kpi-${id}-value`} type="display-1" weight="semibold" hasTabularNumbers display="block" className="mt-3">{value}</Text>

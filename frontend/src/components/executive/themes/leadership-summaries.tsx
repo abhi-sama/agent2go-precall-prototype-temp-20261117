@@ -1,13 +1,21 @@
 "use client"
 
-import { Download, FileClock, Lock, Printer, RefreshCw, ShieldAlert, Sparkles } from "lucide-react"
+import { Download, FileClock, Lock, Printer, RefreshCw, Sparkles } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
+import { Badge } from "@astryxdesign/core/Badge"
+import { Banner } from "@astryxdesign/core/Banner"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { Collapsible } from "@astryxdesign/core/Collapsible"
+import { Heading } from "@astryxdesign/core/Heading"
+import { Icon } from "@astryxdesign/core/Icon"
+import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
+import { Text } from "@astryxdesign/core/Text"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { AiSummary, SourceFact } from "@/components/provenance/provenance"
 import { EmptyState, ErrorState } from "@/components/state/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { ExecutiveCitation, LeadershipSummary, LeadershipSummaryExport } from "@/lib/data/executive-themes"
@@ -16,7 +24,6 @@ import { useQuery } from "@/lib/data/use-query"
 import { formatInstant } from "@/lib/dates"
 import { log, newCorrelationId } from "@/lib/log/logger"
 import { useSession } from "@/lib/session/session-provider"
-import { cn } from "@/lib/utils"
 import { CountValue } from "../count"
 import { LeadershipDocumentBody, LeadershipPrintDocument } from "./leadership-document"
 import { CitationList, SampleLimitations } from "./parts"
@@ -30,15 +37,13 @@ const SECTIONS: { key: string; title: string }[] = [
 /** Shown when a saved summary can no longer be opened or exported because the Executive's access changed. */
 function AccessChanged({ action }: { action: "open" | "export" }) {
   return (
-    <div data-testid="access-changed" role="alert" className="flex items-start gap-3 rounded-2xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
-      <ShieldAlert className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden />
-      <div>
-        <p className="font-semibold">Your access has changed, so this summary cannot be {action === "open" ? "opened" : "exported"}.</p>
-        <p className="mt-1 text-muted-foreground">
-          A territory it covers is no longer in your explicit scope, or a permission it relied on was withdrawn. Nothing was {action === "open" ? "shown" : "exported"}. Generate a new summary for your current scope, or ask an administrator to review your access.
-        </p>
-      </div>
-    </div>
+    <Banner
+      data-testid="access-changed"
+      role="alert"
+      status="error"
+      title={`Your access has changed, so this summary cannot be ${action === "open" ? "opened" : "exported"}.`}
+      description={`A territory it covers is no longer in your explicit scope, or a permission it relied on was withdrawn. Nothing was ${action === "open" ? "shown" : "exported"}. Generate a new summary for your current scope, or ask an administrator to review your access.`}
+    />
   )
 }
 
@@ -76,29 +81,26 @@ function SummaryView({ summary, onExport, onRegenerate, exporting, busy }: { sum
   const min = summary.disclosure.minCell
   const known = new Set(SECTIONS.map((s) => s.key))
   return (
-    <article data-testid="leadership-summary" data-summary-id={summary.summaryId} data-stale={summary.stale} className="flex min-w-0 flex-col gap-4 rounded-2xl border bg-card p-4 shadow-card animate-in fade-in-0 slide-in-from-bottom-1 duration-200 motion-reduce:animate-none sm:p-5">
+    <article data-testid="leadership-summary" data-summary-id={summary.summaryId} data-stale={summary.stale} className="min-w-0 animate-in fade-in-0 slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">
+    <Card padding={5} elevation="low" className="flex min-w-0 flex-col gap-4">
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <h3 data-testid="summary-title" className="text-lg font-semibold">{summary.title}</h3>
+          <Heading level={3} data-testid="summary-title">{summary.title}</Heading>
           <div className="flex flex-wrap gap-2">
-            <Button data-testid="export-summary" onClick={onExport} disabled={exporting}><Download aria-hidden />{exporting ? "Checking access…" : "Export"}</Button>
-            <Button variant="outline" data-testid="regenerate-summary" onClick={onRegenerate} disabled={busy}><RefreshCw aria-hidden />Regenerate</Button>
+            <Button data-testid="export-summary" onClick={onExport} isDisabled={exporting} variant="primary" icon={<Icon icon={Download} />} label={exporting ? "Checking access…" : "Export"} />
+            <Button data-testid="regenerate-summary" onClick={onRegenerate} isDisabled={busy} variant="secondary" icon={<Icon icon={RefreshCw} />} label="Regenerate" />
           </div>
         </div>
-        <dl data-testid="summary-meta" className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-          <div className="flex gap-1.5"><dt>Scope</dt><dd data-testid="summary-scope" className="font-medium text-foreground">{summary.scopeLabel}</dd></div>
-          <div className="flex gap-1.5"><dt>Dates</dt><dd data-testid="summary-range" className="font-medium tabular-nums text-foreground">{summary.from} to {summary.to}</dd></div>
-          <div className="flex gap-1.5"><dt>Generated</dt><dd className="font-medium text-foreground">{formatInstant(summary.generatedAt)}</dd></div>
-          <div className="flex gap-1.5"><dt>Definitions</dt><dd className="font-medium text-foreground">{summary.definitionVersion}</dd></div>
-        </dl>
+        <MetadataList data-testid="summary-meta" orientation="horizontal">
+          <MetadataListItem label="Scope"><Text data-testid="summary-scope" weight="medium">{summary.scopeLabel}</Text></MetadataListItem>
+          <MetadataListItem label="Dates"><Text data-testid="summary-range" weight="medium" hasTabularNumbers>{summary.from} to {summary.to}</Text></MetadataListItem>
+          <MetadataListItem label="Generated"><Text weight="medium">{formatInstant(summary.generatedAt)}</Text></MetadataListItem>
+          <MetadataListItem label="Definitions"><Text weight="medium">{summary.definitionVersion}</Text></MetadataListItem>
+        </MetadataList>
         <div className="flex flex-wrap items-center gap-2">
           <DataThroughBadge dataThrough={summary.dataThrough} className="min-h-8 text-xs" />
-          {summary.modelMode === "stub" && <Badge data-testid="stub-badge" variant="outline" className="border-warning/50 text-warning">Local stub model · no API key</Badge>}
-          {summary.stale && (
-            <span data-testid="summary-stale" className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-warning/50 bg-warning/10 px-2.5 text-xs font-semibold">
-              <FileClock className="size-3.5" aria-hidden />Newer data available · regenerate
-            </span>
-          )}
+          {summary.modelMode === "stub" && <Badge data-testid="stub-badge" variant="warning" label="Local stub model · no API key" />}
+          {summary.stale && <Badge data-testid="summary-stale" variant="warning" icon={<Icon icon={FileClock} size="sm" />} label="Newer data available · regenerate" />}
         </div>
       </header>
 
@@ -118,7 +120,7 @@ function SummaryView({ summary, onExport, onRegenerate, exporting, busy }: { sum
             if (items.length === 0) return null
             return (
               <section key={key} aria-label={title}>
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>
+                <Heading level={4} className="uppercase tracking-wide">{title}</Heading>
                 <ul className="mt-1 flex flex-col gap-1.5">{items.map((s) => <Statement key={s.statementId} text={s.text} ids={s.citationIds} numbers={numbers} summaryId={summary.summaryId} />)}</ul>
               </section>
             )
@@ -127,19 +129,19 @@ function SummaryView({ summary, onExport, onRegenerate, exporting, busy }: { sum
       </AiSummary>
 
       <section aria-label="Sources" className="flex flex-col gap-2">
-        <h4 className="text-sm font-semibold">Sources</h4>
+        <Heading level={4}>Sources</Heading>
         <SourceList citations={summary.citations} summaryId={summary.summaryId} />
       </section>
 
       <SampleLimitations items={summary.sampleLimitations} />
 
-      <details data-testid="summary-definitions" className="rounded-xl border p-3 text-sm">
-        <summary className="min-h-11 cursor-pointer py-2 font-semibold">Metric definitions ({summary.definitionVersion})</summary>
-        <dl className="mt-2 grid gap-x-8 gap-y-3 md:grid-cols-2">
+      <Collapsible data-testid="summary-definitions" defaultIsOpen={false} trigger={<Text weight="semibold">Metric definitions ({summary.definitionVersion})</Text>}>
+        <dl className="mt-2 grid gap-x-8 gap-y-3 text-sm md:grid-cols-2">
           {summary.definitions.map((d) => <div key={d.key}><dt className="font-semibold">{d.label}</dt><dd className="text-muted-foreground">{d.text}</dd></div>)}
         </dl>
-      </details>
-      {summary.disclosure.applied && <p className="text-xs text-muted-foreground">{summary.disclosure.text}</p>}
+      </Collapsible>
+      {summary.disclosure.applied && <Text as="p" type="supporting">{summary.disclosure.text}</Text>}
+    </Card>
     </article>
   )
 }
@@ -217,24 +219,22 @@ export function LeadershipSummaries({ range }: { range: DateRange }) {
   return (
     <div data-testid="leadership-summaries" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Button data-testid="generate-leadership-summary" onClick={() => void generate()} disabled={generating}>
-          <Sparkles aria-hidden />{generating ? "Generating…" : "Generate leadership summary"}
-        </Button>
-        <span className="text-sm text-muted-foreground">For {range.from} to {range.to}. Saved automatically, with its scope and data-through date.</span>
+        <Button data-testid="generate-leadership-summary" onClick={() => void generate()} isDisabled={generating} variant="primary" icon={<Icon icon={Sparkles} />} label={generating ? "Generating…" : "Generate leadership summary"} />
+        <Text type="supporting">For {range.from} to {range.to}. Saved automatically, with its scope and data-through date.</Text>
       </div>
 
       {problem?.action === "generate" && <ErrorState error={problem.error} onRetry={() => void generate()} />}
       {problem && problem.action !== "generate" && problem.error.code === "FORBIDDEN" && <AccessChanged action={problem.action} />}
       {problem && problem.action !== "generate" && problem.error.code !== "FORBIDDEN" && <ErrorState error={problem.error} onRetry={problem.action === "export" ? () => void exportActive() : undefined} />}
 
-      {generating && !active && <div data-testid="summary-generating" aria-busy="true" className="h-40 animate-pulse rounded-2xl border bg-muted/50" />}
+      {generating && !active && <div data-testid="summary-generating" aria-busy="true"><Skeleton height={160} radius={4} /></div>}
 
       {active && <SummaryView summary={active} onExport={() => void exportActive()} onRegenerate={() => void generate(active.summaryId)} exporting={exporting} busy={generating} />}
 
       <section aria-label="Saved summaries" data-testid="saved-summaries" className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold">Saved summaries</h3>
+        <Heading level={3}>Saved summaries</Heading>
         {list.status === "loading" ? (
-          <div aria-busy="true" className="h-16 animate-pulse rounded-xl border bg-muted/50" />
+          <div aria-busy="true"><Skeleton height={64} radius={3} /></div>
         ) : list.status === "error" ? (
           <ErrorState error={list.error} onRetry={list.refetch} />
         ) : items.length === 0 ? (
@@ -242,21 +242,23 @@ export function LeadershipSummaries({ range }: { range: DateRange }) {
         ) : (
           <ul className="flex flex-col gap-2">
             {items.map((item) => (
-              <li key={item.summaryId} data-testid="saved-summary" data-accessible={item.accessible} className={cn("flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3", !item.accessible && "border-dashed bg-muted/40")}>
-                {item.accessible ? (
-                  <>
-                    <div className="min-w-0">
-                      <p className="break-words font-medium">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">Generated {formatInstant(item.generatedAt)}{item.stale ? " · newer data available" : ""}</p>
-                    </div>
-                    <Button variant="outline" data-testid="open-summary" disabled={opening === item.summaryId} onClick={() => void open(item.summaryId)}>{opening === item.summaryId ? "Opening…" : "Open"}</Button>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"><Lock className="size-4 shrink-0" aria-hidden /><span data-testid="summary-locked">Generated {formatInstant(item.generatedAt)} · no longer available to you</span></div>
-                    <Button variant="outline" data-testid="open-summary" onClick={() => void open(item.summaryId)}>Try to open</Button>
-                  </>
-                )}
+              <li key={item.summaryId} data-testid="saved-summary" data-accessible={item.accessible}>
+                <Card variant={item.accessible ? "default" : "muted"} padding={3} className="flex flex-wrap items-center justify-between gap-3">
+                  {item.accessible ? (
+                    <>
+                      <div className="min-w-0">
+                        <Text as="p" weight="medium" className="break-words">{item.title}</Text>
+                        <Text as="p" type="supporting">Generated {formatInstant(item.generatedAt)}{item.stale ? " · newer data available" : ""}</Text>
+                      </div>
+                      <Button data-testid="open-summary" isDisabled={opening === item.summaryId} onClick={() => void open(item.summaryId)} variant="secondary" label={opening === item.summaryId ? "Opening…" : "Open"} />
+                    </>
+                  ) : (
+                    <>
+                      <Text type="supporting" className="flex min-w-0 items-center gap-2"><Icon icon={Lock} size="sm" /><span data-testid="summary-locked">Generated {formatInstant(item.generatedAt)} · no longer available to you</span></Text>
+                      <Button data-testid="open-summary" onClick={() => void open(item.summaryId)} variant="secondary" label="Try to open" />
+                    </>
+                  )}
+                </Card>
               </li>
             ))}
           </ul>
@@ -270,7 +272,7 @@ export function LeadershipSummaries({ range }: { range: DateRange }) {
             <SheetDescription>Created after your access was re-checked. Only this document prints.</SheetDescription>
           </SheetHeader>
           <div className="flex flex-col gap-4 px-4 pb-6">
-            <Button data-testid="print-summary" className="w-fit" onClick={() => window.print()}><Printer aria-hidden />Print or save as PDF</Button>
+            <Button data-testid="print-summary" className="w-fit" onClick={() => window.print()} variant="primary" icon={<Icon icon={Printer} />} label="Print or save as PDF" />
             {exported && (
               <div data-testid="leadership-export-preview" className="export-preview flex flex-col gap-3 rounded-xl border bg-background p-4 text-sm [&_dd]:font-medium [&_dl]:grid [&_dl]:gap-x-6 [&_dl]:gap-y-2 [&_dl]:sm:grid-cols-2 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_li]:mb-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5">
                 <LeadershipDocumentBody doc={exported} />

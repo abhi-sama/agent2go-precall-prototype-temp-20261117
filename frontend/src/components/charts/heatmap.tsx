@@ -1,3 +1,5 @@
+import { Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow } from "@astryxdesign/core/Table"
+import { Text } from "@astryxdesign/core/Text"
 import type * as React from "react"
 import { cn } from "@/lib/utils"
 import { sequentialFill } from "./palette"
@@ -50,31 +52,32 @@ export function Heatmap({
   const max = Math.max(1, ...rows.flatMap((r) => r.values))
   return (
     <div data-testid={testId} className="max-h-[28rem] overflow-y-auto rounded-xl border">
-      <table className="w-full table-fixed border-collapse text-sm">
-        <caption className="sr-only">{caption}</caption>
-        <thead className="bg-card">
-          <tr className="border-b text-left text-xs text-muted-foreground">
-            <th scope="col" className="w-[34%] px-3 py-2 font-medium sm:w-[28%]">{rowHeader}</th>
+      <Table aria-label={caption} density="compact" dividers="rows">
+        <TableHeader>
+          <TableRow isHeaderRow>
+            <TableHeaderCell scope="col" className="w-[34%] sm:w-[28%]">{rowHeader}</TableHeaderCell>
             {columns.map((c) => (
-              <th key={c.key} scope="col" title={c.title ?? c.label} className="px-1 py-2 text-center font-medium">
-                {c.label}
-                {c.partial && <span aria-label="partial period">*</span>}
-              </th>
+              <TableHeaderCell key={c.key} scope="col" className="px-1 text-center">
+                <span title={c.title ?? c.label}>
+                  {c.label}
+                  {c.partial && <span aria-label="partial period">*</span>}
+                </span>
+              </TableHeaderCell>
             ))}
-            {trailingHeader && <th scope="col" className="w-[22%] px-3 py-2 text-right font-medium sm:w-[18%]">{trailingHeader}</th>}
-          </tr>
-        </thead>
-        <tbody>
+            {trailingHeader && <TableHeaderCell scope="col" className="w-[22%] text-right sm:w-[18%]">{trailingHeader}</TableHeaderCell>}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row) => (
-            <tr key={row.id} data-testid={rowTestId} data-member={row.id} className="border-b last:border-b-0">
-              <th scope="row" className="truncate px-3 py-1.5 text-left font-medium" title={row.label}>
-                <span className="block truncate">{row.label}</span>
-                {row.sublabel && <span className="block truncate text-xs font-normal text-muted-foreground">{row.sublabel}</span>}
-              </th>
+            <TableRow key={row.id} data-testid={rowTestId} data-member={row.id}>
+              <TableHeaderCell scope="row" className="max-w-0 truncate">
+                <span className="block truncate" title={row.label}>{row.label}</span>
+                {row.sublabel && <Text as="span" type="supporting" display="block" className="truncate">{row.sublabel}</Text>}
+              </TableHeaderCell>
               {row.values.map((value, i) => {
                 const empty = value === 0
                 return (
-                  <td key={columns[i]?.key ?? i} className="p-0.5 text-center">
+                  <TableCell key={columns[i]?.key ?? i} className="p-0.5 text-center">
                     <span
                       data-testid={cellTestId}
                       data-calls={value}
@@ -86,14 +89,14 @@ export function Heatmap({
                     >
                       {empty ? "0" : formatValue(value)}
                     </span>
-                  </td>
+                  </TableCell>
                 )
               })}
-              {trailingHeader && <td className="px-3 py-1.5 text-right tabular-nums">{row.trailing}</td>}
-            </tr>
+              {trailingHeader && <TableCell className="text-right tabular-nums">{row.trailing}</TableCell>}
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   )
 }

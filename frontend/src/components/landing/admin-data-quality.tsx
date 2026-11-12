@@ -6,6 +6,7 @@ import { Button } from "@astryxdesign/core/Button"
 import { Card } from "@astryxdesign/core/Card"
 import { Heading } from "@astryxdesign/core/Heading"
 import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { List, ListItem } from "@astryxdesign/core/List"
 import { Table, proportional } from "@astryxdesign/core/Table"
 import { Text } from "@astryxdesign/core/Text"
@@ -38,7 +39,7 @@ function IngestionPanel({ runs, onRefresh }: { runs: IngestionRun[]; onRefresh: 
       title="Pipeline status"
       icon={DatabaseZap}
       description="Stale means a completed load is more than 30 days old."
-      end={<Button variant="secondary" icon={<RefreshCw aria-hidden />} label="Refresh checks" onClick={onRefresh} />}
+      end={<Button variant="secondary" icon={<Icon icon={RefreshCw} />} label="Refresh checks" onClick={onRefresh} />}
     >
       <Table<RunRow>
         data={runs.map((run) => ({ ...run }))}
@@ -81,7 +82,7 @@ function IssueList({ issues }: { issues: DataQualityIssue[] }) {
           <ListItem
             key={issue.issueId}
             align="start"
-            startContent={<CircleAlert className={issue.severity === "high" ? "size-5 text-destructive" : "size-5 text-warning"} aria-hidden />}
+            startContent={<Icon icon={CircleAlert} size="md" color={issue.severity === "high" ? "error" : "warning"} />}
             label={
               <Text weight="medium">
                 {issue.title} <Text color="secondary" hasTabularNumbers>({issue.affectedCount})</Text>
@@ -92,7 +93,7 @@ function IssueList({ issues }: { issues: DataQualityIssue[] }) {
                 <Text color="secondary">{issue.summary}</Text>
                 <HStack gap={2} wrap="wrap">
                   {issue.records.map((record) => (
-                    <Button key={record.recordId} variant="ghost" className="min-h-11" href={`#${recordTarget(record)}`} icon={<Link2 aria-hidden />} label="View record" />
+                    <Button key={record.recordId} variant="ghost" className="min-h-11" href={`#${recordTarget(record)}`} icon={<Icon icon={Link2} />} label="View record" />
                   ))}
                 </HStack>
               </VStack>
