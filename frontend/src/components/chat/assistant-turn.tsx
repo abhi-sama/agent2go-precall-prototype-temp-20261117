@@ -65,6 +65,9 @@ function CitationLink({ citation, citations, onOpen }: { citation: CitationItem;
       source={{ title: citation.label, url: `#citation-${number}` }}
       number={number}
       variant="number"
+      // Dark looks put the default secondary text on the muted accent below 4.5:1, and the 20px chip is under the
+      // 44pt touch minimum on tablets, so draw it in the primary text colour and grow it on coarse pointers.
+      className="align-baseline text-(--color-text-primary) pointer-coarse:min-h-11 pointer-coarse:min-w-11"
       aria-label={`Open source ${number}: ${citation.label}`}
       onClick={(event) => {
         event.preventDefault()
@@ -143,7 +146,7 @@ export function AssistantTurnView({
   }))
 
   return (
-    <ChatMessage sender="assistant" name="Agent" avatar={<Avatar name="Agent" size="sm" />} data-testid="assistant-turn" data-status={turn.status}>
+    <ChatMessage sender="assistant" name="Agent" avatar={<Avatar name="Agent" size="sm" tooltip={false} />} data-testid="assistant-turn" data-status={turn.status}>
       <ChatMessageBubble variant="ghost" width="100%">
         <div className="flex min-w-0 flex-col gap-3">
       {activeTools.length > 0 && (

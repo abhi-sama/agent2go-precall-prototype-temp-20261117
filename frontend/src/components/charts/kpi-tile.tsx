@@ -49,7 +49,7 @@ export function KpiTile({ id, label, value, definition, caption, icon: Glyph, se
     >
       <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: color }} />
       <Stack direction="horizontal" hAlign="between" vAlign="start" gap={3}>
-        <Heading level={3} type="display-3" color="secondary">{label}</Heading>
+        <Heading level={3} color="secondary" className="min-w-0">{label}</Heading>
         <span
           className="grid size-10 shrink-0 place-items-center rounded-xl"
           style={{ backgroundColor: `color-mix(in oklab, ${color} 14%, var(--card))`, color: `color-mix(in oklab, ${color} 70%, var(--foreground))` }}

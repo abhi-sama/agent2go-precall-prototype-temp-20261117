@@ -50,7 +50,9 @@ export async function collectLayoutReport(page: Page, opts: { touch: boolean }):
       return r
     }
     // A modal <dialog> (the Astryx navigation drawer) makes the rest of the page inert: only what it holds is on screen to use.
-    const modal = document.querySelector("dialog:modal")
+    // Dialogs can nest (a citation sheet opened from the chat drawer): the innermost modal is the one on top.
+    const modals = [...document.querySelectorAll("dialog:modal")]
+    const modal = modals.find((d) => !modals.some((o) => o !== d && d.contains(o))) ?? null
     const isShown = (el: Element) => {
       if (modal && !modal.contains(el)) return false
       // Tailwind's .sr-only (skip link, "Close" labels) is intentionally collapsed and clipped to 1px.
@@ -121,7 +123,7 @@ export async function collectLayoutReport(page: Page, opts: { touch: boolean }):
     }
 
     // Overlap: the painted boxes of two unrelated interactive or text-bearing elements intersect.
-    type Atom = { el: Element; rect: DOMRect }
+    type Atom = { el: Element; rect: DOMRect; lines?: DOMRect[] }
     const atoms: Atom[] = []
     const interactiveSel = "a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=tab],[role=switch],[role=checkbox],[role=menuitem],[role=option],[tabindex]:not([tabindex='-1'])"
     for (const el of document.body.querySelectorAll("*")) {
@@ -131,6 +133,7 @@ export async function collectLayoutReport(page: Page, opts: { touch: boolean }):
       if (!hasOwnText && !interactive) continue
       // Text boxes use the range rect so a wide block with short text does not overlap its neighbours falsely.
       let rect: DOMRect | null
+      let lines: DOMRect[] | undefined
       if (hasOwnText && !interactive) {
         const range = document.createRange()
         range.selectNodeContents(el)
@@ -143,11 +146,15 @@ export async function collectLayoutReport(page: Page, opts: { touch: boolean }):
         const L = Math.max(l, clipRect.left), T = Math.max(t, clipRect.top), R = Math.min(r2, clipRect.right), B = Math.min(b, clipRect.bottom)
         if (R - L <= 0 || B - T <= 0) continue
         rect = new DOMRect(L, T, R - L, B - T)
+        // Wrapped inline text paints one box per line; their union also covers the other lines' free space.
+        lines = rects
+          .map((x) => new DOMRect(Math.max(x.left, clipRect.left), Math.max(x.top, clipRect.top), Math.min(x.right, clipRect.right) - Math.max(x.left, clipRect.left), Math.min(x.bottom, clipRect.bottom) - Math.max(x.top, clipRect.top)))
+          .filter((x) => x.width > 0 && x.height > 0)
       } else {
         rect = visibleRect(el)
       }
       if (!rect || isTiny(rect)) continue
-      atoms.push({ el, rect })
+      atoms.push({ el, rect, lines })
     }
     const overlapping: string[] = []
     const stickyOrFixed = (el: Element) => {
@@ -161,15 +168,27 @@ export async function collectLayoutReport(page: Page, opts: { touch: boolean }):
       for (let j = i + 1; j < atoms.length; j++) {
         const a = atoms[i], b = atoms[j]
         if (a.el.contains(b.el) || b.el.contains(a.el)) continue
+        // A text area draws its own character counter in the control's corner; the control reserves that space.
+        if ((a.el.matches('.astryx-text-area-counter') && b.el.matches('.astryx-text-area-control')) || (b.el.matches('.astryx-text-area-counter') && a.el.matches('.astryx-text-area-control'))) continue
         // A fixed or sticky bar legitimately floats over scrolled content; we check the page at rest (scroll 0).
-        const w = Math.min(a.rect.right, b.rect.right) - Math.max(a.rect.left, b.rect.left)
-        const h = Math.min(a.rect.bottom, b.rect.bottom) - Math.max(a.rect.top, b.rect.top)
+        // Compare painted line boxes (the union only bounds them), so a chip sitting in a wrapped sentence is not a false overlap.
+        let w = 0, h = 0
+        for (const ra of a.lines ?? [a.rect]) {
+          for (const rb of b.lines ?? [b.rect]) {
+            const ow = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left)
+            const oh = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top)
+            if (ow > 2 && oh > 2 && ow * oh > w * h) { w = ow; h = oh }
+          }
+        }
         if (w > 2 && h > 2) {
           // Ignore a modal layer stacked above the page: both atoms must live in the same layer.
           const layerA = a.el.closest("[role=dialog],[data-slot=sheet-content],[data-slot=popover-content]")
           const layerB = b.el.closest("[role=dialog],[data-slot=sheet-content],[data-slot=popover-content]")
           if (layerA !== layerB) continue
           if (stickyOrFixed(a.el) !== stickyOrFixed(b.el)) continue
+          // The chat dock (composer and its scroll-to-latest button) floats over the message list by design, so scrolled answers pass underneath it.
+          const dock = ".astryx-chat-composer, .astryx-chat-layout-scroll-button"
+          if (!!a.el.closest(dock) !== !!b.el.closest(dock)) continue
           overlapping.push(`${describe(a.el)}  x  ${describe(b.el)} (${Math.round(w)}x${Math.round(h)} shared)`)
         }
       }

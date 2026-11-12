@@ -89,6 +89,9 @@ function AggregateBody({ citation }: { citation: CitationItem }) {
 
 /** Opens a cited record. The BE returns it only if the viewer's access covers it. */
 export function CitationSheet({ citation, onClose }: { citation: CitationItem | null; onClose: () => void }) {
+  // A page can mount several sheets (chat dock plus a workspace panel). Mount the dialog only while a citation is open so a
+  // closed, hidden <dialog> never shadows the one the reader is looking at.
+  if (citation === null) return null
   return (
     <Dialog isOpen={citation !== null} onOpenChange={(open) => !open && onClose()} width={640} maxHeight="80dvh" data-testid="citation-sheet">
       <Layout

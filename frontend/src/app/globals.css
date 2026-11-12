@@ -488,7 +488,12 @@
    * first. In the utilities layer so it also lifts Astryx's compact desktop sizes; min-size only ever grows a control.
    */
   @media (pointer: coarse) {
-    :where(button, select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="range"]), [role="button"], [role="radio"], [role="tab"], [role="option"], [role="menuitem"], [role="combobox"], summary, nav a[href], .astryx-top-nav-heading a[href], a.astryx-top-nav-heading, a.astryx-button) {
+    :where(button, select, textarea, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="range"]), [role="button"], [role="textbox"], [role="radio"], [role="tab"], [role="option"], [role="menuitem"], [role="combobox"], summary, nav a[href], .astryx-top-nav-heading a[href], a.astryx-top-nav-heading, a.astryx-button) {
+      min-block-size: 44px;
+      min-inline-size: 44px;
+    }
+    /* The scroll-to-latest wrapper is sized for its 32px button; the lifted button must not overflow it. */
+    .astryx-chat-layout-scroll-button {
       min-block-size: 44px;
       min-inline-size: 44px;
     }

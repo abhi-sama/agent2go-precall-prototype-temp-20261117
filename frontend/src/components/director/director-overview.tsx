@@ -185,7 +185,7 @@ function Engagement({ overview }: { overview: Overview }) {
           </Text>
         </Card>
       ) : (
-        <Card data-testid="coverage-withheld" padding={4} variant="muted">
+        <Card data-testid="coverage-withheld" padding={4} className="border-dashed">
           <Heading level={3} color="secondary"><Icon icon={BookOpen} size="sm" className="mr-2 inline align-text-bottom" /> Coverage is not shown</Heading>
           <Text as="p" display="block" className="mt-2">
             There is no approved target population for this scope, so a coverage percentage cannot be calculated. Engaged HCPs are not a substitute for a target list.
@@ -212,7 +212,7 @@ function StatCard({ id, label, value, definition, icon: StatIcon, index = 0 }: {
     <Card data-testid={`kpi-${id}`} padding={4} elevation="low" style={enter.style} className={cn("relative overflow-hidden", enter.className)}>
       <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-warning" />
       <Stack direction="horizontal" hAlign="between" vAlign="start" gap={3}>
-        <Heading level={3} color="secondary">{label}</Heading>
+        <Heading level={3} color="secondary" className="min-w-0">{label}</Heading>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning/15">
           <Icon icon={StatIcon} size="md" />
         </span>

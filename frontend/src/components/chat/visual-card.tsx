@@ -151,7 +151,7 @@ export function VisualCard({ item }: { item: VisualItem }) {
           </VStack>
         </footer>
       </article>
-      {expanded && <Dialog isOpen={expanded} onOpenChange={setExpanded} variant="fullscreen" padding={0} data-testid="visual-sheet">
+      {expanded && <Dialog isOpen={expanded} onOpenChange={setExpanded} variant="fullscreen" data-testid="visual-sheet">
         <Layout
           height="fill"
           header={<DialogHeader title={spec.title} subtitle={spec.subtitle} onOpenChange={setExpanded} />}

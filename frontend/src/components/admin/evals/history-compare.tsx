@@ -8,7 +8,7 @@ import { Collapsible } from "@astryxdesign/core/Collapsible"
 import { EmptyState } from "@astryxdesign/core/EmptyState"
 import { Heading } from "@astryxdesign/core/Heading"
 import { Selector } from "@astryxdesign/core/Selector"
-import { Table } from "@astryxdesign/core/Table"
+import { Table, proportional } from "@astryxdesign/core/Table"
 import { Text } from "@astryxdesign/core/Text"
 import { VStack } from "@astryxdesign/core/VStack"
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react"
@@ -68,7 +68,7 @@ export function RunHistory({ runs, onOpen }: { runs: EvalRunSummary[]; onOpen: (
             { key: "direction", header: "Direction", align: "end", renderCell: ({ run }) => (run.status === "COMPLETE" && run.directionRate !== null ? <Text hasTabularNumbers>{pct(run.directionRate)}</Text> : "") },
             { key: "depth", header: "Depth", align: "end", renderCell: ({ run }) => (run.status === "COMPLETE" && run.chainDepth ? <Text hasTabularNumbers>{run.chainDepth}</Text> : "") },
             { key: "leaks", header: "Leaks", align: "end", renderCell: ({ run }) => (isFinished(run) && run.status === "COMPLETE" ? <Text hasTabularNumbers>{run.leakCount}</Text> : "") },
-            { key: "verdict", header: "Verdict", renderCell: ({ run }) => (run.status === "COMPLETE" ? <VerdictBadge verdict={run.verdict} leaked={run.leakCount > 0} /> : <StatusPill status={run.status} />) },
+            { key: "verdict", header: "Verdict", width: proportional(1, { minWidth: 128 }), renderCell: ({ run }) => (run.status === "COMPLETE" ? <VerdictBadge verdict={run.verdict} leaked={run.leakCount > 0} /> : <StatusPill status={run.status} />) },
             {
               key: "open",
               header: "Open",

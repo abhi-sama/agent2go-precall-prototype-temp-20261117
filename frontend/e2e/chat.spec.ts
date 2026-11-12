@@ -258,7 +258,7 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     expect(cells.reduce((a, b) => a + b, 0)).toBe(total)
   })
 
-  test("a visual never appears for an out-of-scope territory or an aggregate-only role", async ({ page }) => {
+  test("a visual never appears for an out-of-scope territory, and an aggregate-only role only gets the suppressed aggregate chart", async ({ page }) => {
     await page.goto("/chat")
     await ask(page, "Show calls by month for SE-03")
     await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
@@ -268,7 +268,14 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await page.goto("/chat")
     await ask(page, "Show calls by month")
     await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
-    await expect(page.getByTestId("visual")).toHaveCount(0)
+    // Executive activity is a deliberate product contract (#92): the one chart it gets plots only the monthly
+    // aggregates that survive small-group suppression. No record-level visual (heatmap, table) and no rows.
+    await expect(page.getByTestId("visual")).toHaveCount(1)
+    await expect(page.getByTestId("visual-title")).toContainText("shown aggregates")
+    await expect(page.getByTestId("heat-cell")).toHaveCount(0)
+    await expect(page.getByTestId("table-row")).toHaveCount(0)
+    await expect(page.getByTestId("show-rows")).toHaveCount(0)
+    await expect(page.getByTestId("aggregate-only-note")).toBeVisible()
   })
 })
 

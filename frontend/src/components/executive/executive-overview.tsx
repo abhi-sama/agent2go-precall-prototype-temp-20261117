@@ -215,7 +215,7 @@ function Engagement({ data }: { data: Overview }) {
           <Text as="p" type="supporting" display="block" className="mt-2">Engaged target HCPs over the approved target population, for {engagement.coverage.territoriesWithTargets} of {engagement.coverage.territoriesInScope} territories.</Text>
         </Card>
       ) : (
-        <Card data-testid="coverage-withheld" padding={4} variant="muted">
+        <Card data-testid="coverage-withheld" padding={4} className="border-dashed">
           <Heading level={3} color="secondary"><Icon icon={Layers} size="sm" className="mr-2 inline" /> Coverage is not shown</Heading>
           <Text as="p" display="block" className="mt-2">
             {engagement.coverage.status === "SUPPRESSED" ? "The target population is too small to show without identifying individuals." : "There is no approved target population for this scope, so a coverage percentage cannot be calculated. Engaged HCPs are not a substitute for a target list."}
@@ -232,7 +232,7 @@ function Kpi({ id, label, icon, count, min, note, index = 0 }: { id: string; lab
     <Card data-testid={`exec-kpi-${id}`} padding={4} elevation="low" style={enter.style} className={cn("relative overflow-hidden", enter.className)}>
       <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-primary" />
       <HStack justify="between" align="start" gap={3}>
-        <Heading level={3} color="secondary">{label}</Heading>
+        <Heading level={3} color="secondary" className="min-w-0">{label}</Heading>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-accent-text"><Icon icon={icon} size="md" /></span>
       </HStack>
       <Text type="display-1" weight="semibold" hasTabularNumbers display="block" className="mt-3"><CountValue testId={`exec-kpi-${id}-value`} count={count} minCell={min} countUp={`exec-${id}`} /></Text>
@@ -247,7 +247,7 @@ function CompletenessCard({ value }: { value: number | null }) {
     <Card data-testid="exec-kpi-completeness" padding={4} elevation="low" style={enter.style} className={cn("relative overflow-hidden", enter.className)}>
       <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-warning" />
       <HStack justify="between" align="start" gap={3}>
-        <Heading level={3} color="secondary">Reporting completeness</Heading>
+        <Heading level={3} color="secondary" className="min-w-0">Reporting completeness</Heading>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning/15"><Icon icon={CalendarCheck} size="md" /></span>
       </HStack>
       <Text data-testid="exec-kpi-completeness-value" type="display-1" weight="semibold" hasTabularNumbers display="block" className="mt-3">{percent(value)}</Text>

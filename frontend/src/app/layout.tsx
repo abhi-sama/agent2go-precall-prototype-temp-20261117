@@ -6,6 +6,10 @@ import "./theme-patches.css"
 import type { Metadata, Viewport } from "next"
 import { GeistMono } from "geist/font/mono"
 import localFont from "next/font/local"
+import { preload } from "react-dom"
+import figtree400 from "@fontsource/figtree/files/figtree-latin-400-normal.woff2"
+import figtree600 from "@fontsource/figtree/files/figtree-latin-600-normal.woff2"
+import figtree700 from "@fontsource/figtree/files/figtree-latin-700-normal.woff2"
 import { APPEARANCE_BOOT_SCRIPT, AppearanceProvider } from "@/lib/appearance/appearance-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { DataProvider } from "@/lib/data/data-provider"
@@ -43,6 +47,10 @@ export const viewport: Viewport = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // MWG performance (web fonts): the default theme's faces are on the wire with the HTML instead of being found in the
+  // stylesheet after first paint, so the swap that used to reflow the page (CLS 0.2-0.4 on iPad) has already happened.
+  // Only the default theme's weights; another look downloads its own faces on demand.
+  for (const href of [figtree400, figtree600, figtree700]) preload(href, { as: "font", type: "font/woff2", crossOrigin: "anonymous" })
   return (
     // The boot script writes the saved look onto <html> before hydration, hence suppressHydrationWarning.
     <html lang="en" suppressHydrationWarning data-density="comfortable" className={`${inter.variable} ${GeistMono.variable} h-full`}>

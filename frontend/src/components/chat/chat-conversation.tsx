@@ -110,8 +110,9 @@ export function ChatConversation({ context, starters, layout, inputRef, composer
           {turns.map((turn) => {
             const asked = describeContext(turn.context)
             return (
-              <React.Fragment key={turn.id}>
-                <ChatMessage sender="user" data-testid="chat-turn">
+              // One turn is the question and its answer; `contents` keeps the two messages direct layout children of the list.
+              <div key={turn.id} data-testid="chat-turn" className="contents">
+                <ChatMessage sender="user">
                   <ChatMessageBubble
                     data-testid="user-message"
                     metadata={asked ? <ChatMessageMetadata footer={<span data-testid="turn-context">{asked}</span>} status="sent" /> : undefined}
@@ -126,7 +127,7 @@ export function ChatConversation({ context, starters, layout, inputRef, composer
                   canAsk={!running}
                   aggregateOnly={me.status === "success" && me.data.persona === "executive"}
                 />
-              </React.Fragment>
+              </div>
             )
           })}
           </ChatMessageList>
