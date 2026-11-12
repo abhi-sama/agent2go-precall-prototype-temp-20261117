@@ -32,6 +32,7 @@ export const BE_FIELDS = [
   { typeName: 'Query', fieldName: 'searchHcps' },
   { typeName: 'Query', fieldName: 'hcpProfile' },
   { typeName: 'Query', fieldName: 'adminDataQuality' },
+  { typeName: 'Query', fieldName: 'adminIngestionRuns' },
   { typeName: 'Query', fieldName: 'authorizationVerificationGrid' },
   { typeName: 'Query', fieldName: 'hcpTimeline' },
   { typeName: 'Query', fieldName: 'adminMetadataReconciliation' },

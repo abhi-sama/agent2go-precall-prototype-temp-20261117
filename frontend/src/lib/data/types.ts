@@ -409,6 +409,18 @@ export interface IngestionRun {
   errorSummary: string | null
 }
 
+/** Administrator-only operational metadata for one source dataset. */
+export interface IngestionSource {
+  sourceId: string
+  sourceName: string
+  /** Latest source-record load date for this source dataset. */
+  loadDate: IsoDateTime | null
+  /** Latest time every monitored source dataset is loaded through. */
+  dataThrough: IsoDateTime | null
+  /** Latest run first; contains no source records. */
+  ingestionRuns: IngestionRun[]
+}
+
 export interface QualityRecord {
   recordId: string
   sourceTable: string
@@ -439,6 +451,10 @@ export interface AdminDataQuality {
   recordGrain: { callProductRows: number; distinctCalls: number }
   issues: DataQualityIssue[]
   questionGraph: { missingParentCount: number; duplicateKeyCount: number; cycleCount: number; nodes: QuestionDependencyNode[] }
+}
+
+export interface AdminIngestionRuns {
+  sources: IngestionSource[]
 }
 
 /** A local-stack AppSync assertion recorded in the Administrator verification grid. */

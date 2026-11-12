@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { createGraphQLAdapter, type GraphQLTransport } from "./graphql-adapter"
-import { AUTHORIZATION_VERIFICATION_GRID_QUERY, HCP_PROFILE_QUERY, HCP_TIMELINE_QUERY, LANDING_KPIS_QUERY, SEARCH_HCPS_QUERY, START_CHAT_RUN_MUTATION } from "./operations"
+import { ADMIN_INGESTION_RUNS_QUERY, AUTHORIZATION_VERIFICATION_GRID_QUERY, HCP_PROFILE_QUERY, HCP_TIMELINE_QUERY, LANDING_KPIS_QUERY, SEARCH_HCPS_QUERY, START_CHAT_RUN_MUTATION } from "./operations"
 
 const ctx = { correlationId: "corr-9" }
 
@@ -63,6 +63,14 @@ describe("graphql adapter", () => {
       return { data: { authorizationVerificationGrid: { suiteId: "local-appsync-authorization-v1", localOnly: true, total: 128, passed: 128, results: [] } } as never }
     })
     await expect(adapter.authorizationVerificationGrid(ctx)).resolves.toMatchObject({ total: 128, passed: 128, localOnly: true })
+  })
+
+  it("reads Administrator ingestion metadata through the AppSync contract", async () => {
+    const adapter = createGraphQLAdapter(async (req) => {
+      expect(req.query).toBe(ADMIN_INGESTION_RUNS_QUERY)
+      return { data: { adminIngestionRuns: { sources: [{ sourceId: "call-activity", sourceName: "Call Activity", loadDate: "2026-11-03T12:00:00Z", dataThrough: "2026-11-03T12:00:00Z", ingestionRuns: [] }] } } as never }
+    })
+    await expect(adapter.adminIngestionRuns(ctx)).resolves.toMatchObject({ sources: [{ sourceId: "call-activity", ingestionRuns: [] }] })
   })
 
   it("starts a real-adapter chat run with its message, history and screen context", async () => {

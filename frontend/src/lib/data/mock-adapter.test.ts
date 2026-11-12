@@ -76,6 +76,15 @@ describe("mock adapter", () => {
     await expect(make("u-admin-sec").geoActivity(ctx, range)).rejects.toMatchObject({ code: "FORBIDDEN" })
   })
 
+  it("returns source-level ingestion runs only to an Administrator", async () => {
+    const data = await make("u-admin-sec").adminIngestionRuns(ctx)
+    expect(data.sources.map((source) => source.sourceId)).toEqual(["call-activity", "hcp-insights", "question-tag", "roster"])
+    expect(data.sources[0]).toMatchObject({ loadDate: "2026-11-03T12:00:00Z", dataThrough: "2026-11-03T12:00:00Z" })
+    expect(data.sources[0].ingestionRuns).toHaveLength(2)
+    expect(data.sources[2].ingestionRuns[0]).toMatchObject({ status: "failed", recordsLoaded: 0 })
+    await expect(make("u-msl-ne-01").adminIngestionRuns(ctx)).rejects.toMatchObject({ code: "FORBIDDEN" })
+  })
+
   it("searches mock HCPs only within the selected persona scope and exposes missing fields", async () => {
     const northeast = make("u-msl-ne-01")
     await expect(northeast.searchHcps(ctx, "call system")).resolves.toMatchObject([{ hcpId: "HCP-0001" }])

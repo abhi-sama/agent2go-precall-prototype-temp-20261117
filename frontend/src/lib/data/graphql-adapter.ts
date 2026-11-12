@@ -10,6 +10,7 @@ import {
   ADMIN_ACCESS_OVERVIEW_QUERY,
   APPROVE_IDENTITY_MAPPING_MUTATION,
   ADMIN_DATA_QUALITY_QUERY,
+  ADMIN_INGESTION_RUNS_QUERY,
   AUTHORIZATION_VERIFICATION_GRID_QUERY,
   CREATE_SCOPE_ASSIGNMENT_MUTATION,
   GENERATE_BRIEF_MUTATION,
@@ -63,6 +64,7 @@ import {
   type AccessAuditFilter,
   type AdminAccessOverview,
   type AdminDataQuality,
+  type AdminIngestionRuns,
   type AuthorizationVerificationGrid,
   type DateRange,
   type DirectorOverview,
@@ -342,6 +344,10 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     async adminDataQuality(ctx) {
       const data = await run<{ adminDataQuality: AdminDataQuality }>(transport, ADMIN_DATA_QUALITY_QUERY, undefined, ctx)
       return data.adminDataQuality
+    },
+    async adminIngestionRuns(ctx) {
+      const data = await run<{ adminIngestionRuns: AdminIngestionRuns }>(transport, ADMIN_INGESTION_RUNS_QUERY, undefined, ctx)
+      return data.adminIngestionRuns
     },
     async authorizationVerificationGrid(ctx) {
       const data = await run<{ authorizationVerificationGrid: AuthorizationVerificationGrid }>(transport, AUTHORIZATION_VERIFICATION_GRID_QUERY, undefined, ctx)

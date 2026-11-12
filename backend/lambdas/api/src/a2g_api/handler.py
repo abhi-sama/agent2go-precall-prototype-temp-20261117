@@ -168,6 +168,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "catalogQuestions": hierarchy.catalog_questions,
         "questionResponses": hierarchy.question_responses,
         "adminDataQuality": resolvers.admin_data_quality,
+        "adminIngestionRuns": resolvers.admin_ingestion_runs,
         "authorizationVerificationGrid": resolvers.authorization_verification_grid,
         "adminMetadataReconciliation": resolvers.admin_metadata_reconciliation,
         "adminDefinitions": resolvers.admin_definitions,

@@ -175,6 +175,20 @@ export const ADMIN_DATA_QUALITY_QUERY = /* GraphQL */ `
     }
   }
 `
+
+export const ADMIN_INGESTION_RUNS_QUERY = /* GraphQL */ `
+  query AdminIngestionRuns {
+    adminIngestionRuns {
+      sources {
+        sourceId
+        sourceName
+        loadDate
+        dataThrough
+        ingestionRuns { runId sourceId sourceName status startedAt completedAt recordsLoaded errorSummary }
+      }
+    }
+  }
+`
 export const AUTHORIZATION_VERIFICATION_GRID_QUERY = /* GraphQL */ `
   query AuthorizationVerificationGrid {
     authorizationVerificationGrid {

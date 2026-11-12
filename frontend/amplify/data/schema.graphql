@@ -845,6 +845,9 @@ type CatalogQuestionRow { questionId: ID!, text: String, status: String, molecul
 type QuestionResponse { responseId: ID!, territoryId: String, interactionDate: AWSDate, text: String }
 type QuestionResponses { questionId: ID!, total: Int!, responses: [QuestionResponse!]! }
 type IngestionRun { runId: ID! sourceId: ID! sourceName: String! status: String! startedAt: AWSDateTime! completedAt: AWSDateTime recordsLoaded: Int! errorSummary: String }
+"""Administrator-only operational metadata for one source dataset; no source records are returned."""
+type IngestionSource { sourceId: ID! sourceName: String! loadDate: AWSDateTime dataThrough: AWSDateTime ingestionRuns: [IngestionRun!]! }
+type AdminIngestionRuns { sources: [IngestionSource!]! }
 type QualityRecord { recordId: ID! sourceTable: String! sourceRecordId: String! label: String! }
 type DataQualityIssue { issueId: ID! category: String! severity: String! title: String! summary: String! affectedCount: Int! records: [QualityRecord!]! }
 type QuestionDependencyNode { questionId: ID! parentQuestionId: String state: String! }
@@ -1668,6 +1671,8 @@ type Query {
   "Recorded responses to one question. Needs response access and scope; catalog visibility is irrelevant."
   questionResponses(questionId: ID!, limit: Int): QuestionResponses!
   adminDataQuality: AdminDataQuality!
+  """Latest and recent ingestion runs for every source dataset. Administrators only."""
+  adminIngestionRuns: AdminIngestionRuns!
   """Authorization checks exercised in CI through AppSync as seeded personas. Administrators only."""
   authorizationVerificationGrid: AuthorizationVerificationGrid!
   "Side-by-side status values and provenance from the catalog and recorded responses. Administrators only."

@@ -18,6 +18,7 @@ import type {
   AccessAuditFilter,
   AdminAccessOverview,
   AdminDataQuality,
+  AdminIngestionRuns,
   AuthorizationVerificationGrid,
   BriefEditInput,
   BriefExport,
@@ -134,6 +135,8 @@ export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter,
   topicAlertRules(ctx: RequestContext): Promise<TopicAlertRule[]>
   topicAlerts(ctx: RequestContext): Promise<TopicAlert[]>
   adminDataQuality(ctx: RequestContext): Promise<AdminDataQuality>
+  /** Administrator-only operational metadata for every source dataset. */
+  adminIngestionRuns(ctx: RequestContext): Promise<AdminIngestionRuns>
   /** CI's AppSync-as-persona authorization contract; available only to Administrators. */
   authorizationVerificationGrid(ctx: RequestContext): Promise<AuthorizationVerificationGrid>
   /** Generate and save a source-linked brief for an authorized HCP. Takes several seconds. */

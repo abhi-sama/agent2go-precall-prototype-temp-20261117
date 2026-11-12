@@ -412,6 +412,15 @@ export const SCREENS: ScreenSpec[] = [
       await testId("access-audit-filters")(page)
     },
   },
+  {
+    name: "admin-ingestion-runs",
+    path: "/admin/ingestion",
+    userId: "u-admin-sec",
+    ready: async (page) => {
+      await heading("Ingestion runs")(page)
+      await testId("admin-ingestion-runs")(page)
+    },
+  },
   { name: "admin-governance", path: "/admin/governance", userId: "u-admin-sec", ready: heading("Data governance workspace") },
   ...["Access timeline", "Catalog and responses", "Authorization checks"].map((tab): ScreenSpec => ({
     name: `admin-governance-${tab.toLowerCase().replace(/\s+/g, "-")}`,

@@ -1072,6 +1072,70 @@ def admin_data_quality(cur: psycopg.Cursor, identity: Identity, user_id: str, ar
         "issues": issues,
         "questionGraph": graph,
     }
+
+
+def admin_ingestion_runs(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any]) -> dict[str, Any]:
+    """Return source-level ingestion metadata for Administrators only.
+
+    The query runs as the request's RLS-scoped ``app_user``. It returns operational
+    timing and row-count metadata only: no source rows, identifiers, or response text.
+    """
+    _require_admin(cur)
+    cur.execute(
+        """
+        WITH ranked_runs AS (
+          SELECT r.run_id, r.source_id, r.status, r.started_at, r.completed_at,
+                 r.records_loaded, r.error_summary,
+                 row_number() OVER (PARTITION BY r.source_id ORDER BY r.started_at DESC) AS run_rank
+          FROM ingestion_runs r
+        ), source_load_dates AS (
+          SELECT 'call-activity'::text AS source_id, max(sys_inserted_datetime) AS load_date FROM call_activity
+          UNION ALL SELECT 'hcp-insights', max(sys_inserted_datetime) FROM hcp_raw_insights
+          UNION ALL SELECT 'question-tag', max(sys_inserted_datetime) FROM question_tag
+          UNION ALL SELECT 'roster', max(sys_inserted_datetime::timestamptz) FROM medical_roster
+        )
+        SELECT s.source_id, s.source_name, d.load_date,
+               (SELECT min(load_date) FROM source_load_dates) AS data_through,
+               r.run_id, r.status, r.started_at, r.completed_at, r.records_loaded, r.error_summary
+        FROM data_sources s
+        LEFT JOIN source_load_dates d USING (source_id)
+        LEFT JOIN ranked_runs r ON r.source_id = s.source_id AND r.run_rank <= 5
+        ORDER BY s.source_name, r.started_at DESC NULLS LAST
+        """
+    )
+    sources: dict[str, dict[str, Any]] = {}
+    for row in cur.fetchall():
+        source_id, source_name, load_date, data_through, run_id, status, started_at, completed_at, records_loaded, error_summary = row
+        source = sources.setdefault(
+            source_id,
+            {
+                "sourceId": source_id,
+                "sourceName": source_name,
+                "loadDate": load_date.isoformat() if load_date else None,
+                "dataThrough": data_through.isoformat() if data_through else None,
+                "ingestionRuns": [],
+            },
+        )
+        if run_id is not None:
+            derived_status = (
+                "failed" if status == "failed" else "running" if completed_at is None
+                else "stale" if completed_at < dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30) else status
+            )
+            source["ingestionRuns"].append(
+                {
+                    "runId": run_id,
+                    "sourceId": source_id,
+                    "sourceName": source_name,
+                    "status": derived_status,
+                    "startedAt": started_at.isoformat(),
+                    "completedAt": completed_at.isoformat() if completed_at else None,
+                    "recordsLoaded": int(records_loaded),
+                    "errorSummary": error_summary,
+                }
+            )
+    result = {"sources": list(sources.values())}
+    log.info("admin ingestion runs served", extra={"source_count": len(result["sources"]), "user_id": user_id})
+    return result
 def _hcp_field(value: Any) -> dict[str, Any]:
     return {"value": value, "state": "MISSING" if value is None else "PRESENT"}
 

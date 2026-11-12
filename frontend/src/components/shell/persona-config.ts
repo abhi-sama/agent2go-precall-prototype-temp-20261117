@@ -60,7 +60,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
     nav: [
       { label: "Overview", href: "/admin", icon: ShieldCheck },
       { label: "Hierarchy and coverage", href: "/admin/governance", icon: Network },
-      { label: "Data loads", href: null, icon: FileSearch },
+      { label: "Ingestion runs", href: "/admin/ingestion", icon: FileSearch },
       { label: "AI evaluation", href: "/admin/evals", icon: FlaskConical },
     ],
   },
