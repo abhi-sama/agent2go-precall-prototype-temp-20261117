@@ -153,6 +153,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "hcpProfile": resolvers.hcp_profile,
         "hcpTimeline": resolvers.hcp_timeline,
         "insightDiscovery": partial(resolvers.insight_discovery, default_range_days=settings.default_range_days),
+        "mslInsightResponses": partial(resolvers.msl_insight_responses, default_range_days=settings.default_range_days),
         "semanticInsightSearch": partial(resolvers.semantic_insight_search, provider=embeddings),
         "savedViews": list_views,
         "saveView": save_view,

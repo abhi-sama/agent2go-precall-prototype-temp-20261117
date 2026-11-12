@@ -108,6 +108,16 @@ describe("mock adapter", () => {
     expect(timeline.responses.find((response) => response.responseId === "insight-mock-unrelated")!.parentResponseId).toBeNull()
   })
 
+  it("lists only the MSL's own scoped responses and supports theme, HCP and molecule filters", async () => {
+    const msl = make("u-msl-ne-01")
+    const all = await msl.mslInsightResponses(ctx)
+    expect(all.responses).toHaveLength(3)
+    expect(all.responses.every((response) => response.hcpId.startsWith("HCP-"))).toBe(true)
+    const filtered = await msl.mslInsightResponses(ctx, { theme: "Access and reimbursement", hcpId: "HCP-0001", molecule: "osimertinib" })
+    expect(filtered.responses).toEqual([expect.objectContaining({ interactionId: "INSIGHT-LIST-1", sourceRecordId: "RESP-LIST-1" })])
+    await expect(make("u-dir-ne").mslInsightResponses(ctx)).rejects.toMatchObject({ code: "FORBIDDEN" })
+  })
+
   it("saves a per-user filter preset and returns it for one-tap reopening", async () => {
     const adapter = make("u-msl-ne-01")
     const saved = await adapter.saveView(ctx, { name: "Lung pulse", reportKind: "insight-discovery", filters: { molecule: "osimertinib", questionId: "Q-0002" } })

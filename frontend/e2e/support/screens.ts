@@ -158,6 +158,23 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   {
+    name: "msl-insights",
+    path: "/msl/insights",
+    ready: async (page) => {
+      await heading("Insights")(page)
+      await testId("insight-response-table")(page)
+    },
+  },
+  {
+    name: "msl-insights-response",
+    path: "/msl/insights",
+    ready: testId("insight-response-table"),
+    prepare: async (page) => {
+      await page.getByTestId("insight-response-open").first().click()
+      await expect(page.getByTestId("insight-response-drawer")).toBeVisible()
+    },
+  },
+  {
     name: "msl-activity-evidence",
     path: "/msl/activity",
     ready: testId("evidence-open-calls"),

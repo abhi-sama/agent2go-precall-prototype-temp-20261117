@@ -49,6 +49,7 @@ export const BE_FIELDS = [
   { typeName: 'Mutation', fieldName: 'setRolePermissions' },
   { typeName: 'Mutation', fieldName: 'createScopeAssignment' },
   { typeName: 'Query', fieldName: 'insightDiscovery' },
+  { typeName: 'Query', fieldName: 'mslInsightResponses' },
   { typeName: 'Query', fieldName: 'semanticInsightSearch' },
   { typeName: 'Query', fieldName: 'savedViews' },
   { typeName: 'Mutation', fieldName: 'saveView' },

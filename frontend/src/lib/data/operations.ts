@@ -82,6 +82,15 @@ export const INSIGHT_DISCOVERY_QUERY = /* GraphQL */ `
   }
 `
 export const SEMANTIC_INSIGHT_SEARCH_QUERY = `query SemanticInsightSearch($query: String!, $limit: Int) { semanticInsightSearch(query: $query, limit: $limit) { responseId questionText responseText interactionDate territoryId score } }`
+export const MSL_INSIGHT_RESPONSES_QUERY = /* GraphQL */ `
+  query MslInsightResponses($filters: InsightFiltersInput) {
+    mslInsightResponses(filters: $filters) {
+      scopeLabel dataThrough
+      options { themes { value label } hcps { value label } molecules { value label } }
+      responses { responseId sourceRecordId interactionId interactionDate hcpId molecule theme question responseText }
+    }
+  }
+`
 
 export const ACTIVITY_EVIDENCE_QUERY = /* GraphQL */ `
   query ActivityEvidence($metric: ActivityMetric!, $month: AWSDate!, $channel: String, $limit: Int) {

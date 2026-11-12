@@ -38,6 +38,7 @@ import type {
   HcpSearchResult,
   HcpTimeline,
   InsightDiscovery,
+  MslInsightResponses,
   SemanticInsightResult,
   InsightFilters,
   IsoDate,
@@ -118,6 +119,8 @@ export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter,
   hcpProfile(ctx: RequestContext, hcpId: string): Promise<HcpProfile>
   hcpTimeline(ctx: RequestContext, hcpId: string): Promise<HcpTimeline>
   insightDiscovery(ctx: RequestContext, filters?: InsightFilters): Promise<InsightDiscovery>
+  /** The signed-in MSL's own effective-scope source responses (never an aggregate-only listing). */
+  mslInsightResponses(ctx: RequestContext, filters?: InsightFilters): Promise<MslInsightResponses>
   semanticInsightSearch(ctx: RequestContext, query: string, limit?: number): Promise<SemanticInsightResult[]>
   savedViews(ctx: RequestContext): Promise<SavedView[]>
   saveView(ctx: RequestContext, input: Pick<SavedView, "name" | "reportKind" | "filters">): Promise<SavedView>

@@ -589,6 +589,8 @@ input InsightFiltersInput {
   study: String
   survey: String
   questionId: String
+  theme: String
+  hcpId: String
 }
 
 type FilterOption {
@@ -722,6 +724,35 @@ type InsightFilters {
   study: String
   survey: String
   questionId: String
+  theme: String
+  hcpId: String
+}
+
+"""One source-recorded response an MSL may read in their effective territory scope."""
+type MslInsightResponse {
+  responseId: ID!
+  sourceRecordId: ID!
+  interactionId: ID!
+  interactionDate: AWSDate!
+  hcpId: ID!
+  molecule: String
+  theme: String!
+  question: String!
+  responseText: String
+}
+
+type MslInsightResponseOptions {
+  themes: [FilterOption!]!
+  hcps: [FilterOption!]!
+  molecules: [FilterOption!]!
+}
+
+"""The MSL's own in-scope recorded responses, with source-backed filter options."""
+type MslInsightResponses {
+  scopeLabel: String!
+  dataThrough: AWSDateTime
+  options: MslInsightResponseOptions!
+  responses: [MslInsightResponse!]!
 }
 
 input SaveViewInput {
@@ -1656,6 +1687,8 @@ type Query {
   hcpProfile(hcpId: ID!): HcpProfile!
   hcpTimeline(hcpId: ID!): HcpTimeline!
   insightDiscovery(filters: InsightFiltersInput): InsightDiscovery!
+  "MSL-only source records in the caller's effective scope; results are limited to the latest 100 responses."
+  mslInsightResponses(filters: InsightFiltersInput): MslInsightResponses!
   semanticInsightSearch(query: String!, limit: Int): [SemanticInsightResult!]!
   savedViews: [SavedView!]!
   "The caller's saved style, mode and density, or null when they never chose (use persona defaults)."

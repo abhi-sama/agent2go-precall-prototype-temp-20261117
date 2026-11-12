@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { createGraphQLAdapter, type GraphQLTransport } from "./graphql-adapter"
-import { ADMIN_INGESTION_RUNS_QUERY, AUTHORIZATION_VERIFICATION_GRID_QUERY, HCP_PROFILE_QUERY, HCP_TIMELINE_QUERY, LANDING_KPIS_QUERY, SEARCH_HCPS_QUERY, START_CHAT_RUN_MUTATION } from "./operations"
+import { ADMIN_INGESTION_RUNS_QUERY, AUTHORIZATION_VERIFICATION_GRID_QUERY, HCP_PROFILE_QUERY, HCP_TIMELINE_QUERY, LANDING_KPIS_QUERY, MSL_INSIGHT_RESPONSES_QUERY, SEARCH_HCPS_QUERY, START_CHAT_RUN_MUTATION } from "./operations"
 
 const ctx = { correlationId: "corr-9" }
 
@@ -55,6 +55,16 @@ describe("graphql adapter", () => {
     })
     await expect(adapter.hcpTimeline(ctx, "HCP-0001")).resolves.toMatchObject({ hcpId: "HCP-0001" })
     expect(seen).toEqual([{ query: HCP_TIMELINE_QUERY, variables: { hcpId: "HCP-0001" } }])
+  })
+
+  it("requests the MSL's own insight responses through the AppSync contract", async () => {
+    const seen: unknown[] = []
+    const adapter = createGraphQLAdapter(async (req) => {
+      seen.push(req)
+      return { data: { mslInsightResponses: { scopeLabel: "T01-01", dataThrough: null, options: { themes: [], hcps: [], molecules: [] }, responses: [] } } as never }
+    })
+    await expect(adapter.mslInsightResponses(ctx, { theme: "Access and reimbursement", hcpId: "HCP-0001" })).resolves.toMatchObject({ scopeLabel: "T01-01" })
+    expect(seen).toEqual([{ query: MSL_INSIGHT_RESPONSES_QUERY, variables: { filters: { theme: "Access and reimbursement", hcpId: "HCP-0001" } } }])
   })
 
   it("reads the Administrator authorization verification result through the contract", async () => {

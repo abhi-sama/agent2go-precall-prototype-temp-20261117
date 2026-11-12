@@ -33,7 +33,7 @@ log = get_logger(__name__)
 
 MAX_RANGE_DAYS = 366 * 3
 MAX_HCP_SEARCH_RESULTS = 50
-FILTER_KEYS = ("from", "to", "territoryId", "molecule", "landscape", "study", "survey", "questionId")
+FILTER_KEYS = ("from", "to", "territoryId", "molecule", "landscape", "study", "survey", "questionId", "theme", "hcpId")
 
 # This is deliberately a manifest rather than a second authorization implementation.  The
 # source of truth is tests/api/test_authorization_grid.py: it signs in the seeded persona,
@@ -76,13 +76,75 @@ def _filters(args: Mapping[str, Any]) -> dict[str, str]:
 
 
 def _insight_where(filters: Mapping[str, str], alias: str = "h") -> tuple[list[str], dict[str, str]]:
-    columns = {"territoryId": "territory_id", "molecule": "molecule_type", "landscape": "landscape_type", "study": "study_name", "survey": "survey_type", "questionId": "qstn_ext_id"}
+    columns = {"territoryId": "territory_id", "molecule": "molecule_type", "landscape": "landscape_type", "study": "study_name", "survey": "survey_type", "questionId": "qstn_ext_id", "hcpId": "cust_mdm_id"}
     clauses, params = [], {}
     for key, column in columns.items():
         if key in filters:
             clauses.append(f"{alias}.{column} = %({key})s")
             params[key] = filters[key]
     return clauses, params
+
+
+def _require_msl(identity: Identity) -> None:
+    """This is a personal MSL workspace, never a cross-persona record listing."""
+    if identity.persona.lower() != "msl":
+        raise Forbidden("msl_insight_responses_requires_msl")
+
+
+def msl_insight_responses(cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, default_range_days: int) -> dict[str, Any]:
+    """List MSL-owned, RLS-scoped source responses; never use roster labels to widen scope."""
+    _require_msl(identity)
+    _assigned, effective, label = _scope(cur, identity)
+    _require_record_access(cur, label, effective)
+    filters = _filters(args)
+    data_through = _data_through(cur)
+    frm, to = _range(args, data_through, default_range_days)
+    clauses, params = _insight_where(filters)
+    params.update({"frm": frm, "to": to})
+    # ``app.theme_of`` is the shared, migration-governed definition used by the existing
+    # Insights surfaces. Non-free-text source responses remain visible but are not misread
+    # as a semantic Theme.
+    theme = "CASE WHEN h.qstn_type = 'open_text' AND nullif(btrim(h.rspns_txt), '') IS NOT NULL THEN app.theme_of(h.rspns_txt) ELSE 'Recorded response' END"
+    base_where = ["h.date_of_interaction BETWEEN %(frm)s AND %(to)s", "h.excluded_rspns_flag IS NOT TRUE", *clauses]
+    if filters.get("theme"):
+        base_where.append(f"{theme} = %(theme)s")
+        params["theme"] = filters["theme"]
+    where = " AND ".join(base_where)
+    cur.execute(
+        f"""WITH filtered AS (
+          SELECT h.source_row_id::text, h.insight_intrctn_rspns_sfdc_id, h.insight_intrctn_dtl_sfdc_id,
+                 h.date_of_interaction, h.cust_mdm_id, h.molecule_type, {theme} AS theme,
+                 h.qstn_txt, h.rspns_txt
+          FROM hcp_raw_insights h WHERE {where}
+        )
+        SELECT source_row_id, coalesce(insight_intrctn_rspns_sfdc_id, source_row_id), insight_intrctn_dtl_sfdc_id,
+               date_of_interaction, cust_mdm_id, molecule_type, theme, qstn_txt, rspns_txt
+        FROM filtered ORDER BY date_of_interaction DESC, source_row_id DESC LIMIT 100""",
+        params,
+    )
+    responses = [{
+        "responseId": row[0], "sourceRecordId": row[1], "interactionId": row[2],
+        "interactionDate": row[3].isoformat(), "hcpId": row[4], "molecule": row[5],
+        "theme": row[6], "question": row[7] or "Question not recorded", "responseText": row[8],
+    } for row in cur.fetchall()]
+    # Filter choices use the same RLS cursor and same window; none can reveal an out-of-scope HCP.
+    cur.execute(
+        f"""WITH filtered AS (
+          SELECT h.cust_mdm_id, h.molecule_type, {theme} AS theme FROM hcp_raw_insights h
+          WHERE {where}
+        )
+        SELECT kind, value FROM (
+          SELECT 'themes' AS kind, theme AS value FROM filtered WHERE theme IS NOT NULL GROUP BY theme
+          UNION ALL SELECT 'hcps', cust_mdm_id FROM filtered WHERE cust_mdm_id IS NOT NULL GROUP BY cust_mdm_id
+          UNION ALL SELECT 'molecules', molecule_type FROM filtered WHERE molecule_type IS NOT NULL GROUP BY molecule_type
+        ) options ORDER BY kind, value""",
+        params,
+    )
+    options = {"themes": [], "hcps": [], "molecules": []}
+    for kind, value in cur.fetchall():
+        options[kind].append({"value": value, "label": value})
+    log.info("msl insight responses listed", user_id=user_id, territory_count=effective, response_count=len(responses), range_days=(to - frm).days + 1)
+    return {"scopeLabel": label, "dataThrough": data_through.isoformat() if data_through else None, "options": options, "responses": responses}
 
 
 def _catalog_where(filters: Mapping[str, str]) -> tuple[list[str], dict[str, str]]:

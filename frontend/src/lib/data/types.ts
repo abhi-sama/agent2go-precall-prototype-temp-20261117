@@ -49,6 +49,10 @@ export interface InsightFilters extends Partial<DateRange> {
   study?: string
   survey?: string
   questionId?: string
+  /** Deterministic derived grouping for recorded perspectives. */
+  theme?: string
+  /** Canonical HCP identifier; a filter never expands the caller's scope. */
+  hcpId?: string
 }
 
 export interface FilterOption {
@@ -104,6 +108,24 @@ export interface QualitativeTheme { name: string; responseCount: number; excerpt
 /** A possible topic, explicitly separate from a confirmed follow-up action. */
 export interface FollowUpTopic { topic: string; evidenceCount: number; excerpt: string; recordId: string }
 export interface SemanticInsightResult { responseId: string; questionText: string; responseText: string; interactionDate: IsoDate; territoryId: string; score: number }
+export interface MslInsightResponse {
+  responseId: string
+  sourceRecordId: string
+  interactionId: string
+  interactionDate: IsoDate
+  hcpId: string
+  molecule: string | null
+  theme: string
+  question: string
+  responseText: string | null
+}
+export interface MslInsightResponseOptions { themes: FilterOption[]; hcps: FilterOption[]; molecules: FilterOption[] }
+export interface MslInsightResponses {
+  scopeLabel: string
+  dataThrough: IsoDateTime | null
+  options: MslInsightResponseOptions
+  responses: MslInsightResponse[]
+}
 
 export interface SavedView {
   savedViewId: string

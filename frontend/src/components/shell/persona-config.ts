@@ -28,7 +28,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
       { label: "My activity", href: "/msl/activity", icon: Activity },
       { label: "Pre-call brief", href: "/msl/briefs", icon: ClipboardList },
       { label: "Post-call workflow", href: "/msl/follow-up", icon: ClipboardList },
-      { label: "Insights", href: "/msl", icon: BarChart3 },
+      { label: "Insights", href: "/msl/insights", icon: BarChart3 },
     ],
   },
   director: {

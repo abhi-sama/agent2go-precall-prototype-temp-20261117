@@ -32,6 +32,7 @@ import {
   HCP_TIMELINE_QUERY,
   SEARCH_HCPS_QUERY,
   INSIGHT_DISCOVERY_QUERY,
+  MSL_INSIGHT_RESPONSES_QUERY,
   SAVED_VIEWS_QUERY,
   SAVE_VIEW_MUTATION,
   MY_APPEARANCE_QUERY,
@@ -83,6 +84,7 @@ import {
   type ScopeAssignmentInput,
   type SourceRecord,
   type InsightDiscovery,
+  type MslInsightResponses,
   type InsightFilters,
   type SavedView,
   type SemanticInsightResult,
@@ -299,6 +301,9 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     async insightDiscovery(ctx, filters?: InsightFilters) {
       const data = await run<{ insightDiscovery: InsightDiscovery }>(transport, INSIGHT_DISCOVERY_QUERY, { filters }, ctx)
       return data.insightDiscovery
+    },
+    async mslInsightResponses(ctx, filters?: InsightFilters) {
+      return (await run<{ mslInsightResponses: MslInsightResponses }>(transport, MSL_INSIGHT_RESPONSES_QUERY, { filters }, ctx)).mslInsightResponses
     },
     async semanticInsightSearch(ctx, query, limit) {
       return (await run<{ semanticInsightSearch: SemanticInsightResult[] }>(transport, SEMANTIC_INSIGHT_SEARCH_QUERY, { query, limit: limit ?? null }, ctx)).semanticInsightSearch

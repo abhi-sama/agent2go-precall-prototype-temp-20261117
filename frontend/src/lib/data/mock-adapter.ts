@@ -38,6 +38,7 @@ import {
   type HcpSearchResult,
   type HcpTimeline,
   type InsightDiscovery,
+  type MslInsightResponses,
   type InsightFilters,
   type SavedView,
   type PostCallDraft,
@@ -602,6 +603,28 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
         themes: [{ name: "Evidence questions", responseCount: 18, excerpt: "Evidence and access are important.", recordId: "RESP-000001", questionText: "How does treatment fit in discussion?" }],
         followUpTopics: [{ topic: "Explore evidence and access", evidenceCount: 6, excerpt: "Evidence and access are important.", recordId: "RESP-000001" }],
       }
+    },
+    async mslInsightResponses(ctx, filters): Promise<MslInsightResponses> {
+      const s = await gate(ctx, "mslInsightResponses")
+      const user = findUser(options.getUserId())
+      if (s === "forbidden" || user.persona !== "msl") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      if (user.territoryIds.length === 0) throw new DataError("NO_SCOPE", "No territory is assigned to your account.", ctx.correlationId)
+      const all = [
+        { responseId: "insight-list-1", sourceRecordId: "RESP-LIST-1", interactionId: "INSIGHT-LIST-1", interactionDate: "2026-10-28", hcpId: "HCP-0001", molecule: "osimertinib", theme: "Access and reimbursement", question: "What evidence would be most useful?", responseText: "Long-term outcomes and access considerations are important." },
+        { responseId: "insight-list-2", sourceRecordId: "RESP-LIST-2", interactionId: "INSIGHT-LIST-2", interactionDate: "2026-10-22", hcpId: "HCP-0002", molecule: "pembrolizumab", theme: "Biomarker testing", question: "What would help clarify testing?", responseText: "Turnaround time and reflex testing remain practical concerns." },
+        { responseId: "insight-list-3", sourceRecordId: "RESP-LIST-3", interactionId: "INSIGHT-LIST-3", interactionDate: "2026-10-15", hcpId: "HCP-0003", molecule: "trastuzumab deruxtecan", theme: "Safety and tolerability", question: "Which perspective should be revisited?", responseText: "The care team asked about managing adverse events in routine practice." },
+      ]
+      const responses = s === "empty" ? [] : all.filter((response) =>
+        (!filters?.theme || response.theme === filters.theme) &&
+        (!filters?.hcpId || response.hcpId === filters.hcpId) &&
+        (!filters?.molecule || response.molecule === filters.molecule),
+      )
+      const responseOptions = {
+        themes: [...new Set(all.map((response) => response.theme))].map((value) => ({ value, label: value })),
+        hcps: [...new Set(all.map((response) => response.hcpId))].map((value) => ({ value, label: value })),
+        molecules: [...new Set(all.map((response) => response.molecule).filter((value): value is string => value !== null))].map((value) => ({ value, label: value })),
+      }
+      return { scopeLabel: user.scopeLabel, dataThrough: dataThrough(s), options: responseOptions, responses }
     },
     async semanticInsightSearch(ctx, query) {
       await gate(ctx, "semanticInsightSearch")

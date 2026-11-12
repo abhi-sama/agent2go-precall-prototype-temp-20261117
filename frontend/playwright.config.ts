@@ -36,7 +36,7 @@ export default defineConfig({
       ? /visual-regression\.spec\.ts$/
       : FUNCTIONAL_PROJECTS.includes(v.name)
         ? /.*\.spec\.ts$/
-        : /(responsive|appearance|appearance-matrix|motion-matrix)\.spec\.ts$/,
+        : /(responsive|appearance|appearance-matrix|motion-matrix|msl-insights)\.spec\.ts$/,
     testIgnore: VISUAL ? undefined : /visual-regression\.spec\.ts$/,
     use: {
       ...devices["Desktop Chrome"],
