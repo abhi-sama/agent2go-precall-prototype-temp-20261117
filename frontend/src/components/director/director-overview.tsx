@@ -9,6 +9,7 @@ import { Section as AstryxSection } from "@astryxdesign/core/Section"
 import { Stack } from "@astryxdesign/core/Stack"
 import { Text } from "@astryxdesign/core/Text"
 import { KpiCard } from "@/components/landing/kpi-card"
+import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useEnter } from "@/hooks/use-enter"
@@ -43,7 +44,7 @@ export function DirectorOverview({ range }: { range: DateRange }) {
   if (query.status === "loading") {
     return (
       <div data-testid="director-loading" aria-busy="true" className="flex flex-col gap-4">
-        <Grid columns={{ minWidth: 220, max: 4 }} gap={4}>
+        <Grid columns={{ minWidth: 256, max: 4 }} gap={4}>
           <KpiSkeleton />
           <KpiSkeleton />
           <KpiSkeleton />
@@ -65,8 +66,8 @@ export function DirectorOverview({ range }: { range: DateRange }) {
   const chosen = selected.filter((id) => inScope.has(id))
 
   return (
-    <div data-testid="director-overview" className="flex flex-col gap-8">
-      <Grid data-testid="overview-kpis" columns={{ minWidth: 220, max: 4 }} gap={4}>
+    <div data-testid="director-overview" className="flex flex-col gap-6">
+      <Grid data-testid="overview-kpis" columns={{ minWidth: 256, max: 4 }} gap={4}>
         <KpiCard
           id="members"
           index={0}
@@ -104,47 +105,61 @@ export function DirectorOverview({ range }: { range: DateRange }) {
         />
       </Grid>
 
-      <Section id="territories" title="Territories" note="Only territories in your approved scope. Select two to six to compare them.">
-        <TerritoryTable rows={data.territories} selected={chosen} onToggle={toggle} max={MAX_COMPARE} />
-      </Section>
+      <DashboardGrid>
+        <DashboardGridItem area="full">
+          <Section id="territories" title="Territories" note="Only territories in your approved scope. Select two to six to compare them.">
+            <TerritoryTable rows={data.territories} selected={chosen} onToggle={toggle} max={MAX_COMPARE} />
+          </Section>
+        </DashboardGridItem>
 
-      <Section
-        id="team"
-        title="Activity by team member"
-        note="Distinct calls per member per month. A hatched 0 is a month with no recorded call. An asterisk marks a partial month."
-      >
-        <TeamActivity overview={data} />
-      </Section>
+        <DashboardGridItem area="primary">
+          <Section
+            id="team"
+            title="Activity by team member"
+            note="Distinct calls per member per month. A hatched 0 is a month with no recorded call. An asterisk marks a partial month."
+          >
+            <TeamActivity overview={data} />
+          </Section>
+        </DashboardGridItem>
 
-      <Section id="mix" title="Channel, topic and product mix" note="Distinct calls by value. Product counts are mentions, labelled apart from distinct calls.">
-        <MixSection overview={data} />
-      </Section>
+        <DashboardGridItem area="secondary">
+          <Section id="mix" title="Channel, topic and product mix" note="Distinct calls by value. Product counts are mentions, labelled apart from distinct calls.">
+            <MixSection overview={data} />
+          </Section>
+        </DashboardGridItem>
 
-      <Section id="engagement" title="Engagement and coverage" note="Distinct engaged HCPs, and coverage only where an approved target population exists.">
-        <Engagement overview={data} />
-      </Section>
+        <DashboardGridItem area="primary">
+          <Section id="engagement" title="Engagement and coverage" note="Distinct engaged HCPs, and coverage only where an approved target population exists.">
+            <Engagement overview={data} />
+          </Section>
+        </DashboardGridItem>
 
-      <Section id="compare" title="Compare territories" note="One period and one set of definitions for every territory.">
-        <ComparisonPanel ids={chosen} range={{ from: data.from, to: data.to }} />
-      </Section>
+        <DashboardGridItem area="secondary">
+          <Section id="definitions" title="How these numbers are counted" note={`Definitions ${data.definitionVersion}. Counts are computed in the database, never by AI.`}>
+            <dl data-testid="definitions" className="grid gap-x-8 gap-y-3 text-sm md:grid-cols-2">
+              {data.definitions.map((d) => (
+                <div key={d.key}>
+                  <dt className="font-semibold">{d.label}</dt>
+                  <dd className="text-muted-foreground">{d.text}</dd>
+                </div>
+              ))}
+            </dl>
+            {data.notes.length > 0 && (
+              <ul data-testid="overview-notes" className="mt-4 flex list-disc flex-col gap-1 pl-5 text-xs text-muted-foreground">
+                {data.notes.map((n) => (
+                  <li key={n.code} data-code={n.code}>{n.message}</li>
+                ))}
+              </ul>
+            )}
+          </Section>
+        </DashboardGridItem>
 
-      <Section id="definitions" title="How these numbers are counted" note={`Definitions ${data.definitionVersion}. Counts are computed in the database, never by AI.`}>
-        <dl data-testid="definitions" className="grid gap-x-8 gap-y-3 text-sm md:grid-cols-2">
-          {data.definitions.map((d) => (
-            <div key={d.key}>
-              <dt className="font-semibold">{d.label}</dt>
-              <dd className="text-muted-foreground">{d.text}</dd>
-            </div>
-          ))}
-        </dl>
-        {data.notes.length > 0 && (
-          <ul data-testid="overview-notes" className="mt-4 flex list-disc flex-col gap-1 pl-5 text-xs text-muted-foreground">
-            {data.notes.map((n) => (
-              <li key={n.code} data-code={n.code}>{n.message}</li>
-            ))}
-          </ul>
-        )}
-      </Section>
+        <DashboardGridItem area="full">
+          <Section id="compare" title="Compare territories" note="One period and one set of definitions for every territory.">
+            <ComparisonPanel ids={chosen} range={{ from: data.from, to: data.to }} />
+          </Section>
+        </DashboardGridItem>
+      </DashboardGrid>
     </div>
   )
 }

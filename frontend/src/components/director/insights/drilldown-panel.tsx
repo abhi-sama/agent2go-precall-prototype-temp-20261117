@@ -4,6 +4,7 @@ import { ChevronRight, Lock, MessageSquareText } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { HcpTimeline } from "@/components/hcps/hcp-timeline"
+import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { EmptyState, ErrorState } from "@/components/state/states"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { chatLink } from "@/lib/chat/context"
@@ -86,62 +87,70 @@ export function DrilldownPanel({ range }: { range: DateRange }) {
               </ol>
             </nav>
 
-            {data.children.length === 0 ? (
-              <EmptyState title="Nothing to show here">No records were recorded at this level in this period.</EmptyState>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border" role="region" aria-label="Drill-down rows, scrolls sideways" tabIndex={0}>
-                <table data-testid="drill-table" data-level={data.level} className="w-full min-w-[36rem] border-collapse text-sm">
-                  <caption className="sr-only">{data.level === "ROOT" ? "Regions" : data.level === "REGION" ? "Territories" : "HCPs"} in your approved scope</caption>
-                  <thead>
-                    <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th scope="col" className="px-3 py-2 font-medium">{data.level === "ROOT" ? "Region" : data.level === "REGION" ? "Territory" : "HCP"}</th>
-                      <th scope="col" className="px-2 py-2 text-right font-medium">Calls</th>
-                      <th scope="col" className="px-2 py-2 text-right font-medium">HCPs</th>
-                      <th scope="col" className="px-2 py-2 text-right font-medium">Responses</th>
-                      <th scope="col" className="px-3 py-2 text-right font-medium"><span className="sr-only">Open</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.children.map((child) => (
-                      <tr key={child.id} data-testid="drill-row" data-id={child.id} data-level={child.level} className="border-b last:border-b-0">
-                        <th scope="row" className="px-3 py-1.5 text-left font-medium">
-                          {child.label}
-                          <span className="block text-xs font-normal text-muted-foreground">{child.level === "HCP" ? (child.lastInteractionDate ? `Last interaction ${child.lastInteractionDate}` : "") : `${num(child.childCount)} ${child.childLabel}`}</span>
-                        </th>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{num(child.distinctCalls)}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{num(child.distinctEngagedHcps)}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{num(child.responses)}</td>
-                        <td className="px-3 py-1 text-right">
-                          <Button variant="outline" size="sm" data-testid="drill-open" onClick={() => open(child)} aria-label={`${child.level === "HCP" ? "View timeline for" : "Open"} ${child.label}`}>
-                            {child.level === "HCP" ? "Timeline" : "Open"} <ChevronRight aria-hidden />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {data.truncated && <p data-testid="drill-truncated" className="text-sm text-muted-foreground">Showing {data.children.length} of {num(data.totalChildren)}. The busiest are listed first.</p>}
+            <DashboardGrid>
+              <DashboardGridItem area={hcp ? "focus" : "full"}>
+                <div className="flex flex-col gap-4">
+                  {data.children.length === 0 ? (
+                    <EmptyState title="Nothing to show here">No records were recorded at this level in this period.</EmptyState>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border" role="region" aria-label="Drill-down rows, scrolls sideways" tabIndex={0}>
+                      <table data-testid="drill-table" data-level={data.level} className="w-full min-w-[36rem] border-collapse text-sm">
+                        <caption className="sr-only">{data.level === "ROOT" ? "Regions" : data.level === "REGION" ? "Territories" : "HCPs"} in your approved scope</caption>
+                        <thead>
+                          <tr className="border-b text-left text-xs text-muted-foreground">
+                            <th scope="col" className="px-3 py-2 font-medium">{data.level === "ROOT" ? "Region" : data.level === "REGION" ? "Territory" : "HCP"}</th>
+                            <th scope="col" className="px-2 py-2 text-right font-medium">Calls</th>
+                            <th scope="col" className="px-2 py-2 text-right font-medium">HCPs</th>
+                            <th scope="col" className="px-2 py-2 text-right font-medium">Responses</th>
+                            <th scope="col" className="px-3 py-2 text-right font-medium"><span className="sr-only">Open</span></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.children.map((child) => (
+                            <tr key={child.id} data-testid="drill-row" data-id={child.id} data-level={child.level} className="border-b last:border-b-0">
+                              <th scope="row" className="px-3 py-1.5 text-left font-medium">
+                                {child.label}
+                                <span className="block text-xs font-normal text-muted-foreground">{child.level === "HCP" ? (child.lastInteractionDate ? `Last interaction ${child.lastInteractionDate}` : "") : `${num(child.childCount)} ${child.childLabel}`}</span>
+                              </th>
+                              <td className="px-2 py-1.5 text-right tabular-nums">{num(child.distinctCalls)}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums">{num(child.distinctEngagedHcps)}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums">{num(child.responses)}</td>
+                              <td className="px-3 py-1 text-right">
+                                <Button variant="outline" size="sm" data-testid="drill-open" onClick={() => open(child)} aria-label={`${child.level === "HCP" ? "View timeline for" : "Open"} ${child.label}`}>
+                                  {child.level === "HCP" ? "Timeline" : "Open"} <ChevronRight aria-hidden />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {data.truncated && <p data-testid="drill-truncated" className="text-sm text-muted-foreground">Showing {data.children.length} of {num(data.totalChildren)}. The busiest are listed first.</p>}
 
-            {data.level === "TERRITORY" && (
-              <div>
-                <Link href={chatLink({ view: "director-insights", territoryId: data.id, from: range.from, to: range.to })} data-testid="ask-agent-territory" className={cn(buttonVariants({ variant: "outline" }))}>
-                  <MessageSquareText aria-hidden /> Ask the agent about {data.id}
-                </Link>
-              </div>
-            )}
+                  {data.level === "TERRITORY" && (
+                    <div>
+                      <Link href={chatLink({ view: "director-insights", territoryId: data.id, from: range.from, to: range.to })} data-testid="ask-agent-territory" className={cn(buttonVariants({ variant: "outline" }))}>
+                        <MessageSquareText aria-hidden /> Ask the agent about {data.id}
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </DashboardGridItem>
 
-            {hcp && (
-              <section key={hcp.id} data-testid="drill-hcp" aria-label={`Interactions for ${hcp.id}`} className="drill-in rounded-2xl border bg-card p-4">
-                <header className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-base font-semibold">Interactions and responses for {hcp.id}</h3>
-                  <Button variant="ghost" size="sm" onClick={() => setHcp(null)}>Close</Button>
-                </header>
-                <p className="mt-1 text-sm text-muted-foreground">This is the last level. It shows only the records you are permitted to see for this HCP.</p>
-                <HcpTimeline hcpId={hcp.id} />
-              </section>
-            )}
+              {hcp && (
+                <DashboardGridItem area="detail">
+                  <section key={hcp.id} data-testid="drill-hcp" aria-label={`Interactions for ${hcp.id}`} className="rounded-2xl border bg-card p-4">
+                    <header className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-base font-semibold">Interactions and responses for {hcp.id}</h3>
+                      <Button variant="ghost" size="sm" onClick={() => setHcp(null)}>Close</Button>
+                    </header>
+                    <p className="mt-1 text-sm text-muted-foreground">This is the last level. It shows only the records you are permitted to see for this HCP.</p>
+                    <HcpTimeline hcpId={hcp.id} />
+                  </section>
+                </DashboardGridItem>
+              )}
+            </DashboardGrid>
           </div>
         )}
       </div>

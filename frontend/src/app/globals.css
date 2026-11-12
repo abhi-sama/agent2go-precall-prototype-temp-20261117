@@ -204,6 +204,10 @@
   container: dashboard / inline-size;
 }
 
+.a2g-dashboard-item {
+  min-inline-size: 0;
+}
+
 @container dashboard (min-width: 56rem) {
   .a2g-dashboard-grid {
     grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
@@ -235,6 +239,54 @@
 
   .a2g-dashboard-item--full {
     grid-column: 1 / -1 !important;
+  }
+}
+
+/* These layouts respond to the room a dashboard region actually receives. A viewport breakpoint would keep
+   two charts or a list-detail pair side by side after an inspector has reduced their usable width. */
+.a2g-mix-scope {
+  container: mix / inline-size;
+}
+
+.a2g-summary-scope {
+  container: summary / inline-size;
+}
+
+.a2g-question-scope {
+  container: question / inline-size;
+}
+
+.a2g-theme-cards-scope {
+  container: theme-cards / inline-size;
+}
+
+@container mix (min-width: 42rem) {
+  .a2g-mix-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container summary (min-width: 42rem) {
+  .a2g-summary-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container question (min-width: 56rem) {
+  .a2g-question-layout {
+    grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+  }
+}
+
+@container theme-cards (min-width: 20rem) {
+  .a2g-theme-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container theme-cards (min-width: 64rem) {
+  .a2g-theme-cards-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

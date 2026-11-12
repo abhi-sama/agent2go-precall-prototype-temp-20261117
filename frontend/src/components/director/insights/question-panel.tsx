@@ -64,33 +64,35 @@ export function QuestionPanel({ range, filters }: { range: DateRange; filters: I
       ) : data.options.length === 0 ? (
         <EmptyState title="No answered questions in this period">No HCP responses were recorded for your territories between these dates.</EmptyState>
       ) : (
-        <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]" aria-busy={query.status === "loading"}>
-          <div data-testid="question-selector" className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="question-search" className="text-xs">Find a question</Label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                <Input id="question-search" data-testid="question-search" className="h-11 pl-9" value={search} placeholder="Text or id, e.g. Q-0013" onChange={(e) => setSearch(e.target.value)} />
+        <div className="a2g-question-scope">
+          <div className="a2g-question-layout grid min-w-0 gap-5" aria-busy={query.status === "loading"}>
+            <div data-testid="question-selector" className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="question-search" className="text-xs">Find a question</Label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                  <Input id="question-search" data-testid="question-search" className="h-11 pl-9" value={search} placeholder="Text or id, e.g. Q-0013" onChange={(e) => setSearch(e.target.value)} />
+                </div>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="question-type" className="text-xs">Answer type</Label>
+                <select id="question-type" data-testid="question-type" value={type} onChange={(e) => setType(e.target.value)} className="h-(--control-h) rounded-lg border border-input bg-background px-3 text-sm">
+                  <option value="">All types</option>
+                  {types.map((t) => <option key={t} value={t}>{typeLabel(t)}</option>)}
+                </select>
+              </div>
+              <ul role="listbox" aria-label="Questions" className="flex max-h-96 flex-col gap-1.5 overflow-y-auto pr-1">
+                {options.length === 0 && <li className="p-3 text-sm text-muted-foreground">No question matches.</li>}
+                {options.map((o) => (
+                  <li key={o.questionId} role="presentation">
+                    <OptionButton option={o} on={o.questionId === (data.selected?.questionId ?? null)} onPick={() => setQuestionId(o.questionId)} />
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="question-type" className="text-xs">Answer type</Label>
-              <select id="question-type" data-testid="question-type" value={type} onChange={(e) => setType(e.target.value)} className="h-(--control-h) rounded-lg border border-input bg-background px-3 text-sm">
-                <option value="">All types</option>
-                {types.map((t) => <option key={t} value={t}>{typeLabel(t)}</option>)}
-              </select>
+            <div className="min-w-0">
+              {data.selected ? <Detail q={data.selected} range={range} /> : <EmptyState title="That question has no responses here">Pick another question from the list.</EmptyState>}
             </div>
-            <ul role="listbox" aria-label="Questions" className="flex max-h-96 flex-col gap-1.5 overflow-y-auto pr-1">
-              {options.length === 0 && <li className="p-3 text-sm text-muted-foreground">No question matches.</li>}
-              {options.map((o) => (
-                <li key={o.questionId} role="presentation">
-                  <OptionButton option={o} on={o.questionId === (data.selected?.questionId ?? null)} onPick={() => setQuestionId(o.questionId)} />
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="min-w-0">
-            {data.selected ? <Detail q={data.selected} range={range} /> : <EmptyState title="That question has no responses here">Pick another question from the list.</EmptyState>}
           </div>
         </div>
       )}

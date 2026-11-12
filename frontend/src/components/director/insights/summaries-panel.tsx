@@ -42,8 +42,8 @@ export function SummariesPanel({ range }: { range: DateRange }) {
       ) : data.territories.length === 0 ? (
         <EmptyState title="No territories to summarise">No territory in your scope has activity in this period.</EmptyState>
       ) : (
-        <div className="flex flex-col gap-4">
-          <ul data-testid="summary-cards" className="grid gap-4 xl:grid-cols-2">
+        <div className="a2g-summary-scope flex flex-col gap-4">
+          <ul data-testid="summary-cards" className="a2g-summary-cards grid gap-4">
             {cards.map((t) => (
               <li key={t.territoryId} className="min-w-0"><SummaryCard t={t} range={range} /></li>
             ))}

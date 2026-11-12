@@ -48,7 +48,7 @@ export function DirectorInsights() {
       <div className="flex flex-col gap-10">
         <header className="flex flex-col gap-3">
           <div>
-            <Link href="/director" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-ml-2 mb-1")}><ArrowLeft aria-hidden /> My region</Link>
+            <Link href="/director" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mb-1")}><ArrowLeft aria-hidden /> My region</Link>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Insights</h1>
             <p className="mt-1 max-w-2xl text-muted-foreground">Themes, emerging topics, question-level answers and data exceptions across the territories you are approved to see.</p>
           </div>

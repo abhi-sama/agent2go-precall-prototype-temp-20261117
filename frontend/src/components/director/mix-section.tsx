@@ -66,34 +66,36 @@ export function MixSection({ overview }: { overview: DirectorOverview }) {
       {mix.values.length === 0 ? (
         <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No calls to break down in this period.</p>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <figure data-testid="mix-ranked" className="min-w-0">
-            <figcaption className="mb-2 text-sm font-semibold">Ranked by distinct calls</figcaption>
-            <ChartContainer config={config} className="aspect-[16/9] w-full">
-              <BarChart data={ranked} layout="vertical" margin={{ left: 4, right: 16 }} accessibilityLayer>
-                <CartesianGrid horizontal={false} />
-                <XAxis type="number" tickLine={false} axisLine={false} allowDecimals={false} />
-                <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={104} tick={{ fontSize: 12 }} />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                <Bar dataKey="calls" fill="var(--color-calls)" radius={[0, 6, 6, 0]} {...motion} />
-              </BarChart>
-            </ChartContainer>
-          </figure>
-          <figure data-testid="mix-trend" className="min-w-0">
-            <figcaption className="mb-2 text-sm font-semibold">Monthly distinct calls by value</figcaption>
-            <ChartContainer config={config} className="aspect-[16/9] w-full">
-              <BarChart data={trend} margin={{ left: 4, right: 8 }} accessibilityLayer>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} interval={0} />
-                <YAxis tickLine={false} axisLine={false} width={36} allowDecimals={false} />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                {mix.values.map((v, i) => (
-                  <Bar key={v.value} dataKey={`v${i}`} stackId="mix" fill={`var(--color-v${i})`} {...motion} />
-                ))}
-                <ChartLegend content={<ChartLegendContent />} />
-              </BarChart>
-            </ChartContainer>
-          </figure>
+        <div className="a2g-mix-scope">
+          <div className="a2g-mix-grid grid gap-6">
+            <figure data-testid="mix-ranked" className="min-w-0">
+              <figcaption className="mb-2 text-sm font-semibold">Ranked by distinct calls</figcaption>
+              <ChartContainer config={config} className="aspect-[16/9] w-full">
+                <BarChart data={ranked} layout="vertical" margin={{ left: 4, right: 16 }} accessibilityLayer>
+                  <CartesianGrid horizontal={false} />
+                  <XAxis type="number" tickLine={false} axisLine={false} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={104} tick={{ fontSize: 12 }} />
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                  <Bar dataKey="calls" fill="var(--color-calls)" radius={[0, 6, 6, 0]} {...motion} />
+                </BarChart>
+              </ChartContainer>
+            </figure>
+            <figure data-testid="mix-trend" className="min-w-0">
+              <figcaption className="mb-2 text-sm font-semibold">Monthly distinct calls by value</figcaption>
+              <ChartContainer config={config} className="aspect-[16/9] w-full">
+                <BarChart data={trend} margin={{ left: 4, right: 8 }} accessibilityLayer>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} interval={0} />
+                  <YAxis tickLine={false} axisLine={false} width={36} allowDecimals={false} />
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                  {mix.values.map((v, i) => (
+                    <Bar key={v.value} dataKey={`v${i}`} stackId="mix" fill={`var(--color-v${i})`} {...motion} />
+                  ))}
+                  <ChartLegend content={<ChartLegendContent />} />
+                </BarChart>
+              </ChartContainer>
+            </figure>
+          </div>
         </div>
       )}
     </div>

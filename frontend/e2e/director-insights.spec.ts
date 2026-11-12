@@ -126,6 +126,27 @@ test.describe("Director insights", () => {
     await expect(page.getByTestId("drill-table")).not.toContainText("SE-")
   })
 
+  test("uses the iPad workspace for paired summaries and selected HCP evidence", async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 1366 })
+    await page.goto("/director/insights")
+    const firstSummary = await page.getByTestId("summary-card").nth(0).boundingBox()
+    const secondSummary = await page.getByTestId("summary-card").nth(1).boundingBox()
+    expect(firstSummary).not.toBeNull()
+    expect(secondSummary).not.toBeNull()
+    expect(secondSummary!.x).toBeGreaterThan(firstSummary!.x)
+    expect(Math.abs(secondSummary!.y - firstSummary!.y)).toBeLessThanOrEqual(4)
+
+    await page.getByTestId("drill-row").first().getByTestId("drill-open").click()
+    await page.locator('[data-testid="drill-row"][data-id="NE-01"]').getByTestId("drill-open").click()
+    await page.locator('[data-testid="drill-row"][data-id="HCP-0001"]').getByTestId("drill-open").click()
+    const table = await page.getByTestId("drill-table").boundingBox()
+    const detail = await page.getByTestId("drill-hcp").boundingBox()
+    expect(table).not.toBeNull()
+    expect(detail).not.toBeNull()
+    expect(detail!.x).toBeGreaterThan(table!.x)
+    expect(Math.abs(detail!.y - table!.y)).toBeLessThanOrEqual(4)
+  })
+
   test("exceptions list every planted defect category, each with its rule", async ({ page }) => {
     await page.goto("/director/insights")
     await expect(page.getByTestId("exceptions-table")).toBeVisible()

@@ -81,7 +81,7 @@ function CitedParagraph({ text, turn, onOpenCitation }: { text: string; turn: As
     // Qualitative claims may not repeat a number, but still need their retrieved records beside them.
     const evidence = matchingFacts.length > 0 ? matchingFacts.flatMap((fact) => citationsForFact(fact, turn.citations)) : turn.citations
     const unique = evidence.filter((citation, itemIndex) => evidence.findIndex((item) => item.dataset === citation.dataset && item.recordId === citation.recordId) === itemIndex)
-    return <React.Fragment key={`${sentence}-${index}`}>{index > 0 && " "}<Markdown display="inline" isStreaming={turn.status === "running"}>{sentence}</Markdown>{unique.map((citation) => <CitationLink key={`${citation.dataset}:${citation.recordId}`} citation={citation} citations={turn.citations} onOpen={onOpenCitation} />)}</React.Fragment>
+    return <React.Fragment key={`${sentence}-${index}`}>{index > 0 && " "}<Markdown display="inline" isStreaming={turn.status === "running"} className="contents">{sentence}</Markdown>{unique.map((citation) => <CitationLink key={`${citation.dataset}:${citation.recordId}`} citation={citation} citations={turn.citations} onOpen={onOpenCitation} />)}</React.Fragment>
   })}</>
 }
 

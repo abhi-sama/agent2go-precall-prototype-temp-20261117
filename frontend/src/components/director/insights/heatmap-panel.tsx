@@ -5,6 +5,7 @@ import { Box, MessageSquareText, Rows3, Table2 } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { EChart } from "@/components/charts/echart"
+import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { AiSummary } from "@/components/provenance/provenance"
 import { EmptyState, ErrorState } from "@/components/state/states"
 import { buttonVariants } from "@/components/ui/button"
@@ -115,17 +116,22 @@ export function HeatmapPanel({ range, filters }: { range: DateRange; filters: In
             <p role="status" data-testid="heatmap-3d-notice" className="rounded-xl border border-dashed bg-card p-3 text-sm text-muted-foreground">{FALLBACK_NOTICE[fallback]}</p>
           )}
 
-          <div data-testid="topic-heatmap" data-view={view} className="min-w-0 rounded-2xl border bg-card p-3 sm:p-4">
-            {view === "chart" ? <HeatmapChart data={data} selected={selected} onSelect={setSelected} /> : view === "3d" ? <Heatmap3D data={data} selected={selected} onSelect={setSelected} onUnavailable={fallBackTo2D} /> : <HeatmapTable data={data} selected={selected} onSelect={setSelected} />}
-            <Legend max={Math.max(...data.cells.map((c) => c.share))} />
-          </div>
+          <DashboardGrid>
+            <DashboardGridItem area="primary">
+              <div data-testid="topic-heatmap" data-view={view} className="min-w-0 rounded-2xl border bg-card p-3 sm:p-4">
+                {view === "chart" ? <HeatmapChart data={data} selected={selected} onSelect={setSelected} /> : view === "3d" ? <Heatmap3D data={data} selected={selected} onSelect={setSelected} onUnavailable={fallBackTo2D} /> : <HeatmapTable data={data} selected={selected} onSelect={setSelected} />}
+                <Legend max={Math.max(...data.cells.map((c) => c.share))} />
+              </div>
+              {selected && <CellDetail data={data} selected={selected} range={range} onClear={() => setSelected(null)} />}
+            </DashboardGridItem>
 
-          {selected && <CellDetail data={data} selected={selected} range={range} onClear={() => setSelected(null)} />}
-
-          <div data-testid="theme-cards" data-facet={data.facet} className="flex flex-col gap-4">
-            <h3 className="text-lg font-semibold">{data.facetLabel ? `Theme cards by ${data.facetLabel.toLowerCase()}` : "Theme cards"}</h3>
-            <CardGroups cards={data.themeCards} grouped={data.facet !== "NONE"} />
-          </div>
+            <DashboardGridItem area="secondary">
+              <div data-testid="theme-cards" data-facet={data.facet} className="flex flex-col gap-4">
+                <h3 className="text-lg font-semibold">{data.facetLabel ? `Theme cards by ${data.facetLabel.toLowerCase()}` : "Theme cards"}</h3>
+                <CardGroups cards={data.themeCards} grouped={data.facet !== "NONE"} />
+              </div>
+            </DashboardGridItem>
+          </DashboardGrid>
         </div>
       )}
     </InsightSection>
@@ -279,7 +285,7 @@ function CardGroups({ cards, grouped }: { cards: ThemeCard[]; grouped: boolean }
   if (cards.length === 0) return <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No theme cards for these filters.</p>
   const groups = grouped ? [...new Set(cards.map((c) => c.facetValue ?? ""))] : [""]
   return (
-    <div className="flex flex-col gap-6">
+    <div className="a2g-theme-cards-scope flex flex-col gap-6">
       {groups.map((value) => {
         const list = cards.filter((c) => (c.facetValue ?? "") === value)
         return (
@@ -289,7 +295,7 @@ function CardGroups({ cards, grouped }: { cards: ThemeCard[]; grouped: boolean }
                 {value} <span className="font-normal">· {num(list[0]?.facetResponses ?? 0)} free-text responses</span>
               </h4>
             )}
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="a2g-theme-cards-grid grid gap-4">
               {list.map((card) => (
                 <ThemeCardView key={card.cardId} card={card} />
               ))}

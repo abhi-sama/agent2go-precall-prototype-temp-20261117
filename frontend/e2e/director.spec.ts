@@ -98,6 +98,17 @@ test.describe("Director overview", () => {
       expect(box!.width).toBeGreaterThanOrEqual(44)
     }
   })
+
+  test("uses the available iPad workspace for the activity and mix pair", async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 1366 })
+    await page.goto("/director")
+    const team = await page.getByTestId("section-team").boundingBox()
+    const mix = await page.getByTestId("section-mix").boundingBox()
+    expect(team).not.toBeNull()
+    expect(mix).not.toBeNull()
+    expect(mix!.x).toBeGreaterThan(team!.x)
+    expect(Math.abs(mix!.y - team!.y)).toBeLessThanOrEqual(2)
+  })
 })
 
 const MATRIX: ReadonlyArray<[string, number, number]> = [
