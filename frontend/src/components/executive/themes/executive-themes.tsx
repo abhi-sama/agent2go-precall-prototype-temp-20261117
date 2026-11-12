@@ -11,6 +11,7 @@ import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/Segme
 import { Selector } from "@astryxdesign/core/Selector"
 import { Text } from "@astryxdesign/core/Text"
 import { CitationHost, InsightSection, PanelLoading, PanelMeta } from "@/components/director/insights/shared"
+import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { FilterBar } from "@/components/filters/filter-bar"
 import { useSharedFilters } from "@/components/filters/filter-context"
 import { ScopeLabel } from "@/components/shell/scope-label"
@@ -80,14 +81,14 @@ export function ExecutiveThemesWorkspace() {
 
   return (
     <CitationHost>
-      <div data-testid="executive-themes" className="flex flex-col gap-10">
+      <div data-testid="executive-themes" className="flex flex-col gap-6">
         <header className="flex flex-col gap-3">
-          <div>
-            <Button as={Link} href="/executive" label="Overview" icon={<Icon icon={ArrowLeft} />} variant="ghost" size="sm" />
-            <Heading level={1} type="display-2" textWrap="balance">Themes &amp; summaries</Heading>
-            <Text as="p" type="supporting" display="block" className="mt-1 max-w-2xl">What recorded responses mention across your regions, which topics are rising in more than one, and a source-linked summary you can save and export.</Text>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+            <div className="min-w-0">
+              <Button as={Link} href="/executive" label="Overview" icon={<Icon icon={ArrowLeft} />} variant="ghost" size="sm" />
+              <Heading level={1} type="display-2" textWrap="balance">Themes &amp; summaries</Heading>
+              <Text as="p" type="supporting" display="block" className="mt-1 max-w-2xl">What recorded responses mention across your regions, which topics are rising in more than one, and a source-linked summary you can save and export.</Text>
+            </div>
             <ScopeLabel label={me.status === "success" ? me.data.scopeLabel : undefined} loading={me.status !== "success"} />
           </div>
           <FilterBar range={range} defaultRange={defaultRange} onRangeChange={(r) => setFilters((current) => ({ ...current, ...r }))} onReset={() => setFilters((current) => ({ ...current, ...defaultRange }))} />
@@ -135,21 +136,26 @@ export function ExecutiveThemesWorkspace() {
           )}
         </InsightSection>
 
-        <InsightSection
-          id="leadership-summaries"
-          title="Leadership summaries"
-          note="A summary of the period for your scope, written by AI from the figures above, with every statement linked to its source. Save it, reopen it, and export it; access is re-checked each time."
-        >
-          <LeadershipSummaries range={range} />
-        </InsightSection>
-
-        <InsightSection
-          id="org-analysis"
-          title="Ask about your regions"
-          note="Natural-language questions over your explicit scope. Answers cite the response sets behind each figure and state their sample limitations."
-        >
-          <OrgAnalysis range={range} aggregateOnly={themeData?.accessLevel !== "RECORD_DRILLDOWN"} />
-        </InsightSection>
+        <DashboardGrid>
+          <DashboardGridItem area="focus">
+          <InsightSection
+            id="leadership-summaries"
+            title="Leadership summaries"
+            note="A summary of the period for your scope, written by AI from the figures above, with every statement linked to its source. Save it, reopen it, and export it; access is re-checked each time."
+          >
+            <LeadershipSummaries range={range} />
+          </InsightSection>
+          </DashboardGridItem>
+          <DashboardGridItem area="detail">
+          <InsightSection
+            id="org-analysis"
+            title="Ask about your regions"
+            note="Natural-language questions over your explicit scope. Answers cite the response sets behind each figure and state their sample limitations."
+          >
+            <OrgAnalysis range={range} aggregateOnly={themeData?.accessLevel !== "RECORD_DRILLDOWN"} />
+          </InsightSection>
+          </DashboardGridItem>
+        </DashboardGrid>
       </div>
     </CitationHost>
   )

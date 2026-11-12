@@ -290,6 +290,64 @@
   }
 }
 
+/* Executive theme cards: two across once their own region is wide enough to read, four across a full desktop row. */
+.a2g-exec-themes-scope {
+  container: exec-themes / inline-size;
+}
+
+.a2g-exec-themes-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container exec-themes (min-width: 30rem) {
+  .a2g-exec-themes-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container exec-themes (min-width: 66rem) {
+  .a2g-exec-themes-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Executive overview: engagement cards sit in a row, and a long ranked list splits into two columns, once their own region allows. */
+.a2g-exec-engagement-scope {
+  container: exec-engagement / inline-size;
+}
+
+.a2g-exec-engagement {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container exec-engagement (min-width: 48rem) {
+  .a2g-exec-engagement {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.a2g-exec-ranked-scope {
+  container: exec-ranked / inline-size;
+}
+
+.a2g-exec-ranked-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+@container exec-ranked (min-width: 44rem) {
+  .a2g-exec-ranked-list {
+    display: block;
+    column-count: 2;
+    column-gap: 2.5rem;
+  }
+}
+
 /* The HCP lookup can appear in a narrow supporting pane. Its profile only splits once its own card, not the
    browser viewport, can support two useful reading columns. */
 .a2g-hcp-search {

@@ -33,6 +33,7 @@ export function RankedUnits({
   rankBy,
   minCell,
   onDrill,
+  multiColumn = false,
 }: {
   id: string
   title: string
@@ -40,16 +41,18 @@ export function RankedUnits({
   rankBy: ExecutiveRankBy
   minCell: number
   onDrill?: (unit: ExecutiveUnit) => void
+  /** A long list reads down two columns once its own card is wide enough, instead of one tall column. */
+  multiColumn?: boolean
 }) {
   const max = Math.max(1, ...units.map((u) => metricOf(u, rankBy) ?? 0))
   return (
-    <Card data-testid={`ranked-${id}`} padding={4} className="min-w-0">
+    <Card data-testid={`ranked-${id}`} padding={4} className={cn("min-w-0", multiColumn && "a2g-exec-ranked-scope")}>
       <Heading level={3} className="mb-3">{title}</Heading>
-      <ol className="flex flex-col gap-1">
+      <ol className={multiColumn ? "a2g-exec-ranked-list" : "flex flex-col gap-1"}>
         {units.map((u) => {
           const value = metricOf(u, rankBy)
           return (
-            <li key={u.id} data-testid="ranked-row" data-unit={u.id} data-rank={u.rank ?? ""} className="grid grid-cols-[2rem_minmax(0,9rem)_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-1 sm:grid-cols-[2rem_minmax(0,12rem)_minmax(0,1fr)_auto]">
+            <li key={u.id} data-testid="ranked-row" data-unit={u.id} data-rank={u.rank ?? ""} className="grid grid-cols-[2rem_minmax(0,9rem)_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-1 sm:grid-cols-[2rem_minmax(0,12rem)_minmax(0,1fr)_auto]" style={multiColumn ? { breakInside: "avoid" } : undefined}>
               <span className="text-right text-sm font-semibold tabular-nums text-muted-foreground" aria-label={u.rank ? `Rank ${u.rank}` : "Not ranked"}>
                 {u.rank ?? "—"}
               </span>

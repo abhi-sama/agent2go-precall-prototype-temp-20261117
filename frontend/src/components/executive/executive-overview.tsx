@@ -1,8 +1,10 @@
 "use client"
 
-import { CalendarCheck, Layers, MessagesSquare, Stethoscope, Users } from "lucide-react"
+import { CalendarCheck, Layers, MessagesSquare, Sparkles, Stethoscope, Users } from "lucide-react"
+import Link from "next/link"
 import * as React from "react"
 import { Banner } from "@astryxdesign/core/Banner"
+import { Button } from "@astryxdesign/core/Button"
 import { Card } from "@astryxdesign/core/Card"
 import { Grid } from "@astryxdesign/core/Grid"
 import { Heading } from "@astryxdesign/core/Heading"
@@ -18,6 +20,7 @@ import { Stack } from "@astryxdesign/core/Stack"
 import { Text } from "@astryxdesign/core/Text"
 import { VStack } from "@astryxdesign/core/VStack"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
+import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { EmptyState, ErrorState, KpiSkeleton } from "@/components/state/states"
 import { useEnter } from "@/hooks/use-enter"
 import { useDataAdapter } from "@/lib/data/data-provider"
@@ -73,7 +76,7 @@ export function ExecutiveOverview() {
   const busy = query.status === "loading"
 
   return (
-    <VStack data-testid="executive-overview" aria-busy={busy} gap={8} className={cn("transition-opacity", busy && "opacity-70")}>
+    <VStack data-testid="executive-overview" aria-busy={busy} gap={6} className={cn("transition-opacity", busy && "opacity-70")}>
       <Stack direction="horizontal" gap={2} vAlign="center" wrap="wrap">
         <SegmentedControl label="Period" value={period} onChange={(value) => setPeriod(value as (typeof PERIODS)[number]["id"])} size="lg">
           {PERIODS.map((p) => <SegmentedControlItem key={p.id} value={p.id} label={p.label} data-testid={`period-${p.id}`} />)}
@@ -89,6 +92,7 @@ export function ExecutiveOverview() {
         />
         <DataThroughBadge dataThrough={data.dataThrough} className="ml-auto" />
         <Text data-testid="exec-range" type="supporting">{formatDay(data.from, true)} to {formatDay(data.to, true)}</Text>
+        <Button as={Link} href="/executive/themes" data-testid="themes-link" label="Themes & summaries" icon={<Icon icon={Sparkles} />} variant="secondary" />
       </Stack>
 
       <AccessBanner data={data} />
@@ -104,21 +108,29 @@ export function ExecutiveOverview() {
             <CompletenessCard value={data.kpis.reportingCompleteness} />
           </Grid>
 
-          <Section id="trends" title="Monthly trends" note="Distinct calls, responses and engaged HCPs per month across your authorized regions.">
-            <Freshness data={data} />
-            <TrendColumns months={data.months} minCell={min} />
-          </Section>
-
-          <Section id="regions" title="Regional comparison" note={`Ranked by ${RANK_LABEL[data.rankBy].toLowerCase()}. One period and one set of definitions for every region and territory.`}>
-            <Grid columns={{ minWidth: 360, max: 2 }} gap={4}>
-              <RankedUnits id="regions" title={`Regions (${data.regions.length})`} units={data.regions} rankBy={data.rankBy} minCell={min} onDrill={data.drilldownAllowed ? (u) => setDrill(target(u)) : undefined} />
-              <RankedUnits id="territories" title={`Territories (${data.territories.length})`} units={data.territories} rankBy={data.rankBy} minCell={min} onDrill={data.drilldownAllowed ? (u) => setDrill(target(u)) : undefined} />
-            </Grid>
-          </Section>
-
-          <Section id="engagement" title="Engagement patterns" note="How many HCPs were reached how often, and through which channel. Counts of HCPs only, never who they are.">
-            <Engagement data={data} />
-          </Section>
+          <DashboardGrid>
+            <DashboardGridItem area="primary">
+              <Section id="trends" title="Monthly trends" note="Distinct calls, responses and engaged HCPs per month across your authorized regions.">
+                <Freshness data={data} />
+                <TrendColumns months={data.months} minCell={min} />
+              </Section>
+            </DashboardGridItem>
+            <DashboardGridItem area="secondary">
+              <Section id="regions" title="Regional comparison" note={`Ranked by ${RANK_LABEL[data.rankBy].toLowerCase()}, one period and one set of definitions for every unit.`}>
+                <RankedUnits id="regions" title={`Regions (${data.regions.length})`} units={data.regions} rankBy={data.rankBy} minCell={min} onDrill={data.drilldownAllowed ? (u) => setDrill(target(u)) : undefined} />
+              </Section>
+            </DashboardGridItem>
+            <DashboardGridItem area="full">
+              <Section id="territories" title="Territories" note="Every territory in your scope on the same scale.">
+                <RankedUnits id="territories" title={`Territories (${data.territories.length})`} units={data.territories} rankBy={data.rankBy} minCell={min} multiColumn onDrill={data.drilldownAllowed ? (u) => setDrill(target(u)) : undefined} />
+              </Section>
+            </DashboardGridItem>
+            <DashboardGridItem area="full">
+              <Section id="engagement" title="Engagement patterns" note="How many HCPs were reached how often, and through which channel. Counts only, never who they are.">
+                <Engagement data={data} />
+              </Section>
+            </DashboardGridItem>
+          </DashboardGrid>
         </>
       )}
 
@@ -183,7 +195,8 @@ function Engagement({ data }: { data: Overview }) {
   const maxBand = Math.max(1, ...engagement.depth.map((d) => d.hcps.value ?? 0))
   const maxChannel = Math.max(1, ...engagement.channels.map((c) => c.calls.value ?? 0))
   return (
-    <Grid columns={{ minWidth: 320, max: 2 }} gap={4}>
+    <div className="a2g-exec-engagement-scope">
+    <div className="a2g-exec-engagement">
       <Card data-testid="depth" padding={4}>
         <Heading level={3} color="secondary">HCPs by number of calls received</Heading>
         <ul className="mt-3 flex flex-col gap-2">
@@ -222,7 +235,8 @@ function Engagement({ data }: { data: Overview }) {
           </Text>
         </Card>
       )}
-    </Grid>
+    </div>
+    </div>
   )
 }
 
@@ -260,7 +274,7 @@ function Section({ id, title, note, children }: { id: string; title: string; not
   return (
     <AstryxSection data-testid={`section-${id}`} aria-labelledby={`section-${id}-title`} variant="transparent" padding={0}>
       <Heading id={`section-${id}-title`} level={2}>{title}</Heading>
-      <Text as="p" type="supporting" display="block" className="mb-3 mt-1 max-w-3xl">{note}</Text>
+      <Text as="p" type="supporting" display="block" className="mb-3 mt-1 max-w-prose">{note}</Text>
       {children}
     </AstryxSection>
   )

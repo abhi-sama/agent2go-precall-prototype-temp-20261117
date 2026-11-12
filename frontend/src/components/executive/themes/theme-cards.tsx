@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { Card } from "@astryxdesign/core/Card"
-import { Grid } from "@astryxdesign/core/Grid"
 import { Heading } from "@astryxdesign/core/Heading"
 import { Text } from "@astryxdesign/core/Text"
 import { DerivedBadge, num } from "@/components/director/insights/shared"
@@ -72,9 +71,9 @@ function Group({ group, minCell, showHeading }: { group: ExecutiveThemeGroup; mi
       {group.cards.length === 0 ? (
         <Card variant="muted" padding={4}><Text as="p" type="supporting">No free-text responses in this period for {group.facetValue}.</Text></Card>
       ) : (
-        <Grid columns={{ minWidth: 280, max: 2 }} gap={4}>
+        <div className="a2g-exec-themes-grid">
           {group.cards.map((card, i) => <ThemeCard key={card.cardId} card={card} minCell={minCell} index={i} />)}
-        </Grid>
+        </div>
       )}
     </section>
   )
@@ -84,7 +83,7 @@ function Group({ group, minCell, showHeading }: { group: ExecutiveThemeGroup; mi
 export function ThemeCards({ data }: { data: ExecutiveThemes }) {
   const min = data.disclosure.minCell
   return (
-    <div data-testid="theme-cards" data-facet={data.facet} className="flex flex-col gap-6">
+    <div data-testid="theme-cards" data-facet={data.facet} className="a2g-exec-themes-scope flex flex-col gap-4">
       {data.groups.map((g) => <Group key={g.facetValue} group={g} minCell={min} showHeading={data.facet !== "PORTFOLIO"} />)}
       {data.groupsLeftOut > 0 && <Text as="p" type="supporting">{num(data.groupsLeftOut)} more {data.facetLabel.toLowerCase()} values are not shown.</Text>}
       <SampleLimitations items={data.sampleLimitations} />

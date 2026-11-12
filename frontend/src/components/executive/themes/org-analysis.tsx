@@ -61,10 +61,10 @@ export function OrgAnalysis({ range, aggregateOnly = true }: { range: DateRange;
           </div>
           <Button type="submit" data-testid="org-ask" isDisabled={running || !draft.trim()} variant="primary" icon={<Icon icon={Send} />} label={running ? "Analysing…" : "Ask"} />
         </div>
-        <ul aria-label="Suggested questions" className="flex flex-wrap gap-2">
+        <ul aria-label="Suggested questions" className="flex flex-col items-stretch gap-2">
           {SUGGESTED.map((q) => (
-            <li key={q}>
-              <Button data-testid="org-suggestion" isDisabled={running} onClick={() => ask(q)} variant="secondary" label={q} />
+            <li key={q} className="min-w-0 max-w-full">
+              <Button data-testid="org-suggestion" width="100%" isDisabled={running} onClick={() => ask(q)} variant="secondary" label={q} />
             </li>
           ))}
         </ul>
@@ -80,7 +80,7 @@ export function OrgAnalysis({ range, aggregateOnly = true }: { range: DateRange;
           {turns.map((t) => (
             <li key={t.id} data-testid="org-turn" className="flex flex-col gap-3">
               <p data-testid="org-turn-question" className="w-fit max-w-full self-end rounded-2xl rounded-br-md bg-primary/12 px-4 py-2 text-sm">{t.question}</p>
-              <div><AssistantTurnView aggregateOnly={aggregateOnly} turn={t.answer} onAsk={ask} onOpenCitation={openCitation} canAsk={!running} /></div>
+              <div className="min-w-0 [&_li]:max-w-full [&_li]:min-w-0 [&_[data-testid=suggestion]]:max-w-full"><AssistantTurnView aggregateOnly={aggregateOnly} turn={t.answer} onAsk={ask} onOpenCitation={openCitation} canAsk={!running} /></div>
             </li>
           ))}
         </ol>

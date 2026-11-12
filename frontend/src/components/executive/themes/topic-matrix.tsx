@@ -28,13 +28,13 @@ function Cell({ cell, row, minCell, max }: { cell: ExecutiveMatrixCell; row: Exe
       data-trend={cell.trend}
       data-alert={cell.alert}
       className={cn(
-        "flex min-h-[4.75rem] flex-col items-start justify-between gap-1 rounded-lg border border-transparent p-2",
+        "flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-transparent px-2 py-1.5",
         hidden && "border-dashed border-border bg-muted/40",
         cell.alert && "border-primary ring-2 ring-primary/70",
       )}
       style={hidden ? undefined : { backgroundColor: sequentialFill(cell.responses.value ?? 0, max) }}
     >
-      <span className="flex flex-wrap items-baseline gap-x-2">
+      <span className="flex items-baseline gap-x-2">
         <CountValue count={cell.responses} minCell={minCell} className="text-base font-semibold" testId="matrix-count" />
         {cell.share !== null && <span data-testid="matrix-share" className="text-xs tabular-nums text-foreground/80">{pct(cell.share)}</span>}
       </span>
@@ -77,7 +77,7 @@ export function ThresholdsPanel({ t, disclosure }: { t: ExecutiveThresholds; dis
           <Badge data-testid="thresholds-unapproved" variant="warning" icon={<Icon icon={ShieldQuestion} size="sm" />} label="Not yet approved" />
         )}
       </header>
-      <MetadataList columns={2} label={{ position: "top" }}>
+      <MetadataList columns="multi" label={{ position: "top" }}>
         <MetadataListItem label="Responses per period, at least"><Text data-testid="th-window" weight="semibold" hasTabularNumbers>{t.minWindowResponses}</Text></MetadataListItem>
         <MetadataListItem label="Responses on the topic, at least"><Text data-testid="th-topic" weight="semibold" hasTabularNumbers>{t.minTopicResponses}</Text></MetadataListItem>
         <MetadataListItem label="Share up by, at least"><Text data-testid="th-points" weight="semibold" hasTabularNumbers>{t.minSharePoints} points</Text></MetadataListItem>
@@ -109,7 +109,7 @@ export function TopicMatrix({ data }: { data: ExecutiveTopicMatrix }) {
   const rows = data.rows
   return (
     <div data-testid="topic-matrix" data-facet={data.facet} className="flex min-w-0 flex-col gap-4">
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
+      <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_20rem] 2xl:items-start">
         <div className="min-w-0">
           <div data-testid="matrix-table" className="hidden md:block">
             <Table dividers="rows" density="compact" textOverflow="wrap" verticalAlign="top">
