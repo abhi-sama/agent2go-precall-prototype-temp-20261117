@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, briefs, chat, chat_rows, director, director_insights, eval_panel, eval_store, executive, executive_themes, flags, hierarchy, leadership, post_call, resolvers
+from . import activity, briefs, chat, chat_rows, director, director_insights, eval_panel, eval_store, executive, executive_themes, executive_trends, flags, hierarchy, leadership, post_call, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .embeddings import provider_from_config
@@ -129,6 +129,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "executiveDrilldown": executive.executive_drilldown,
         "executiveThemes": executive_themes.executive_themes,
         "executiveTopicMatrix": executive_themes.executive_topic_matrix,
+        "executiveTrends": executive_trends.executive_trends,
         "leadershipSummary": lambda *a: leadership.get_leadership_summary(*a, store=_summary_store(settings)),
         "myLeadershipSummaries": lambda *a: leadership.my_leadership_summaries(*a, store=_summary_store(settings)),
         "generateLeadershipSummary": lambda cur, identity, user_id, args: leadership.generate_leadership_summary(

@@ -90,6 +90,7 @@ export const BE_FIELDS = [
   { typeName: 'Mutation', fieldName: 'rateAnswer' },
   { typeName: 'Query', fieldName: 'executiveThemes' },
   { typeName: 'Query', fieldName: 'executiveTopicMatrix' },
+  { typeName: 'Query', fieldName: 'executiveTrends' },
   { typeName: 'Query', fieldName: 'leadershipSummary' },
   { typeName: 'Query', fieldName: 'myLeadershipSummaries' },
   { typeName: 'Mutation', fieldName: 'generateLeadershipSummary' },

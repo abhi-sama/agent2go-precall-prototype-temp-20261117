@@ -12,6 +12,7 @@ import { findRowSet, mockRowsExport, mockRowsPage } from "./mock-chat-rows"
 import { createMockAppearance } from "./mock-appearance"
 import { createMockBriefs } from "./mock-briefs"
 import { createMockExecutiveThemes, type ThemesInput } from "./mock-executive-themes"
+import { createMockExecutiveTrends } from "./mock-executive-trends"
 import {
   type AccessAuditEvent, type AccessAuditFilter, type AdminAccessOverview,
   type AdminDataQuality,
@@ -255,6 +256,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     ...createMockBriefs({ user: () => findUser(options.getUserId()), scenario, gate, now }),
     ...createMockDirectorInsights({ getUser: () => findUser(options.getUserId()), gate, now }),
     ...createMockExecutiveThemes({ user: () => findUser(options.getUserId()), scenario, gate, input: themesInput, now }),
+    ...createMockExecutiveTrends({ scenario, gate, input: (ctx, s, range) => executiveInput(ctx, s, range) }),
 
     async me(ctx): Promise<Me> {
       await gate(ctx, "me")

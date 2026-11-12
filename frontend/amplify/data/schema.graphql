@@ -1329,6 +1329,75 @@ type ExecutiveTopicMatrix {
   note: String!
 }
 
+# --- Executive trends (#121) ---------------------------------------------------------------------------
+# Monthly distinct calls, engaged HCPs and responses by the Executive's explicitly granted regions, with an arrow
+# per region and metric judged by the approved threshold rule (latest period against the equal period before).
+# Aggregate-only: counts of 1 to 4 are withheld (complementary, in both cuts of the table), a region with too few
+# responses gets no trend, and there is no record-level drill-down from this view.
+
+enum ExecutiveTrendMetric { CALLS ENGAGED_HCPS RESPONSES }
+
+type ExecutiveTrendMonth {
+  month: AWSDate!
+  "Cut short by the selected dates or by the data-through date."
+  isPartial: Boolean!
+  calls: SuppressedCount!
+  responses: SuppressedCount!
+  engagedHcps: SuppressedCount!
+}
+
+type ExecutiveMetricTrend {
+  metric: ExecutiveTrendMetric!
+  "The latest period and the equal period before it (SuppressedCount; null value when withheld)."
+  latest: SuppressedCount!
+  prior: SuppressedCount!
+  "Percent change from prior to latest; null when either count is withheld or prior is zero."
+  changePercent: Float
+  trend: ExecutiveTrend!
+}
+
+type ExecutiveRegionTrend {
+  regionId: ID!
+  regionName: String!
+  territoriesInScope: Int!
+  "Both periods hold at least the approved minimum number of responses, so a trend can be judged."
+  sampleSufficient: Boolean!
+  months: [ExecutiveTrendMonth!]!
+  metrics: [ExecutiveMetricTrend!]!
+}
+
+type ExecutiveTrendRule {
+  minWindowResponses: Int!
+  minChange: Int!
+  minRelativeChange: Float!
+  minCell: Int!
+  trendDays: Int!
+  rule: String!
+  "True when an administrator approved the threshold rule as a governed definition."
+  approved: Boolean!
+  definitionId: String
+  version: Int
+  approvedAt: AWSDateTime
+}
+
+type ExecutiveTrends {
+  from: AWSDate!
+  to: AWSDate!
+  trendFrom: AWSDate!
+  trendTo: AWSDate!
+  priorFrom: AWSDate!
+  priorTo: AWSDate!
+  dataThrough: AWSDateTime
+  scopeLabel: String!
+  accessLevel: ExecutiveAccessLevel!
+  definitionVersion: String!
+  disclosure: DisclosureRule!
+  thresholds: ExecutiveTrendRule!
+  regions: [ExecutiveRegionTrend!]!
+  sampleLimitations: [String!]!
+  note: String!
+}
+
 type LeadershipFigure { label: String!, value: SuppressedCount!, citationIds: [ID!]! }
 """Generated text. Every statement cites at least one citation from the summary's citation list."""
 type LeadershipStatement { statementId: ID!, section: String!, text: String!, citationIds: [ID!]! }
@@ -1670,6 +1739,8 @@ type Query {
   executiveThemes(from: AWSDate, to: AWSDate, facet: ExecutiveThemeFacet): ExecutiveThemes!
   "Executive: topic-by-region matrix with trend arrows, counts and the approved alert thresholds. Small groups withheld."
   executiveTopicMatrix(from: AWSDate, to: AWSDate, facet: ExecutiveThemeFacet, facetValue: String): ExecutiveTopicMatrix!
+  "Executive: monthly distinct calls, engaged HCPs and responses by explicitly granted region, with trend arrows judged by the approved thresholds. Small groups withheld; aggregate-only."
+  executiveTrends(from: AWSDate, to: AWSDate): ExecutiveTrends!
   "Reopen a saved leadership summary. Re-checks access and computes staleness."
   leadershipSummary(summaryId: ID!): LeadershipSummary!
   "The caller's saved leadership summaries, newest first."

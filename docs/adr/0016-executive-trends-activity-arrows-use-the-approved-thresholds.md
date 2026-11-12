@@ -1,0 +1,17 @@
+# Executive trends are aggregate-only, withheld in both cuts of the table, and judged by the approved thresholds
+
+The Executive's Trends page (`executiveTrends`, #121) shows monthly distinct calls, engaged HCPs and responses for each region the Executive is explicitly authorized for, with a trend arrow per region and metric. It builds on the overview (ADR 0009) and the themes matrix (ADR 0013), and uses the glossary term **Activity trend**.
+
+## Decisions
+
+- **Same door as the overview.** An Executive holds `aggregate.read` and no `source.records.read`, so RLS returns no rows. Migration 013 adds SECURITY DEFINER functions that start from `app.exec_units()` (the explicit executive scope, empty for anyone else): `exec_region_months` (region by calendar month, plus per-region, per-month and grand totals, in one query), `exec_region_windows` (latest and prior period per region) and `exec_activity_trend_status`. They return counts, never rows or identifiers. There is no record-level drill-down from this view, even for an Executive who also holds record-level permission; the overview keeps that.
+- **The arrow is the database's verdict, from the approved thresholds.** The topic matrix judges a *share* of free text; activity has no total to be a share of (a one-region Executive's share would always be 100%), so the arrow judges the *volume* against its own earlier value using the same approved numbers from `app.emerging_thresholds()`: both periods need at least `min_window_responses` (30) responses or the region gets `INSUFFICIENT_SAMPLE` and no trend; a figure is `RISING` when it grew by at least `min_topic_responses` (10) and by at least `min_relative_increase` (50%) of the earlier figure, `FALLING` is the mirror, anything else is `STEADY`. The periods are the latest 90 days (ending at data-through) and the 90 days before. The page states whether the rule is an approved governed definition (`emerging-topic-rule`) and its version.
+- **Responses are the sample gate for every metric.** A region with too few responses gets no arrow for calls or engaged HCPs either, as the glossary's matrix rule says.
+- **Small-group disclosure (`MIN_CELL = 5`) in both cuts.** A region-by-month cell of 1 to 4 is withheld. Because months add up to the region total and regions add up to the month total (both shown on the overview), withholding is made complementary along each row and each column and repeated until stable, so no withheld cell can be recovered from a total. Engaged HCPs do not add up, so only a small count or a withheld call count withholds them (an HCP count is a lower bound on calls). A figure behind an arrow that is itself small gives `WITHHELD`, not an arrow or a percentage. Executives with record-level permission have nothing withheld.
+- **Logging** carries ids, counts and enums only.
+
+## Consequences
+
+- Differencing across two different partitions of the same total (for example, the 90-day window against calendar months) remains out of scope, as in ADR 0009 and 0013.
+- The volume rule is derived from the approved topic thresholds rather than separately approved. If an administrator wants separate numbers, add a governed definition and read it in `exec_activity_trend_status`.
+- Seeded Executives hold one region each, so the page shows one region until an administrator grants more explicit executive scope. The mock adapter demonstrates four (rising, falling, steady and a thin West with too few responses).

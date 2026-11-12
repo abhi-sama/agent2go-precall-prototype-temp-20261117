@@ -359,6 +359,22 @@ export const SCREENS: ScreenSpec[] = [
     },
   },
   {
+    name: "executive-trends",
+    path: "/executive/trends",
+    userId: "u-exec-all",
+    ready: async (page) => {
+      await testId("region-trend-chart")(page)
+      await testId("region-arrows")(page)
+      await expect(page.getByTestId("trends-loading")).toHaveCount(0)
+    },
+  },
+  {
+    name: "executive-trends-records",
+    path: "/executive/trends?scenario=records",
+    userId: "u-exec-all",
+    ready: async (page) => { await testId("region-trend-chart")(page); await expect(page.getByTestId("access-banner")).toHaveAttribute("data-level", "RECORD_DRILLDOWN") },
+  },
+  {
     name: "executive-themes-molecule",
     path: "/executive/themes",
     userId: "u-exec-all",

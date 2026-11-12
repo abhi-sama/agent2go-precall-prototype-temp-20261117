@@ -216,6 +216,10 @@ _Avoid_: trend (when meaning the rule's verdict), alert (alerts are the MSL opti
 Themes (rows) by an Executive's explicitly granted regions (columns): count, share of the region's free-text responses, and a trend arrow judged by the approved threshold rule. Small groups are withheld; a region with too few responses gets no trend.
 _Avoid_: heatmap (the Director's topic-by-territory view)
 
+**Activity trend**:
+An Executive's monthly distinct calls, engaged HCPs and responses by explicitly granted region, with an arrow per region and metric comparing the latest 90 days with the 90 before, judged by the approved threshold rule. Small groups are withheld, a region with too few responses gets no trend, and there is never a record-level drill-down. It reports a change in what was recorded, never a cause.
+_Avoid_: performance trend, KPI trend
+
 **Aggregate citation**:
 The way an aggregate-only user's theme card or summary cites its source: the set of responses it rests on, named by theme, window and size, never a record. Record citations exist only with record-level permission.
 _Avoid_: source record (a single response)

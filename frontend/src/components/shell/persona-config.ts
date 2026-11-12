@@ -49,7 +49,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
     nav: [
       { label: "Overview", href: "/executive", icon: LayoutDashboard },
       { label: "Themes & summaries", href: "/executive/themes", icon: Sparkles },
-      { label: "Trends", href: null, icon: BarChart3 },
+      { label: "Trends", href: "/executive/trends", icon: BarChart3 },
     ],
   },
   admin: {
