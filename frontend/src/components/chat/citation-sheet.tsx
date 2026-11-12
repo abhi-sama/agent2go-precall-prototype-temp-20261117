@@ -2,10 +2,14 @@
 
 import * as React from "react"
 import { Download, Rows3 } from "lucide-react"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Button } from "@astryxdesign/core/Button"
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Layout, LayoutContent } from "@astryxdesign/core/Layout"
+import { Section } from "@astryxdesign/core/Section"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
 import { SourceFact } from "@/components/provenance/provenance"
 import { ErrorState } from "@/components/state/states"
-import { Skeleton } from "@/components/ui/skeleton"
 import { isAggregateCitation, type CitationItem } from "@/lib/chat/events"
 import { buildFactCsv, downloadText } from "@/lib/provenance"
 import { useDataAdapter } from "@/lib/data/data-provider"
@@ -26,7 +30,7 @@ function CitationBody({ citation }: { citation: CitationItem }) {
     if (exported.status !== "success") return
     downloadText(`${exported.data.recordId}.csv`, buildFactCsv(exported.data.fields), "text/csv;charset=utf-8")
   }, [exported])
-  if (record.status === "loading") return <Skeleton data-testid="citation-loading" className="h-40 w-full rounded-2xl" />
+  if (record.status === "loading") return <Skeleton data-testid="citation-loading" height={160} radius={3} />
   if (record.status === "error") {
     return record.error.code === "NOT_FOUND" ? (
       <p data-testid="citation-unavailable" role="status" className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
@@ -44,28 +48,24 @@ function CitationBody({ citation }: { citation: CitationItem }) {
         <dt className="text-muted-foreground">Record</dt>
         <dd className="font-mono text-xs">{r.recordId}</dd>
         {r.fields.map((f) => (
-          <div key={f.label} className="contents">
+          <React.Fragment key={f.label}>
             <dt className="text-muted-foreground">{f.label}</dt>
             <dd>{f.value}</dd>
-          </div>
+          </React.Fragment>
         ))}
       </dl>
-      <div className="mt-5 flex flex-wrap gap-2">
-        <button type="button" data-testid="show-rows" onClick={() => setShowRows((value) => !value)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-medium hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
-          <Rows3 className="size-4" aria-hidden />{showRows ? "Hide rows" : "Show rows"}
-        </button>
-        <button type="button" data-testid="export-rows" disabled={exportRequest > 0 && exported.status === "loading"} onClick={() => setExportRequest((request) => request + 1)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-medium hover:bg-accent disabled:opacity-50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
-          <Download className="size-4" aria-hidden />{exportRequest > 0 && exported.status === "loading" ? "Checking access…" : "Export row"}
-        </button>
-      </div>
+      <HStack gap={2} wrap="wrap">
+        <Button label={showRows ? "Hide rows" : "Show rows"} variant="secondary" data-testid="show-rows" icon={<Rows3 aria-hidden />} onClick={() => setShowRows((value) => !value)} />
+        <Button label={exportRequest > 0 && exported.status === "loading" ? "Checking access…" : "Export row"} variant="secondary" data-testid="export-rows" icon={<Download aria-hidden />} isDisabled={exportRequest > 0 && exported.status === "loading"} onClick={() => setExportRequest((request) => request + 1)} />
+      </HStack>
       {showRows && (
-        <div className="mt-3 overflow-x-auto rounded-xl border">
+        <Section variant="transparent" padding={0} dividers={["top", "bottom"]}>
           <table data-testid="chat-rows" className="w-full min-w-[28rem] text-left text-sm">
             <caption className="caption-top px-3 py-2 text-left text-xs text-muted-foreground">Exact source row, re-checked against your current access.</caption>
             <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase"><tr><th className="px-3 py-2 font-semibold" scope="col"><button type="button" onClick={() => setSortDirection((value) => value === "asc" ? "desc" : "asc")} className="min-h-11 text-left underline underline-offset-2">Field {sortDirection === "asc" ? "↑" : "↓"}</button></th><th className="px-3 py-2 font-semibold" scope="col">Value</th></tr></thead>
             <tbody className="divide-y">{rows.map((field) => <tr key={field.label} data-testid="chat-row"><th scope="row" className="px-3 py-2 text-left font-medium">{field.label}</th><td className="px-3 py-2">{field.value}</td></tr>)}</tbody>
           </table>
-        </div>
+        </Section>
       )}
     </SourceFact>
   )
@@ -90,14 +90,12 @@ function AggregateBody({ citation }: { citation: CitationItem }) {
 /** Opens a cited record. The BE returns it only if the viewer's access covers it. */
 export function CitationSheet({ citation, onClose }: { citation: CitationItem | null; onClose: () => void }) {
   return (
-    <Sheet open={citation !== null} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md" data-testid="citation-sheet">
-        <SheetHeader>
-          <SheetTitle>{citation && isAggregateCitation(citation) ? "Aggregate source" : "Source record"}</SheetTitle>
-          <SheetDescription>{citation?.label}</SheetDescription>
-        </SheetHeader>
-        <div className="px-4 pb-6">{citation && (isAggregateCitation(citation) ? <AggregateBody key={citation.recordId} citation={citation} /> : <CitationBody key={`${citation.dataset}:${citation.recordId}`} citation={citation} />)}</div>
-      </SheetContent>
-    </Sheet>
+    <Dialog isOpen={citation !== null} onOpenChange={(open) => !open && onClose()} width={640} maxHeight="80dvh" data-testid="citation-sheet">
+      <Layout
+        height="fill"
+        header={<DialogHeader title={citation && isAggregateCitation(citation) ? "Aggregate source" : "Source record"} subtitle={citation?.label} onOpenChange={() => onClose()} />}
+        content={<LayoutContent isScrollable>{citation && (isAggregateCitation(citation) ? <AggregateBody key={citation.recordId} citation={citation} /> : <CitationBody key={`${citation.dataset}:${citation.recordId}`} citation={citation} />)}</LayoutContent>}
+      />
+    </Dialog>
   )
 }

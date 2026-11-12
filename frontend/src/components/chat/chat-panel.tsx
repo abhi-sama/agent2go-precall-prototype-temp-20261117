@@ -3,10 +3,16 @@
 import { MessageSquarePlus } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import * as React from "react"
+import { Button } from "@astryxdesign/core/Button"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Layout, LayoutContent, LayoutHeader } from "@astryxdesign/core/Layout"
+import { Text } from "@astryxdesign/core/Text"
+import { Token } from "@astryxdesign/core/Token"
+import { VStack } from "@astryxdesign/core/VStack"
 import { ChatConversation } from "@/components/chat/chat-conversation"
 import { useChatSession } from "@/components/chat/chat-provider"
 import { ScopeLabel } from "@/components/shell/scope-label"
-import { Button } from "@/components/ui/button"
 import { parseChatContext, startersFor } from "@/lib/chat/context"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
@@ -30,29 +36,35 @@ export function ChatPanel() {
   const starters = startersFor(context, STARTERS)
 
   return (
-    <div className="flex min-h-[calc(100dvh-13rem)] flex-col gap-4" data-testid="chat-panel">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Ask the agent</h1>
-          <p className="mt-1 max-w-2xl text-muted-foreground">
-            Ask in plain language. Numbers are counted from your data; the AI only explains them.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <Layout
+      height="auto"
+      data-testid="chat-panel"
+      header={
+        <LayoutHeader hasDivider>
+          <HStack hAlign="between" vAlign="end" gap={3} wrap="wrap">
+            <VStack gap={1}>
+              <Heading level={1}>Ask the agent</Heading>
+              <Text type="body" color="secondary">
+                Ask in plain language. Numbers are counted from your data; the AI only explains them.
+              </Text>
+            </VStack>
+            <HStack gap={2} wrap="wrap" vAlign="center">
           <ScopeLabel label={me.status === "success" ? me.data.scopeLabel : undefined} loading={me.status !== "success"} />
           {context && (
-            <span data-testid="chat-context" className="inline-flex min-h-8 items-center rounded-full border bg-muted px-3 text-sm text-muted-foreground">
-              Asking about {[context.territoryId, context.questionId, context.from && context.to ? `${context.from} to ${context.to}` : null].filter(Boolean).join(" · ") || "this screen"}
-            </span>
+            <Token
+              data-testid="chat-context"
+              label={`Asking about ${[context.territoryId, context.questionId, context.from && context.to ? `${context.from} to ${context.to}` : null].filter(Boolean).join(" · ") || "this screen"}`}
+              size="sm"
+            />
           )}
           {turns.length > 0 && (
-            <Button variant="outline" data-testid="chat-new" onClick={reset} disabled={running}>
-              <MessageSquarePlus aria-hidden /> New conversation
-            </Button>
+            <Button label="New conversation" variant="secondary" data-testid="chat-new" icon={<MessageSquarePlus aria-hidden />} onClick={reset} isDisabled={running} />
           )}
-        </div>
-      </header>
-      <ChatConversation context={context} starters={starters} layout="page" />
-    </div>
+            </HStack>
+          </HStack>
+        </LayoutHeader>
+      }
+      content={<LayoutContent><ChatConversation context={context} starters={starters} layout="page" /></LayoutContent>}
+    />
   )
 }

@@ -2,14 +2,22 @@
 
 import { Maximize2, Table2, BarChart3 } from "lucide-react"
 import * as React from "react"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Layout, LayoutContent } from "@astryxdesign/core/Layout"
+import { Section } from "@astryxdesign/core/Section"
+import { Skeleton as AstryxSkeleton } from "@astryxdesign/core/Skeleton"
+import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
 import { DataTable } from "@/components/charts/viz/data-table"
 import { DistributionBars, Heatmap } from "@/components/charts"
 import { LineChart } from "@/components/charts/viz/line-chart"
 import { RankedBars, type BarDatum } from "@/components/charts/viz/ranked-bars"
 import { TimelineChart } from "@/components/charts/viz/timeline-chart"
 import { fmt } from "@/components/charts/viz/shared"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import type { VisualItem, VisualSpec } from "@/lib/chat/events"
 
 function barData(spec: VisualSpec): BarDatum[] {
@@ -41,13 +49,13 @@ function Chart({ spec, tall }: { spec: VisualSpec; tall?: boolean }) {
       return wordy(spec) ? (
         <RankedBars data={barData(spec)} unit={unit} />
       ) : (
-        <div data-testid="distribution-chart">
+        <Section data-testid="distribution-chart" variant="transparent" padding={0}>
           <DistributionBars
             ordinal
             denominator={spec.total ?? 0}
             rows={spec.points.map((p) => ({ label: p.label, count: p.value, percent: p.sharePct ?? 0 }))}
           />
-        </div>
+        </Section>
       )
     case "table":
       return <TableView spec={spec} />
@@ -83,11 +91,13 @@ function throughLabel(iso: string | null): string | null {
 
 function Skeleton() {
   return (
-    <div data-testid="visual-pending" role="status" aria-label="Preparing a chart from your data" className="viz-rise rounded-2xl border bg-card p-4">
-      <div className="h-4 w-48 rounded bg-muted" />
-      <div className="viz-shimmer mt-4 h-36 rounded-xl bg-muted/60" />
-      <p className="mt-3 text-xs text-muted-foreground">Counting from your data…</p>
-    </div>
+    <Section data-testid="visual-pending" role="status" aria-label="Preparing a chart from your data" padding={4}>
+      <VStack gap={3}>
+        <AstryxSkeleton width={192} height={16} radius={2} />
+        <AstryxSkeleton height={144} radius={3} index={1} />
+        <Text type="supporting">Counting from your data…</Text>
+      </VStack>
+    </Section>
   )
 }
 
@@ -112,62 +122,57 @@ export function VisualCard({ item }: { item: VisualItem }) {
         aria-label={spec.title}
         className="viz-rise flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 shadow-card"
       >
-        <header className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h4 data-testid="visual-title" className="text-sm font-semibold">
-              {spec.title}
-            </h4>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground" title={spec.subtitle}>
-              {spec.subtitle}
-            </p>
-          </div>
-          <div className="flex shrink-0 gap-1.5">
+        <header>
+          <HStack hAlign="between" vAlign="start" gap={3} wrap="wrap">
+            <VStack gap={0.5}>
+              <Heading level={4} data-testid="visual-title">{spec.title}</Heading>
+              <Text type="supporting" maxLines={1}>{spec.subtitle}</Text>
+            </VStack>
+            <HStack gap={1}>
             {!isTable && (
-              <Button variant="outline" size="sm" data-testid="visual-toggle" aria-pressed={asTable} onClick={() => setAsTable((v) => !v)}>
-                {asTable ? <BarChart3 aria-hidden /> : <Table2 aria-hidden />}
-                {asTable ? "Chart" : "Table"}
-              </Button>
+              <Button label={asTable ? "Chart" : "Table"} variant="secondary" size="sm" data-testid="visual-toggle" aria-pressed={asTable} icon={asTable ? <BarChart3 aria-hidden /> : <Table2 aria-hidden />} onClick={() => setAsTable((v) => !v)} />
             )}
-            <Button variant="outline" size="icon" data-testid="visual-expand" aria-label={`Expand ${spec.title}`} onClick={() => setExpanded(true)}>
-              <Maximize2 aria-hidden />
-            </Button>
-          </div>
+            <Button label={`Expand ${spec.title}`} variant="secondary" size="sm" data-testid="visual-expand" icon={<Maximize2 aria-hidden />} isIconOnly onClick={() => setExpanded(true)} />
+            </HStack>
+          </HStack>
         </header>
-        <div className="min-w-0">{asTable ? <TableView spec={spec} /> : <Chart spec={spec} />}</div>
-        <footer className="flex flex-col gap-1 text-xs text-muted-foreground">
-          {spec.definition && <p>{spec.definition}</p>}
-          <p className="flex flex-wrap gap-x-3">
+        <section>{asTable ? <TableView spec={spec} /> : <Chart spec={spec} />}</section>
+        <footer>
+          <VStack gap={1}>
+          {spec.definition && <Text type="supporting">{spec.definition}</Text>}
+          <HStack gap={3} wrap="wrap">
             {spec.total != null && !isTable && (
-              <span data-testid="visual-total">
-                Total in period: <strong className="font-semibold text-foreground tabular-nums">{fmt(spec.total)}</strong> {spec.unit}
-              </span>
+              <Text data-testid="visual-total" type="supporting">Total in period: <strong>{fmt(spec.total)}</strong> {spec.unit}</Text>
             )}
-            {spec.leftOut > 0 && <span>{spec.leftOut} more not shown</span>}
-            {through && <span>Data through {through}</span>}
-            <span>Counted by database queries, not by the AI.</span>
-          </p>
+            {spec.leftOut > 0 && <Text type="supporting">{spec.leftOut} more not shown</Text>}
+            {through && <Text type="supporting">Data through {through}</Text>}
+            <Text type="supporting">Counted by database queries, not by the AI.</Text>
+          </HStack>
+          </VStack>
         </footer>
       </article>
-      <Sheet open={expanded} onOpenChange={setExpanded}>
-        <SheetContent side="bottom" data-testid="visual-sheet" className="h-dvh w-screen overflow-y-auto data-[side=bottom]:h-dvh">
-          <SheetHeader>
-            <SheetTitle>{spec.title}</SheetTitle>
-            <SheetDescription>{spec.subtitle}</SheetDescription>
-          </SheetHeader>
-          <div className="mx-auto w-full max-w-5xl px-4 pb-8">
-            <div className="rounded-2xl border bg-card p-4 sm:p-6">
+      {expanded && <Dialog isOpen={expanded} onOpenChange={setExpanded} variant="fullscreen" padding={0} data-testid="visual-sheet">
+        <Layout
+          height="fill"
+          header={<DialogHeader title={spec.title} subtitle={spec.subtitle} onOpenChange={setExpanded} />}
+          content={<LayoutContent padding={4} isScrollable>
+          <Section variant="transparent" padding={0} maxWidth={1200}>
+            <VStack gap={4}>
+            <Card padding={4}>
               <Chart spec={spec} tall />
-            </div>
+            </Card>
             {spec.kind !== "table" && (
-              <div className="mt-4">
-                <h5 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">The same numbers as a table</h5>
+              <VStack gap={2}>
+                <Heading level={5}>The same numbers as a table</Heading>
                 <TableView spec={spec} />
-              </div>
+              </VStack>
             )}
-            <p className="mt-3 text-xs text-muted-foreground">{spec.definition}</p>
-          </div>
-        </SheetContent>
-      </Sheet>
+            {spec.definition && <Text type="supporting">{spec.definition}</Text>}
+            </VStack>
+          </Section>
+          </LayoutContent>}
+        />
+      </Dialog>}
     </>
   )
 }

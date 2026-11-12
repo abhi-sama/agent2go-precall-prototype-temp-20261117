@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Button } from "@astryxdesign/core/Button"
 import { EmptyState } from "@astryxdesign/core/EmptyState"
+import { HStack } from "@astryxdesign/core/HStack"
 import { ChatComposer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatMessageMetadata, ChatSendButton, ChatSystemMessage } from "@astryxdesign/core/Chat"
 import { AssistantTurnView } from "@/components/chat/assistant-turn"
 import { useChatSession } from "@/components/chat/chat-provider"
@@ -65,11 +66,11 @@ export function ChatConversation({ context, starters, layout, inputRef, composer
       title="Try a question"
       description="Ask about your calls, HCPs or recorded responses."
       actions={
-        <div className="flex flex-wrap justify-center gap-2">
+        <HStack hAlign="center" gap={2} wrap="wrap">
           {starters.map((starter) => (
             <Button key={starter} data-testid="starter" label={starter} variant="secondary" onClick={() => submit(starter)} />
           ))}
-        </div>
+        </HStack>
       }
     />
   )
