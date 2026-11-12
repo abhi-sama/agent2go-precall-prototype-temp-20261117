@@ -1,12 +1,20 @@
 "use client"
 
-import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, ChevronsUpDown, Download, Lock, Rows3 } from "lucide-react"
+import { Banner } from "@astryxdesign/core/Banner"
+import { Button } from "@astryxdesign/core/Button"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
+import { Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow } from "@astryxdesign/core/Table"
+import { Text } from "@astryxdesign/core/Text"
+import { ToggleButton } from "@astryxdesign/core/ToggleButton"
+import { VisuallyHidden } from "@astryxdesign/core/VisuallyHidden"
+import { VStack } from "@astryxdesign/core/VStack"
+import { Download, Lock, Rows3 } from "lucide-react"
 import * as React from "react"
-import { toast } from "sonner"
 import { Expand } from "@/components/motion/expand"
 import { SourceFact } from "@/components/provenance/provenance"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { useAppToast } from "@/components/state/use-app-toast"
 import type { RowSetItem } from "@/lib/chat/events"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { toDataError, type ChatRowColumn, type ChatRowSortDir, type ChatRowsPage, type DataError } from "@/lib/data/types"
@@ -38,33 +46,31 @@ export function AnswerRows({ runId, rowSets }: { runId: string; rowSets: RowSetI
   if (rowSets.length === 0) return null
   const current = rowSets.find((r) => r.rowSetId === selected) ?? rowSets[0]
   return (
-    <section aria-label="Rows behind this answer" data-testid="answer-rows" className="flex min-w-0 flex-col gap-2">
-      <div>
+    <VStack as="section" aria-label="Rows behind this answer" data-testid="answer-rows" gap={2} className="min-w-0">
+      <HStack>
         <Button
-          type="button"
-          variant="outline"
+          variant="secondary"
           data-testid="answer-rows-toggle"
           aria-expanded={open}
           aria-controls={panelId}
+          label={open ? "Hide rows" : "Show rows"}
+          icon={<Icon icon={Rows3} />}
+          endContent={<Icon icon="chevronDown" className={cn("transition-transform duration-(--duration-base) ease-(--ease-out) motion-reduce:transition-none", open && "rotate-180")} />}
           onClick={() => setOpen((v) => !v)}
-          className="press"
-        >
-          <Rows3 aria-hidden />
-          {open ? "Hide rows" : "Show rows"}
-          <ChevronDown aria-hidden className={cn("transition-transform duration-(--duration-base) ease-(--ease-out) motion-reduce:transition-none", open && "rotate-180")} />
-        </Button>
-      </div>
-      <div id={panelId}>
+        />
+      </HStack>
+      <VStack id={panelId}>
         <Expand open={open}>
           <RowsPanel runId={runId} rowSets={rowSets} current={current} onSelect={setSelected} />
         </Expand>
-      </div>
-    </section>
+      </VStack>
+    </VStack>
   )
 }
 
 function RowsPanel({ runId, rowSets, current, onSelect }: { runId: string; rowSets: RowSetItem[]; current: RowSetItem; onSelect: (id: string) => void }) {
   const adapter = useDataAdapter()
+  const toast = useAppToast()
   const [sort, setSort] = React.useState<Sort | null>(null)
   const [offset, setOffset] = React.useState(0)
   const [exporting, setExporting] = React.useState(false)
@@ -116,6 +122,7 @@ function RowsPanel({ runId, rowSets, current, onSelect }: { runId: string; rowSe
   }
 
   const canExport = (page?.canExport ?? true) && !exportDenied
+  const matches = page !== null && page.total === page.answerCount
   return (
     <SourceFact
       title="Rows behind this answer"
@@ -123,92 +130,87 @@ function RowsPanel({ runId, rowSets, current, onSelect }: { runId: string; rowSe
       meta={<span>Read from the source records now, limited to your access.</span>}
     >
       {rowSets.length > 1 && (
-        <div role="group" aria-label="Which figure's rows" className="mb-3 flex flex-wrap gap-2">
-          {rowSets.map((r) => {
-            const on = r.rowSetId === current.rowSetId
-            return (
-              <button
-                key={r.rowSetId}
-                type="button"
-                aria-pressed={on}
-                data-testid="row-set-option"
-                data-row-set={r.rowSetId}
-                data-count={r.count}
-                onClick={() => choose(r.rowSetId)}
-                className={cn(
-                  "min-h-8 rounded-full border px-3 py-1 text-xs font-medium focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none pointer-coarse:min-h-11",
-                  on ? "border-primary bg-primary/10 text-foreground" : "border-border bg-background text-muted-foreground hover:bg-muted",
-                )}
-              >
-                {r.label} · <span className="tabular-nums">{fmt(r.count)}</span>
-              </button>
-            )
-          })}
-        </div>
+        <HStack role="group" aria-label="Which figure's rows" gap={2} wrap="wrap" paddingBlockEnd={3}>
+          {rowSets.map((r) => (
+            <ToggleButton
+              key={r.rowSetId}
+              size="sm"
+              isPressed={r.rowSetId === current.rowSetId}
+              data-testid="row-set-option"
+              data-row-set={r.rowSetId}
+              data-count={r.count}
+              label={`${r.label} · ${fmt(r.count)}`}
+              onPressedChange={() => choose(r.rowSetId)}
+            />
+          ))}
+        </HStack>
       )}
 
       {query.status === "error" && !page ? (
         <RowsError error={query.error} onRetry={query.refetch} />
       ) : page === null ? (
-        <div data-testid="answer-rows-loading" className="flex flex-col gap-2" aria-busy="true">
-          <Skeleton className="h-6 w-2/3" />
-          <Skeleton className="h-40 w-full" />
-        </div>
+        <VStack data-testid="answer-rows-loading" gap={2} aria-busy="true">
+          <Skeleton height="1.5rem" width="66%" />
+          <Skeleton height="10rem" width="100%" />
+        </VStack>
       ) : (
-        <div className={cn("flex flex-col gap-3", query.status === "loading" && "opacity-60")} aria-busy={query.status === "loading"}>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-            <p data-testid="answer-rows-summary" className="text-muted-foreground">
-              {page.definition} <span className="whitespace-nowrap">{page.scope} · {page.period}</span>
-            </p>
-          </div>
-          <p
+        <VStack gap={3} className={cn(query.status === "loading" && "opacity-60")} aria-busy={query.status === "loading"}>
+          <Text as="p" type="supporting" data-testid="answer-rows-summary">
+            {page.definition} <Text textWrap="nowrap" type="inherit">{page.scope} · {page.period}</Text>
+          </Text>
+          <HStack
+            as="p"
             data-testid="answer-rows-match"
             data-match={page.total === page.answerCount}
-            className={cn("flex items-start gap-2 text-sm", page.total !== page.answerCount && "text-warning")}
+            gap={2}
+            align="start"
+            className={cn(!matches && "text-warning")}
           >
-            {page.total === page.answerCount ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />}
-            {page.total === page.answerCount ? (
-              <span>
-                <strong className="tabular-nums">{fmt(page.total)}</strong> {current.unit}, matching the figure in the answer.
-              </span>
+            <Icon icon={matches ? "success" : "warning"} size="sm" color={matches ? "success" : "inherit"} />
+            {matches ? (
+              <Text>
+                <Text weight="semibold" hasTabularNumbers>{fmt(page.total)}</Text> {current.unit}, matching the figure in the answer.
+              </Text>
             ) : (
-              <span>
-                The data changed since this answer: it said <strong className="tabular-nums">{fmt(page.answerCount)}</strong>, there are{" "}
-                <strong className="tabular-nums">{fmt(page.total)}</strong> {current.unit} now.
-              </span>
+              <Text color="inherit">
+                The data changed since this answer: it said <Text weight="semibold" hasTabularNumbers color="inherit">{fmt(page.answerCount)}</Text>, there are{" "}
+                <Text weight="semibold" hasTabularNumbers color="inherit">{fmt(page.total)}</Text> {current.unit} now.
+              </Text>
             )}
-          </p>
+          </HStack>
 
           {page.rows.length === 0 ? (
-            <p data-testid="answer-rows-empty" role="status" className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-              No rows are in your access for this figure now.
-            </p>
+            <Banner data-testid="answer-rows-empty" role="status" status="info" title="No rows are in your access for this figure now." collapsible={false} />
           ) : (
             <RowsTable page={page} onSort={sortBy} />
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <HStack gap={2} wrap="wrap" align="center" hAlign="between">
             <Pager page={page} onPage={setOffset} />
-            <div className="flex flex-col items-end gap-1">
+            <VStack gap={1} align="end">
               {canExport ? (
-                <Button type="button" variant="outline" data-testid="answer-rows-export" disabled={exporting} onClick={doExport}>
-                  <Download aria-hidden />
-                  {exporting ? "Checking access…" : "Export CSV"}
-                </Button>
+                <Button
+                  variant="secondary"
+                  data-testid="answer-rows-export"
+                  isDisabled={exporting}
+                  icon={<Icon icon={Download} />}
+                  label={exporting ? "Checking access…" : "Export CSV"}
+                  onClick={doExport}
+                />
               ) : (
-                <p data-testid="answer-rows-export-denied" className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Lock className="size-3.5" aria-hidden />
-                  Export is not permitted for your role.
-                </p>
+                <HStack as="p" data-testid="answer-rows-export-denied" gap={2} align="center">
+                  <Icon icon={Lock} size="sm" color="secondary" />
+                  <Text type="supporting">Export is not permitted for your role.</Text>
+                </HStack>
               )}
-            </div>
-          </div>
+            </VStack>
+          </HStack>
           {exported && (
-            <p data-testid="answer-rows-exported" role="status" className="text-xs text-muted-foreground">
+            <Text as="p" type="supporting" data-testid="answer-rows-exported" role="status">
               {exported}
-            </p>
+            </Text>
           )}
-        </div>
+        </VStack>
       )}
     </SourceFact>
   )
@@ -222,91 +224,91 @@ function RowsError({ error, onRetry }: { error: DataError; onRetry: () => void }
         ? "These rows are no longer available to you."
         : "The rows could not be loaded."
   return (
-    <div data-testid="answer-rows-error" role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm">
-      <span>{text}</span>
-      {error.code !== "FORBIDDEN" && error.code !== "NOT_FOUND" && (
-        <Button type="button" size="sm" variant="outline" onClick={onRetry}>
-          Try again
-        </Button>
-      )}
-    </div>
+    <Banner
+      data-testid="answer-rows-error"
+      role="alert"
+      status="error"
+      title={text}
+      collapsible={false}
+      endContent={error.code !== "FORBIDDEN" && error.code !== "NOT_FOUND" ? <Button size="sm" variant="secondary" label="Try again" onClick={onRetry} /> : undefined}
+    />
   )
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: ChatRowSortDir }) {
-  if (!active) return <ChevronsUpDown className="size-3.5 opacity-60" aria-hidden />
-  return dir === "ASC" ? <ArrowUp className="size-3.5" aria-hidden /> : <ArrowDown className="size-3.5" aria-hidden />
+  if (!active) return <Icon icon="arrowsUpDown" size="xsm" color="tertiary" />
+  return <Icon icon={dir === "ASC" ? "arrowUp" : "arrowDown"} size="xsm" />
 }
 
 function RowsTable({ page, onSort }: { page: ChatRowsPage; onSort: (column: ChatRowColumn) => void }) {
+  const captionId = React.useId()
   return (
-    // A region that scrolls sideways on narrow screens so the page itself never does; focusable so a keyboard can scroll it.
-    <div
-      role="region"
-      aria-label={`${page.label}, ${fmt(page.total)} rows`}
-      tabIndex={0}
-      data-testid="answer-rows-scroll"
-      // Rows scroll beneath the sticky header and composer like any long list: a deliberate overlap, not a layout defect.
-      data-layout-ok="overlap"
-      className="max-w-full overflow-x-auto rounded-xl border focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-    >
-      <table data-testid="answer-rows-table" data-sort-by={page.sortBy} data-sort-dir={page.sortDir} className="w-full min-w-[34rem] border-collapse text-left text-sm">
-        <caption className="sr-only">
+    // The Astryx Table scrolls sideways inside its own focusable, named group on narrow screens, so the page itself never does.
+    // Rows scroll beneath the sticky header and composer like any long list: a deliberate overlap, not a layout defect.
+    <VStack data-testid="answer-rows-scroll" data-layout-ok="overlap" isScrollable className="max-w-full">
+      <VisuallyHidden>
+        <Text id={captionId}>
           {page.label}: rows {fmt(page.offset + 1)} to {fmt(page.offset + page.rows.length)} of {fmt(page.total)}, sorted by {page.columns.find((c) => c.key === page.sortBy)?.label}
-        </caption>
-        <thead className="bg-muted/50 text-xs text-muted-foreground">
-          <tr>
+        </Text>
+      </VisuallyHidden>
+      <Table
+        data-testid="answer-rows-table"
+        data-sort-by={page.sortBy}
+        data-sort-dir={page.sortDir}
+        aria-label={`${page.label}, ${fmt(page.total)} rows`}
+        aria-describedby={captionId}
+        density="compact"
+        verticalAlign="top"
+        // Keeps the columns readable: below this the table scrolls sideways inside its own wrapper instead of squeezing cells.
+        // (A style, not a class: Astryx sets the table's own minWidth inline.)
+        style={{ minWidth: "34rem" }}
+      >
+        <TableHeader>
+          <TableRow isHeaderRow>
             {page.columns.map((c) => {
               const active = page.sortBy === c.key
               return (
-                <th
-                  key={c.key}
-                  scope="col"
-                  aria-sort={active ? (page.sortDir === "ASC" ? "ascending" : "descending") : "none"}
-                  className={cn("p-0 font-semibold whitespace-nowrap", c.type === "NUMBER" && "text-right")}
-                >
-                  <button
-                    type="button"
-                    data-testid="answer-rows-sort"
-                    data-column={c.key}
-                    onClick={() => onSort(c)}
-                    className={cn(
-                      "inline-flex min-h-9 w-full items-center gap-1 px-3 py-1 hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none pointer-coarse:min-h-11",
-                      c.type === "NUMBER" ? "justify-end" : "justify-start",
-                    )}
-                  >
-                    {c.label}
-                    <SortIcon active={active} dir={page.sortDir} />
-                  </button>
-                </th>
+                <TableHeaderCell key={c.key} scope="col" aria-sort={active ? (page.sortDir === "ASC" ? "ascending" : "descending") : "none"}>
+                  <HStack hAlign={c.type === "NUMBER" ? "end" : "start"}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      data-testid="answer-rows-sort"
+                      data-column={c.key}
+                      label={c.label}
+                      endContent={<SortIcon active={active} dir={page.sortDir} />}
+                      onClick={() => onSort(c)}
+                    />
+                  </HStack>
+                </TableHeaderCell>
               )
             })}
-          </tr>
-        </thead>
-        <tbody className="divide-y">
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {page.rows.map((r) => (
-            <tr key={r.id} data-testid="answer-row" data-row-id={r.id}>
+            <TableRow key={r.id} data-testid="answer-row" data-row-id={r.id}>
               {r.cells.map((cell, i) => {
                 const c = page.columns[i]
                 return i === 0 ? (
-                  <th key={c.key} scope="row" className="sticky left-0 bg-card px-3 py-2 text-left font-mono text-xs font-medium whitespace-nowrap">
-                    {cell}
-                  </th>
+                  <TableCell key={c.key} scope="row" role="rowheader" className="sticky left-0 min-w-36 bg-card whitespace-nowrap">
+                    <Text type="code" weight="medium">{cell}</Text>
+                  </TableCell>
                 ) : (
-                  <td
+                  <TableCell
                     key={c.key}
                     data-column={c.key}
-                    className={cn("px-3 py-2 align-top", c.type === "NUMBER" && "text-right tabular-nums", c.type === "DATE" && "whitespace-nowrap tabular-nums", c.type === "TEXT" && "min-w-24 max-w-[28rem]")}
+                    className={cn(c.type === "NUMBER" && "min-w-16 text-right tabular-nums", c.type === "DATE" && "min-w-36 whitespace-nowrap tabular-nums", c.type === "TEXT" && "min-w-24 max-w-md")}
                   >
-                    {cell ?? <span className="text-muted-foreground" aria-label="not recorded">—</span>}
-                  </td>
+                    {cell ?? <Text color="secondary" aria-label="not recorded">—</Text>}
+                  </TableCell>
                 )
               })}
-            </tr>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </Table>
+    </VStack>
   )
 }
 
@@ -314,16 +316,12 @@ function Pager({ page, onPage }: { page: ChatRowsPage; onPage: (offset: number) 
   const from = page.total === 0 ? 0 : page.offset + 1
   const to = page.offset + page.rows.length
   return (
-    <nav aria-label="Row pages" className="flex items-center gap-2">
-      <Button type="button" size="sm" variant="outline" data-testid="answer-rows-prev" disabled={page.offset === 0} onClick={() => onPage(Math.max(0, page.offset - page.limit))}>
-        Previous
-      </Button>
-      <span data-testid="answer-rows-range" className="text-xs whitespace-nowrap text-muted-foreground tabular-nums" aria-live="polite">
+    <HStack as="nav" aria-label="Row pages" gap={2} align="center">
+      <Button size="sm" variant="secondary" data-testid="answer-rows-prev" label="Previous" isDisabled={page.offset === 0} onClick={() => onPage(Math.max(0, page.offset - page.limit))} />
+      <Text type="supporting" textWrap="nowrap" hasTabularNumbers data-testid="answer-rows-range" aria-live="polite">
         {fmt(from)}–{fmt(to)} of {fmt(page.total)}
-      </span>
-      <Button type="button" size="sm" variant="outline" data-testid="answer-rows-next" disabled={to >= page.total} onClick={() => onPage(page.offset + page.limit)}>
-        Next
-      </Button>
-    </nav>
+      </Text>
+      <Button size="sm" variant="secondary" data-testid="answer-rows-next" label="Next" isDisabled={to >= page.total} onClick={() => onPage(page.offset + page.limit)} />
+    </HStack>
   )
 }

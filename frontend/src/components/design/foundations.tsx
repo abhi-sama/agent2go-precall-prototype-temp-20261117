@@ -221,7 +221,7 @@ import {Text} from "@astryxdesign/core/Text"
         <VStack gap={1}>
           {SIZES.map((size) => (
             <HStack key={size} gap={3} align="center" wrap="wrap">
-              <div className="w-28 shrink-0"><Text type="supporting" size="xsm">--font-size-{size}</Text></div>
+              <Text type="supporting" size="xsm" display="block" className="w-28 shrink-0">--font-size-{size}</Text>
               <span style={{ fontSize: `var(--font-size-${size})`, lineHeight: 1.2 }}>Calls reached HCPs</span>
             </HStack>
           ))}
@@ -246,15 +246,15 @@ function MotionDemo() {
     <VStack gap={2}>
       <Button label={on ? "Reset" : "Play durations"} size="sm" variant="secondary" onClick={() => setOn((v) => !v)} />
       {DURATIONS.map((d) => (
-        <div key={d} className="flex min-w-0 items-center gap-3">
-          <div className="w-28 shrink-0"><Text type="supporting" size="xsm">--duration-{d}</Text></div>
+        <HStack key={d} gap={3} align="center" className="min-w-0">
+          <Text type="supporting" size="xsm" display="block" className="w-28 shrink-0">--duration-{d}</Text>
           <div className="relative h-3 min-w-0 flex-1" style={{ background: "var(--color-track)", borderRadius: "var(--radius-full)" }}>
             <span
               className="absolute top-0 left-0 block h-3 w-3 motion-reduce:transition-none"
               style={{ background: "var(--color-accent)", borderRadius: "var(--radius-full)", left: on ? "calc(100% - 0.75rem)" : 0, transition: `left var(--duration-${d}) var(--ease-move)` }}
             />
           </div>
-        </div>
+        </HStack>
       ))}
     </VStack>
   )
@@ -274,29 +274,29 @@ style={{borderRadius: "var(--radius-container)"}}`}
         <GuideGroup title="Spacing" note="--spacing-N, 4px steps.">
           <VStack gap={1}>
             {SPACING.map((s) => (
-              <div key={s} className="flex items-center gap-3">
-                <div className="w-28 shrink-0"><Text type="supporting" size="xsm">--spacing-{s}</Text></div>
+              <HStack key={s} gap={3} align="center">
+                <Text type="supporting" size="xsm" display="block" className="w-28 shrink-0">--spacing-{s}</Text>
                 <span className="block h-3" style={{ width: `var(--spacing-${s})`, background: "var(--color-accent)", borderRadius: "var(--radius-inner)" }} />
-              </div>
+              </HStack>
             ))}
           </VStack>
         </GuideGroup>
         <GuideGroup title="Radius" note="Scales with the theme's radius multiplier.">
           <HStack gap={3} wrap="wrap">
             {RADII.map((r) => (
-              <div key={r} className="flex flex-col items-center gap-1">
+              <VStack key={r} gap={1} align="center">
                 <span className="block size-16" style={{ background: "var(--color-background-muted)", border: "1px solid var(--color-border-emphasized)", borderRadius: `var(--radius-${r})` }} />
                 <Text type="supporting" size="xsm">{r}</Text>
-              </div>
+              </VStack>
             ))}
           </HStack>
         </GuideGroup>
         <GuideGroup title="Elevation" note="Flat by default. Raise only what floats.">
           <HStack gap={4} wrap="wrap">
             {SHADOWS.map((s) => (
-              <div key={s} className="flex w-24 flex-col items-center gap-2 px-2 py-4" style={{ background: "var(--color-background-card)", boxShadow: `var(--shadow-${s})`, borderRadius: "var(--radius-container)" }}>
+              <VStack key={s} gap={2} align="center" paddingInline={2} paddingBlock={4} className="w-24" style={{ background: "var(--color-background-card)", boxShadow: `var(--shadow-${s})`, borderRadius: "var(--radius-container)" }}>
                 <Text type="supporting" size="xsm">--shadow-{s}</Text>
-              </div>
+              </VStack>
             ))}
           </HStack>
         </GuideGroup>

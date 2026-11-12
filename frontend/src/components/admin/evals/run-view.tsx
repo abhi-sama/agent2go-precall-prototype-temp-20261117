@@ -7,7 +7,11 @@ import { ClickableCard } from "@astryxdesign/core/ClickableCard"
 import { Card } from "@astryxdesign/core/Card"
 import { CodeBlock } from "@astryxdesign/core/CodeBlock"
 import { Collapsible } from "@astryxdesign/core/Collapsible"
+import { Grid } from "@astryxdesign/core/Grid"
 import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList"
 import { ProgressBar } from "@astryxdesign/core/ProgressBar"
 import { Skeleton } from "@astryxdesign/core/Skeleton"
 import { Text } from "@astryxdesign/core/Text"
@@ -25,7 +29,7 @@ import { StatusPill, VerdictBadge } from "./verdict"
 function ScoreTile({ id, label, value, bar, hint }: { id: string; label: string; value: number | null; bar: number; hint: string }) {
   const met = value !== null && value >= bar
   return (
-    <div data-testid={`score-${id}`} data-value={value ?? ""} className="min-w-0">
+    <VStack data-testid={`score-${id}`} data-value={value ?? ""} className="min-w-0">
       <Card padding={4} height="100%">
         <VStack gap={2}>
           <Text type="label" weight="semibold" color="secondary">{label}</Text>
@@ -34,13 +38,13 @@ function ScoreTile({ id, label, value, bar, hint }: { id: string; label: string;
           <Text type="supporting" as="p" display="block">{value === null ? "Not asked in this suite" : met ? "Meets the bar" : "Below the bar"} · {hint}</Text>
         </VStack>
       </Card>
-    </div>
+    </VStack>
   )
 }
 
 function LeakTile({ count, probes }: { count: number; probes: number | null }) {
   return (
-    <div data-testid="score-leaks" data-value={count} className="min-w-0">
+    <VStack data-testid="score-leaks" data-value={count} className="min-w-0">
       <Card padding={4} height="100%" variant={count > 0 ? "red" : "default"}>
         <VStack gap={2}>
           <Text type="label" weight="semibold" color="secondary">Leaks</Text>
@@ -49,7 +53,7 @@ function LeakTile({ count, probes }: { count: number; probes: number | null }) {
           <Text type="supporting" as="p" display="block">of {probes ?? "—"} leak probes · the bar is zero</Text>
         </VStack>
       </Card>
-    </div>
+    </VStack>
   )
 }
 
@@ -60,7 +64,7 @@ function ChainTile({ run }: { run: EvalRunSummary }) {
   const correct = run.chainsCorrect ?? 0
   const met = asked > 0 && depth >= CHAIN_DEPTH_BAR && correct === asked
   return (
-    <div data-testid="score-chains" data-value={asked ? depth : ""} className="min-w-0">
+    <VStack data-testid="score-chains" data-value={asked ? depth : ""} className="min-w-0">
       <Card padding={4} height="100%">
         <VStack gap={2}>
           <Text type="label" weight="semibold" color="secondary">Follow-up depth</Text>
@@ -71,27 +75,27 @@ function ChainTile({ run }: { run: EvalRunSummary }) {
           </Text>
         </VStack>
       </Card>
-    </div>
+    </VStack>
   )
 }
 
 export function RunScores({ run }: { run: EvalRunSummary }) {
   return (
-    <div data-testid="run-scores" className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <VStack gap={3} data-testid="run-scores">
+      <Grid columns={{ minWidth: 200, max: 4 }} gap={3}>
         <ScoreTile id="faithfulness" label="Faithfulness" value={run.faithfulness} bar={BAR.faithfulness} hint="figures and quotes match the data" />
         <ScoreTile id="citations" label="Citation correctness" value={run.citationCorrectness} bar={BAR.citationCorrectness} hint="cited records are readable" />
         <ScoreTile id="exact" label="Exact counts" value={run.exactCountRate} bar={BAR.exactCountRate} hint="counts and shares equal the SQL" />
         <LeakTile count={run.leakCount} probes={run.probeCount} />
-      </div>
-      <div data-testid="run-scores-more" className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+      </Grid>
+      <Grid columns={{ minWidth: 200, max: 5 }} gap={3} data-testid="run-scores-more">
         <ScoreTile id="direction" label="Trends and comparisons" value={run.directionRate} bar={BAR.directionRate} hint="direction or leader agrees with SQL" />
         <ScoreTile id="visual" label="Chart numbers" value={run.visualMatchRate} bar={BAR.visualMatchRate} hint="every plotted number equals SQL" />
         <ScoreTile id="rows" label="Show rows" value={run.rowMatchRate} bar={BAR.rowMatchRate} hint="each table lists exactly the rows its figure counted" />
         <ScoreTile id="theme" label="Theme coverage" value={run.themeCoverage} bar={BAR.themeCoverage} hint="answers cover the theme asked" />
         <ChainTile run={run} />
-      </div>
-    </div>
+      </Grid>
+    </VStack>
   )
 }
 
@@ -99,7 +103,7 @@ export function RunScores({ run }: { run: EvalRunSummary }) {
 export function CategoryStrip({ run, onPick }: { run: EvalRunSummary; onPick: (category: EvalCategory) => void }) {
   if (run.categories.length === 0) return null
   return (
-    <section data-testid="category-strip" aria-label="By question type" className="flex flex-col gap-2">
+    <VStack as="section" gap={2} data-testid="category-strip" aria-label="By question type">
       <Heading level={4} weight="semibold">By question type</Heading>
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
         {EVAL_CATEGORIES.map((c) => run.categories.find((x) => x.category === c)).filter((x): x is NonNullable<typeof x> => !!x).map((c) => {
@@ -117,29 +121,29 @@ export function CategoryStrip({ run, onPick }: { run: EvalRunSummary; onPick: (c
                 onClick={() => onPick(c.category)}
                 label={`${CATEGORY_LABEL[c.category]}: ${c.passed} of ${c.total} passed. Jump to these questions.`}
               >
-                <span className="flex w-full min-w-0 flex-col items-start gap-1 py-1 text-left">
+                <VStack as="span" gap={1} align="start" paddingBlock={1} width="100%" className="min-w-0 text-left">
                   <Text type="supporting" weight="semibold" maxLines={1}>{CATEGORY_LABEL[c.category]}</Text>
                   <Text type="large" weight="semibold" display="block" hasTabularNumbers>{c.passed}/{c.total}</Text>
                   <Text type="supporting" display="block" hasTabularNumbers>{pct(c.rate)} · {clean ? "all pass" : `${c.total - c.passed} fail`}</Text>
-                  <span className="w-full" aria-hidden>
+                  <VStack as="span" width="100%" aria-hidden>
                     <ProgressBar label="Share passed" isLabelHidden value={Math.round(c.rate * 100)} variant={clean ? "success" : "warning"} />
-                  </span>
-                </span>
+                  </VStack>
+                </VStack>
               </ClickableCard>
             </li>
           )
         })}
       </ul>
-    </section>
+    </VStack>
   )
 }
 
 function Metric({ label, value }: { label: string; value: number | null }) {
   return (
-    <span className="inline-flex items-baseline gap-1">
+    <HStack as="span" gap={1} vAlign="center">
       <Text type="supporting">{label}</Text>
       <Text weight="semibold" hasTabularNumbers>{pct(value)}</Text>
-    </span>
+    </HStack>
   )
 }
 
@@ -152,14 +156,13 @@ const CHECKS: { key: "direction" | "visual" | "visualMatch" | "rowsMatch" | "cov
 
 function Facts({ items }: { items: [string, React.ReactNode][] }) {
   return (
-    <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-5">
+    <MetadataList columns="multi" label={{ position: "top" }}>
       {items.map(([label, value]) => (
-        <div key={label}>
-          <dt><Text type="supporting">{label}</Text></dt>
-          <dd><Text hasTabularNumbers>{value}</Text></dd>
-        </div>
+        <MetadataListItem key={label} label={label}>
+          <Text hasTabularNumbers>{value}</Text>
+        </MetadataListItem>
       ))}
-    </dl>
+    </MetadataList>
   )
 }
 
@@ -178,62 +181,62 @@ export function ResultRow({ result, all, onConversation }: { result: EvalResult;
           onOpenChange={setOpen}
           chevronPosition="end"
           trigger={
-            <span className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 py-1 text-start">
-              <span className="flex min-w-0 flex-1 basis-56 flex-col">
-                <Text weight="medium">{turn ? <span className="tabular-nums">{result.turn}. </span> : null}{result.title}</Text>
+            <HStack as="span" gap={3} wrap="wrap" align="center" paddingBlock={1} width="100%" className="text-start">
+              <VStack as="span" className="min-w-0 flex-1 basis-56">
+                <Text weight="medium">{turn ? <Text hasTabularNumbers>{result.turn}. </Text> : null}{result.title}</Text>
                 <Text type="supporting">{CATEGORY_LABEL[result.category]}{turn ? ` · ${turn}` : ""}</Text>
-              </span>
-              <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              </VStack>
+              <HStack as="span" gap={3} wrap="wrap" align="center">
                 {result.kind !== "LEAK_PROBE" && <Metric label="Faithful" value={result.faithfulness} />}
                 {result.citations !== null && <Metric label="Citations" value={result.citations} />}
                 {result.exactness !== null && <Metric label="Exact" value={result.exactness} />}
                 {CHECKS.filter((c) => result[c.key] !== null).map((c) => (
                   <Metric key={c.key} label={c.label} value={result[c.key]} />
                 ))}
-              </span>
+              </HStack>
               <VerdictBadge verdict={result.verdict} leaked={result.leaked} />
-            </span>
+            </HStack>
           }
         >
           {open && (
             <VStack gap={3} padding={4} data-testid={`result-detail-${result.questionId}`}>
-              <div>
+              <VStack>
                 <Text type="label" color="secondary" as="p" display="block">Question asked</Text>
                 <Text as="p" display="block">{result.prompt}</Text>
-              </div>
+              </VStack>
               {result.reasons.length > 0 && (
-                <ul data-testid="result-reasons" className="flex flex-col gap-2">
+                <VStack as="ul" gap={2} data-testid="result-reasons">
                   {result.reasons.map((r) => (
                     <li key={r}>
                       <Banner status="error" collapsible={false} title={REASON_TEXT[r] ?? r} />
                     </li>
                   ))}
-                </ul>
+                </VStack>
               )}
               {result.expectedText ? (
-                <p data-testid="expected-text">
+                <Text as="p" display="block" data-testid="expected-text">
                   <Text>The correct answer: </Text><Text weight="semibold" hasTabularNumbers>{result.expectedText}</Text>
-                </p>
+                </Text>
               ) : result.expected !== null ? (
-                <p>
+                <Text as="p" display="block">
                   <Text>The database says </Text><Text weight="semibold" hasTabularNumbers>{result.expected.toLocaleString("en-US")}</Text><Text>.</Text>
-                </p>
+                </Text>
               ) : null}
-              <div>
+              <VStack>
                 <Text type="label" color="secondary" as="p" display="block">What the agent answered</Text>
                 <CodeBlock data-testid="answer-excerpt" code={result.answerExcerpt || "No answer was returned."} language="text" hasLanguageLabel={false} isWrapped hasCopyButton={false} size="sm" width="100%" />
-              </div>
+              </VStack>
               {result.visualNotes.length > 0 && (
-                <ul data-testid="visual-notes" className="flex flex-col gap-1">
+                <VStack as="ul" gap={1} data-testid="visual-notes">
                   {result.visualNotes.map((n) => (
                     <li key={n}><Text type="supporting">Chart check: </Text><Text>{n}</Text></li>
                   ))}
-                </ul>
+                </VStack>
               )}
               {result.unverifiedSample.length > 0 && (
-                <p data-testid="unverified-sample">
+                <Text as="p" display="block" data-testid="unverified-sample">
                   <Text type="supporting">Figures no tool returned: </Text><Text weight="semibold" hasTabularNumbers>{result.unverifiedSample.join(", ")}</Text>
-                </p>
+                </Text>
               )}
               <Facts
                 items={[
@@ -245,9 +248,9 @@ export function ResultRow({ result, all, onConversation }: { result: EvalResult;
                 ]}
               />
               {result.chainId && onConversation && (
-                <div>
-                  <Button variant="secondary" size="sm" data-testid={`conversation-${result.questionId}`} icon={<Link2 aria-hidden />} label="Show the whole conversation" onClick={() => onConversation(result.chainId!)} />
-                </div>
+                <HStack>
+                  <Button variant="secondary" size="sm" data-testid={`conversation-${result.questionId}`} icon={<Icon icon={Link2} />} label="Show the whole conversation" onClick={() => onConversation(result.chainId!)} />
+                </HStack>
               )}
             </VStack>
           )}
@@ -268,21 +271,21 @@ function ChainCard({ chainId, turns, all, open, onToggle, onConversation }: { ch
           onOpenChange={() => onToggle()}
           chevronPosition="end"
           trigger={
-            <span className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 py-1 text-start">
-              <span className="flex min-w-0 flex-1 basis-56 flex-col">
-                <Text weight="medium">Conversation <span className="font-mono text-sm">{chainId}</span></Text>
+            <HStack as="span" gap={3} wrap="wrap" align="center" paddingBlock={1} width="100%" className="text-start">
+              <VStack as="span" className="min-w-0 flex-1 basis-56">
+                <Text weight="medium">Conversation <Text type="code">{chainId}</Text></Text>
                 <Text type="supporting" hasTabularNumbers>{turns.length} turns · {failed === 0 ? "every turn stayed correct" : `${failed} of ${turns.length} turns failed`}</Text>
-              </span>
+              </VStack>
               <VerdictBadge verdict={failed === 0 ? "PASS" : "FAIL"} />
-            </span>
+            </HStack>
           }
         >
           {open && (
-            <ol data-testid={`chain-turns-${chainId}`} className="flex flex-col gap-2 p-3">
+            <VStack as="ol" gap={2} padding={3} data-testid={`chain-turns-${chainId}`}>
               {turns.map((t) => (
                 <ResultRow key={t.questionId} result={t} all={all} onConversation={onConversation} />
               ))}
-            </ol>
+            </VStack>
           )}
         </Collapsible>
       </Card>
@@ -308,16 +311,16 @@ export function ResultGroups({ run, focus }: { run: EvalRun; focus: { category: 
   }, [focus, scrollTo])
 
   return (
-    <div data-testid="results" className="flex flex-col gap-6">
+    <VStack gap={6} data-testid="results">
       {EVAL_CATEGORIES.map((category) => {
         if (category === "FOLLOW_UP_CHAIN") {
           if (chains.length === 0) return null
           return (
-            <section key={category} id={`group-${category}`} data-testid={`group-${category}`} aria-label={CATEGORY_LABEL[category]} className="scroll-mt-4 flex flex-col gap-2">
+            <VStack as="section" gap={2} key={category} id={`group-${category}`} data-testid={`group-${category}`} aria-label={CATEGORY_LABEL[category]} className="scroll-mt-4">
               <Heading level={4} weight="semibold">
                 {CATEGORY_LABEL[category]} <Text type="supporting">{chains.length} conversations, {run.results.filter((r) => r.chainId).length} turns</Text>
               </Heading>
-              <ul className="flex flex-col gap-2">
+              <VStack as="ul" gap={2}>
                 {chains.map((chainId) => (
                   <ChainCard
                     key={chainId}
@@ -329,27 +332,27 @@ export function ResultGroups({ run, focus }: { run: EvalRun; focus: { category: 
                     onConversation={showConversation}
                   />
                 ))}
-              </ul>
-            </section>
+              </VStack>
+            </VStack>
           )
         }
         const rows = run.results.filter((r) => r.category === category && !r.chainId)
         if (rows.length === 0) return null
         const passed = rows.filter((r) => r.verdict === "PASS").length
         return (
-          <section key={category} id={`group-${category}`} data-testid={`group-${category}`} aria-label={CATEGORY_LABEL[category]} className="scroll-mt-4 flex flex-col gap-2">
+          <VStack as="section" gap={2} key={category} id={`group-${category}`} data-testid={`group-${category}`} aria-label={CATEGORY_LABEL[category]} className="scroll-mt-4">
             <Heading level={4} weight="semibold">
               {CATEGORY_LABEL[category]} <Text type="supporting" hasTabularNumbers>{passed} of {rows.length} passed</Text>
             </Heading>
-            <ul className="flex flex-col gap-2">
+            <VStack as="ul" gap={2}>
               {rows.map((r) => (
                 <ResultRow key={r.questionId} result={r} />
               ))}
-            </ul>
-          </section>
+            </VStack>
+          </VStack>
         )
       })}
-    </div>
+    </VStack>
   )
 }
 
@@ -357,34 +360,32 @@ export function RunHeader({ run }: { run: EvalRunSummary }) {
   const failed = run.verdict === "FAIL"
   return (
     <VStack gap={3} data-testid="run-header">
-      <div className="flex flex-wrap items-center gap-3">
+      <HStack gap={3} wrap="wrap" align="center">
         <Heading level={3} weight="semibold">{run.personaLabel} suite</Heading>
         <StatusPill status={run.status} />
         {run.status === "COMPLETE" && <VerdictBadge verdict={run.verdict} leaked={run.leakCount > 0} />}
         {run.source === "LEAKY_CANARY" && (
-          <span data-testid="self-test-badge" className="inline-flex">
-            <Badge variant="neutral" icon={<ShieldCheck aria-hidden className="size-3.5" />} label="Detector self-test" />
-          </span>
+          <HStack as="span" data-testid="self-test-badge">
+            <Badge variant="neutral" icon={<Icon icon={ShieldCheck} size="xsm" />} label="Detector self-test" />
+          </HStack>
         )}
-      </div>
+      </HStack>
       <Text type="supporting" as="p" display="block">
         Asked as {run.subjectLabel} · started {when(run.startedAt)} · {run.status === "COMPLETE" ? `took ${seconds(run.durationMs)}` : run.status === "ERROR" ? "stopped" : "running"} · scored by {run.scorer}
       </Text>
       {run.source === "LEAKY_CANARY" && (
-        <div className="max-w-3xl">
-          <Text type="supporting" as="p" display="block">
-            This run asked only the leak probes of a deliberately leaky stand-in, to prove the detector fails a run that retrieves out-of-scope data. It says nothing about the real agent.
-          </Text>
-        </div>
+        <Text type="supporting" as="p" display="block" className="max-w-3xl">
+          This run asked only the leak probes of a deliberately leaky stand-in, to prove the detector fails a run that retrieves out-of-scope data. It says nothing about the real agent.
+        </Text>
       )}
       {failed && run.failureReasons.length > 0 && (
-        <ul data-testid="run-failure-reasons" className="flex flex-col gap-2">
+        <VStack as="ul" gap={2} data-testid="run-failure-reasons">
           {run.failureReasons.map((r) => (
             <li key={r}>
               <Banner status="error" collapsible={false} title={RUN_FAILURE_TEXT[r] ?? r} />
             </li>
           ))}
-        </ul>
+        </VStack>
       )}
     </VStack>
   )
@@ -394,7 +395,7 @@ export function RunProgress({ run }: { run: EvalRunSummary }) {
   const total = run.questionCount ?? 0
   const share = total ? Math.round((run.answered / total) * 100) : 0
   return (
-    <div data-testid="run-progress" role="status">
+    <VStack data-testid="run-progress" role="status">
       <Card padding={4}>
         <VStack gap={2}>
           <Text weight="medium" as="p" display="block">{run.status === "SCORING" ? "Scoring the answers…" : "Asking the agent the golden questions…"}</Text>
@@ -402,7 +403,7 @@ export function RunProgress({ run }: { run: EvalRunSummary }) {
           <ProgressBar label="Questions answered" isLabelHidden value={share} />
         </VStack>
       </Card>
-    </div>
+    </VStack>
   )
 }
 
@@ -410,19 +411,19 @@ export function RunBody({ run }: { run: EvalRun }) {
   const [focus, setFocus] = React.useState<{ category: EvalCategory; nonce: number } | null>(null)
   if (run.status === "ERROR") {
     return (
-      <div data-testid="run-error">
+      <VStack data-testid="run-error">
         <Banner status="error" collapsible={false} title="This run did not finish" description={`${run.errorCode === "TIMED_OUT" ? "It took too long. " : ""}Start it again; nothing was changed.`} />
-      </div>
+      </VStack>
     )
   }
   if (run.status !== "COMPLETE") return <RunProgress run={run} />
   return (
-    <div className="flex flex-col gap-5">
+    <VStack gap={5}>
       <RunScores run={run} />
       <CategoryStrip run={run} onPick={(category) => setFocus({ category, nonce: (focus?.nonce ?? 0) + 1 })} />
       <HumanRatingsStrip run={run} />
       <ResultGroups run={run} focus={focus} />
-    </div>
+    </VStack>
   )
 }
 
@@ -430,34 +431,34 @@ export function RunBody({ run }: { run: EvalRun }) {
 export function HumanRatingsStrip({ run }: { run: EvalRun }) {
   const h = run.humanRatings
   return (
-    <section data-testid="human-ratings-strip" aria-label="Human ratings of live answers">
+    <VStack as="section" data-testid="human-ratings-strip" aria-label="Human ratings of live answers">
       <Card padding={4}>
-        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+        <HStack gap={4} wrap="wrap" vAlign="center">
           <Heading level={4} weight="semibold">Human ratings of live answers</Heading>
           {h.total === 0 ? (
             <Text type="supporting">No {run.personaLabel} has rated an answer yet.</Text>
           ) : (
             <Text type="supporting" hasTabularNumbers>
-              <strong>{h.up}</strong> helpful · <strong>{h.down}</strong> not helpful · {h.withNote} with a note · automated scores of those answers: faithfulness {pct(h.faithfulness)}, citations {pct(h.citationCorrectness)}
+              <Text weight="bold">{h.up}</Text> helpful · <Text weight="bold">{h.down}</Text> not helpful · {h.withNote} with a note · automated scores of those answers: faithfulness {pct(h.faithfulness)}, citations {pct(h.citationCorrectness)}
             </Text>
           )}
-        </div>
+        </HStack>
       </Card>
-    </section>
+    </VStack>
   )
 }
 
 export function RunSkeleton() {
   return (
-    <div data-testid="run-loading" aria-busy="true" className="flex flex-col gap-3">
+    <VStack gap={3} data-testid="run-loading" aria-busy="true">
       <Skeleton width={256} height={32} />
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <Grid columns={{ minWidth: 200, max: 4 }} gap={3}>
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} width="100%" height={160} index={i} />
         ))}
-      </div>
+      </Grid>
       <Skeleton width="100%" height={64} />
       <Skeleton width="100%" height={64} />
-    </div>
+    </VStack>
   )
 }

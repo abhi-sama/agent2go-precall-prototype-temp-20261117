@@ -1,13 +1,26 @@
 "use client"
 
-import { CalendarRange, RotateCcw } from "lucide-react"
+import { Button } from "@astryxdesign/core/Button"
+import type { ISODateString } from "@astryxdesign/core/Calendar"
+import { Card } from "@astryxdesign/core/Card"
+import { DateInput } from "@astryxdesign/core/DateInput"
+import { Grid } from "@astryxdesign/core/Grid"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { Selector } from "@astryxdesign/core/Selector"
+import { Text } from "@astryxdesign/core/Text"
+import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton"
+import { VStack } from "@astryxdesign/core/VStack"
+import { RotateCcw } from "lucide-react"
 import * as React from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import type { DateRange } from "@/lib/data/types"
 import { isIsoDate, matchPreset, presetRange, RANGE_PRESETS, type RangePresetId } from "@/lib/dates"
-import { cn } from "@/lib/utils"
+
+/** The Selector has no empty-string option value, so the "all" option travels as this sentinel. */
+const ALL = "__all__"
+
+/** Only a complete calendar date reaches the DateInput; in-progress typing is shown as empty. */
+const asDate = (value: string | undefined) => (value && isIsoDate(value) ? (value as ISODateString) : undefined)
 
 export interface SelectFilter {
   id: string
@@ -61,111 +74,91 @@ export function FilterBar({ range, onRangeChange, defaultRange, onReset, selects
   const isDefault = range.from === defaultRange.from && range.to === defaultRange.to
 
   return (
-    <section
-      aria-label="Filters"
-      data-testid="filter-bar"
-      className={cn("flex flex-col gap-2.5 rounded-2xl border bg-card p-3 shadow-card", className)}
-    >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <span className="flex items-center gap-2 text-sm font-semibold">
-          <CalendarRange className="size-4 text-accent-text" aria-hidden /> Date range
-        </span>
-        <div role="group" aria-label="Date range presets" className="scroll-snap-x -mx-1 flex max-w-full gap-1.5 overflow-x-auto px-1 py-0.5">
-          {RANGE_PRESETS.map((p) => {
-            const on = !showCustom && activePreset === p.id
-            return (
-              <button
-                key={p.id}
-                type="button"
-                disabled={disabled}
-                aria-pressed={on}
-                data-testid={`range-${p.id}`}
-                onClick={() => pick(p.id)}
-                className={cn(
-                  "snap-item min-h-11 shrink-0 rounded-xl border px-4 text-sm font-medium transition-colors disabled:opacity-50",
-                  on ? "border-primary bg-primary text-primary-foreground shadow-card" : "border-border bg-background hover:bg-accent",
-                )}
-              >
-                {p.label}
-              </button>
-            )
-          })}
-          <button
-            type="button"
-            disabled={disabled}
-            aria-pressed={showCustom}
-            data-testid="range-custom"
-            onClick={() => setCustom(true)}
-            className={cn(
-              "snap-item min-h-11 shrink-0 rounded-xl border px-4 text-sm font-medium transition-colors disabled:opacity-50",
-              showCustom ? "border-primary bg-primary text-primary-foreground shadow-card" : "border-border bg-background hover:bg-accent",
+    <Card data-testid="filter-bar" padding={3} elevation="low" className={className}>
+      <section aria-label="Filters">
+        <VStack gap={2}>
+          <HStack gap={2} wrap="wrap" align="center" justify="between">
+            <HStack gap={4} wrap="wrap" align="center">
+              <HStack gap={2} align="center">
+                <Icon icon="calendar" size="sm" color="accent" />
+                <Text weight="semibold">Date range</Text>
+              </HStack>
+              <HStack isScrollable maxWidth="100%">
+                <ToggleButtonGroup
+                  label="Date range presets"
+                  value={showCustom ? "custom" : activePreset}
+                  isDisabled={disabled}
+                  onChange={(next) => {
+                    if (next === "custom") setCustom(true)
+                    else if (typeof next === "string") pick(next as RangePresetId)
+                  }}
+                >
+                  {RANGE_PRESETS.map((p) => (
+                    <ToggleButton key={p.id} value={p.id} label={p.label} data-testid={`range-${p.id}`} />
+                  ))}
+                  <ToggleButton value="custom" label="Custom" data-testid="range-custom" />
+                </ToggleButtonGroup>
+              </HStack>
+            </HStack>
+            {(!isDefault || selects?.some((select) => Boolean(select.value))) && (
+              <Button
+                label="Reset"
+                variant="ghost"
+                size="sm"
+                icon={<Icon icon={RotateCcw} />}
+                onClick={() => {
+                  setCustom(false)
+                  if (onReset) onReset()
+                  else onRangeChange(defaultRange)
+                }}
+              />
             )}
-          >
-            Custom
-          </button>
-        </div>
-        {(!isDefault || selects?.some((select) => Boolean(select.value))) && (
-          <Button variant="ghost" size="sm" className="ml-auto" onClick={() => { setCustom(false); if (onReset) onReset(); else onRangeChange(defaultRange) }}>
-            <RotateCcw aria-hidden /> Reset
-          </Button>
-        )}
-      </div>
+          </HStack>
 
-      {(showCustom || (selects && selects.length > 0)) && (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] items-end gap-x-3 gap-y-2">
-          {showCustom && (
-            <>
-              <div className="flex min-w-0 flex-col gap-1.5">
-                <Label htmlFor="range-from" className="text-xs">From</Label>
-                <Input
-                  id="range-from"
-                  type="date"
-                  className="h-11 w-full"
-                  value={draft.from}
-                  max={draft.to || undefined}
-                  disabled={disabled}
-                  aria-invalid={!draftValid}
-                  onChange={(e) => setDraftField("from", e.target.value)}
-                />
-              </div>
-              <div className="flex min-w-0 flex-col gap-1.5">
-                <Label htmlFor="range-to" className="text-xs">To</Label>
-                <Input
-                  id="range-to"
-                  type="date"
-                  className="h-11 w-full"
-                  value={draft.to}
-                  min={draft.from || undefined}
-                  disabled={disabled}
-                  aria-invalid={!draftValid}
-                  onChange={(e) => setDraftField("to", e.target.value)}
-                />
-              </div>
-              {!draftValid && (
-                <p role="alert" className="col-span-full text-sm text-destructive">
-                  Pick a start date on or before the end date.
-                </p>
+          {(showCustom || (selects && selects.length > 0)) && (
+            <Grid columns={{ minWidth: 144, repeat: "fit" }} columnGap={3} rowGap={2} align="end">
+              {showCustom && (
+                <>
+                  <DateInput
+                    label="From"
+                    id="range-from"
+                    width="100%"
+                    value={asDate(draft.from)}
+                    max={asDate(draft.to)}
+                    isDisabled={disabled}
+                    status={draftValid ? undefined : { type: "error" }}
+                    onChange={(next) => setDraftField("from", next ?? "")}
+                  />
+                  <DateInput
+                    label="To"
+                    id="range-to"
+                    width="100%"
+                    value={asDate(draft.to)}
+                    min={asDate(draft.from)}
+                    isDisabled={disabled}
+                    status={draftValid ? undefined : { type: "error", message: "Pick a start date on or before the end date." }}
+                    statusVariant="detached"
+                    onChange={(next) => setDraftField("to", next ?? "")}
+                  />
+                </>
               )}
-            </>
+              {selects?.map((s) => (
+                <Selector
+                  key={s.id}
+                  id={`filter-${s.id}`}
+                  label={s.label}
+                  width="100%"
+                  presentation="adaptive"
+                  value={s.value === "" ? ALL : s.value}
+                  isDisabled={disabled || selectsDisabled}
+                  onChange={(next) => s.onChange(next === ALL ? "" : next)}
+                  options={s.options.map((o) => ({ value: o.value === "" ? ALL : o.value, label: o.label }))}
+                />
+              ))}
+            </Grid>
           )}
-          {selects?.map((s) => (
-            <div key={s.id} className="flex min-w-0 max-w-full flex-col gap-1.5">
-              <Label htmlFor={`filter-${s.id}`} className="text-xs">{s.label}</Label>
-              <select
-                id={`filter-${s.id}`}
-                value={s.value}
-                disabled={disabled || selectsDisabled}
-                onChange={(e) => s.onChange(e.target.value)}
-                className="h-11 w-full min-w-0 truncate rounded-lg border border-input bg-background px-3 text-sm"
-              >
-                {s.options.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
+        </VStack>
+      </section>
+    </Card>
   )
 }

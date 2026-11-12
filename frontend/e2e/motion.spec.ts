@@ -49,17 +49,22 @@ const movingAnimations = (page: Page) =>
       .map((a) => (a instanceof CSSTransition ? `transition:${a.transitionProperty}` : `animation:${(a as CSSAnimation).animationName}`)),
   )
 
+/** A drawer at rest has no offset: `none`, or the identity matrix once the slide has run. */
+const AT_REST = /^(none|matrix\(1, 0, 0, 1, 0, 0\))$/
+
 test.describe("planned motion plays", () => {
   test("the evidence drawer slides in from its edge", async ({ page }) => {
     await page.goto("/msl/activity")
     const open = page.getByTestId("evidence-open-calls")
     await expect(open).toBeVisible()
-    const samples = await sampleAfter(page, "[data-slot=sheet-content]", "translate", 1500, () => open.click())
-    const offsets = samples.filter((s) => s.endsWith("%")).map((s) => Number.parseFloat(s))
-    // Starts off screen (100%), passes through intermediate positions, and lands at rest.
-    expect(offsets[0]).toBeGreaterThan(50)
-    expect(offsets.some((o) => o > 5 && o < 95), `translate samples: ${samples.join(" | ")}`).toBe(true)
-    await expect.poll(() => page.locator("[data-slot=sheet-content]").evaluate((el) => getComputedStyle(el).translate)).toBe("none")
+    // The Astryx Drawer slides on `transform`: sample its horizontal offset in px (`matrix(1, 0, 0, 1, tx, 0)` or `none`).
+    const samples = await sampleAfter(page, "[data-testid=evidence-drawer]", "transform", 1500, () => open.click())
+    const offsets = samples.filter((s) => s.startsWith("matrix")).map((s) => Number.parseFloat(s.slice(s.indexOf("(") + 1, -1).split(",")[4]))
+    const start = Math.max(...offsets)
+    // Starts off screen, passes through intermediate positions, and lands at rest.
+    expect(start, `transform samples: ${samples.join(" | ")}`).toBeGreaterThan(100)
+    expect(offsets.some((o) => o > start * 0.05 && o < start * 0.95), `transform samples: ${samples.join(" | ")}`).toBe(true)
+    await expect.poll(() => page.locator("[data-testid=evidence-drawer]").evaluate((el) => getComputedStyle(el).transform)).toMatch(AT_REST)
   })
 
   // Buttons are Astryx Buttons: a press paints the theme's pressed overlay instead of scaling. A fine pointer gets it
@@ -136,7 +141,8 @@ test.describe("input stays live during transitions", () => {
     await page.goto("/msl/activity")
     await page.getByTestId("evidence-open-calls").click()
     await page.keyboard.press("Escape")
-    await expect(page.locator("[data-slot=sheet-content]")).toHaveCount(0)
+    // The Astryx Drawer keeps its closed <dialog> in the DOM; it is hidden once the exit finishes.
+    await expect(page.getByTestId("evidence-drawer")).toBeHidden()
     // And reopened straight away: the transition retargets instead of queueing.
     await page.getByTestId("evidence-open-calls").click()
     await expect(page.getByTestId("evidence-table")).toBeVisible()
@@ -226,7 +232,7 @@ test.describe("reduced motion", () => {
     // The tile is still there at full opacity, with no transform left on it.
     const tile = page.getByTestId("exec-kpi-calls")
     await expect.poll(() => tile.evaluate((el) => getComputedStyle(el).opacity)).toBe("1")
-    expect(await tile.evaluate((el) => getComputedStyle(el).transform)).toBe("none")
+    expect(await tile.evaluate((el) => getComputedStyle(el).transform)).toMatch(AT_REST)
     // The map is the flat one: no globe, nothing flies.
     await expect(page.getByTestId("territory-map")).toHaveAttribute("data-renderer", "flat")
   })
@@ -237,11 +243,11 @@ test.describe("reduced motion", () => {
     await open.click()
     await expect(page.getByTestId("evidence-table")).toBeVisible()
     expect(await movingAnimations(page)).toEqual([])
-    const sheet = page.locator("[data-slot=sheet-content]")
-    await expect.poll(() => sheet.evaluate((el) => getComputedStyle(el).translate)).toBe("none")
+    const sheet = page.locator("[data-testid=evidence-drawer]")
+    await expect.poll(() => sheet.evaluate((el) => getComputedStyle(el).transform)).toMatch(AT_REST)
     // Close it, then hold a press on a button: no scale.
     await page.keyboard.press("Escape")
-    await expect(sheet).toHaveCount(0)
+    await expect(sheet).toBeHidden()
     const box = (await open.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await page.mouse.down()
@@ -263,7 +269,7 @@ test.describe("reduced motion", () => {
     await expect(stage).toBeAttached()
     await page.mouse.move(300, 200)
     await page.mouse.move(700, 260)
-    expect(await stage.evaluate((el) => getComputedStyle(el).transform)).toBe("none")
+    expect(await stage.evaluate((el) => getComputedStyle(el).transform)).toMatch(AT_REST)
   })
 })
 

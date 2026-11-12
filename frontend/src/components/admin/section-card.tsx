@@ -1,12 +1,10 @@
 import { Card } from "@astryxdesign/core/Card"
 import { Heading } from "@astryxdesign/core/Heading"
 import { HStack } from "@astryxdesign/core/HStack"
-import { Icon } from "@astryxdesign/core/Icon"
+import { Icon, type IconProps } from "@astryxdesign/core/Icon"
 import { Text } from "@astryxdesign/core/Text"
 import { VStack } from "@astryxdesign/core/VStack"
 import * as React from "react"
-
-type IconComponent = React.ComponentType<React.SVGProps<SVGSVGElement>>
 
 /**
  * A titled block on an administrator page: an Astryx Card with an `h2`, a sentence under it, optional end content
@@ -21,7 +19,7 @@ export function SectionCard({
   children,
   flush = false,
   ...rest
-}: { title: string; description?: React.ReactNode; icon?: IconComponent; end?: React.ReactNode; children?: React.ReactNode; flush?: boolean } & Omit<React.HTMLAttributes<HTMLElement>, "title">) {
+}: { title: string; description?: React.ReactNode; icon?: IconProps["icon"]; end?: React.ReactNode; children?: React.ReactNode; flush?: boolean } & Omit<React.HTMLAttributes<HTMLElement>, "title">) {
   const id = React.useId()
   return (
     <section aria-labelledby={id} {...rest} className={rest.className}>

@@ -31,14 +31,14 @@ const CHAPTERS = [
 export function DesignSystemShowcase() {
   const [chapter, setChapter] = React.useState<string>(CHAPTERS[0][0])
   return (
-    <div data-testid="design-showcase" className="flex min-w-0 flex-col gap-10 pb-8">
+    <VStack data-testid="design-showcase" gap={10} paddingBlockEnd={8} className="min-w-0">
       <VStack as="header" gap={3}>
         <Heading level={1} type="display-3">Design system</Heading>
-        <div className="max-w-3xl">
+        <VStack className="max-w-3xl">
           <Text type="large" color="secondary" as="p" display="block">
             agent2go is built on Astryx. This page is the system as the product uses it: the seven themes, the tokens they set, and the components and patterns every screen is made from. Synthetic data only.
           </Text>
-        </div>
+        </VStack>
         <nav aria-label="Style guide chapters" className="min-w-0">
           <TabList value={chapter} onChange={setChapter} hasDivider overflow="scroll">
             {CHAPTERS.map(([id, label]) => (
@@ -59,6 +59,6 @@ export function DesignSystemShowcase() {
       <ChartsSection />
       <StatesSection />
       <RulesSection />
-    </div>
+    </VStack>
   )
 }

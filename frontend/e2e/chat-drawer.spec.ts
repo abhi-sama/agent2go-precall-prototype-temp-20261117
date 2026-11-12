@@ -127,8 +127,10 @@ test("shows current scope as removable chips and sends serializable filters with
   await page.goto("/msl")
   await expect(page.getByTestId("filter-bar")).toBeVisible()
   await page.getByTestId("range-7d").click()
-  await page.locator("#filter-molecule").selectOption("osimertinib")
-  await page.locator("#filter-question").selectOption("Q-0002")
+  await page.locator("#filter-molecule").click()
+  await page.getByRole("option", { name: "osimertinib", exact: true }).click()
+  await page.locator("#filter-question").click()
+  await page.getByRole("option", { name: /Question 2:/ }).click()
   await expect(page.getByTestId("distribution-Q-0002")).toBeVisible()
   const range = (await page.getByTestId("range-7d").getAttribute("aria-pressed")) === "true"
   expect(range).toBe(true)

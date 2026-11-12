@@ -3,6 +3,7 @@
 import { AppShell as AstryxAppShell, useAppShellMobile } from "@astryxdesign/core/AppShell"
 import { Badge } from "@astryxdesign/core/Badge"
 import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { IconButton } from "@astryxdesign/core/IconButton"
 import { Layout, LayoutContent, LayoutPanel } from "@astryxdesign/core/Layout"
 import { MobileNavToggle } from "@astryxdesign/core/MobileNav"
@@ -127,7 +128,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               label="Sign out"
               tooltip="Sign out"
               variant="ghost"
-              icon={<LogOut aria-hidden />}
+              icon={<Icon icon={LogOut} />}
               onClick={() => void signOut()}
             />
           )}

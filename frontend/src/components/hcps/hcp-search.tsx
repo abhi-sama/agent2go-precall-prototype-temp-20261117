@@ -1,16 +1,21 @@
 "use client"
 
-import { Building2, ChevronRight, ClipboardList, Search, UserRound } from "lucide-react"
-import * as React from "react"
+import { Badge } from "@astryxdesign/core/Badge"
 import { Button } from "@astryxdesign/core/Button"
 import { Card } from "@astryxdesign/core/Card"
 import { EmptyState } from "@astryxdesign/core/EmptyState"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { List, ListItem } from "@astryxdesign/core/List"
 import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList"
 import { Skeleton } from "@astryxdesign/core/Skeleton"
+import { Text } from "@astryxdesign/core/Text"
 import { TextInput } from "@astryxdesign/core/TextInput"
+import { VStack } from "@astryxdesign/core/VStack"
+import { Building2, ClipboardList, UserRound } from "lucide-react"
+import * as React from "react"
 import { ErrorState } from "@/components/state/states"
-import { Badge } from "@/components/ui/badge"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
 import type { HcpField } from "@/lib/data/types"
@@ -22,7 +27,7 @@ const PROFILE_FIELDS: readonly { key: "specialty" | "discipline" | "type" | "ins
 ]
 
 function Fact({ field }: { field: HcpField }) {
-  if (field.state === "MISSING") return <span className="inline-flex max-w-full flex-wrap items-center gap-2"><Badge variant="outline">Missing</Badge><span>Not available</span></span>
+  if (field.state === "MISSING") return <HStack gap={2} wrap="wrap" align="center"><Badge variant="neutral" label="Missing" /><Text>Not available</Text></HStack>
   return <>{field.value === "" ? "Empty value" : field.value}</>
 }
 
@@ -45,34 +50,41 @@ export function HcpSearch() {
 
   return (
     <Card padding={5} elevation="low" className="a2g-hcp-search">
-      <section aria-labelledby="hcp-search-heading" className="space-y-6">
-        <div className="a2g-hcp-search-details grid min-w-0 gap-6">
-          <div className="min-w-0">
-            <div className="flex items-start gap-3">
-              <Search className="mt-1 size-5 text-[var(--color-accent)]" aria-hidden />
-              <div><h2 id="hcp-search-heading" className="text-xl font-semibold tracking-tight">Find an HCP</h2><p className="mt-1 max-w-xl text-sm text-muted-foreground">Search authorized records by name, institution, or territory.</p></div>
-            </div>
-            <form className="mt-5 flex min-w-0 flex-wrap items-end gap-2" onSubmit={submit} role="search">
-              <div className="min-w-0 flex-1"><TextInput data-testid="hcp-search-input" label="Search HCPs" isLabelHidden type="search" value={draft} onChange={setDraft} placeholder="Name, institution, or territory" startIcon={Search} hasClear enterKeyHint="search" width="100%" /></div>
-              <Button data-testid="hcp-search-submit" label="Search" type="submit" variant="primary" size="lg" />
-            </form>
-            {query && <div className="mt-5" aria-live="polite">
-              {results.status === "loading" ? <Skeleton height={176} radius={3} /> : null}
-              {results.status === "error" ? <ErrorState error={results.error} onRetry={results.refetch} /> : null}
-              {results.status === "success" && results.data.length === 0 ? <EmptyState title="No authorized HCPs match" description="Try a name, institution, or territory from your assigned scope." headingLevel={3} isCompact icon={<Search />} /> : null}
-              {results.status === "success" && results.data.length > 0 ? <List data-testid="hcp-results" hasDividers edge="outset" header={<h3 className="sr-only">Matching HCPs</h3>}>
-                {results.data.map((result) => <ListItem key={result.hcpId} data-testid={`hcp-result-${result.hcpId}`} onClick={() => setSelectedId(result.hcpId)} startContent={<UserRound className="size-5 text-[var(--color-accent)]" aria-hidden />} endContent={<ChevronRight className="size-5 text-muted-foreground" aria-hidden />} label={<span className="font-semibold"><Fact field={result.name} /></span>} description={<span className="block"><span className="flex items-center gap-1"><Building2 className="size-3.5" aria-hidden /><Fact field={result.institution} /></span><span className="block text-xs"><Fact field={result.territory} /></span></span>} />)}
-              </List> : null}
-            </div>}
+      <section aria-labelledby="hcp-search-heading">
+        <VStack gap={6}>
+          <div className="a2g-hcp-search-details grid min-w-0 gap-6">
+            <VStack gap={5} className="min-w-0">
+              <HStack gap={3} align="start">
+                <Icon icon="search" size="lg" color="accent" />
+                <VStack gap={1}>
+                  <Heading id="hcp-search-heading" level={2}>Find an HCP</Heading>
+                  <Text type="supporting" as="p">Search authorized records by name, institution, or territory.</Text>
+                </VStack>
+              </HStack>
+              <form onSubmit={submit} role="search">
+                <HStack gap={2} wrap="wrap" align="end">
+                <TextInput data-testid="hcp-search-input" label="Search HCPs" isLabelHidden type="search" value={draft} onChange={setDraft} placeholder="Name, institution, or territory" startIcon="search" hasClear enterKeyHint="search" width="100%" />
+                <Button data-testid="hcp-search-submit" label="Search" type="submit" variant="primary" size="lg" />
+                </HStack>
+              </form>
+              {query && <VStack aria-live="polite">
+                {results.status === "loading" ? <Skeleton height="11rem" radius={3} /> : null}
+                {results.status === "error" ? <ErrorState error={results.error} onRetry={results.refetch} /> : null}
+                {results.status === "success" && results.data.length === 0 ? <EmptyState title="No authorized HCPs match" description="Try a name, institution, or territory from your assigned scope." headingLevel={3} isCompact icon={<Icon icon="search" />} /> : null}
+                {results.status === "success" && results.data.length > 0 ? <List data-testid="hcp-results" hasDividers edge="outset" header={<Heading level={3} className="sr-only">Matching HCPs</Heading>}>
+                  {results.data.map((result) => <ListItem key={result.hcpId} data-testid={`hcp-result-${result.hcpId}`} onClick={() => setSelectedId(result.hcpId)} startContent={<Icon icon={UserRound} color="accent" />} endContent={<Icon icon="chevronRight" color="secondary" />} label={<Text weight="semibold"><Fact field={result.name} /></Text>} description={<VStack gap={0.5} align="start"><HStack gap={1} align="center"><Icon icon={Building2} size="xsm" /><Fact field={result.institution} /></HStack><Text type="supporting" size="xsm"><Fact field={result.territory} /></Text></VStack>} />)}
+                </List> : null}
+              </VStack>}
+            </VStack>
+            <VStack className="a2g-hcp-search-profile min-w-0 border-t pt-6">
+              {!selectedId ? <EmptyState data-testid="hcp-profile-placeholder" title="Profile details" description="Select an authorized HCP to review the available source facts." headingLevel={3} isCompact icon={<Icon icon={UserRound} />} /> : null}
+              {selectedId && profile.status === "loading" ? <Skeleton aria-busy="true" height="16rem" radius={3} /> : null}
+              {selectedId && profile.status === "error" ? <ErrorState error={profile.error} onRetry={profile.refetch} /> : null}
+              {selectedId && profile.status === "success" ? <VStack data-testid="hcp-profile" gap={5}><VStack gap={1}><Text type="supporting" weight="medium">HCP profile</Text><Heading level={3}><Fact field={profile.data.name} /></Heading></VStack><MetadataList columns="multi" label={{ position: "top" }}>{PROFILE_FIELDS.map(({ key, label }) => <MetadataListItem key={key} label={label}><Fact field={profile.data[key]} /></MetadataListItem>)}</MetadataList><Button data-testid="hcp-prepare-brief" href={`/msl/briefs?hcp=${encodeURIComponent(selectedId)}`} label="Prepare a pre-call brief" icon={<Icon icon={ClipboardList} />} variant="primary" width="100%" /></VStack> : null}
+            </VStack>
           </div>
-          <div className="a2g-hcp-search-profile min-w-0 border-t pt-6">
-            {!selectedId ? <EmptyState data-testid="hcp-profile-placeholder" title="Profile details" description="Select an authorized HCP to review the available source facts." headingLevel={3} isCompact icon={<UserRound />} /> : null}
-            {selectedId && profile.status === "loading" ? <Skeleton aria-busy="true" height={260} radius={3} /> : null}
-            {selectedId && profile.status === "error" ? <ErrorState error={profile.error} onRetry={profile.refetch} /> : null}
-            {selectedId && profile.status === "success" ? <div data-testid="hcp-profile" className="space-y-5"><div><p className="text-sm font-medium text-muted-foreground">HCP profile</p><h3 className="mt-1 text-xl font-semibold tracking-tight"><Fact field={profile.data.name} /></h3></div><MetadataList columns="multi" label={{ position: "top" }}>{PROFILE_FIELDS.map(({ key, label }) => <MetadataListItem key={key} label={label}><Fact field={profile.data[key]} /></MetadataListItem>)}</MetadataList><Button data-testid="hcp-prepare-brief" href={`/msl/briefs?hcp=${encodeURIComponent(selectedId)}`} label="Prepare a pre-call brief" icon={<ClipboardList />} variant="primary" width="100%" /></div> : null}
-          </div>
-        </div>
-        {selectedId && profile.status === "success" ? <HcpTimeline hcpId={selectedId} /> : null}
+          {selectedId && profile.status === "success" ? <HcpTimeline hcpId={selectedId} /> : null}
+        </VStack>
       </section>
     </Card>
   )

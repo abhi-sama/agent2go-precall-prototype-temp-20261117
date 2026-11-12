@@ -1,5 +1,6 @@
 "use client"
 
+import { Skeleton } from "@astryxdesign/core/Skeleton"
 import type * as React from "react"
 import { PERSONA_CONFIG } from "@/components/shell/persona-config"
 import { NoAccessState } from "@/components/state/states"
@@ -12,7 +13,7 @@ import { useSession } from "@/lib/session/session-provider"
  */
 export function RoleGate({ persona, children }: { persona: Persona; children: React.ReactNode }) {
   const { user, ready } = useSession()
-  if (!ready) return <div aria-busy="true" className="h-40 animate-pulse rounded-2xl bg-muted/50" />
+  if (!ready) return <Skeleton aria-busy="true" width="100%" height={160} />
   if (user.persona === persona) return <>{children}</>
   const own = PERSONA_CONFIG[user.persona]
   return (

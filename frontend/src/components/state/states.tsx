@@ -1,11 +1,11 @@
 import { Button } from "@astryxdesign/core/Button"
 import { Card } from "@astryxdesign/core/Card"
 import { EmptyState as AstryxEmptyState } from "@astryxdesign/core/EmptyState"
-import { Icon } from "@astryxdesign/core/Icon"
+import { Icon, type IconProps } from "@astryxdesign/core/Icon"
 import { Skeleton } from "@astryxdesign/core/Skeleton"
 import { Text } from "@astryxdesign/core/Text"
 import { VStack } from "@astryxdesign/core/VStack"
-import { CalendarSearch, LockKeyhole, Sparkles, TriangleAlert } from "lucide-react"
+import { CalendarSearch, LockKeyhole, Sparkles } from "lucide-react"
 import NextLink from "next/link"
 import type * as React from "react"
 import { ReloadAction, ResetFiltersAction, WorkspaceAction } from "@/components/state/state-actions"
@@ -14,10 +14,10 @@ import { cn } from "@/lib/utils"
 
 export type StateVariant = "empty" | "access" | "error" | "first-run"
 
-const ICON: Record<StateVariant, { icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; color: "accent" | "info" | "error" | "warning" }> = {
+const ICON: Record<StateVariant, { icon: IconProps["icon"]; color: "accent" | "info" | "error" | "warning" }> = {
   empty: { icon: CalendarSearch, color: "accent" },
   access: { icon: LockKeyhole, color: "info" },
-  error: { icon: TriangleAlert, color: "error" },
+  error: { icon: "warning", color: "error" },
   "first-run": { icon: Sparkles, color: "accent" },
 }
 
@@ -45,7 +45,7 @@ function StateShell({
   const text = typeof children === "string" ? children : undefined
   const extra = typeof children === "string" ? null : children
   return (
-    <section data-testid={testId} data-state-variant={variant} role={variant === "error" ? "alert" : "status"} className={cn("mx-auto w-full max-w-2xl", className)}>
+    <VStack as="section" data-testid={testId} data-state-variant={variant} role={variant === "error" ? "alert" : "status"} className={cn("mx-auto w-full max-w-2xl", className)}>
       <Card padding={4}>
         <AstryxEmptyState
           icon={<Icon icon={icon} size="lg" color={color} />}
@@ -60,7 +60,7 @@ function StateShell({
           </VStack>
         )}
       </Card>
-    </section>
+    </VStack>
   )
 }
 

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Drawer, DrawerHeader } from "@astryxdesign/core/Drawer"
 import { Card } from "@astryxdesign/core/Card"
 import { HStack } from "@astryxdesign/core/HStack"
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl"
@@ -11,7 +12,6 @@ import { Text } from "@astryxdesign/core/Text"
 import { VStack } from "@astryxdesign/core/VStack"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { ErrorState } from "@/components/state/states"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { ExecutiveDrilldownKind, ExecutiveMonth } from "@/lib/data/types"
 import { useQuery } from "@/lib/data/use-query"
@@ -28,16 +28,18 @@ export interface DrillTarget {
  * explicit record-level permission; the BE refuses everyone else, so a denied attempt shows the refusal.
  */
 export function RecordDrilldown({ target, months, onClose }: { target: DrillTarget | null; months: ExecutiveMonth[]; onClose: () => void }) {
+  // Keep the last target mounted while the drawer slides out, so the content does not vanish mid-exit.
+  const [shown, setShown] = React.useState(target)
+  if (target !== null && target !== shown) setShown(target)
+  const view = target ?? shown
   return (
-    <Sheet open={target !== null} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent data-testid="drilldown-drawer" className="w-full gap-0 overflow-y-auto data-[side=right]:sm:max-w-2xl">
-        {target && <DrillView key={target.scopeId} target={target} months={months} />}
-      </SheetContent>
-    </Sheet>
+    <Drawer isOpen={target !== null} onOpenChange={(open) => !open && onClose()} label="Records" width="42rem" data-testid="drilldown-drawer">
+      {view && <DrillView key={view.scopeId} target={view} months={months} onClose={onClose} />}
+    </Drawer>
   )
 }
 
-function DrillView({ target, months }: { target: DrillTarget; months: ExecutiveMonth[] }) {
+function DrillView({ target, months, onClose }: { target: DrillTarget; months: ExecutiveMonth[]; onClose: () => void }) {
   const adapter = useDataAdapter()
   const complete = months.filter((m) => !m.isPartial)
   const [month, setMonth] = React.useState((complete[complete.length - 1] ?? months[months.length - 1])?.month ?? "")
@@ -46,9 +48,12 @@ function DrillView({ target, months }: { target: DrillTarget; months: ExecutiveM
 
   return (
     <>
-      <SheetHeader className="gap-3 p-5 pr-14">
-        <SheetTitle className="text-xl font-semibold">Records · {target.label}</SheetTitle>
-        <SheetDescription>The calls or responses counted for this month. Opened because your account holds record-level permission.</SheetDescription>
+      <DrawerHeader
+        title={`Records · ${target.label}`}
+        subtitle="The calls or responses counted for this month. Opened because your account holds record-level permission."
+        onOpenChange={(open) => !open && onClose()}
+      />
+      <VStack gap={4} className="px-5 pb-6">
         <HStack gap={2} align="end" wrap="wrap">
           <Selector
             label="Month"
@@ -63,8 +68,6 @@ function DrillView({ target, months }: { target: DrillTarget; months: ExecutiveM
             {(["CALLS", "RESPONSES"] as const).map((k) => <SegmentedControlItem key={k} value={k} label={k === "CALLS" ? "Calls" : "Responses"} />)}
           </SegmentedControl>
         </HStack>
-      </SheetHeader>
-      <VStack gap={4} className="px-5 pb-6">
         {result.status === "loading" && (
           <VStack data-testid="drill-loading" aria-busy="true" gap={2}>
             <Skeleton width="100%" height="2.5rem" radius={3} />

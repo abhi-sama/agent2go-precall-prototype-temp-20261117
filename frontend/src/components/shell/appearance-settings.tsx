@@ -1,6 +1,7 @@
 "use client"
 
 import { Heading } from "@astryxdesign/core/Heading"
+import { Icon } from "@astryxdesign/core/Icon"
 import { IconButton } from "@astryxdesign/core/IconButton"
 import { Popover } from "@astryxdesign/core/Popover"
 import { Text } from "@astryxdesign/core/Text"
@@ -38,7 +39,7 @@ export function AppearanceSettings() {
         </VStack>
       }
     >
-      <IconButton data-testid="appearance-settings" label="Appearance settings" tooltip="Appearance" variant="ghost" icon={<Palette aria-hidden />} />
+      <IconButton data-testid="appearance-settings" label="Appearance settings" tooltip="Appearance" variant="ghost" icon={<Icon icon={Palette} />} />
     </Popover>
   )
 }

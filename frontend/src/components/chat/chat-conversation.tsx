@@ -4,6 +4,7 @@ import * as React from "react"
 import { Button } from "@astryxdesign/core/Button"
 import { EmptyState } from "@astryxdesign/core/EmptyState"
 import { HStack } from "@astryxdesign/core/HStack"
+import { Text } from "@astryxdesign/core/Text"
 import { ChatComposer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatMessageMetadata, ChatSendButton, ChatSystemMessage } from "@astryxdesign/core/Chat"
 import { AssistantTurnView } from "@/components/chat/assistant-turn"
 import { useChatSession } from "@/components/chat/chat-provider"
@@ -22,19 +23,17 @@ interface ChatConversationProps {
   starters: string[]
   /** `page`: full route; `panel`: slide-in conversation. */
   layout: "page" | "panel"
-  /** Where the cursor goes when the panel opens (fine pointers only: a touch screen would raise the keyboard). */
-  inputRef?: React.Ref<HTMLElement>
+  /**
+   * Puts the cursor in the composer when the surrounding Astryx `Drawer` opens (it focuses the `data-autofocus` element).
+   * Fine pointers only: a touch screen would raise the keyboard before the person asked for it.
+   */
+  autoFocusInput?: boolean
   /** Context the person can review or remove directly above the question composer. */
   composerDrawer?: React.ReactNode
 }
 
-function setRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
-  if (typeof ref === "function") ref(value)
-  else if (ref) (ref as React.MutableRefObject<T | null>).current = value
-}
-
 /** The thread, the empty state and the composer. Shared by the full `/chat` page and the slide-in panel. */
-export function ChatConversation({ context, starters, layout, inputRef, composerDrawer }: ChatConversationProps) {
+export function ChatConversation({ context, starters, layout, autoFocusInput, composerDrawer }: ChatConversationProps) {
   const adapter = useDataAdapter()
   const { userId, ready } = useSession()
   const me = useQuery("me", userId, (ctx) => adapter.me(ctx), ready)
@@ -45,13 +44,12 @@ export function ChatConversation({ context, starters, layout, inputRef, composer
   const setComposerInput = React.useCallback(
     (root: HTMLDivElement | null) => {
       const editable = root?.querySelector<HTMLElement>("[contenteditable=true]") ?? null
-      if (editable) {
-        editable.dataset.testid = "chat-input"
-        editable.classList.add("a2g-chat-composer-editor")
-      }
-      setRef(inputRef, editable)
+      if (!editable) return
+      editable.dataset.testid = "chat-input"
+      editable.classList.add("a2g-chat-composer-editor")
+      if (autoFocusInput && window.matchMedia("(pointer: fine)").matches) editable.setAttribute("data-autofocus", "")
     },
-    [inputRef],
+    [autoFocusInput],
   )
 
   const submit = (question: string) => {
@@ -66,7 +64,7 @@ export function ChatConversation({ context, starters, layout, inputRef, composer
       title="Try a question"
       description="Ask about your calls, HCPs or recorded responses."
       actions={
-        <HStack hAlign="center" gap={2} wrap="wrap">
+        <HStack gap={2} hAlign="center" wrap="wrap">
           {starters.map((starter) => (
             <Button key={starter} data-testid="starter" label={starter} variant="secondary" onClick={() => submit(starter)} />
           ))}
@@ -115,7 +113,7 @@ export function ChatConversation({ context, starters, layout, inputRef, composer
                 <ChatMessage sender="user">
                   <ChatMessageBubble
                     data-testid="user-message"
-                    metadata={asked ? <ChatMessageMetadata footer={<span data-testid="turn-context">{asked}</span>} status="sent" /> : undefined}
+                    metadata={asked ? <ChatMessageMetadata footer={<Text as="span" type="supporting" data-testid="turn-context">{asked}</Text>} status="sent" /> : undefined}
                   >
                     {turn.question}
                   </ChatMessageBubble>

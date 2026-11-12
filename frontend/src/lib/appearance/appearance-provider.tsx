@@ -4,8 +4,8 @@ import { LinkProvider } from "@astryxdesign/core/Link"
 import { Theme } from "@astryxdesign/core/theme"
 import NextLink from "next/link"
 import * as React from "react"
-import { toast } from "sonner"
 import { themes } from "./astryx-registry"
+import { useAppToast } from "@/components/state/use-app-toast"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { AppearanceChoice, DensityPref, ModePref, StylePref } from "@/lib/data/types"
 import { log, newCorrelationId } from "@/lib/log/logger"
@@ -235,6 +235,19 @@ interface AppearanceValue {
 const AppearanceContext = React.createContext<AppearanceValue | null>(null)
 
 /**
+ * Shows the "could not save" toast. `useToast` cannot run in the component that renders the root `<Theme>`, so the
+ * provider counts failed saves and this child, rendered inside the Theme, turns each new failure into one toast.
+ * The repeated id replaces an earlier toast instead of stacking another.
+ */
+function SaveFailureToast({ failures }: { failures: number }) {
+  const toast = useAppToast()
+  React.useEffect(() => {
+    if (failures > 0) toast.error("Couldn't save your appearance. It still applies on this device.", { id: "appearance-save-failed" })
+  }, [failures, toast])
+  return null
+}
+
+/**
  * Owns the look of the app: the Astryx theme, light/dark/system and density. Renders the root Astryx `<Theme>`, so
  * every Astryx component and every legacy token alias (globals.css) follows the choice.
  */
@@ -249,6 +262,8 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   const hydrated = React.useSyncExternalStore(noopSubscribe, () => true, () => false)
   // What the boot script painted. The hydration render must use it, so the wrapper's attributes match the page.
   const [bootTheme] = React.useState(readBootTheme)
+  // Bumped each time a save ends in failure; `SaveFailureToast` (inside the Theme) reports it.
+  const [saveFailures, setSaveFailures] = React.useState(0)
 
   // The cache belongs to one person. Anyone else (or nobody yet) sees the look last applied on this device.
   const mine = cached.uid === userId || (cached.uid === null && cached !== EMPTY)
@@ -295,7 +310,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         }
       }
       slot.running = false
-      if (failed) toast.error("Couldn't save your appearance. It still applies on this device.", { id: "appearance-save-failed" })
+      if (failed) setSaveFailures((count) => count + 1)
     },
     [adapter],
   )
@@ -391,6 +406,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     <AppearanceContext.Provider value={value}>
       <Theme theme={themes[renderTheme]} mode={renderMode}>
         <script dangerouslySetInnerHTML={{ __html: THEME_ROOT_SCRIPT }} />
+        <SaveFailureToast failures={saveFailures} />
         {/* Every Astryx link (SideNavItem, Button href, Link) navigates client-side through Next.js. */}
         <LinkProvider component={NextLink}>{children}</LinkProvider>
       </Theme>

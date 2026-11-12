@@ -9,6 +9,7 @@ import { Button } from "@astryxdesign/core/Button"
 import { Card } from "@astryxdesign/core/Card"
 import { Heading } from "@astryxdesign/core/Heading"
 import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { Text } from "@astryxdesign/core/Text"
 import { TextInput } from "@astryxdesign/core/TextInput"
 import { VStack } from "@astryxdesign/core/VStack"
@@ -139,7 +140,7 @@ function LoginForm() {
               variant="primary"
               size="lg"
               width="100%"
-              icon={<LogIn aria-hidden />}
+              icon={<Icon icon={LogIn} />}
               label={busy === "form" ? "Signing in…" : "Sign in"}
               isLoading={busy === "form"}
               isDisabled={busy !== null && busy !== "form"}
@@ -157,16 +158,16 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="safe-px safe-pt safe-pb flex min-h-dvh flex-col bg-background">
+    <VStack className="safe-px safe-pt safe-pb min-h-dvh bg-background">
       {/* The look can be chosen before signing in; it is remembered on this device (MWG dark-mode-toggle: a settings surface). */}
-      <header className="flex justify-end py-3">
+      <HStack as="header" justify="end" paddingBlock={3}>
         <AppearanceSettings />
-      </header>
-      <main id="main" className="flex flex-1 items-start justify-center pt-4 pb-10 sm:items-center">
+      </HStack>
+      <HStack as="main" id="main" justify="center" paddingBlockStart={4} paddingBlockEnd={10} className="flex-1 items-start sm:items-center">
         <React.Suspense fallback={null}>
           <LoginForm />
         </React.Suspense>
-      </main>
-    </div>
+      </HStack>
+    </VStack>
   )
 }

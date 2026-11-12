@@ -1,4 +1,5 @@
-import { CircleCheck, CircleDashed, CircleDot, CircleSlash, type LucideIcon } from "lucide-react"
+import type { IconProps } from "@astryxdesign/core/Icon"
+import { CircleDashed, CircleDot, CircleSlash } from "lucide-react"
 import type { FlagKind, FlagStatus, FlagTargetType } from "@/lib/data/types"
 
 /** `in_person` -> `In person`, `field` -> `Field`. Channels come from the source as written. */
@@ -29,31 +30,31 @@ export const TARGETS_FOR_KIND: Record<FlagKind, FlagTargetType[]> = {
 
 /**
  * Review status. Colour is never the only signal: each status has its own icon and a word.
- * Nothing here is red or green because a flag's status is not a judgement of the person who raised it.
+ * Nothing here is red because a flag's status is not a judgement of the person who raised it.
  */
-export const FLAG_STATUS_META: Record<FlagStatus, { label: string; hint: string; icon: LucideIcon; className: string }> = {
+export const FLAG_STATUS_META: Record<FlagStatus, { label: string; hint: string; icon: IconProps["icon"]; variant: "neutral" | "yellow" | "blue" | "green" }> = {
   OPEN: {
     label: "Open",
     hint: "Received, waiting for a reviewer.",
     icon: CircleDashed,
-    className: "border-warning/50 bg-warning/12 text-foreground",
+    variant: "yellow",
   },
   IN_REVIEW: {
     label: "In review",
     hint: "A reviewer is looking at it.",
     icon: CircleDot,
-    className: "border-ink/35 bg-fact-soft text-fact",
+    variant: "blue",
   },
   RESOLVED: {
     label: "Resolved",
     hint: "The issue was fixed or answered.",
-    icon: CircleCheck,
-    className: "border-success/40 bg-success/10 text-foreground",
+    icon: "success",
+    variant: "green",
   },
   DISMISSED: {
     label: "Dismissed",
     hint: "Reviewed; no change was needed.",
     icon: CircleSlash,
-    className: "border-border bg-muted text-muted-foreground",
+    variant: "neutral",
   },
 }

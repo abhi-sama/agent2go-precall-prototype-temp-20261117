@@ -1,5 +1,9 @@
 "use client"
 
+import { Card } from "@astryxdesign/core/Card"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
 import * as React from "react"
 import { cn } from "@/lib/utils"
 import * as RechartsPrimitive from "recharts"
@@ -160,9 +164,9 @@ function ChartTooltipContent({
 
     if (labelFormatter) {
       return (
-        <div className={cn("font-medium", labelClassName)}>
+        <Text weight="medium" className={labelClassName}>
           {labelFormatter(value, payload)}
-        </div>
+        </Text>
       )
     }
 
@@ -170,7 +174,11 @@ function ChartTooltipContent({
       return null
     }
 
-    return <div className={cn("font-medium", labelClassName)}>{value}</div>
+    return (
+      <Text weight="medium" className={labelClassName}>
+        {value}
+      </Text>
+    )
   }, [
     label,
     labelFormatter,
@@ -188,14 +196,9 @@ function ChartTooltipContent({
   const nestLabel = payload.length === 1 && indicator !== "dot"
 
   return (
-    <div
-      className={cn(
-        "grid min-w-32 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl",
-        className
-      )}
-    >
-      {!nestLabel ? tooltipLabel : null}
-      <div className="grid gap-1.5">
+    <Card padding={2} elevation="med" className={cn("min-w-32", className)}>
+      <VStack gap={1.5} align="start">
+        {!nestLabel ? tooltipLabel : null}
         {payload
           .filter((item) => item.type !== "none")
           .map((item, index) => {
@@ -204,13 +207,7 @@ function ChartTooltipContent({
             const indicatorColor = color ?? item.payload?.fill ?? item.color
 
             return (
-              <div
-                key={index}
-                className={cn(
-                  "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
-                  indicator === "dot" && "items-center"
-                )}
-              >
+              <HStack key={index} gap={2} width="100%" align={nestLabel ? "stretch" : "center"}>
                 {formatter && item?.value !== undefined && item.name ? (
                   formatter(item.value, item.name, item, index, item.payload)
                 ) : (
@@ -219,53 +216,36 @@ function ChartTooltipContent({
                       <itemConfig.icon />
                     ) : (
                       !hideIndicator && (
-                        <div
-                          className={cn(
-                            "shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)",
-                            {
-                              "h-2.5 w-2.5": indicator === "dot",
-                              "w-1": indicator === "line",
-                              "w-0 border-[1.5px] border-dashed bg-transparent":
-                                indicator === "dashed",
-                              "my-0.5": nestLabel && indicator === "dashed",
-                            }
-                          )}
-                          style={
-                            {
-                              "--color-bg": indicatorColor,
-                              "--color-border": indicatorColor,
-                            } as React.CSSProperties
-                          }
+                        // Series swatch: the one colour that comes from the chart data, so it stays a coloured box.
+                        <span
+                          aria-hidden
+                          className={cn("shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)", {
+                            "h-2.5 w-2.5": indicator === "dot",
+                            "w-1": indicator === "line",
+                            "w-0 border-[1.5px] border-dashed bg-transparent": indicator === "dashed",
+                          })}
+                          style={{ "--color-bg": indicatorColor, "--color-border": indicatorColor } as React.CSSProperties}
                         />
                       )
                     )}
-                    <div
-                      className={cn(
-                        "flex flex-1 justify-between leading-none",
-                        nestLabel ? "items-end" : "items-center"
-                      )}
-                    >
-                      <div className="grid gap-1.5">
+                    <HStack gap={2} justify="between" align={nestLabel ? "end" : "center"} className="flex-1">
+                      <VStack gap={1.5} align="start">
                         {nestLabel ? tooltipLabel : null}
-                        <span className="text-muted-foreground">
-                          {itemConfig?.label ?? item.name}
-                        </span>
-                      </div>
+                        <Text type="supporting">{itemConfig?.label ?? item.name}</Text>
+                      </VStack>
                       {item.value != null && (
-                        <span className="font-mono font-medium text-foreground tabular-nums">
-                          {typeof item.value === "number"
-                            ? item.value.toLocaleString()
-                            : String(item.value)}
-                        </span>
+                        <Text type="code" weight="medium" className="tabular-nums">
+                          {typeof item.value === "number" ? item.value.toLocaleString() : String(item.value)}
+                        </Text>
                       )}
-                    </div>
+                    </HStack>
                   </>
                 )}
-              </div>
+              </HStack>
             )
           })}
-      </div>
-    </div>
+      </VStack>
+    </Card>
   )
 }
 
@@ -288,13 +268,7 @@ function ChartLegendContent({
   }
 
   return (
-    <div
-      className={cn(
-        "flex items-center justify-center gap-4",
-        verticalAlign === "top" ? "pb-3" : "pt-3",
-        className
-      )}
-    >
+    <HStack gap={4} justify="center" wrap="wrap" align="center" className={cn(verticalAlign === "top" ? "pb-3" : "pt-3", className)}>
       {payload
         .filter((item) => item.type !== "none")
         .map((item, index) => {
@@ -302,27 +276,17 @@ function ChartLegendContent({
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
 
           return (
-            <div
-              key={index}
-              className={cn(
-                "flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground"
-              )}
-            >
+            <HStack key={index} gap={1.5} align="center">
               {itemConfig?.icon && !hideIcon ? (
                 <itemConfig.icon />
               ) : (
-                <div
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
-                  style={{
-                    backgroundColor: item.color,
-                  }}
-                />
+                <span aria-hidden className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
               )}
-              {itemConfig?.label}
-            </div>
+              <Text type="supporting">{itemConfig?.label}</Text>
+            </HStack>
           )
         })}
-    </div>
+    </HStack>
   )
 }
 

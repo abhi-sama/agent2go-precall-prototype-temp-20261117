@@ -24,9 +24,9 @@ export function PanelTabs({ tabs, value, onChange, children }: { tabs: readonly 
           <Tab key={tab.value} value={tab.value} label={tab.label} panelId={panelId} />
         ))}
       </TabList>
-      <div id={panelId} role="tabpanel" aria-label={current.label} tabIndex={-1} className="min-w-0 outline-none">
+      <VStack id={panelId} role="tabpanel" aria-label={current.label} tabIndex={-1} className="min-w-0 outline-none">
         {children}
-      </div>
+      </VStack>
     </VStack>
   )
 }

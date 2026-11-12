@@ -114,7 +114,7 @@ test.describe("viewport matrix", () => {
         await expect(tab(page, name)).toHaveAttribute("aria-selected", "true")
         await page.waitForLoadState("networkidle")
         // Wait out the panel cross-fade and the mock adapter's latency.
-        await expect(page.getByRole("tabpanel", { name }).getByRole("status").or(page.getByRole("tabpanel", { name }).locator("[data-testid], [data-slot=card]").first())).toBeVisible()
+        await expect(page.getByRole("tabpanel", { name }).getByRole("status").or(page.getByRole("tabpanel", { name }).locator("[data-testid], .astryx-card").first())).toBeVisible()
         await page.waitForTimeout(600)
         if (name === "Hierarchy") await page.getByRole("treeitem", { name: "NE-01" }).first().click()
 

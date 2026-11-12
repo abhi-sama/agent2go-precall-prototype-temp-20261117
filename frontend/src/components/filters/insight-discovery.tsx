@@ -1,14 +1,21 @@
 "use client"
 
-import { DistributionBars } from "@/components/charts/distribution-bars"
-import { BookmarkPlus, Check, ClipboardList, SlidersHorizontal } from "lucide-react"
+import { Badge } from "@astryxdesign/core/Badge"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { EmptyState } from "@astryxdesign/core/EmptyState"
+import { Grid } from "@astryxdesign/core/Grid"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { Text } from "@astryxdesign/core/Text"
+import { TextInput } from "@astryxdesign/core/TextInput"
+import { VStack } from "@astryxdesign/core/VStack"
+import { BookmarkPlus, ClipboardList, SlidersHorizontal } from "lucide-react"
 import * as React from "react"
+import { DistributionBars } from "@/components/charts/distribution-bars"
 import { useSharedFilters } from "@/components/filters/filter-context"
 import { FilterBar, type SelectFilter } from "@/components/filters/filter-bar"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useQuery } from "@/lib/data/use-query"
 import type { FilterOption, InsightDiscovery, InsightFilters, ResponseDistribution } from "@/lib/data/types"
@@ -57,7 +64,7 @@ export function AnalyticsFilterBar({ discovery, loading, unavailable = false }: 
     } catch { setSaveError("This view could not be saved. Try again.") } finally { setSaving(false) }
   }
   return (
-    <div className="flex flex-col gap-2">
+    <VStack gap={2}>
       <FilterBar
         range={range}
         onRangeChange={(next) => setFilters((current) => ({ ...current, ...next }))}
@@ -67,28 +74,52 @@ export function AnalyticsFilterBar({ discovery, loading, unavailable = false }: 
         disabled={loading}
         selectsDisabled={unavailable}
       />
-      <section aria-label="Saved views" className="flex flex-col gap-2 rounded-xl bg-secondary/55 p-2 sm:flex-row sm:items-center sm:justify-between sm:px-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <span className="flex items-center gap-2 text-sm font-semibold"><SlidersHorizontal className="size-4 text-accent-text" aria-hidden /> Saved views</span>
-          {views.status === "success" && views.data.length === 0 && <span className="text-sm text-muted-foreground">Save a filter set to reopen it in one tap.</span>}
-          {views.status === "success" && views.data.map((view) => (
-            <Button key={view.savedViewId} variant="outline" size="sm" className="min-h-9" onClick={() => setFilters({ ...defaultRange, ...view.filters })}>
-              {view.name}<span className="sr-only">, reopen saved view</span>
-            </Button>
-          ))}
-        </div>
-        <div className="flex flex-col gap-1 sm:w-80">
-          <div className="flex gap-2">
-            <Input aria-label="Saved view name" value={name} maxLength={80} placeholder="Name this filter set" onChange={(event) => setName(event.target.value)} />
-            <Button type="button" className="shrink-0" onClick={() => void save()} disabled={saving}>
-              {saving ? <Check aria-hidden /> : <BookmarkPlus aria-hidden />} Save
-            </Button>
-          </div>
-          {saveError && <p role="alert" className="text-xs text-destructive">{saveError}</p>}
-        </div>
-      </section>
-      <p className="text-xs text-muted-foreground" data-testid="active-filter-range">Showing {formatRange(range)}. Every chart and discovery result uses these filters.</p>
-    </div>
+      <Card padding={3}>
+        <section aria-label="Saved views">
+          <HStack gap={2} wrap="wrap" align="center" justify="between">
+            <HStack gap={2} wrap="wrap" align="center">
+              <HStack gap={2} align="center">
+                <Icon icon={SlidersHorizontal} size="sm" color="accent" />
+                <Text weight="semibold">Saved views</Text>
+              </HStack>
+              {views.status === "success" && views.data.length === 0 && <Text type="supporting">Save a filter set to reopen it in one tap.</Text>}
+              {views.status === "success" &&
+                views.data.map((view) => (
+                  <Button
+                    key={view.savedViewId}
+                    label={view.name}
+                    aria-label={`${view.name}, reopen saved view`}
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setFilters({ ...defaultRange, ...view.filters })}
+                  />
+                ))}
+            </HStack>
+            <VStack gap={1}>
+              <HStack gap={2} align="end">
+                <TextInput
+                  label="Saved view name"
+                  isLabelHidden
+                  value={name}
+                  placeholder="Name this filter set"
+                  width="16rem"
+                  onChange={(next) => setName(next.slice(0, 80))}
+                />
+                <Button label="Save" variant="primary" icon={<Icon icon={BookmarkPlus} />} isLoading={saving} onClick={() => void save()} />
+              </HStack>
+              {saveError && (
+                <Text role="alert" type="supporting" size="xsm">
+                  {saveError}
+                </Text>
+              )}
+            </VStack>
+          </HStack>
+        </section>
+      </Card>
+      <Text type="supporting" size="xsm" data-testid="active-filter-range">
+        Showing {formatRange(range)}. Every chart and discovery result uses these filters.
+      </Text>
+    </VStack>
   )
 }
 
@@ -99,43 +130,93 @@ function grouped(rows: ResponseDistribution[]) {
 export function ResponseDistributions({ discovery }: { discovery: InsightDiscovery }) {
   const groups = grouped(discovery.distributions)
   return (
-    <section aria-labelledby="response-distributions-heading" className="a2g-distribution-scope flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div><h2 id="response-distributions-heading" className="text-xl font-semibold tracking-tight">Response distributions</h2><p className="mt-1 text-sm text-muted-foreground">Each response set has its own question and denominator; answers are never combined across prompts.</p></div>
-        <Badge variant="outline" className="shrink-0 whitespace-nowrap"><ClipboardList aria-hidden /> Question-level</Badge>
-      </div>
-      {Object.keys(groups).length === 0 ? <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">No recorded responses match this filter set.</p> : (
-        <div className="a2g-distribution-grid grid gap-4">
-          {Object.entries(groups).map(([id, rows]) => <DistributionCard key={id} rows={rows} />)}
-        </div>
-      )}
+    <section aria-labelledby="response-distributions-heading">
+      <VStack gap={4}>
+        <HStack gap={2} wrap="wrap" align="end" justify="between">
+          <VStack gap={1}>
+            <Heading id="response-distributions-heading" level={2}>
+              Response distributions
+            </Heading>
+            <Text type="supporting" as="p">
+              Each response set has its own question and denominator; answers are never combined across prompts.
+            </Text>
+          </VStack>
+          <Badge variant="neutral" icon={<Icon icon={ClipboardList} />} label="Question-level" />
+        </HStack>
+        {Object.keys(groups).length === 0 ? (
+          <EmptyState isCompact headingLevel={3} title="No recorded responses match this filter set" />
+        ) : (
+          <Grid columns={{ minWidth: 344, max: 2 }} gap={4}>
+            {Object.entries(groups).map(([id, rows]) => (
+              <DistributionCard key={id} rows={rows} />
+            ))}
+          </Grid>
+        )}
+      </VStack>
     </section>
   )
 }
 
 function DistributionCard({ rows }: { rows: ResponseDistribution[] }) {
   const first = rows[0]
-  return <Card data-testid={`distribution-${first.questionId}`} className="ring-1 ring-foreground/10">
-    <CardHeader>
-      <CardTitle className="text-[0.98rem]">{first.questionText}</CardTitle>
-      <CardDescription>{first.parentQuestionId ? `Follow-up to ${first.parentQuestionId}` : "Primary catalog question"}</CardDescription>
-    </CardHeader>
-    <CardContent className="flex flex-col gap-3">
-      <DistributionBars rows={rows.map((row) => ({ label: row.response, count: row.count, percent: row.percentage }))} denominator={first.denominator} />
-      <p className="border-t pt-3 text-xs text-muted-foreground">Denominator: {first.denominator} distinct recorded responses to this question.</p>
-    </CardContent>
-  </Card>
+  return (
+    <Card data-testid={`distribution-${first.questionId}`} padding={4}>
+      <VStack gap={3}>
+        <VStack gap={1}>
+          <Heading level={3}>{first.questionText}</Heading>
+          <Text type="supporting" as="p">
+            {first.parentQuestionId ? `Follow-up to ${first.parentQuestionId}` : "Primary catalog question"}
+          </Text>
+        </VStack>
+        <DistributionBars rows={rows.map((row) => ({ label: row.response, count: row.count, percent: row.percentage }))} denominator={first.denominator} />
+        <Text type="supporting" size="xsm" as="p">
+          Denominator: {first.denominator} distinct recorded responses to this question.
+        </Text>
+      </VStack>
+    </Card>
+  )
 }
 
 export function QuestionDiscovery({ discovery }: { discovery: InsightDiscovery }) {
-  return <section aria-labelledby="question-catalog-heading" className="@container flex flex-col gap-4">
-    <div><h2 id="question-catalog-heading" className="text-xl font-semibold tracking-tight">Question catalog</h2><p className="mt-1 text-sm text-muted-foreground">Filter by topic, molecule, tumor type, study, survey, or question to find the right approved prompt.</p></div>
-    {discovery.questions.length === 0 ? <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">No catalog questions match this filter set.</p> : <div className="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">
-      {discovery.questions.map((question) => <Card key={question.questionId} data-testid={`question-${question.questionId}`} className="ring-1 ring-foreground/10">
-        <CardHeader><div className="flex items-start justify-between gap-3"><CardTitle className="min-w-0">{question.questionText}</CardTitle><Badge className="shrink-0" variant={question.status.toLowerCase() === "active" ? "default" : "outline"}>{question.status}</Badge></div><CardDescription>{question.applicability}</CardDescription></CardHeader>
-        <CardContent className="flex flex-wrap gap-1.5">{[question.topic, question.molecule, question.tumorType, question.study, question.survey].filter(Boolean).map((tag) => <Badge key={tag} variant="outline">{tag}</Badge>)}</CardContent>
-        <CardContent className="pt-3 text-xs text-muted-foreground">Effective {readableDate(question.effectiveFrom)} · {question.effectiveTo ? `ends ${readableDate(question.effectiveTo)}` : "currently open"}</CardContent>
-      </Card>)}
-    </div>}
-  </section>
+  return (
+    <section aria-labelledby="question-catalog-heading">
+      <VStack gap={4}>
+        <VStack gap={1}>
+          <Heading id="question-catalog-heading" level={2}>
+            Question catalog
+          </Heading>
+          <Text type="supporting" as="p">
+            Filter by topic, molecule, tumor type, study, survey, or question to find the right approved prompt.
+          </Text>
+        </VStack>
+        {discovery.questions.length === 0 ? (
+          <EmptyState isCompact headingLevel={3} title="No catalog questions match this filter set" />
+        ) : (
+          <Grid columns={{ minWidth: 320, max: 3 }} gap={4}>
+            {discovery.questions.map((question) => (
+              <Card key={question.questionId} data-testid={`question-${question.questionId}`} padding={4}>
+                <VStack gap={3}>
+                  <HStack gap={3} align="start" justify="between">
+                    <Heading level={3}>{question.questionText}</Heading>
+                    <Badge variant={question.status.toLowerCase() === "active" ? "blue" : "neutral"} label={question.status} />
+                  </HStack>
+                  <Text type="supporting" as="p">
+                    {question.applicability}
+                  </Text>
+                  <HStack gap={1.5} wrap="wrap">
+                    {[question.topic, question.molecule, question.tumorType, question.study, question.survey].filter(Boolean).map((tag) => (
+                      <Badge key={tag} variant="neutral" label={tag} />
+                    ))}
+                  </HStack>
+                  <Text type="supporting" size="xsm" as="p">
+                    Effective {readableDate(question.effectiveFrom)} · {question.effectiveTo ? `ends ${readableDate(question.effectiveTo)}` : "currently open"}
+                  </Text>
+                </VStack>
+              </Card>
+            ))}
+          </Grid>
+        )}
+      </VStack>
+    </section>
+  )
 }

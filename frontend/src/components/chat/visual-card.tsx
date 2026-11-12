@@ -1,17 +1,18 @@
 "use client"
 
-import { Maximize2, Table2, BarChart3 } from "lucide-react"
-import * as React from "react"
 import { Button } from "@astryxdesign/core/Button"
-import { Card } from "@astryxdesign/core/Card"
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog"
-import { Heading } from "@astryxdesign/core/Heading"
 import { HStack } from "@astryxdesign/core/HStack"
-import { Layout, LayoutContent } from "@astryxdesign/core/Layout"
-import { Section } from "@astryxdesign/core/Section"
-import { Skeleton as AstryxSkeleton } from "@astryxdesign/core/Skeleton"
+import { Icon } from "@astryxdesign/core/Icon"
+import { IconButton } from "@astryxdesign/core/IconButton"
+import { Heading } from "@astryxdesign/core/Heading"
+import { Skeleton } from "@astryxdesign/core/Skeleton"
 import { Text } from "@astryxdesign/core/Text"
 import { VStack } from "@astryxdesign/core/VStack"
+import { Maximize2, Table2, BarChart3 } from "lucide-react"
+import * as React from "react"
+import { Layout, LayoutContent } from "@astryxdesign/core/Layout"
+import { useKeepMounted } from "@/components/chat/use-keep-mounted"
 import { DataTable } from "@/components/charts/viz/data-table"
 import { DistributionBars, Heatmap } from "@/components/charts"
 import { LineChart } from "@/components/charts/viz/line-chart"
@@ -49,13 +50,13 @@ function Chart({ spec, tall }: { spec: VisualSpec; tall?: boolean }) {
       return wordy(spec) ? (
         <RankedBars data={barData(spec)} unit={unit} />
       ) : (
-        <Section data-testid="distribution-chart" variant="transparent" padding={0}>
+        <VStack data-testid="distribution-chart">
           <DistributionBars
             ordinal
             denominator={spec.total ?? 0}
             rows={spec.points.map((p) => ({ label: p.label, count: p.value, percent: p.sharePct ?? 0 }))}
           />
-        </Section>
+        </VStack>
       )
     case "table":
       return <TableView spec={spec} />
@@ -89,15 +90,13 @@ function throughLabel(iso: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
 }
 
-function Skeleton() {
+function VisualPending() {
   return (
-    <Section data-testid="visual-pending" role="status" aria-label="Preparing a chart from your data" padding={4}>
-      <VStack gap={3}>
-        <AstryxSkeleton width={192} height={16} radius={2} />
-        <AstryxSkeleton height={144} radius={3} index={1} />
-        <Text type="supporting">Counting from your data…</Text>
-      </VStack>
-    </Section>
+    <VStack data-testid="visual-pending" role="status" aria-label="Preparing a chart from your data" gap={3} padding={4} className="viz-rise rounded-2xl border bg-card">
+      <Skeleton height="1rem" width="12rem" />
+      <Skeleton height="9rem" width="100%" radius={4} />
+      <Text as="p" type="supporting">Counting from your data…</Text>
+    </VStack>
   )
 }
 
@@ -108,70 +107,93 @@ function Skeleton() {
 export function VisualCard({ item }: { item: VisualItem }) {
   const [asTable, setAsTable] = React.useState(false)
   const [expanded, setExpanded] = React.useState(false)
-  if (item.status === "pending" || !item.spec) return <Skeleton />
+  const mounted = useKeepMounted(expanded)
+  if (item.status === "pending" || !item.spec) return <VisualPending />
   const spec = item.spec
   const through = throughLabel(spec.dataThrough)
   const isTable = spec.kind === "table"
   return (
     <>
-      <article
+      <VStack
+        as="article"
         data-testid="visual"
         data-kind={spec.kind}
         data-visual-id={spec.visualId}
         data-total={spec.total ?? undefined}
         aria-label={spec.title}
-        className="viz-rise flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 shadow-card"
+        gap={3}
+        padding={4}
+        className="viz-rise min-w-0 rounded-2xl border bg-card shadow-card"
       >
-        <header>
-          <HStack hAlign="between" vAlign="start" gap={3} wrap="wrap">
-            <VStack gap={0.5}>
-              <Heading level={4} data-testid="visual-title">{spec.title}</Heading>
-              <Text type="supporting" maxLines={1}>{spec.subtitle}</Text>
-            </VStack>
-            <HStack gap={1}>
+        <HStack as="header" gap={3} align="start" hAlign="between" wrap="wrap">
+          <VStack gap={0.5} className="min-w-0">
+            <Heading level={4} data-testid="visual-title">
+              {spec.title}
+            </Heading>
+            <Text as="p" type="supporting" maxLines={1}>
+              {spec.subtitle}
+            </Text>
+          </VStack>
+          <HStack gap={1.5} className="shrink-0">
             {!isTable && (
-              <Button label={asTable ? "Chart" : "Table"} variant="secondary" size="sm" data-testid="visual-toggle" aria-pressed={asTable} icon={asTable ? <BarChart3 aria-hidden /> : <Table2 aria-hidden />} onClick={() => setAsTable((v) => !v)} />
+              <Button
+                variant="secondary"
+                size="sm"
+                data-testid="visual-toggle"
+                aria-pressed={asTable}
+                label={asTable ? "Chart" : "Table"}
+                icon={<Icon icon={asTable ? BarChart3 : Table2} />}
+                onClick={() => setAsTable((v) => !v)}
+              />
             )}
-            <Button label={`Expand ${spec.title}`} variant="secondary" size="sm" data-testid="visual-expand" icon={<Maximize2 aria-hidden />} isIconOnly onClick={() => setExpanded(true)} />
-            </HStack>
+            <IconButton
+              variant="secondary"
+              size="sm"
+              data-testid="visual-expand"
+              label={`Expand ${spec.title}`}
+              icon={<Icon icon={Maximize2} />}
+              onClick={() => setExpanded(true)}
+            />
           </HStack>
-        </header>
-        <section>{asTable ? <TableView spec={spec} /> : <Chart spec={spec} />}</section>
-        <footer>
-          <VStack gap={1}>
-          {spec.definition && <Text type="supporting">{spec.definition}</Text>}
-          <HStack gap={3} wrap="wrap">
+        </HStack>
+        <VStack className="min-w-0">{asTable ? <TableView spec={spec} /> : <Chart spec={spec} />}</VStack>
+        <VStack as="footer" gap={1}>
+          {spec.definition && <Text as="p" type="supporting">{spec.definition}</Text>}
+          <HStack as="p" gap={3} wrap="wrap">
             {spec.total != null && !isTable && (
-              <Text data-testid="visual-total" type="supporting">Total in period: <strong>{fmt(spec.total)}</strong> {spec.unit}</Text>
+              <Text as="span" type="supporting" data-testid="visual-total">
+                Total in period: <Text weight="semibold" color="primary" hasTabularNumbers>{fmt(spec.total)}</Text> {spec.unit}
+              </Text>
             )}
             {spec.leftOut > 0 && <Text type="supporting">{spec.leftOut} more not shown</Text>}
             {through && <Text type="supporting">Data through {through}</Text>}
             <Text type="supporting">Counted by database queries, not by the AI.</Text>
           </HStack>
-          </VStack>
-        </footer>
-      </article>
-      {expanded && <Dialog isOpen={expanded} onOpenChange={setExpanded} variant="fullscreen" data-testid="visual-sheet">
-        <Layout
-          height="fill"
-          header={<DialogHeader title={spec.title} subtitle={spec.subtitle} onOpenChange={setExpanded} />}
-          content={<LayoutContent padding={4} isScrollable>
-          <Section variant="transparent" padding={0} maxWidth={1200}>
-            <VStack gap={4}>
-            <Card padding={4}>
-              <Chart spec={spec} tall />
-            </Card>
-            {spec.kind !== "table" && (
-              <VStack gap={2}>
-                <Heading level={5}>The same numbers as a table</Heading>
-                <TableView spec={spec} />
-              </VStack>
-            )}
-            {spec.definition && <Text type="supporting">{spec.definition}</Text>}
-            </VStack>
-          </Section>
-          </LayoutContent>}
-        />
+        </VStack>
+      </VStack>
+      {mounted && <Dialog isOpen={expanded} onOpenChange={setExpanded} variant="fullscreen" data-testid={expanded ? "visual-sheet" : undefined}>
+        {mounted && (
+          <Layout
+            height="fill"
+            header={<DialogHeader title={spec.title} subtitle={spec.subtitle} onOpenChange={setExpanded} />}
+            content={
+              <LayoutContent padding={4} isScrollable>
+                <VStack gap={4} className="mx-auto w-full max-w-5xl">
+                  <VStack padding={4} className="rounded-2xl border bg-card">
+                    <Chart spec={spec} tall />
+                  </VStack>
+                  {spec.kind !== "table" && (
+                    <VStack gap={2}>
+                      <Heading level={5} color="secondary">The same numbers as a table</Heading>
+                      <TableView spec={spec} />
+                    </VStack>
+                  )}
+                  {spec.definition && <Text as="p" type="supporting">{spec.definition}</Text>}
+                </VStack>
+              </LayoutContent>
+            }
+          />
+        )}
       </Dialog>}
     </>
   )

@@ -11,6 +11,7 @@ import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog"
 import { EmptyState } from "@astryxdesign/core/EmptyState"
 import { Grid } from "@astryxdesign/core/Grid"
 import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { IconButton } from "@astryxdesign/core/IconButton"
 import { List, ListItem } from "@astryxdesign/core/List"
 import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList"
@@ -27,9 +28,9 @@ import { Text } from "@astryxdesign/core/Text"
 import { TextInput } from "@astryxdesign/core/TextInput"
 import { Tooltip } from "@astryxdesign/core/Tooltip"
 import { VStack } from "@astryxdesign/core/VStack"
-import { Inbox, Plus, RefreshCw, Search, Settings } from "lucide-react"
+import { Inbox, Plus, RefreshCw } from "lucide-react"
 import * as React from "react"
-import { toast } from "sonner"
+import { useAppToast } from "@/components/state/use-app-toast"
 import { GuideGroup, GuideSection } from "./guide-section"
 
 type DateTimeValue = React.ComponentProps<typeof DateTimeInput>["value"]
@@ -73,9 +74,9 @@ import {Selector} from "@astryxdesign/core/Selector"
             <HStack gap={2} wrap="wrap" align="center">
               <Button label="Small" size="sm" variant="secondary" />
               <Button label="Large" size="lg" variant="secondary" />
-              <Button label="Add draft" icon={<Plus />} variant="secondary" />
-              <IconButton label="Refresh checks" icon={<RefreshCw />} variant="ghost" tooltip="Refresh checks" />
-              <IconButton label="Settings" icon={<Settings />} variant="secondary" tooltip="Settings" />
+              <Button label="Add draft" icon={<Icon icon={Plus} />} variant="secondary" />
+              <IconButton label="Refresh checks" icon={<Icon icon={RefreshCw} />} variant="ghost" tooltip="Refresh checks" />
+              <IconButton label="Settings" icon={<Icon icon="wrench" />} variant="secondary" tooltip="Settings" />
               <Tooltip content="Tooltips name icon-only controls">
                 <Button label="Hover or focus" variant="ghost" />
               </Tooltip>
@@ -85,7 +86,7 @@ import {Selector} from "@astryxdesign/core/Selector"
         <Card padding={4}>
           <GuideGroup title="Fields">
             <VStack gap={3}>
-              <TextInput label="User ID" value={name} onChange={setName} placeholder="msl-t01-01" startIcon={Search} hasClear />
+              <TextInput label="User ID" value={name} onChange={setName} placeholder="msl-t01-01" startIcon="search" hasClear />
               <Selector label="Persona" value={role} onChange={setRole} options={ROLE_OPTIONS} />
               <DateTimeInput label="Effective from" value={when} onChange={setWhen} />
             </VStack>
@@ -96,9 +97,9 @@ import {Selector} from "@astryxdesign/core/Selector"
             <VStack gap={3}>
               <Switch label="Catalog visible to this role" description="Saved and audited on change" value={on} onChange={setOn} />
               {/* Disabled controls are exempt from AA (WCAG 1.4.3); this one is shown disabled on purpose. */}
-              <div data-contrast-ok>
+              <VStack data-contrast-ok>
                 <Switch label="Locked setting" value={false} isDisabled disabledMessage="Only another administrator can change this." />
-              </div>
+              </VStack>
               <CheckboxInput label="Include expired assignments" value={checked} onChange={setChecked} />
             </VStack>
           </GuideGroup>
@@ -207,15 +208,20 @@ import {Badge} from "@astryxdesign/core/Badge"
 }
 
 export function FeedbackSection() {
+  const toast = useAppToast()
   const [dialog, setDialog] = React.useState(false)
   const [alert, setAlert] = React.useState(false)
   return (
     <GuideSection
       id="feedback"
       title="Feedback and overlays"
-      description="Banner for a standing message, Skeleton while loading, EmptyState when there is nothing, Dialog for a focused task and AlertDialog only for a destructive or irreversible action. Transient confirmations use the app Toaster."
+      description="Banner for a standing message, Skeleton while loading, EmptyState when there is nothing, Dialog for a focused task and AlertDialog only for a destructive or irreversible action. Transient confirmations and failures use Toast, shown through the app's useAppToast hook."
       code={`import {Banner} from "@astryxdesign/core/Banner"
 import {AlertDialog} from "@astryxdesign/core/AlertDialog"
+import {useAppToast} from "@/components/state/use-app-toast"   // Astryx Toast: toast.success / toast.info / toast.error
+
+const toast = useAppToast()
+toast.success("Saved and audited", {description: "Nothing else changed.", id: "save"})
 
 <Banner status="warning" title="Pipeline attention required" description="Two sources are stale." />
 <AlertDialog isOpen={open} onOpenChange={setOpen} title="Revoke access?" description="…" actionLabel="Revoke access" onAction={revoke} />`}
@@ -241,13 +247,14 @@ import {AlertDialog} from "@astryxdesign/core/AlertDialog"
             <HStack gap={2} wrap="wrap">
               <Button label="Open dialog" variant="secondary" onClick={() => setDialog(true)} />
               <Button label="Open confirmation" variant="secondary" onClick={() => setAlert(true)} />
-              <Button label="Show toast" variant="ghost" onClick={() => toast("Saved and audited")} />
+              <Button label="Show toast" variant="ghost" onClick={() => toast.success("Saved and audited", { description: "Toasts confirm or report; they never carry names or HCP text.", id: "ds-toast-demo" })} />
+              <Button label="Show error toast" variant="ghost" onClick={() => toast.error("The grants could not be saved", { description: "Nothing changed. Errors stay until dismissed.", id: "ds-toast-error-demo" })} />
             </HStack>
           </VStack>
         </Card>
       </Grid>
       <Card padding={2}>
-        <EmptyState icon={<Inbox />} title="No requests yet" description="Requests for transfers and temporary coverage appear here." actions={<Button label="New request" icon={<Plus />} variant="secondary" />} />
+        <EmptyState icon={<Icon icon={Inbox} size="lg" />} title="No requests yet" description="Requests for transfers and temporary coverage appear here." actions={<Button label="New request" icon={<Icon icon={Plus} />} variant="secondary" />} />
       </Card>
       <Dialog isOpen={dialog} onOpenChange={setDialog} width={420}>
         <DialogHeader title="Request coverage" subtitle="A second administrator approves it" onOpenChange={setDialog} />

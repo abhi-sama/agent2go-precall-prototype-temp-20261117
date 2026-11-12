@@ -1,18 +1,28 @@
 "use client"
 
-import { Flag as FlagIcon, Send } from "lucide-react"
+import { Banner } from "@astryxdesign/core/Banner"
+import { Button } from "@astryxdesign/core/Button"
+import { Card } from "@astryxdesign/core/Card"
+import { FormLayout } from "@astryxdesign/core/FormLayout"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
+import { RadioList, RadioListItem } from "@astryxdesign/core/RadioList"
+import { Selector } from "@astryxdesign/core/Selector"
+import { Text } from "@astryxdesign/core/Text"
+import { TextArea } from "@astryxdesign/core/TextArea"
+import { TextInput } from "@astryxdesign/core/TextInput"
+import { VStack } from "@astryxdesign/core/VStack"
+import { Send } from "lucide-react"
 import * as React from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { toDataError, FLAG_KINDS, type DataError, type Flag, type FlagKind, type FlagTargetType } from "@/lib/data/types"
 import { newCorrelationId } from "@/lib/log/logger"
-import { cn } from "@/lib/utils"
 import { FLAG_KIND_LABEL, FLAG_TARGET_LABEL, TARGETS_FOR_KIND } from "./format"
 import { FlagStatusBadge } from "./flag-status-badge"
 
 export const MAX_NOTE = 500
+const MAX_TARGET_ID = 128
 
 /** What is being flagged, when the user arrived from a specific record. */
 export interface FlagPreset {
@@ -72,127 +82,104 @@ export function FlagForm({
 
   if (sent) {
     return (
-      <div data-testid="flag-sent" role="status" className="flex flex-col gap-4 rounded-2xl border bg-fact-soft p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <h3 className="text-base font-semibold">Flag received</h3>
-          <FlagStatusBadge status={sent.status} />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          A reviewer will look at it. Its status is shown under <strong>My flags</strong> and updates as it is reviewed.
-        </p>
-        <div>
-          <Button onClick={onDone}>Done</Button>
-        </div>
-      </div>
+      <Card data-testid="flag-sent" role="status" variant="muted" padding={5}>
+        <VStack gap={4} align="start">
+          <HStack gap={3} wrap="wrap" align="center">
+            <Heading level={3}>Flag received</Heading>
+            <FlagStatusBadge status={sent.status} />
+          </HStack>
+          <Text type="supporting" as="p">
+            A reviewer will look at it. Its status is shown under <Text weight="semibold">My flags</Text> and updates as it is reviewed.
+          </Text>
+          <Button label="Done" variant="primary" onClick={onDone} />
+        </VStack>
+      </Card>
     )
   }
 
   return (
-    <form data-testid="flag-form" onSubmit={submit} className="flex flex-col gap-5">
-      <fieldset className="flex flex-col gap-2" disabled={busy}>
-        <legend className="mb-1 text-sm font-semibold">What is wrong?</legend>
-        <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="What is wrong">
+    <form data-testid="flag-form" onSubmit={submit}>
+      <VStack gap={5}>
+        <RadioList label="What is wrong?" value={kind} isDisabled={busy} onChange={(next) => {
+          const k = next as FlagKind
+          setKind(k)
+          if (!locked) setTargetType(TARGETS_FOR_KIND[k][0])
+        }}>
           {FLAG_KINDS.map((k) => (
-            <button
-              key={k}
-              type="button"
-              role="radio"
-              aria-checked={kind === k}
-              data-testid={`flag-kind-${k}`}
-              disabled={locked && !TARGETS_FOR_KIND[k].includes(preset.targetType)}
-              onClick={() => {
-                setKind(k)
-                if (!locked) setTargetType(TARGETS_FOR_KIND[k][0])
-              }}
-              className={cn(
-                "min-h-11 rounded-xl border px-3 py-2 text-left text-sm font-medium transition-colors disabled:opacity-50",
-                kind === k ? "border-primary bg-primary/10 text-foreground ring-2 ring-primary/30" : "bg-background hover:bg-muted",
-              )}
-            >
-              {FLAG_KIND_LABEL[k]}
-            </button>
+            <RadioListItem key={k} value={k} label={FLAG_KIND_LABEL[k]} data-testid={`flag-kind-${k}`} isDisabled={locked && !TARGETS_FOR_KIND[k].includes(preset.targetType)} />
           ))}
-        </div>
-      </fieldset>
+        </RadioList>
 
-      {locked ? (
-        <div className="rounded-xl border bg-muted/40 p-3 text-sm" data-testid="flag-target">
-          <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Flagging</span>
-          <p className="mt-1 font-medium">
-            {FLAG_TARGET_LABEL[effectiveType]} <span className="font-mono">{targetId}</span>
-            {preset?.label && <span className="text-muted-foreground"> · {preset.label}</span>}
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="flag-target-type">Type</Label>
-            <select
+        {locked ? (
+          <Card data-testid="flag-target" variant="muted" padding={3}>
+            <VStack gap={1}>
+              <Text type="label" color="secondary">
+                Flagging
+              </Text>
+              <Text as="p" weight="medium">
+                {FLAG_TARGET_LABEL[effectiveType]} <Text type="code">{targetId}</Text>
+                {preset?.label && <Text color="secondary"> · {preset.label}</Text>}
+              </Text>
+            </VStack>
+          </Card>
+        ) : (
+          <FormLayout direction="horizontal">
+            <Selector
+              label="Type"
               id="flag-target-type"
               data-testid="flag-target-type"
               value={effectiveType}
-              onChange={(e) => setTargetType(e.target.value as FlagTargetType)}
-              className="h-11 rounded-lg border bg-background px-3 text-sm"
-            >
-              {allowedTargets.map((t) => (
-                <option key={t} value={t}>
-                  {FLAG_TARGET_LABEL[t]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="flag-target-id">{effectiveType === "SUMMARY" ? "Summary reference" : `${FLAG_TARGET_LABEL[effectiveType]} id`}</Label>
-            <Input
+              onChange={(next) => setTargetType(next as FlagTargetType)}
+              options={allowedTargets.map((t) => ({ value: t, label: FLAG_TARGET_LABEL[t] }))}
+              isDisabled={busy}
+            />
+            <TextInput
+              label={effectiveType === "SUMMARY" ? "Summary reference" : `${FLAG_TARGET_LABEL[effectiveType]} id`}
               id="flag-target-id"
               data-testid="flag-target-id"
               value={targetId}
-              onChange={(e) => setTargetId(e.target.value)}
+              onChange={(next) => setTargetId(next.slice(0, MAX_TARGET_ID))}
               placeholder={effectiveType === "TERRITORY" ? "For example T01-01" : "Copy the id shown next to the record"}
               autoComplete="off"
-              spellCheck={false}
-              maxLength={128}
-              className="h-11"
+              hasSpellCheck={false}
+              isDisabled={busy}
             />
-          </div>
-        </div>
-      )}
+          </FormLayout>
+        )}
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="flag-note">What should the reviewer know? (optional)</Label>
-        <textarea
+        <TextArea data-layout-ok="overlap"
+          label="What should the reviewer know? (optional)"
           id="flag-note"
           data-testid="flag-note"
           value={note}
-          onChange={(e) => setNote(e.target.value)}
+          onChange={(next) => setNote(next.slice(0, MAX_NOTE + 50))}
           rows={4}
-          maxLength={MAX_NOTE + 50}
+          maxLength={MAX_NOTE}
+          description="Do not include patient details."
           placeholder="Say what looks wrong and what it should be."
-          className="min-h-28 rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          status={note.length > MAX_NOTE ? { type: "error", message: `Shorten the note to ${MAX_NOTE} characters or fewer.` } : undefined}
+          isDisabled={busy}
         />
-        <p className={cn("text-xs", note.length > MAX_NOTE ? "font-semibold text-destructive" : "text-muted-foreground")}>
-          {note.length} / {MAX_NOTE}. Do not include patient details.
-        </p>
-      </div>
 
-      {error && (
-        <p data-testid="flag-error" role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm">
-          {error.code === "BAD_REQUEST"
-            ? "That could not be flagged. Check the id: it must be a record in your own scope."
-            : "The flag could not be sent. Try again."}
-          {error.correlationId && <span className="mt-1 block font-mono text-xs">Reference {error.correlationId.slice(0, 8)}</span>}
-        </p>
-      )}
+        {error && (
+          <Banner
+            data-testid="flag-error"
+            role="alert"
+            status="error"
+            title={
+              error.code === "BAD_REQUEST"
+                ? "That could not be flagged. Check the id: it must be a record in your own scope."
+                : "The flag could not be sent. Try again."
+            }
+            description={error.correlationId ? `Reference ${error.correlationId.slice(0, 8)}` : undefined}
+          />
+        )}
 
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" size="lg" disabled={!valid || busy} data-testid="flag-submit">
-          {busy ? <FlagIcon className="animate-pulse" aria-hidden /> : <Send aria-hidden />}
-          {busy ? "Sending…" : "Send flag"}
-        </Button>
-        <Button type="button" variant="outline" size="lg" onClick={onDone}>
-          Cancel
-        </Button>
-      </div>
+        <HStack gap={2} wrap="wrap">
+          <Button type="submit" size="lg" variant="primary" label={busy ? "Sending…" : "Send flag"} icon={<Icon icon={Send} />} isLoading={busy} isDisabled={!valid} data-testid="flag-submit" />
+          <Button type="button" size="lg" variant="secondary" label="Cancel" onClick={onDone} />
+        </HStack>
+      </VStack>
     </form>
   )
 }

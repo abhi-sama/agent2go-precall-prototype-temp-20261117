@@ -17,18 +17,18 @@ export function GuideSection({ id, title, description, code, children }: { id: s
       <VStack gap={4}>
         <VStack gap={1}>
           <Heading level={2} id={`ds-${id}-title`}>{title}</Heading>
-          <div className="max-w-3xl">
+          <VStack className="max-w-3xl">
             <Text as="p" display="block" color="secondary">{description}</Text>
-          </div>
+          </VStack>
         </VStack>
         {children}
         {code && (
           <Collapsible trigger={<Text type="label">Show code</Text>} chevronPosition="start">
             {/* Highlighted tokens are nested inline spans inside one wrapped line box, which the layout audit reads as overlap.
                 Colours and comment tint come from the theme's own syntax palette, not from this page. */}
-            <div data-layout-ok="overlap" data-contrast-ok>
+            <VStack data-layout-ok="overlap" data-contrast-ok>
               <CodeBlock code={code} language="tsx" hasCopyButton isWrapped />
-            </div>
+            </VStack>
           </Collapsible>
         )}
       </VStack>
@@ -42,9 +42,9 @@ export function GuideGroup({ title, note, children }: { title: string; note?: Re
     <VStack gap={2} className="min-w-0">
       <Heading level={3}>{title}</Heading>
       {note && (
-        <div className="max-w-3xl">
+        <VStack className="max-w-3xl">
           <Text as="p" display="block" type="supporting">{note}</Text>
-        </div>
+        </VStack>
       )}
       {children}
     </VStack>

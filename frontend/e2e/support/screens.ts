@@ -22,7 +22,7 @@ export interface ScreenSpec {
 const heading = (name: string, level = 1) => (page: Page) =>
   expect(page.getByRole("heading", { level, name })).toBeVisible()
 /** A toast is a transient overlay (a confirmation, not part of the screen), so measure once it has gone. */
-const toastsGone = (page: Page) => expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 12_000 })
+const toastsGone = (page: Page) => expect(page.locator(".astryx-toast")).toHaveCount(0, { timeout: 12_000 })
 const testId = (id: string) => (page: Page) => expect(page.getByTestId(id).first()).toBeVisible()
 /** Wide workspaces reserve a supporting pane; smaller screens use the overlay with identical chat content. */
 const chatSurface = (page: Page) => page.getByTestId(page.viewportSize()!.width >= 1366 ? "chat-dock" : "chat-drawer")
@@ -135,7 +135,8 @@ export const SCREENS: ScreenSpec[] = [
     path: "/msl",
     ready: testId("filter-bar"),
     prepare: async (page) => {
-      await page.locator("#filter-question").selectOption("Q-0001")
+      await page.locator("#filter-question").click()
+      await page.getByRole("option", { name: /Question 1:/ }).click()
       await expect(page.getByTestId("distribution-Q-0001")).toBeVisible()
     },
   },

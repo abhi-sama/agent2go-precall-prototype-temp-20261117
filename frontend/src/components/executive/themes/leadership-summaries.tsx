@@ -2,12 +2,12 @@
 
 import { Download, FileClock, Lock, Printer, RefreshCw, Sparkles } from "lucide-react"
 import * as React from "react"
-import { toast } from "sonner"
 import { Badge } from "@astryxdesign/core/Badge"
 import { Banner } from "@astryxdesign/core/Banner"
 import { Button } from "@astryxdesign/core/Button"
 import { Card } from "@astryxdesign/core/Card"
 import { Collapsible } from "@astryxdesign/core/Collapsible"
+import { Drawer, DrawerHeader } from "@astryxdesign/core/Drawer"
 import { Heading } from "@astryxdesign/core/Heading"
 import { Icon } from "@astryxdesign/core/Icon"
 import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList"
@@ -16,7 +16,7 @@ import { Text } from "@astryxdesign/core/Text"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { AiSummary, SourceFact } from "@/components/provenance/provenance"
 import { EmptyState, ErrorState } from "@/components/state/states"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { useAppToast } from "@/components/state/use-app-toast"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { ExecutiveCitation, LeadershipSummary, LeadershipSummaryExport } from "@/lib/data/executive-themes"
 import { toDataError, type DataError, type DateRange } from "@/lib/data/types"
@@ -152,6 +152,7 @@ function SummaryView({ summary, onExport, onRegenerate, exporting, busy }: { sum
  */
 export function LeadershipSummaries({ range }: { range: DateRange }) {
   const adapter = useDataAdapter()
+  const toast = useAppToast()
   const { userId, ready } = useSession()
   const list = useQuery("myLeadershipSummaries", userId, (ctx) => adapter.myLeadershipSummaries(ctx), ready)
   const [active, setActive] = React.useState<LeadershipSummary | null>(null)
@@ -265,12 +266,12 @@ export function LeadershipSummaries({ range }: { range: DateRange }) {
         )}
       </section>
 
-      <Sheet open={exported !== null} onOpenChange={(o) => !o && setExported(null)}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl" data-testid="export-sheet">
-          <SheetHeader className="pr-16">
-            <SheetTitle>Leadership summary export</SheetTitle>
-            <SheetDescription>Created after your access was re-checked. Only this document prints.</SheetDescription>
-          </SheetHeader>
+      <Drawer isOpen={exported !== null} onOpenChange={(o) => !o && setExported(null)} label="Leadership summary export" width="42rem" data-testid="export-sheet">
+        <DrawerHeader
+          title="Leadership summary export"
+          subtitle="Created after your access was re-checked. Only this document prints."
+          onOpenChange={(o) => !o && setExported(null)}
+        />
           <div className="flex flex-col gap-4 px-4 pb-6">
             <Button data-testid="print-summary" className="w-fit" onClick={() => window.print()} variant="primary" icon={<Icon icon={Printer} />} label="Print or save as PDF" />
             {exported && (
@@ -279,8 +280,7 @@ export function LeadershipSummaries({ range }: { range: DateRange }) {
               </div>
             )}
           </div>
-        </SheetContent>
-      </Sheet>
+      </Drawer>
       {exported && <LeadershipPrintDocument doc={exported} />}
     </div>
   )

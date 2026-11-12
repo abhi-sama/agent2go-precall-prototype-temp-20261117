@@ -279,7 +279,8 @@ test("design system page renders both chart libraries", async ({ page }) => {
 test("shared analytics filters, denominators, saved views and catalog dates work on iPad", async ({ page }) => {
   await page.goto("/msl")
   await expect(page.getByTestId("filter-bar")).toBeVisible()
-  await page.locator("#filter-question").selectOption("Q-0001")
+  await page.locator("#filter-question").click()
+  await page.getByRole("option", { name: /Question 1:/ }).click()
   await expect(page.getByTestId("distribution-Q-0001")).toBeVisible()
   await expect(page.getByTestId("distribution-Q-0002")).toHaveCount(0)
   await expect(page.getByTestId("distribution-Q-0001")).toContainText("Denominator:")

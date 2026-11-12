@@ -3,11 +3,12 @@
 import { Badge } from "@astryxdesign/core/Badge"
 import { Card } from "@astryxdesign/core/Card"
 import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { Selector } from "@astryxdesign/core/Selector"
 import { Table, proportional } from "@astryxdesign/core/Table"
 import { Text } from "@astryxdesign/core/Text"
 import { VStack } from "@astryxdesign/core/VStack"
-import { CheckCircle2, ShieldCheck } from "lucide-react"
+import { ShieldCheck } from "lucide-react"
 import { useMemo, useState } from "react"
 import { SectionCard } from "@/components/admin/section-card"
 import { BlockSkeleton, ErrorState } from "@/components/state/states"
@@ -53,14 +54,14 @@ export function AuthorizationVerificationGrid() {
 
   const label = SCENARIOS.find(([id]) => id === scenario)?.[1] ?? scenario
   return (
-    <div data-testid="authorization-verification-grid">
+    <VStack data-testid="authorization-verification-grid">
       <SectionCard
         title="Authorization verification grid"
         icon={ShieldCheck}
         description="Local CI signs in seeded personas and exercises the AppSync path. This inventory contains no test identities, territory identifiers, or source records."
         end={
           <>
-            <Badge variant="success" icon={<CheckCircle2 className="size-3" aria-hidden />} label={`${grid.data.passed} / ${grid.data.total} passed`} />
+            <Badge variant="success" icon={<Icon icon="success" size="xsm" />} label={`${grid.data.passed} / ${grid.data.total} passed`} />
             <Badge variant="neutral" label="Local stack only" />
           </>
         }
@@ -87,6 +88,6 @@ export function AuthorizationVerificationGrid() {
         </Card>
         <Text type="supporting" as="p">Suite: {grid.data.suiteId}. The CI test is the evidence; this panel publishes its coverage contract for review.</Text>
       </SectionCard>
-    </div>
+    </VStack>
   )
 }

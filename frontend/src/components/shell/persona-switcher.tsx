@@ -2,10 +2,11 @@
 
 import { Banner } from "@astryxdesign/core/Banner"
 import { Button } from "@astryxdesign/core/Button"
+import { Icon } from "@astryxdesign/core/Icon"
 import { List, ListItem } from "@astryxdesign/core/List"
 import { Popover } from "@astryxdesign/core/Popover"
 import { VStack } from "@astryxdesign/core/VStack"
-import { Check, UserRound } from "lucide-react"
+import { UserRound } from "lucide-react"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { PERSONA_CONFIG } from "@/components/shell/persona-config"
@@ -58,7 +59,7 @@ export function PersonaSwitcher() {
                         label={u.fullName}
                         description={u.blurb}
                         isSelected={active}
-                        endContent={active ? <Check className="size-4" aria-hidden /> : undefined}
+                        endContent={active ? <Icon icon="check" size="sm" /> : undefined}
                         onClick={async () => {
                           setOpen(false)
                           await switchUser(u.userId)
@@ -78,7 +79,7 @@ export function PersonaSwitcher() {
         data-testid="persona-switch"
         variant="secondary"
         label={`${PERSONA_LABEL[user.persona]}: ${user.fullName}`}
-        icon={<UserRound aria-hidden />}
+        icon={<Icon icon={UserRound} />}
       >
         {PERSONA_LABEL[user.persona]}
       </Button>

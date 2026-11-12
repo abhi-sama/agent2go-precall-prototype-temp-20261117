@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@astryxdesign/core/Button"
+import { VStack } from "@astryxdesign/core/VStack"
 import NextLink from "next/link"
 import * as React from "react"
 import { PERSONA_CONFIG } from "@/components/shell/persona-config"
@@ -39,7 +40,7 @@ export function FirstRunOrientation() {
   if (!visible) return null
   const workspace = PERSONA_CONFIG[user.persona]
   return (
-    <div className="mb-[var(--page-gap)]" data-testid="first-run-orientation">
+    <VStack paddingBlockEnd={6} data-testid="first-run-orientation">
       <FirstRunState
         action={
           <Button
@@ -51,6 +52,6 @@ export function FirstRunOrientation() {
           />
         }
       />
-    </div>
+    </VStack>
   )
 }

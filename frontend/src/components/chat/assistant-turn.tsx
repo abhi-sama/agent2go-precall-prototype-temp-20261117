@@ -1,17 +1,24 @@
 "use client"
 
-import { AlertTriangle, BarChart3, FileText, Info, Lock } from "lucide-react"
+import { BarChart3, FileText, Lock } from "lucide-react"
 import * as React from "react"
 import { Avatar } from "@astryxdesign/core/Avatar"
+import { Badge } from "@astryxdesign/core/Badge"
+import { Banner } from "@astryxdesign/core/Banner"
 import { Button } from "@astryxdesign/core/Button"
 import { Citation } from "@astryxdesign/core/Citation"
 import { ChatMessage, ChatMessageBubble, ChatToolCalls } from "@astryxdesign/core/Chat"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { Markdown } from "@astryxdesign/core/Markdown"
+import { ProgressBar } from "@astryxdesign/core/ProgressBar"
+import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
 import { AnswerFeedback } from "@/components/chat/answer-feedback"
 import { AnswerRows } from "@/components/chat/answer-rows"
 import { VisualCard } from "@/components/chat/visual-card"
 import { AiSummary, CitationChip, ExportButton, SourceFact, Suggestion, type ProvenanceCitation } from "@/components/provenance/provenance"
-import { Badge } from "@/components/ui/badge"
 import { useCountUp } from "@/hooks/use-count-up"
 import { citationNumber, citationsForFact, factsAreComparable, isAggregateCitation, type AssistantTurn, type CitationItem, type FactItem } from "@/lib/chat/events"
 import { buildProvenanceExport, downloadText, type ExportBlock } from "@/lib/provenance"
@@ -30,23 +37,23 @@ function KpiTile({ f, turn, onOpenCitation }: { f: FactItem; turn: AssistantTurn
   const sources = citationsForFact(f, turn.citations)
   const aggregate = sources.length > 0 && sources.every(isAggregateCitation)
   return (
-    <div data-testid={`fact-${f.factId}`} data-value={f.value} className="rounded-lg border border-border bg-background p-3">
-      <dt className="text-xs font-semibold text-muted-foreground">{f.label}</dt>
-      <dd className="mt-1 text-3xl font-semibold tracking-tight tabular-nums" aria-label={f.value.toLocaleString("en-US")}>
-        {shown.toLocaleString("en-US")}
+    <VStack data-testid={`fact-${f.factId}`} data-value={f.value} gap={3} padding={3} className="rounded-lg border border-border bg-background">
+      <dt><Text type="label" weight="semibold" color="secondary">{f.label}</Text></dt>
+      <dd aria-label={f.value.toLocaleString("en-US")}>
+        <Text type="display-3" hasTabularNumbers>{shown.toLocaleString("en-US")}</Text>
       </dd>
-      <p className="mt-1 text-xs text-muted-foreground">
+      <Text as="p" type="supporting">
         {f.scope} · {f.period}
-      </p>
-      {f.citationIds.length > 0 && <p className="text-xs text-muted-foreground">{f.citationIds.length} {aggregate ? "aggregate source" : "source records"}</p>}
+      </Text>
+      {f.citationIds.length > 0 && <Text as="p" type="supporting">{f.citationIds.length} {aggregate ? "aggregate source" : "source records"}</Text>}
       {sources.length > 0 && (
-        <p className="mt-2 flex flex-wrap gap-1" aria-label={`Sources for ${f.label}`}>
+        <HStack as="p" gap={1} wrap="wrap" aria-label={`Sources for ${f.label}`}>
           {sources.map((citation) => (
             <CitationLink key={`${citation.dataset}:${citation.recordId}`} citation={citation} citations={turn.citations} onOpen={onOpenCitation} />
           ))}
-        </p>
+        </HStack>
       )}
-    </div>
+    </VStack>
   )
 }
 
@@ -148,7 +155,7 @@ export function AssistantTurnView({
   return (
     <ChatMessage sender="assistant" name="Agent" avatar={<Avatar name="Agent" size="sm" tooltip={false} />} data-testid="assistant-turn" data-status={turn.status}>
       <ChatMessageBubble variant="ghost" width="100%">
-        <div className="flex min-w-0 flex-col gap-3">
+        <VStack gap={3} className="min-w-0">
       {activeTools.length > 0 && (
         <ChatToolCalls
           calls={activeTools.map((tool) => ({
@@ -168,8 +175,8 @@ export function AssistantTurnView({
           title="Computed from your data"
           meta={
             <>
-              {through && <span data-testid="fact-data-through">Data through {through}</span>}
-              <span>Counted by database queries, not by the AI.</span>
+              {through && <Text type="supporting" data-testid="fact-data-through">Data through {through}</Text>}
+              <Text type="supporting">Counted by database queries, not by the AI.</Text>
             </>
           }
         >
@@ -182,11 +189,11 @@ export function AssistantTurnView({
       )}
 
       {turn.visuals.length > 0 && (
-        <section aria-label="Charts" data-testid="visuals" className="grid min-w-0 gap-3">
+        <VStack as="section" aria-label="Charts" data-testid="visuals" gap={3} className="min-w-0">
           {turn.visuals.map((v) => (
             <VisualCard key={v.visualId} item={v} />
           ))}
-        </section>
+        </VStack>
       )}
 
       {hasAi && (
@@ -195,17 +202,15 @@ export function AssistantTurnView({
           citations={aiCitations}
           meta={
             turn.mode === "stub" ? (
-              <Badge data-testid="stub-badge" variant="outline" className="border-warning/50 text-warning">
-                Local stub model · no API key
-              </Badge>
+              <Badge data-testid="stub-badge" variant="warning" label="Local stub model · no API key" />
             ) : (
-              <span>{turn.facts.length > 0 ? "Generated by AI from the facts above. Check the sources." : "Generated by AI."}</span>
+              <Text type="supporting">{turn.facts.length > 0 ? "Generated by AI from the facts above. Check the sources." : "Generated by AI."}</Text>
             )
           }
         >
-          <div data-testid="ai-summary" aria-live="polite" className="flex flex-col gap-2">
+          <VStack data-testid="ai-summary" aria-live="polite" gap={2}>
             {paragraphs.length === 0 ? (
-              <p className="text-muted-foreground">Thinking…</p>
+              <Text as="p" color="secondary">Thinking…</Text>
             ) : (
               paragraphs.map((p, i) => (
                 <p key={i}>
@@ -214,78 +219,98 @@ export function AssistantTurnView({
                 </p>
               ))
             )}
-          </div>
+          </VStack>
         </AiSummary>
       )}
 
       {turn.status === "done" && rowSets.length > 0 && <AnswerRows runId={turn.runId} rowSets={rowSets} />}
 
       {limitations.length > 0 && (
-        <section data-testid="sample-limitations" aria-label="Sample limitations" className="rounded-xl border border-warning/40 bg-warning/8 p-3 text-sm">
-          <h4 className="flex items-center gap-2 text-sm font-semibold"><Info className="size-4 text-warning" aria-hidden />Sample limitations</h4>
-          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">
-            {limitations.map((item) => <li key={item}>{item}</li>)}
+        <Banner
+          data-testid="sample-limitations"
+          aria-label="Sample limitations"
+          status="warning"
+          icon={<Icon icon="info" />}
+          title="Sample limitations"
+          collapsible={false}
+        >
+          <ul className="flex list-disc flex-col gap-1 pl-5">
+            {limitations.map((item) => <li key={item}><Text color="secondary">{item}</Text></li>)}
           </ul>
-        </section>
+        </Banner>
       )}
 
       {turn.numberCheck?.status === "unverified" && (
-        <p data-testid="number-warning" role="alert" className="flex items-start gap-2 rounded-xl border border-warning/50 bg-warning/10 p-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-          Some figures in this summary could not be matched to the source facts. Rely on the numbers computed from your data.
-        </p>
+        <Banner
+          data-testid="number-warning"
+          role="alert"
+          status="warning"
+          title="Some figures in this summary could not be matched to the source facts. Rely on the numbers computed from your data."
+          collapsible={false}
+        />
       )}
 
       {turn.status === "error" && (
-        <p data-testid="chat-error" role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm">
-          {turn.error ?? "The agent could not complete this answer."}
-        </p>
+        <Banner data-testid="chat-error" role="alert" status="error" title={turn.error ?? "The agent could not complete this answer."} collapsible={false} />
       )}
 
       {(aggregateOnly || turn.rowsUnavailable) && turn.status === "done" && rowSets.length === 0 && (
-        <p data-testid="aggregate-only-note" className="flex items-start gap-2 rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
-          <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <span>
-            <strong className="font-semibold text-foreground">Rows are not available for this answer.</strong> Your aggregate-only access does not grant
-            source-row access, so chat shows aggregates only, with small groups withheld. Records and exports are unavailable in chat.
-          </span>
-        </p>
+        <Banner
+          data-testid="aggregate-only-note"
+          status="info"
+          icon={<Icon icon={Lock} />}
+          title="Rows are not available for this answer."
+          description="Your aggregate-only access does not grant source-row access, so chat shows aggregates only, with small groups withheld. Records and exports are unavailable in chat."
+          collapsible={false}
+        />
       )}
 
       {!hasAi && turn.citations.length > 0 && (
-        <section aria-label="Sources" data-testid="citations" className="flex flex-col gap-2">
-          <h4 className="text-xs font-semibold text-muted-foreground">Sources you can open</h4>
-          <ul className="flex flex-wrap gap-2">
+        <VStack as="section" aria-label="Sources" data-testid="citations" gap={2}>
+          <Heading level={4} color="secondary">Sources you can open</Heading>
+          <HStack as="ul" gap={2} wrap="wrap">
             {turn.citations.map((c) => (
               <li key={`${c.dataset}:${c.recordId}`}>
                 <CitationChip data-testid="citation" aria-label={`Open source: ${c.label}`} onOpen={() => onOpenCitation(c)} className="min-h-11 gap-2 rounded-lg px-3 text-left text-sm">
-                  <FileText className="size-4 shrink-0 text-fact" aria-hidden />
-                  <span className="flex flex-col leading-tight">
-                    <span className="font-mono text-xs">{isAggregateCitation(c) ? "Aggregate source" : c.recordId}</span>
-                    <span className="text-xs text-muted-foreground">{c.label}</span>
-                  </span>
+                  <Icon icon={FileText} size="sm" className="shrink-0 text-fact" />
+                  <VStack as="span" gap={0}>
+                    <Text type="code">{isAggregateCitation(c) ? "Aggregate source" : c.recordId}</Text>
+                    <Text type="supporting">{c.label}</Text>
+                  </VStack>
                 </CitationChip>
               </li>
             ))}
-          </ul>
-        </section>
+          </HStack>
+        </VStack>
       )}
 
       {factsAreComparable(turn.facts) && (
-        <section data-testid="chat-fact-chart" aria-label="Computed fact comparison" className="rounded-xl border bg-card p-3">
-          <div className="mb-3 flex items-center gap-2 text-sm font-medium"><BarChart3 className="size-4 text-fact" aria-hidden />Computed comparison</div>
-          <div className="flex flex-col gap-2">
+        <VStack as="section" data-testid="chat-fact-chart" aria-label="Computed fact comparison" gap={3} padding={3} className="rounded-xl border bg-card">
+          <HStack gap={2} align="center">
+            <Icon icon={BarChart3} size="sm" className="text-fact" />
+            <Text weight="medium">Computed comparison</Text>
+          </HStack>
+          <VStack gap={2}>
             {turn.facts.map((fact) => {
               const max = Math.max(...turn.facts.map((item) => item.value), 1)
-              return <div key={fact.factId} className="grid grid-cols-[minmax(7rem,1fr)_3rem] items-center gap-3 text-xs"><span className="truncate text-muted-foreground">{fact.label}</span><span className="text-right font-medium tabular-nums">{fact.value.toLocaleString("en-US")}</span><div className="col-span-2 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-fact" style={{ width: `${Math.max(3, (fact.value / max) * 100)}%` }} /></div></div>
+              return (
+                <ProgressBar
+                  key={fact.factId}
+                  label={fact.label}
+                  value={fact.value}
+                  max={max}
+                  hasValueLabel
+                  formatValueLabel={(value) => value.toLocaleString("en-US")}
+                />
+              )
             })}
-          </div>
-        </section>
+          </VStack>
+        </VStack>
       )}
 
       {turn.status === "done" && turn.suggestions.length > 0 && (
         <Suggestion title="You could ask next">
-          <ul className="flex flex-wrap gap-2">
+          <HStack as="ul" gap={2} wrap="wrap">
             {turn.suggestions.map((s) => (
               <li key={s}>
                 <Button
@@ -297,24 +322,24 @@ export function AssistantTurnView({
                 />
               </li>
             ))}
-          </ul>
+          </HStack>
         </Suggestion>
       )}
 
       {turn.status === "done" && (turn.text || turn.facts.length > 0) && (
-        <div className="flex justify-end">
+        <HStack hAlign="end">
           <ExportButton onExport={() => exportTurn(turn, through)} label="Download answer" />
-        </div>
+        </HStack>
       )}
 
       {turn.status === "done" && turn.saved !== null && (
-        <p data-testid="saved-note" className="text-xs text-muted-foreground">
+        <Text as="p" type="supporting" data-testid="saved-note">
           {turn.saved ? "Saved to your conversation history." : "This answer could not be saved to your history."}
-        </p>
+        </Text>
       )}
 
       {turn.status === "done" && turn.text !== "" && <AnswerFeedback runId={turn.runId} />}
-        </div>
+        </VStack>
       </ChatMessageBubble>
     </ChatMessage>
   )

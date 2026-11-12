@@ -10,7 +10,6 @@ import { Text } from "@astryxdesign/core/Text"
 import { VStack } from "@astryxdesign/core/VStack"
 import { Stethoscope } from "lucide-react"
 import * as React from "react"
-import { toast } from "sonner"
 import { DistributionBars } from "@/components/charts/distribution-bars"
 import { EChart } from "@/components/charts/echart"
 import { Heatmap } from "@/components/charts/heatmap"
@@ -22,6 +21,7 @@ import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { AiSummary, CitationChip, SourceFact, Suggestion } from "@/components/provenance/provenance"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { EmptyState, ErrorState, FirstRunState, NoAccessState } from "@/components/state/states"
+import { useAppToast } from "@/components/state/use-app-toast"
 import { DataError } from "@/lib/data/types"
 import { useThemeSignature } from "@/hooks/use-document-theme"
 import { GuideGroup, GuideSection } from "./guide-section"
@@ -40,7 +40,8 @@ const HEAT_ROWS = [
 ]
 
 export function ProvenanceSection() {
-  const open = () => toast("A citation opens its source record in a side sheet")
+  const toast = useAppToast()
+  const open = () => toast.info("A citation opens its source record in a side panel")
   return (
     <GuideSection
       id="provenance"
@@ -60,7 +61,7 @@ export function ProvenanceSection() {
             { key: "r1", label: "RESP-0114", detail: "Recorded HCP response", onOpen: open },
             { key: "r2", label: "RESP-0207", detail: "Recorded HCP response", onOpen: open },
           ]}
-          meta={<span>Based on 18 responses · data through Nov 2</span>}
+          meta={<Text type="inherit">Based on 18 responses · data through Nov 2</Text>}
         >
           Several HCPs asked about sequencing after progression. Treat as a pattern to verify, not a conclusion.
         </AiSummary>
@@ -179,12 +180,12 @@ export function StatesSection() {
 
 <ErrorState error={error} onRetry={refetch} />`}
     >
-      <div data-testid="state-family-preview" className="grid min-w-0 gap-4 xl:grid-cols-2">
+      <Grid data-testid="state-family-preview" columns={{ minWidth: 360, max: 2 }} gap={4}>
         <EmptyState />
         <NoAccessState />
         <ErrorState error={new DataError("UNAVAILABLE", "x", "3f2a9c1e-0000")} onRetry={() => {}} />
         <FirstRunState action={<Button label="Open MSL workspace" href="/msl" />} />
-      </div>
+      </Grid>
     </GuideSection>
   )
 }

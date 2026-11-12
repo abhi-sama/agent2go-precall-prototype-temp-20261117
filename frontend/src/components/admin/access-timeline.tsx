@@ -5,14 +5,16 @@ import { Badge } from "@astryxdesign/core/Badge"
 import { Banner } from "@astryxdesign/core/Banner"
 import { Button } from "@astryxdesign/core/Button"
 import { DateTimeInput, type ISODateTimeString } from "@astryxdesign/core/DateTimeInput"
+import { Grid } from "@astryxdesign/core/Grid"
 import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { List, ListItem } from "@astryxdesign/core/List"
 import { Selector } from "@astryxdesign/core/Selector"
 import { Table, proportional } from "@astryxdesign/core/Table"
 import { Text } from "@astryxdesign/core/Text"
 import { TextInput } from "@astryxdesign/core/TextInput"
 import { VStack } from "@astryxdesign/core/VStack"
-import { ArrowRightLeft, CalendarClock, Check, History, X } from "lucide-react"
+import { ArrowRightLeft, CalendarClock, History } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { SectionCard } from "@/components/admin/section-card"
 import { BlockSkeleton, ErrorState } from "@/components/state/states"
@@ -73,21 +75,21 @@ function RequestForm({ onSaved }: { onSaved: () => void }) {
   }
   return (
     <form onSubmit={submit} data-testid="scope-change-form" aria-label="Request a transfer or temporary coverage">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Selector label="Type" options={KIND_OPTIONS} value={kind} onChange={(next) => { if (isKind(next)) setKind(next) }} width="100%" />
-        <TextInput label="User ID" isRequired placeholder="msl-t01-01" value={draft.userId} onChange={set("userId")} htmlName="userId" width="100%" />
-        {kind === "TRANSFER" && <TextInput label="Moves from" isRequired placeholder="T01-01" value={draft.fromTerritoryId} onChange={set("fromTerritoryId")} htmlName="fromTerritoryId" width="100%" />}
-        <TextInput label={kind === "TRANSFER" ? "Moves to" : "Covers"} isRequired placeholder="T02-01" value={draft.toTerritoryId} onChange={set("toTerritoryId")} htmlName="toTerritoryId" width="100%" />
-        <DateTimeInput label="Starts" isRequired value={(draft.effectiveFrom || undefined) as ISODateTimeString | undefined} onChange={(value) => set("effectiveFrom")(value)} />
-        {kind === "TEMPORARY_COVERAGE" && <DateTimeInput label="Expires" description="Required: coverage stops on its own at this moment." isRequired value={(draft.effectiveTo || undefined) as ISODateTimeString | undefined} onChange={(value) => set("effectiveTo")(value)} />}
-        <div className="sm:col-span-2 lg:col-span-2">
-          <TextInput label="Reason" isRequired placeholder="Why this change is needed" value={draft.reason} onChange={set("reason")} htmlName="reason" width="100%" />
-        </div>
-      </div>
-      <HStack gap={3} align="center" wrap="wrap" paddingBlockStart={4}>
-        <Button type="submit" variant="primary" label={saving ? "Requesting" : "Request for approval"} isLoading={saving} />
-        {notice && <Text type="supporting" role="status">{notice}</Text>}
-      </HStack>
+      <VStack gap={4}>
+        <Grid columns={{ minWidth: 240 }} gap={4}>
+          <Selector label="Type" options={KIND_OPTIONS} value={kind} onChange={(next) => { if (isKind(next)) setKind(next) }} width="100%" />
+          <TextInput label="User ID" isRequired placeholder="msl-t01-01" value={draft.userId} onChange={set("userId")} htmlName="userId" width="100%" />
+          {kind === "TRANSFER" && <TextInput label="Moves from" isRequired placeholder="T01-01" value={draft.fromTerritoryId} onChange={set("fromTerritoryId")} htmlName="fromTerritoryId" width="100%" />}
+          <TextInput label={kind === "TRANSFER" ? "Moves to" : "Covers"} isRequired placeholder="T02-01" value={draft.toTerritoryId} onChange={set("toTerritoryId")} htmlName="toTerritoryId" width="100%" />
+          <DateTimeInput label="Starts" isRequired value={(draft.effectiveFrom || undefined) as ISODateTimeString | undefined} onChange={(value) => set("effectiveFrom")(value)} />
+          {kind === "TEMPORARY_COVERAGE" && <DateTimeInput label="Expires" description="Required: coverage stops on its own at this moment." isRequired value={(draft.effectiveTo || undefined) as ISODateTimeString | undefined} onChange={(value) => set("effectiveTo")(value)} />}
+        </Grid>
+        <TextInput label="Reason" isRequired placeholder="Why this change is needed" value={draft.reason} onChange={set("reason")} htmlName="reason" width="100%" />
+        <HStack gap={3} align="center" wrap="wrap">
+          <Button type="submit" variant="primary" label={saving ? "Requesting" : "Request for approval"} isLoading={saving} />
+          {notice && <Text type="supporting" role="status">{notice}</Text>}
+        </HStack>
+      </VStack>
     </form>
   )
 }
@@ -136,8 +138,8 @@ function RequestRow({ request, ownUserId, onDecided }: { request: ScopeChangeReq
       endContent={
         status === "PENDING" ? (
           <HStack gap={2} wrap="wrap" justify="end">
-            <Button size="sm" variant="primary" icon={<Check aria-hidden />} label="Approve" isDisabled={busy || own} onClick={() => decide("APPROVE")} />
-            <Button size="sm" variant="secondary" icon={<X aria-hidden />} label="Reject" isDisabled={busy || own} onClick={() => setConfirmReject(true)} />
+            <Button size="sm" variant="primary" icon={<Icon icon="check" />} label="Approve" isDisabled={busy || own} onClick={() => decide("APPROVE")} />
+            <Button size="sm" variant="secondary" icon={<Icon icon="close" />} label="Reject" isDisabled={busy || own} onClick={() => setConfirmReject(true)} />
             {confirmReject && (
               <AlertDialog
                 isOpen
@@ -179,10 +181,10 @@ export function AccessTimelineView() {
           <>
             {timeline.data.overlaps.length > 0 && (
               <VStack gap={2} data-testid="access-overlaps">
-                {timeline.data.overlaps.map((o) => <Banner key={`${o.kind}-${o.assignmentIds.join("-")}`} status="warning" title="Overlap" description={<span className="break-words">{o.message}</span>} collapsible={false} />)}
+                {timeline.data.overlaps.map((o) => <Banner key={`${o.kind}-${o.assignmentIds.join("-")}`} status="warning" title="Overlap" description={<Text className="break-words">{o.message}</Text>} collapsible={false} />)}
               </VStack>
             )}
-            <div data-testid="access-timeline">
+            <VStack data-testid="access-timeline">
               <Table<TimelineRow>
                 data={timeline.data.entries.map((e) => ({ ...e, id: e.assignmentId }))}
                 idKey="id"
@@ -197,19 +199,19 @@ export function AccessTimelineView() {
                   { key: "left", header: "Remaining", width: proportional(1, { minWidth: 120 }), renderCell: (e) => <VStack gap={0.5}>{remaining(e) && <Text type="label" color="accent">{remaining(e)}</Text>}{e.requestId && <Text type="supporting">via request {e.requestId}</Text>}</VStack> },
                 ]}
               />
-            </div>
+            </VStack>
           </>
         )}
       </SectionCard>
       {timeline.status === "success" && (
         <SectionCard icon={History} title="Approval trail" description="Every request, who asked, and who decided.">
-          <div data-testid="approval-requests">
+          <VStack data-testid="approval-requests">
             {timeline.data.requests.length === 0 ? <Text color="secondary" as="p">No requests yet.</Text> : (
               <List hasDividers edge="flush">
                 {timeline.data.requests.map((r) => <RequestRow key={r.requestId} request={r} ownUserId={user.userId} onDecided={refresh} />)}
               </List>
             )}
-          </div>
+          </VStack>
         </SectionCard>
       )}
     </VStack>

@@ -48,14 +48,9 @@ the theme or scheme changes (see `echart.tsx`, `bar-field.tsx`, `territory-map.t
 
 | `@/components/ui/*` | Now | Wave 2: use directly |
 | --- | --- | --- |
-| `Button` | Adapter over Astryx `Button` / `IconButton` (variant default->primary, outline/secondary->secondary, ghost/link->ghost, destructive; size icon* -> IconButton; `disabled` -> `isDisabled`, i.e. aria-disabled) | `Button`, `IconButton` from `@astryxdesign/core` |
-| `ButtonLink` (new), `buttonVariants` (deprecated) | Astryx Button with `href` + Next link; `buttonVariants` is a legacy class recipe kept for 5 call sites (director pages and the design showcase) | `Button href=... ` |
-| `Badge` | Adapter over Astryx `Badge` (destructive->error, others->neutral) | `Badge variant label` |
-| `Card` (+ Header/Title/Description/Content/Footer/Action) | Astryx `Card` surface with padding 0; parts unchanged | `Card padding`, `Heading`, `Text` |
-| `Skeleton` | Adapter over Astryx `Skeleton` (size with classes or `width`/`height`) | `Skeleton` |
-| `Input`, `Label` | Native input restyled on Astryx tokens (call sites rely on FormData, date/number types, `onChange(event)`) | `TextInput`, `NumberInput`, `DateInput`, `Selector` (they render their own label) |
-| `Sheet` | Still base-ui dialog on tokens (chat drawer, citation sheet, drill-downs) | `Drawer`, `BottomSheet` |
-| `Tabs`, `Switch`, `Popover`, `chart.tsx`, `sonner` (Toaster) | Still on the old stack, token-themed | `TabList`, `Switch`, `Popover`, Astryx `Toast` (`useToast`) |
+| Removed: `Button` (+ `buttonVariants`), `Badge`, `Card`, `Skeleton`, `Input` | Adapters over Astryx; every caller now imports `@astryxdesign/core/*` directly | `Button`, `IconButton`, `Badge`, `Card`, `Skeleton`, `TextInput`, `NumberInput`, `DateInput`, `Selector` (they render their own label) |
+| Removed: `Sheet`, `Label`, `Popover`, `Switch`, `Tabs`, `sonner`, and with them the `@base-ui/react` and `class-variance-authority` dependencies | Callers moved to Astryx (`Drawer`/`Dialog`, field labels, `useAppToast`) | `Drawer`, `BottomSheet`, `Popover`, `Switch`, `TabList`, `useToast` |
+| `chart.tsx` | recharts container; Astryx has no chart component. Tooltip and legend chrome is Astryx `Card` / `Text` / stacks | keep |
 | Removed (unused) | `dropdown-menu`, `select`, `separator`, `toggle`, `toggle-group`, `tooltip`, `theme-provider`, `theme-toggle`, `next-themes` | `DropdownMenu`, `Selector`, `Divider`, `ToggleButton`, `Tooltip` |
 
 ## Shell conventions
@@ -77,3 +72,5 @@ the theme or scheme changes (see `echart.tsx`, `bar-field.tsx`, `territory-map.t
    `e2e/support/appearance.ts` has `LOOKS`, `KEY_LOOKS` and `seedLook` for specs.
 6. Visual baselines (`e2e/__visual__`) were removed with the old warm/clinical looks; regenerate with
    `pnpm test:visual:update` once the wave-2 pages land.
+
+Every old element, wrapper and icon, with its Astryx replacement or the reason it was kept, is listed in [astryx-inventory.md](./astryx-inventory.md). Transient feedback uses `useAppToast()` (`components/state/use-app-toast.tsx`), a thin wrapper over Astryx `useToast` that keeps the `toast.success(title, { description })` call shape.

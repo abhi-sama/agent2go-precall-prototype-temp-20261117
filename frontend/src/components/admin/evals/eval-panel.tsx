@@ -5,6 +5,8 @@ import { Button } from "@astryxdesign/core/Button"
 import { Card } from "@astryxdesign/core/Card"
 import { EmptyState } from "@astryxdesign/core/EmptyState"
 import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl"
 import { Skeleton } from "@astryxdesign/core/Skeleton"
 import { Tab, TabList } from "@astryxdesign/core/TabList"
@@ -63,10 +65,10 @@ function RunSection({ runId, onSettled }: { runId: string; onSettled: () => void
   if (!run && query.status === "error") return <ErrorState error={query.error} onRetry={query.refetch} />
   if (!run) return <RunSkeleton />
   return (
-    <section data-testid="run-section" data-run-id={run.runId} aria-live="polite" className="flex flex-col gap-5">
+    <VStack as="section" gap={5} data-testid="run-section" data-run-id={run.runId} aria-live="polite">
       <RunHeader run={run} />
       <RunBody run={run} />
-    </section>
+    </VStack>
   )
 }
 
@@ -88,39 +90,39 @@ function SuiteCard({
   const byType = EVAL_CATEGORIES.map((c) => ({ c, n: suite?.questions.filter((q) => q.category === c).length ?? 0 })).filter((x) => x.n > 0)
   const disabled = busy || running
   return (
-    <section data-testid="suite-card" aria-label="Golden suite">
+    <VStack as="section" data-testid="suite-card" aria-label="Golden suite">
       <Card padding={5}>
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
+        <HStack gap={4} wrap="wrap" justify="between" align="center">
+          <VStack className="min-w-0 flex-1 basis-96">
             <Heading level={2} weight="semibold">Golden suite for {PERSONA_LABEL[persona]}</Heading>
             {suite ? (
-              <div className="mt-1 max-w-2xl">
+              <VStack paddingBlockStart={1} maxWidth="42rem">
                 <Text type="supporting" as="p" display="block">
                   {suite.questions.length} questions: {byType.map(({ c, n }) => `${n} ${c === "FOLLOW_UP_CHAIN" ? `follow-up turns in ${chains} conversations` : CATEGORY_LABEL[c].toLowerCase()}`).join(", ")}. Asked as {suite.subjectLabel}, so every answer is read against exactly what that person may see.
                 </Text>
-              </div>
+              </VStack>
             ) : suites.status === "error" ? (
               <Text color="accent" as="p" display="block">The suite could not be loaded.</Text>
             ) : (
-              <div className="mt-2"><Skeleton width={384} height={16} /></div>
+              <VStack paddingBlockStart={2}><Skeleton width={384} height={16} /></VStack>
             )}
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <Button data-testid="run-suite" variant="primary" size="lg" icon={<Play aria-hidden />} label={running ? "Running…" : "Run suite"} isDisabled={disabled || !suite} onClick={() => onRun("AGENT")} />
+          </VStack>
+          <HStack gap={2} wrap="wrap" className="shrink-0">
+            <Button data-testid="run-suite" variant="primary" size="lg" icon={<Icon icon={Play} />} label={running ? "Running…" : "Run suite"} isDisabled={disabled || !suite} onClick={() => onRun("AGENT")} />
             <Button
               data-testid="run-self-test"
               variant="secondary"
               size="lg"
-              icon={<ShieldCheck aria-hidden />}
+              icon={<Icon icon={ShieldCheck} />}
               label="Detector self-test"
               isDisabled={disabled || !suite}
               onClick={() => onRun("LEAKY_CANARY")}
               tooltip="Asks the leak probes of a deliberately leaky stand-in to prove the detector fails a run that retrieves out-of-scope data"
             />
-          </div>
-        </div>
+          </HStack>
+        </HStack>
       </Card>
-    </section>
+    </VStack>
   )
 }
 
@@ -174,20 +176,20 @@ export function EvalPanel() {
   const onSettled = () => runs.refetch()
 
   return (
-    <div className="flex flex-col gap-6 pb-8" data-testid="eval-panel">
+    <VStack gap={6} paddingBlockEnd={8} data-testid="eval-panel">
       <AdminPageHeader
         title="AI evaluation"
         scopeLabel={user.scopeLabel}
         description="Run each persona's golden questions against the real agent. Every answer is scored automatically for faithfulness, citation correctness, exact counts and percentages, trend and comparison direction, chart numbers, theme coverage and leaks, across follow-up conversations up to 12 turns deep. Any leak of out-of-scope data fails the run."
       />
 
-      <div data-testid="persona-picker">
+      <VStack data-testid="persona-picker">
         <SegmentedControl label="Persona to evaluate" value={persona} onChange={(value) => choosePersona(value as EvalPersona)}>
           {EVAL_PERSONAS.map((p) => (
             <SegmentedControlItem key={p} value={p} label={PERSONA_LABEL[p]} data-testid={`persona-${p}`} />
           ))}
         </SegmentedControl>
-      </div>
+      </VStack>
 
       <SuiteCard persona={persona} busy={busy} running={running} onRun={start} />
 
@@ -200,7 +202,7 @@ export function EvalPanel() {
           ))}
         </TabList>
 
-        <div role="tabpanel" id={`eval-panel-${tab}`} aria-label={TABS.find((t) => t.value === tab)?.label} tabIndex={0} className="flex flex-col gap-5 focus-visible:outline-none">
+        <VStack gap={5} role="tabpanel" id={`eval-panel-${tab}`} aria-label={TABS.find((t) => t.value === tab)?.label} tabIndex={0} className="focus-visible:outline-none">
           {tab === "run" &&
             (runs.status === "loading" ? (
               <RunSkeleton />
@@ -209,9 +211,9 @@ export function EvalPanel() {
             ) : shown ? (
               <RunSection key={shown} runId={shown} onSettled={onSettled} />
             ) : (
-              <div data-testid="no-runs">
+              <VStack data-testid="no-runs">
                 <EmptyState title="No runs yet" description={`The ${PERSONA_LABEL[persona]} suite has not been run yet. Choose Run suite to ask the agent the golden questions.`} />
-              </div>
+              </VStack>
             ))}
 
           {tab === "history" &&
@@ -231,16 +233,16 @@ export function EvalPanel() {
 
           {tab === "compare" &&
             (done.length < 2 ? (
-              <div data-testid="compare-empty">
+              <VStack data-testid="compare-empty">
                 <EmptyState title="Nothing to compare yet" description={`Two finished runs of the ${PERSONA_LABEL[persona]} suite are needed to compare. Run it again to see what changed.`} />
-              </div>
+              </VStack>
             ) : (
               <>
                 <ComparePicker runs={list} base={base} head={head} onChange={(b, h) => setPair({ base: b, head: h })} />
                 {!canCompare ? (
-                  <div role="note">
+                  <VStack role="note">
                     <Banner status="info" collapsible={false} title="Choose two different runs." />
-                  </div>
+                  </VStack>
                 ) : diff.status === "success" ? (
                   <DiffView diff={diff.data} />
                 ) : diff.status === "error" ? (
@@ -259,8 +261,8 @@ export function EvalPanel() {
             ) : (
               <RunSkeleton />
             ))}
-        </div>
+        </VStack>
       </VStack>
-    </div>
+    </VStack>
   )
 }

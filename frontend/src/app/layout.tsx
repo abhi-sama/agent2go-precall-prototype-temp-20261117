@@ -11,7 +11,6 @@ import figtree400 from "@fontsource/figtree/files/figtree-latin-400-normal.woff2
 import figtree600 from "@fontsource/figtree/files/figtree-latin-600-normal.woff2"
 import figtree700 from "@fontsource/figtree/files/figtree-latin-700-normal.woff2"
 import { APPEARANCE_BOOT_SCRIPT, AppearanceProvider } from "@/lib/appearance/appearance-provider"
-import { Toaster } from "@/components/ui/sonner"
 import { DataProvider } from "@/lib/data/data-provider"
 import { SessionProvider } from "@/lib/session/session-provider"
 import { OfflineProvider } from "@/lib/offline/offline-provider"
@@ -61,7 +60,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <DataProvider>
               <AppearanceProvider>
                 {children}
-                <Toaster />
               </AppearanceProvider>
             </DataProvider>
           </OfflineProvider>

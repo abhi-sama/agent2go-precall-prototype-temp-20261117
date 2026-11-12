@@ -1,5 +1,6 @@
 "use client"
 
+import { VStack } from "@astryxdesign/core/VStack"
 import { useState } from "react"
 import { AccessTimelineView } from "@/components/admin/access-timeline"
 import { AuthorizationVerificationGrid } from "@/components/admin/authorization-verification-grid"
@@ -38,7 +39,7 @@ export function GovernanceWorkspace() {
   const [tab, setTab] = useState("hierarchy")
   const Panel = PANELS[tab] ?? HierarchyView
   return (
-    <div className="flex flex-col gap-6 pb-8">
+    <VStack gap={6} paddingBlockEnd={8}>
       <AdminPageHeader
         title="Data governance workspace"
         description="Validate access and source quality, reconcile metadata deliberately, govern definitions, and work lifecycle requests with a complete audit trail."
@@ -47,6 +48,6 @@ export function GovernanceWorkspace() {
       <PanelTabs tabs={TABS} value={tab} onChange={setTab}>
         <Panel />
       </PanelTabs>
-    </div>
+    </VStack>
   )
 }

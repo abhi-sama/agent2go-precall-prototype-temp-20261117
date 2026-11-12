@@ -12,4 +12,13 @@
     --color-text-secondary: light-dark(#76573a, #c4a882);
     --color-text-accent: light-dark(#784a1d, #d4a06a);
   }
+
+  /*
+   * A pressed Astryx ToggleButton (the date-range presets) draws accent text on its pressed wash: 4.27:1 in the neutral
+   * theme. Primary text on the same wash clears 4.5:1 in every look; the pressed state still reads from its fill.
+   */
+  .astryx-toggle-button[aria-pressed="true"],
+  .astryx-toggle-button[aria-pressed="true"] .astryx-text {
+    color: var(--color-text-primary);
+  }
 }

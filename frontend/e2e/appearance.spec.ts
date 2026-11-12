@@ -185,7 +185,7 @@ for (const look of LOOKS.filter((l) => l.scheme === "dark")) {
     await expect(page.getByTestId("director-overview")).toBeVisible()
     await expect.poll(() => readLook(page)).toEqual({ theme: look.theme, wrapper: look.theme, dark: true })
     expect(await luminance(page, "body"), "page background").toBeLessThan(0.2)
-    expect(await luminance(page, '[data-slot="card"]'), "card background").toBeLessThan(0.25)
+    expect(await luminance(page, '.astryx-card'), "card background").toBeLessThan(0.25)
   })
 }
 

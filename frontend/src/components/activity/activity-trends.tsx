@@ -4,8 +4,13 @@ import { Stethoscope, Users } from "lucide-react"
 import * as React from "react"
 import { Button } from "@astryxdesign/core/Button"
 import { Card } from "@astryxdesign/core/Card"
+import { Grid } from "@astryxdesign/core/Grid"
+import { Heading } from "@astryxdesign/core/Heading"
+import { HStack } from "@astryxdesign/core/HStack"
 import { Skeleton } from "@astryxdesign/core/Skeleton"
 import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
+import { Text } from "@astryxdesign/core/Text"
+import { VStack } from "@astryxdesign/core/VStack"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
 import { KpiCard } from "@/components/landing/kpi-card"
 import { ScopeLabel } from "@/components/shell/scope-label"
@@ -46,28 +51,28 @@ export function ActivityTrendsSection() {
   const partial = data?.months.find((m) => m.isPartial)
 
   return (
-    <div data-testid="activity-trends" className="flex flex-col gap-4">
-      <header className="flex flex-col gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">My activity</h1>
-          <p className="mt-1 max-w-2xl text-muted-foreground">
+    <VStack data-testid="activity-trends" gap={4}>
+      <VStack as="header" gap={2} align="start">
+        <VStack gap={1}>
+          <Heading level={1}>My activity</Heading>
+          <Text as="p" color="secondary">
             Monthly counts of the calls you recorded and the HCPs you engaged. These are counts only: there is no target, ranking or score here.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+          </Text>
+        </VStack>
+        <HStack gap={2} wrap="wrap" align="center">
           <ScopeLabel
             label={data?.scopeLabel ?? (trends.status === "error" && trends.error.code === "FORBIDDEN" ? "No access" : undefined)}
             loading={trends.status !== "success" && !(trends.status === "error" && trends.error.code === "FORBIDDEN")}
           />
           {data && <DataThroughBadge dataThrough={data.dataThrough} />}
           {data && (
-            <span data-testid="window-label" className="text-sm text-muted-foreground">
+            <Text data-testid="window-label" type="supporting">
               {formatMonth(data.from)} – {formatMonth(data.to)} · {data.months.length} months
               {partial && ` · ${formatMonth(partial.month)} is month to date`}
-            </span>
+            </Text>
           )}
-        </div>
-      </header>
+        </HStack>
+      </VStack>
 
       {trends.status === "error" ? (
         <ErrorState error={trends.error} onRetry={trends.refetch} />
@@ -76,7 +81,7 @@ export function ActivityTrendsSection() {
       ) : (
         <DashboardGrid>
           <DashboardGridItem area="full">
-            <div className="grid gap-4 sm:grid-cols-2" data-testid="trend-totals">
+            <Grid columns={{ minWidth: 300, max: 2 }} gap={4} data-testid="trend-totals">
               {data ? (
                 <>
                   <KpiCard
@@ -103,7 +108,7 @@ export function ActivityTrendsSection() {
                   <KpiSkeleton />
                 </>
               )}
-            </div>
+            </Grid>
           </DashboardGridItem>
 
           <DashboardGridItem area="half">
@@ -157,7 +162,7 @@ export function ActivityTrendsSection() {
           onFlagged={() => flags.refetch()}
         />
       )}
-    </div>
+    </VStack>
   )
 }
 
@@ -179,17 +184,23 @@ function ChartCard({
   return (
     <Card data-testid={`chart-card-${id}`} padding={5} elevation="low">
       <section aria-labelledby={`chart-${id}-title`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 id={`chart-${id}-title`} className="text-lg font-semibold tracking-tight">
-            {title}
-          </h2>
-          <p className="text-sm text-muted-foreground">{note}</p>
-        </div>
-        <Button label="View evidence" variant="secondary" onClick={onEvidence} isDisabled={!ready} data-testid={`evidence-open-${id}`} />
-      </div>
-      <div className="mt-4">{ready ? children : <Skeleton aria-busy="true" data-testid="state-loading" height="14rem" radius={3} />}</div>
-      <p className="mt-2 text-xs text-muted-foreground">Tap a bar to see the records behind it.</p>
+        <VStack gap={4}>
+          <HStack gap={3} wrap="wrap" align="start" justify="between">
+            <VStack gap={1}>
+              <Heading id={`chart-${id}-title`} level={2}>
+                {title}
+              </Heading>
+              <Text type="supporting" as="p">
+                {note}
+              </Text>
+            </VStack>
+            <Button label="View evidence" variant="secondary" onClick={onEvidence} isDisabled={!ready} data-testid={`evidence-open-${id}`} />
+          </HStack>
+          {ready ? children : <Skeleton aria-busy="true" data-testid="state-loading" height="14rem" radius={3} />}
+          <Text type="supporting" as="p" size="xsm">
+            Tap a bar to see the records behind it.
+          </Text>
+        </VStack>
       </section>
     </Card>
   )

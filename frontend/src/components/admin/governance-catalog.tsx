@@ -4,15 +4,17 @@ import { Badge } from "@astryxdesign/core/Badge"
 import { Banner } from "@astryxdesign/core/Banner"
 import { Button } from "@astryxdesign/core/Button"
 import { Card } from "@astryxdesign/core/Card"
+import { Grid } from "@astryxdesign/core/Grid"
 import { Heading } from "@astryxdesign/core/Heading"
 import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { List, ListItem } from "@astryxdesign/core/List"
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl"
 import { Table, proportional } from "@astryxdesign/core/Table"
 import { Text } from "@astryxdesign/core/Text"
 import { TextInput } from "@astryxdesign/core/TextInput"
 import { VStack } from "@astryxdesign/core/VStack"
-import { Bot, CheckCircle2, ClipboardList, GitCompareArrows, Plus, ShieldCheck } from "lucide-react"
+import { Bot, ClipboardList, GitCompareArrows, Plus, ShieldCheck } from "lucide-react"
 import * as React from "react"
 import { SectionCard } from "@/components/admin/section-card"
 import { AiSummary } from "@/components/provenance/provenance"
@@ -63,7 +65,7 @@ export function MetadataReconciliation() {
     <VStack gap={4} data-testid="metadata-reconciliation">
       <Banner
         status="warning"
-        icon={<GitCompareArrows aria-hidden className="size-5" />}
+        icon={<Icon icon={GitCompareArrows} size="md" />}
         title="Source values stay side by side."
         description="No status is selected or overwritten here; every value retains the source row and load time needed for a deliberate reconciliation."
         collapsible={false}
@@ -76,10 +78,10 @@ export function MetadataReconciliation() {
               <Badge variant="error" label="status conflict" />
             </HStack>
             <Text type="supporting" as="p">Catalog and response metadata disagree.</Text>
-            <div className="grid gap-3 md:grid-cols-2">
+            <Grid columns={{ minWidth: 280 }} gap={3}>
               <Provenance title="Catalog" values={row.catalogValues} />
               <Provenance title="Recorded response" values={row.responseValues} />
-            </div>
+            </Grid>
           </VStack>
         </Card>
       ))}
@@ -108,11 +110,13 @@ export function DefinitionCatalog() {
   if (result.status === "loading") return <Loading />
   if (result.status === "error") return <ErrorState error={result.error} onRetry={result.refetch} />
   return (
-    <div data-testid="definition-catalog">
+    <VStack data-testid="definition-catalog">
       <SectionCard title="Definition catalog" description="Versions are immutable drafts until a different administrator approves them.">
-        <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); void add() }}>
+        <form onSubmit={(event) => { event.preventDefault(); void add() }}>
+          <HStack gap={3} wrap="wrap" align="end">
           <TextInput label="New metric definition" placeholder="New metric definition" value={name} onChange={(value) => setName(value ?? "")} width={320} />
-          <Button type="submit" variant="secondary" icon={<Plus aria-hidden />} label="Add draft" />
+          <Button type="submit" variant="secondary" icon={<Icon icon={Plus} />} label="Add draft" />
+          </HStack>
         </form>
         <Card padding={0}>
           <Table<DefinitionRow>
@@ -123,12 +127,12 @@ export function DefinitionCatalog() {
               { key: "name", header: "Definition", width: proportional(3, { minWidth: 220 }), renderCell: (item) => <VStack gap={0.5}><Text weight="medium">{item.name}</Text><Text type="supporting">{item.definition}</Text></VStack> },
               { key: "meta", header: "Kind and status", width: proportional(2, { minWidth: 170 }), renderCell: (item) => <Badge variant={item.status === "APPROVED" ? "success" : "warning"} label={`${item.kind.toLowerCase()} · v${item.version} · ${item.status.toLowerCase()}`} /> },
               { key: "owner", header: "Owner", width: proportional(2, { minWidth: 170 }), renderCell: (item) => <Text color="secondary">Owner {item.ownerUserId}{item.approvedBy ? ` · approved by ${item.approvedBy}` : " · awaiting approval"}</Text> },
-              { key: "action", header: "Action", width: proportional(1, { minWidth: 150 }), renderCell: (item) => item.status === "DRAFT" ? <Button size="sm" variant="secondary" icon={<CheckCircle2 aria-hidden />} label="Approve version" onClick={() => void approve(item.definitionId, item.version)} /> : null },
+              { key: "action", header: "Action", width: proportional(1, { minWidth: 150 }), renderCell: (item) => item.status === "DRAFT" ? <Button size="sm" variant="secondary" icon={<Icon icon="check" />} label="Approve version" onClick={() => void approve(item.definitionId, item.version)} /> : null },
             ]}
           />
         </Card>
       </SectionCard>
-    </div>
+    </VStack>
   )
 }
 
@@ -140,11 +144,13 @@ export function LifecycleQueue() {
   if (result.status === "loading") return <Loading />
   if (result.status === "error") return <ErrorState error={result.error} onRetry={result.refetch} />
   return (
-    <div data-testid="lifecycle-queue">
+    <VStack data-testid="lifecycle-queue">
       <SectionCard title="Retention, correction & deletion" icon={ClipboardList} description="Requests are reviewed by people; this queue does not mutate source records.">
-        <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); void create() }}>
+        <form onSubmit={(event) => { event.preventDefault(); void create() }}>
+          <HStack gap={3} wrap="wrap" align="end">
           <TextInput label="Source record ID" placeholder="Source record ID" value={resourceId} onChange={(value) => setResourceId(value ?? "")} width={320} />
-          <Button type="submit" variant="secondary" icon={<Plus aria-hidden />} label="Queue correction" />
+          <Button type="submit" variant="secondary" icon={<Icon icon={Plus} />} label="Queue correction" />
+          </HStack>
         </form>
         <List hasDividers edge="flush">
           {result.data.map((item) => (
@@ -173,7 +179,7 @@ export function LifecycleQueue() {
           ))}
         </List>
       </SectionCard>
-    </div>
+    </VStack>
   )
 }
 
@@ -185,7 +191,7 @@ export function IssueAssistant() {
   if (result.status === "loading") return <Loading />
   if (result.status === "error") return <ErrorState error={result.error} onRetry={result.refetch} />
   return (
-    <div data-testid="issue-assistant">
+    <VStack data-testid="issue-assistant">
       <SectionCard title="Issue assistant" icon={Bot} description="AI suggestions are clearly separated from source facts and cannot change records or access.">
         <SegmentedControl label="Issue to explain" value={issueId} onChange={setIssueId}>
           {ISSUES.map((id) => <SegmentedControlItem key={id} value={id} label={id.replaceAll("-", " ")} />)}
@@ -200,12 +206,12 @@ export function IssueAssistant() {
         </AiSummary>
         <Banner
           status="success"
-          icon={<ShieldCheck aria-hidden className="size-5" />}
+          icon={<Icon icon={ShieldCheck} size="md" />}
           title="Read-only boundary."
           description={`Capabilities: ${result.data.capabilities.join(", ")}. Autonomous fixes and access grants: none.`}
           collapsible={false}
         />
       </SectionCard>
-    </div>
+    </VStack>
   )
 }

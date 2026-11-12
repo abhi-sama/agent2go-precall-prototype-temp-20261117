@@ -1,3 +1,5 @@
+import { Icon } from "@astryxdesign/core/Icon"
+import { Text } from "@astryxdesign/core/Text"
 import { ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -22,11 +24,11 @@ export function ScopeLabel({
         className,
       )}
     >
-      <ShieldCheck className="size-4 shrink-0" aria-hidden />
-      <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">Scope</span>
-      <span className="truncate" aria-live="polite">
+      <Icon icon={ShieldCheck} size="sm" className="shrink-0" />
+      <Text type="supporting" weight="semibold" className="tracking-wide uppercase">Scope</Text>
+      <Text className="truncate" aria-live="polite">
         {loading || !label ? "Checking access…" : label}
-      </span>
+      </Text>
     </span>
   )
 }

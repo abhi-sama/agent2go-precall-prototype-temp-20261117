@@ -182,8 +182,8 @@ export async function collectLayoutReport(page: Page, opts: { touch: boolean }):
         }
         if (w > 2 && h > 2) {
           // Ignore a modal layer stacked above the page: both atoms must live in the same layer.
-          const layerA = a.el.closest("[role=dialog],[data-slot=sheet-content],[data-slot=popover-content]")
-          const layerB = b.el.closest("[role=dialog],[data-slot=sheet-content],[data-slot=popover-content]")
+          const layerA = a.el.closest("[role=dialog],[data-slot=popover-content]")
+          const layerB = b.el.closest("[role=dialog],[data-slot=popover-content]")
           if (layerA !== layerB) continue
           if (stickyOrFixed(a.el) !== stickyOrFixed(b.el)) continue
           // The chat dock (composer and its scroll-to-latest button) floats over the message list by design, so scrolled answers pass underneath it.

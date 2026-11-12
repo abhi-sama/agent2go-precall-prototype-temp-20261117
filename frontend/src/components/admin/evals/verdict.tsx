@@ -1,20 +1,20 @@
 import { Badge } from "@astryxdesign/core/Badge"
+import { HStack } from "@astryxdesign/core/HStack"
+import { Icon } from "@astryxdesign/core/Icon"
 import { StatusDot } from "@astryxdesign/core/StatusDot"
-import { CircleCheck, CircleX, ShieldAlert } from "lucide-react"
+import { ShieldAlert } from "lucide-react"
 import type { EvalChange, EvalRunStatus, EvalVerdict } from "@/lib/data/evals"
 import { CHANGE_LABEL } from "./format"
-
-const BADGE_ICON = "[&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5"
 
 /** Pass or fail is said in words and an icon, never by colour alone. */
 export function VerdictBadge({ verdict, leaked }: { verdict: EvalVerdict | null; leaked?: boolean; className?: string }) {
   if (!verdict) return null
   const pass = verdict === "PASS"
-  const Icon = pass ? CircleCheck : leaked ? ShieldAlert : CircleX
+  const glyph = pass ? "success" : leaked ? ShieldAlert : "error"
   return (
-    <span data-testid="verdict-badge" data-verdict={verdict} className="inline-flex">
-      <Badge variant={pass ? "success" : "error"} icon={<Icon aria-hidden />} label={pass ? "Pass" : leaked ? "Fail · leak" : "Fail"} className={BADGE_ICON} />
-    </span>
+    <HStack as="span" data-testid="verdict-badge" data-verdict={verdict}>
+      <Badge variant={pass ? "success" : "error"} icon={<Icon icon={glyph} size="xsm" />} label={pass ? "Pass" : leaked ? "Fail · leak" : "Fail"} />
+    </HStack>
   )
 }
 
@@ -24,9 +24,9 @@ const STATUS_VARIANT: Record<EvalRunStatus, "accent" | "success" | "error"> = { 
 export function StatusPill({ status }: { status: EvalRunStatus; className?: string }) {
   const busy = status === "RUNNING" || status === "SCORING"
   return (
-    <span data-testid="run-status" data-status={status} className="inline-flex">
+    <HStack as="span" data-testid="run-status" data-status={status}>
       <StatusDot variant={STATUS_VARIANT[status]} label={STATUS_TEXT[status]} isPulsing={busy} />
-    </span>
+    </HStack>
   )
 }
 
@@ -40,8 +40,8 @@ const CHANGE_VARIANT: Record<EvalChange, "success" | "error" | "neutral" | "info
 
 export function ChangeBadge({ change }: { change: EvalChange }) {
   return (
-    <span data-testid="change-badge" data-change={change} className="inline-flex">
+    <HStack as="span" data-testid="change-badge" data-change={change}>
       <Badge variant={CHANGE_VARIANT[change]} label={CHANGE_LABEL[change]} />
-    </span>
+    </HStack>
   )
 }

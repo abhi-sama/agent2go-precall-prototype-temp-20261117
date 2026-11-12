@@ -5,6 +5,7 @@ import { Banner } from "@astryxdesign/core/Banner"
 import { Card } from "@astryxdesign/core/Card"
 import { Heading } from "@astryxdesign/core/Heading"
 import { HStack } from "@astryxdesign/core/HStack"
+import { List, ListItem } from "@astryxdesign/core/List"
 import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList"
 import { Text } from "@astryxdesign/core/Text"
 import { TreeList, type TreeListItemData } from "@astryxdesign/core/TreeList"
@@ -43,17 +44,22 @@ function Holders({ node }: { node: HierarchyNode }) {
       {items.length === 0 ? (
         <Text color="secondary">Nobody</Text>
       ) : (
-        <VStack as="ul" gap={1}>
+        <List density="compact">
           {items.map((h) => (
-            <li key={`${h.userId}-${h.assignmentType}-${h.viaTerritoryId}`} className="break-words">
-              <Text weight="medium">{h.displayName || h.userId}</Text>{" "}
-              <Text color="secondary">
-                {h.assignmentType}
-                {h.viaTerritoryId !== node.territoryId ? ` via ${h.viaTerritoryId}` : ""}
-              </Text>
-            </li>
+            <ListItem
+              key={`${h.userId}-${h.assignmentType}-${h.viaTerritoryId}`}
+              label={
+                <Text className="break-words">
+                  <Text weight="medium">{h.displayName || h.userId}</Text>{" "}
+                  <Text color="secondary">
+                    {h.assignmentType}
+                    {h.viaTerritoryId !== node.territoryId ? ` via ${h.viaTerritoryId}` : ""}
+                  </Text>
+                </Text>
+              }
+            />
           ))}
-        </VStack>
+        </List>
       )}
     </MetadataListItem>
   )
@@ -81,7 +87,7 @@ function buildItems(
   const children = looping ? [] : node.childIds.map((child) => buildItems(child, nodes, findings, [...path, id], selected, select)).filter((c): c is TreeListItemData => c !== null)
   return {
     id: [...path, id].join(">"),
-    label: <span className="break-all">{node.territoryId}</span>,
+    label: <Text className="break-all">{node.territoryId}</Text>,
     description: node.kind === "REGION" ? "Region" : "Territory",
     isSelected: selected === node.territoryId,
     isExpanded: true,
@@ -110,7 +116,7 @@ function Findings({ findings }: { findings: HierarchyFinding[] }) {
           key={`${f.code}-${f.territoryIds.join("|")}`}
           status={f.severity === "ERROR" ? "error" : "warning"}
           title={`${FINDING_LABEL[f.code]}: ${f.severity === "ERROR" ? "fix needed" : "review"}`}
-          description={<span className="break-words">{f.message}</span>}
+          description={<Text className="break-words">{f.message}</Text>}
         />
       ))}
     </VStack>
@@ -134,16 +140,16 @@ function Tree({ graph }: { graph: HierarchyValidation }) {
     <DashboardGrid>
       <DashboardGridItem area="focus">
         <VStack gap={4}>
-          <div data-testid="hierarchy-tree">
+          <VStack data-testid="hierarchy-tree">
             <TreeList items={items(roots)} density="spacious" header={<Text type="label">Territory hierarchy</Text>} />
-          </div>
+          </VStack>
           {stray.length > 0 && (
             <VStack gap={2}>
               <Heading level={3}>Not reachable from any root</Heading>
               <Text type="supporting" as="p">Orphans and cycles: no region leads down to these, so nobody inherits access to them.</Text>
-              <div data-testid="hierarchy-unreached">
+              <VStack data-testid="hierarchy-unreached">
                 <TreeList items={items(stray)} density="spacious" header={<Text type="label">Unreached territories</Text>} />
-              </div>
+              </VStack>
             </VStack>
           )}
         </VStack>
@@ -152,7 +158,7 @@ function Tree({ graph }: { graph: HierarchyValidation }) {
         <Card aria-live="polite" data-testid="hierarchy-detail" height="100%">
           {detail ? (
             <VStack gap={3}>
-              <Heading level={3}><span className="break-all">{detail.territoryId}</span></Heading>
+              <Heading level={3}><Text className="break-all">{detail.territoryId}</Text></Heading>
               <Holders node={detail} />
             </VStack>
           ) : (

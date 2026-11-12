@@ -52,9 +52,9 @@ export function VisibilityMatrices() {
           <SectionCard title="Catalog visibility" icon={BookOpen} description="Who can see which questions exist." data-testid="catalog-matrix" className="h-full">
             <VStack gap={0}>
               {catalogMatrix.map((row, index) => (
-                <div key={row.roleId}>
+                <VStack key={row.roleId} gap={0}>
                   {index > 0 && <Divider />}
-                  <div className="py-3">
+                  <VStack paddingBlock={3}>
                     <Switch
                       label={`${row.roleName} can see the question catalog`}
                       description={row.catalogVisible ? "Can see the catalog" : "Cannot see the catalog"}
@@ -65,8 +65,8 @@ export function VisibilityMatrices() {
                       isDisabled={busy !== null}
                       onChange={(checked) => change(`c-${row.roleId}`, () => adapter.setCatalogVisibility({ correlationId: newCorrelationId() }, { roleId: row.roleId, visible: checked }), "Catalog visibility saved and audited.")}
                     />
-                  </div>
-                </div>
+                  </VStack>
+                </VStack>
               ))}
             </VStack>
           </SectionCard>
@@ -75,7 +75,7 @@ export function VisibilityMatrices() {
           <SectionCard title="HCP-response access" icon={FileLock2} description="How much of the recorded responses a role can see, still limited to their territories." data-testid="response-matrix" className="h-full">
             <VStack gap={0}>
               {responseMatrix.map((row, index) => (
-                <div key={row.roleId}>
+                <VStack key={row.roleId} gap={0}>
                   {index > 0 && <Divider />}
                   <VStack gap={2} paddingBlock={3}>
                     <HStack gap={2} justify="between" align="center" wrap="wrap">
@@ -97,7 +97,7 @@ export function VisibilityMatrices() {
                       ))}
                     </SegmentedControl>
                   </VStack>
-                </div>
+                </VStack>
               ))}
             </VStack>
           </SectionCard>
