@@ -229,6 +229,10 @@
     grid-column: span 6 !important;
   }
 
+  .a2g-dashboard-item--third {
+    grid-column: span 4 !important;
+  }
+
   .a2g-dashboard-item--full {
     grid-column: 1 / -1 !important;
   }

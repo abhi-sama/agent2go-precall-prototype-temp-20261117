@@ -11,6 +11,7 @@ import { HStack } from "@astryxdesign/core/HStack"
 import { BookOpen, FileLock2 } from "lucide-react"
 import { useState } from "react"
 import { SectionCard } from "@/components/admin/section-card"
+import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { BlockSkeleton, ErrorState } from "@/components/state/states"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { ResponseAccessLevel } from "@/lib/data/governance"
@@ -46,58 +47,62 @@ export function VisibilityMatrices() {
   return (
     <VStack gap={4}>
       <Banner status="info" title="Seeing a catalog question never grants seeing its responses." description="These two matrices are saved separately, so changing one never changes the other. Every change is audited." collapsible={false} data-testid="visibility-principle" />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="Catalog visibility" icon={BookOpen} description="Who can see which questions exist." data-testid="catalog-matrix">
-          <VStack gap={0}>
-            {catalogMatrix.map((row, index) => (
-              <div key={row.roleId}>
-                {index > 0 && <Divider />}
-                <div className="py-3">
-                  <Switch
-                    label={`${row.roleName} can see the question catalog`}
-                    description={row.catalogVisible ? "Can see the catalog" : "Cannot see the catalog"}
-                    labelPosition="start"
-                    labelSpacing="spread"
-                    width="100%"
-                    value={row.catalogVisible}
-                    isDisabled={busy !== null}
-                    onChange={(checked) => change(`c-${row.roleId}`, () => adapter.setCatalogVisibility({ correlationId: newCorrelationId() }, { roleId: row.roleId, visible: checked }), "Catalog visibility saved and audited.")}
-                  />
+      <DashboardGrid>
+        <DashboardGridItem area="half">
+          <SectionCard title="Catalog visibility" icon={BookOpen} description="Who can see which questions exist." data-testid="catalog-matrix" className="h-full">
+            <VStack gap={0}>
+              {catalogMatrix.map((row, index) => (
+                <div key={row.roleId}>
+                  {index > 0 && <Divider />}
+                  <div className="py-3">
+                    <Switch
+                      label={`${row.roleName} can see the question catalog`}
+                      description={row.catalogVisible ? "Can see the catalog" : "Cannot see the catalog"}
+                      labelPosition="start"
+                      labelSpacing="spread"
+                      width="100%"
+                      value={row.catalogVisible}
+                      isDisabled={busy !== null}
+                      onChange={(checked) => change(`c-${row.roleId}`, () => adapter.setCatalogVisibility({ correlationId: newCorrelationId() }, { roleId: row.roleId, visible: checked }), "Catalog visibility saved and audited.")}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </VStack>
-        </SectionCard>
-        <SectionCard title="HCP-response access" icon={FileLock2} description="How much of the recorded responses a role can see, still limited to their territories." data-testid="response-matrix">
-          <VStack gap={0}>
-            {responseMatrix.map((row, index) => (
-              <div key={row.roleId}>
-                {index > 0 && <Divider />}
-                <VStack gap={2} paddingBlock={3}>
-                  <HStack gap={2} justify="between" align="center" wrap="wrap">
-                    <Text weight="medium" className="break-words">{row.roleName}</Text>
-                    <Badge variant={row.level === "NONE" ? "neutral" : "success"} label={LEVELS.find((l) => l.value === row.level)?.label ?? row.level} />
-                  </HStack>
-                  <SegmentedControl
-                    label={`${row.roleName} response access`}
-                    layout="fill"
-                    value={row.level}
-                    isDisabled={busy !== null}
-                    onChange={(next) => {
-                      if (!isLevel(next) || next === row.level) return
-                      void change(`r-${row.roleId}`, () => adapter.setResponseAccess({ correlationId: newCorrelationId() }, { roleId: row.roleId, level: next }), "Response access saved and audited.")
-                    }}
-                  >
-                    {LEVELS.map((level) => (
-                      <SegmentedControlItem key={level.value} value={level.value} label={level.label} />
-                    ))}
-                  </SegmentedControl>
-                </VStack>
-              </div>
-            ))}
-          </VStack>
-        </SectionCard>
-      </div>
+              ))}
+            </VStack>
+          </SectionCard>
+        </DashboardGridItem>
+        <DashboardGridItem area="half">
+          <SectionCard title="HCP-response access" icon={FileLock2} description="How much of the recorded responses a role can see, still limited to their territories." data-testid="response-matrix" className="h-full">
+            <VStack gap={0}>
+              {responseMatrix.map((row, index) => (
+                <div key={row.roleId}>
+                  {index > 0 && <Divider />}
+                  <VStack gap={2} paddingBlock={3}>
+                    <HStack gap={2} justify="between" align="center" wrap="wrap">
+                      <Text weight="medium" className="break-words">{row.roleName}</Text>
+                      <Badge variant={row.level === "NONE" ? "neutral" : "success"} label={LEVELS.find((l) => l.value === row.level)?.label ?? row.level} />
+                    </HStack>
+                    <SegmentedControl
+                      label={`${row.roleName} response access`}
+                      layout="fill"
+                      value={row.level}
+                      isDisabled={busy !== null}
+                      onChange={(next) => {
+                        if (!isLevel(next) || next === row.level) return
+                        void change(`r-${row.roleId}`, () => adapter.setResponseAccess({ correlationId: newCorrelationId() }, { roleId: row.roleId, level: next }), "Response access saved and audited.")
+                      }}
+                    >
+                      {LEVELS.map((level) => (
+                        <SegmentedControlItem key={level.value} value={level.value} label={level.label} />
+                      ))}
+                    </SegmentedControl>
+                  </VStack>
+                </div>
+              ))}
+            </VStack>
+          </SectionCard>
+        </DashboardGridItem>
+      </DashboardGrid>
       {notice && <Text type="supporting" as="p" role="status">{notice}</Text>}
     </VStack>
   )

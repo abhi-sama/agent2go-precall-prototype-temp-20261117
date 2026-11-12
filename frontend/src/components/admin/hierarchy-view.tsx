@@ -12,6 +12,7 @@ import { VStack } from "@astryxdesign/core/VStack"
 import { GitBranch, Network } from "lucide-react"
 import { useMemo, useState } from "react"
 import { SectionCard } from "@/components/admin/section-card"
+import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { BlockSkeleton, ErrorState } from "@/components/state/states"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { FindingCode, HierarchyFinding, HierarchyNode, HierarchyValidation } from "@/lib/data/governance"
@@ -130,32 +131,36 @@ function Tree({ graph }: { graph: HierarchyValidation }) {
   const items = (ids: string[]) => ids.map((id) => buildItems(id, nodes, graph.findings, [], selected, setSelected)).filter((i): i is TreeListItemData => i !== null)
   const detail = selected ? nodes.get(selected) : undefined
   return (
-    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-      <VStack gap={4}>
-        <div data-testid="hierarchy-tree">
-          <TreeList items={items(roots)} density="spacious" header={<Text type="label">Territory hierarchy</Text>} />
-        </div>
-        {stray.length > 0 && (
-          <VStack gap={2}>
-            <Heading level={3}>Not reachable from any root</Heading>
-            <Text type="supporting" as="p">Orphans and cycles: no region leads down to these, so nobody inherits access to them.</Text>
-            <div data-testid="hierarchy-unreached">
-              <TreeList items={items(stray)} density="spacious" header={<Text type="label">Unreached territories</Text>} />
-            </div>
-          </VStack>
-        )}
-      </VStack>
-      <Card aria-live="polite" data-testid="hierarchy-detail">
-        {detail ? (
-          <VStack gap={3}>
-            <Heading level={3}><span className="break-all">{detail.territoryId}</span></Heading>
-            <Holders node={detail} />
-          </VStack>
-        ) : (
-          <Text color="secondary" as="p">Select a territory to see who holds it, directly or by inheritance.</Text>
-        )}
-      </Card>
-    </div>
+    <DashboardGrid>
+      <DashboardGridItem area="focus">
+        <VStack gap={4}>
+          <div data-testid="hierarchy-tree">
+            <TreeList items={items(roots)} density="spacious" header={<Text type="label">Territory hierarchy</Text>} />
+          </div>
+          {stray.length > 0 && (
+            <VStack gap={2}>
+              <Heading level={3}>Not reachable from any root</Heading>
+              <Text type="supporting" as="p">Orphans and cycles: no region leads down to these, so nobody inherits access to them.</Text>
+              <div data-testid="hierarchy-unreached">
+                <TreeList items={items(stray)} density="spacious" header={<Text type="label">Unreached territories</Text>} />
+              </div>
+            </VStack>
+          )}
+        </VStack>
+      </DashboardGridItem>
+      <DashboardGridItem area="detail">
+        <Card aria-live="polite" data-testid="hierarchy-detail" height="100%">
+          {detail ? (
+            <VStack gap={3}>
+              <Heading level={3}><span className="break-all">{detail.territoryId}</span></Heading>
+              <Holders node={detail} />
+            </VStack>
+          ) : (
+            <Text color="secondary" as="p">Select a territory to see who holds it, directly or by inheritance.</Text>
+          )}
+        </Card>
+      </DashboardGridItem>
+    </DashboardGrid>
   )
 }
 

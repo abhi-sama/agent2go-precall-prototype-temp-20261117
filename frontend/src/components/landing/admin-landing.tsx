@@ -19,6 +19,7 @@ import { useState, type FormEvent } from "react"
 import { AdminPageHeader } from "@/components/admin/page-header"
 import { SectionCard } from "@/components/admin/section-card"
 import { AdminDataQuality } from "@/components/landing/admin-data-quality"
+import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { BlockSkeleton, ErrorState } from "@/components/state/states"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { DataError, type AccessAuditFilter, type AdminAccessOverview, type IdentityMatch, type PermissionGrant, type RolePermissionMatrix, type ScopeAssignmentInput } from "@/lib/data/types"
@@ -240,9 +241,13 @@ function AdminWorkspace({ overview, onRefresh, onApprove, mappingNotice, refresh
         {mappingNotice && <div className="px-4 pb-4"><Text type="supporting" as="p" role="status">{mappingNotice}</Text></div>}
       </SectionCard>
       <SectionCard title="Role permission matrix" icon={KeyRound} description="Every grant is explicit. Saving a matrix change is audited.">
-        <div className="grid gap-4 lg:grid-cols-2">
-          {overview.roleMatrix.map((role) => <RoleGrantEditor key={role.roleId} role={role} catalog={overview.availablePermissions} onSaved={onRefresh} />)}
-        </div>
+        <DashboardGrid>
+          {overview.roleMatrix.map((role) => (
+            <DashboardGridItem key={role.roleId} area="half">
+              <RoleGrantEditor role={role} catalog={overview.availablePermissions} onSaved={onRefresh} />
+            </DashboardGridItem>
+          ))}
+        </DashboardGrid>
       </SectionCard>
       <SectionCard title="Effective-dated territory assignments" icon={Clock3} description="A scheduled assignment remains inactive until its effective time; unknown territories stay visibly unresolved.">
         <div data-testid="scope-assignments">

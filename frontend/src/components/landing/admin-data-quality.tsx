@@ -12,6 +12,7 @@ import { Text } from "@astryxdesign/core/Text"
 import { VStack } from "@astryxdesign/core/VStack"
 import { CircleAlert, DatabaseZap, GitFork, Link2, RefreshCw } from "lucide-react"
 import { SectionCard } from "@/components/admin/section-card"
+import { DashboardGrid, DashboardGridItem } from "@/components/layout/dashboard-grid"
 import { Timeline } from "@/components/charts/timeline"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { BlockSkeleton, ErrorState } from "@/components/state/states"
@@ -179,10 +180,10 @@ export function AdminDataQuality() {
         <div><ScopeLabel label={user.scopeLabel} /></div>
       </VStack>
       {query.status === "loading" ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <BlockSkeleton className="h-80" />
-          <BlockSkeleton className="h-80" />
-        </div>
+        <DashboardGrid>
+          <DashboardGridItem area="half"><BlockSkeleton className="h-80" /></DashboardGridItem>
+          <DashboardGridItem area="half"><BlockSkeleton className="h-80" /></DashboardGridItem>
+        </DashboardGrid>
       ) : query.status === "error" ? (
         <ErrorState error={query.error} onRetry={query.refetch} />
       ) : (
@@ -215,15 +216,15 @@ function QualityWorkspace({ data, onRefresh }: { data: AdminDataQuality; onRefre
       />
       <IngestionPanel runs={data.ingestionRuns} onRefresh={onRefresh} />
       <LoadTimeline runs={data.ingestionRuns} />
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Stat title="Identity reconciliation" value={data.identities.matched.toLocaleString()} caption={`matched identities · ${data.identities.unmatched} unmatched`} />
-        <Stat title="Duplicate keys" value={data.duplicateKeyCount.toLocaleString()} caption="duplicate response-key groups" />
-        <Stat title="Record grain" value={data.recordGrain.callProductRows.toLocaleString()} caption={`call-product rows · ${data.recordGrain.distinctCalls.toLocaleString()} distinct calls`} />
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <IssueList issues={data.issues} />
-        <DependencyGraph graph={data.questionGraph} />
-      </div>
+      <DashboardGrid>
+        <DashboardGridItem area="third"><Stat title="Identity reconciliation" value={data.identities.matched.toLocaleString()} caption={`matched identities · ${data.identities.unmatched} unmatched`} /></DashboardGridItem>
+        <DashboardGridItem area="third"><Stat title="Duplicate keys" value={data.duplicateKeyCount.toLocaleString()} caption="duplicate response-key groups" /></DashboardGridItem>
+        <DashboardGridItem area="third"><Stat title="Record grain" value={data.recordGrain.callProductRows.toLocaleString()} caption={`call-product rows · ${data.recordGrain.distinctCalls.toLocaleString()} distinct calls`} /></DashboardGridItem>
+      </DashboardGrid>
+      <DashboardGrid>
+        <DashboardGridItem area="primary"><IssueList issues={data.issues} /></DashboardGridItem>
+        <DashboardGridItem area="secondary"><DependencyGraph graph={data.questionGraph} /></DashboardGridItem>
+      </DashboardGrid>
       <RecordIndex issues={data.issues} />
     </>
   )

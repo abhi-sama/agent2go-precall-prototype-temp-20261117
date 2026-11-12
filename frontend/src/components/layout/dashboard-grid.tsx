@@ -2,7 +2,7 @@ import { Grid, GridSpan } from "@astryxdesign/core/Grid"
 import { VStack } from "@astryxdesign/core/VStack"
 import type { ReactNode } from "react"
 
-export type DashboardArea = "primary" | "secondary" | "focus" | "detail" | "half" | "full"
+export type DashboardArea = "primary" | "secondary" | "focus" | "detail" | "half" | "third" | "full"
 
 /**
  * A component-scoped dashboard skeleton. Its container query promotes the grid to twelve tracks only when the
