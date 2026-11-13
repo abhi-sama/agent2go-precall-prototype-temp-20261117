@@ -12,7 +12,6 @@ import { Table, proportional } from "@astryxdesign/core/Table"
 import { Heading, Text } from "@astryxdesign/core/Text"
 import { VStack } from "@astryxdesign/core/VStack"
 import { DataThroughBadge } from "@/components/landing/data-through-badge"
-import { PageFrame } from "@/components/layout/page-frame"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { EmptyState, ErrorState } from "@/components/state/states"
 import { useDataAdapter } from "@/lib/data/data-provider"
@@ -36,6 +35,11 @@ export function MslInsightsWorkspace() {
   const [selected, setSelected] = React.useState<MslInsightResponse | null>(null)
   const filterKey = `${filters.theme ?? ""}|${filters.hcpId ?? ""}|${filters.molecule ?? ""}`
   const result = useQuery("mslInsightResponses", `${userId}:${filterKey}`, (ctx) => adapter.mslInsightResponses(ctx, filters), ready)
+  // The scope is the viewer's own, not a property of the response list: take it from `me` so the chip stays true
+  // (and stops saying "Checking access…") when the list itself is unavailable.
+  const me = useQuery("me", userId, (ctx) => adapter.me(ctx), ready)
+  const scopeLabel = result.status === "success" ? result.data.scopeLabel : me.status === "success" ? me.data.scopeLabel : undefined
+  const scopeChecking = !scopeLabel && (result.status === "loading" || me.status === "loading")
 
   const setFilter = (key: "theme" | "hcpId" | "molecule") => (value: string | null) => {
     setSelected(null)
@@ -43,7 +47,7 @@ export function MslInsightsWorkspace() {
   }
 
   return (
-    <PageFrame>
+    <>
       <VStack gap={6} data-testid="msl-insights">
         <VStack as="header" gap={3}>
           <VStack gap={1}>
@@ -51,7 +55,7 @@ export function MslInsightsWorkspace() {
             <Text type="supporting" as="p">Your recorded Insight responses in your effective territory scope. Themes are derived from recorded perspectives; they do not replace the response.</Text>
           </VStack>
           <HStack gap={2} wrap="wrap" vAlign="center">
-            <ScopeLabel label={result.status === "success" ? result.data.scopeLabel : undefined} loading={result.status === "loading"} />
+            <ScopeLabel label={scopeLabel} loading={scopeChecking} />
             {result.status === "success" && <DataThroughBadge dataThrough={result.data.dataThrough} />}
           </HStack>
         </VStack>
@@ -104,7 +108,7 @@ export function MslInsightsWorkspace() {
       </VStack>
 
       <ResponseDrawer response={selected} onOpenChange={(open) => !open && setSelected(null)} />
-    </PageFrame>
+    </>
   )
 }
 

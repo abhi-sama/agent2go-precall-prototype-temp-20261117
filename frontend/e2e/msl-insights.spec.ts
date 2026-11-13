@@ -37,6 +37,21 @@ test.describe("MSL Insights", () => {
     await expect(page.getByTestId("insight-response-drawer")).toContainText("INSIGHT-LIST-1")
   })
 
+  test("shows the viewer's scope once loaded", async ({ page }) => {
+    await page.goto("/msl/insights")
+    await expect(page.getByTestId("insight-response-table")).toBeVisible()
+    await expect(page.getByTestId("scope-label")).toContainText("NE-01")
+    await expect(page.getByTestId("scope-label")).not.toContainText("Checking access")
+  })
+
+  test("an unavailable data service shows the error state and a settled scope chip, not a permanent check", async ({ page }) => {
+    await page.goto("/msl/insights?scenario=error")
+    await expect(page.getByTestId("state-error")).toBeVisible()
+    await expect(page.getByTestId("state-error")).toContainText("Data is unavailable")
+    await expect(page.getByTestId("scope-label")).not.toContainText("Checking access")
+    await expect(page.getByTestId("scope-label")).toContainText("Scope unavailable")
+  })
+
   test("does not render the MSL response list for another persona", async ({ page }) => {
     await page.addInitScript(() => window.localStorage.setItem("a2g.local.userId", "u-dir-ne"))
     await page.goto("/msl/insights")

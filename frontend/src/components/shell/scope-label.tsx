@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils"
 
 /**
  * Always-visible statement of what the viewer is allowed to see. The text comes from the server
- * (`scopeLabel`); the UI never derives or widens it.
+ * (`scopeLabel`); the UI never derives or widens it. While the label is still being fetched it says so; once the
+ * request has settled without one it says the scope is unavailable instead of claiming to check forever.
  */
 export function ScopeLabel({
   label,
@@ -27,7 +28,7 @@ export function ScopeLabel({
       <Icon icon={ShieldCheck} size="sm" className="shrink-0" />
       <Text type="supporting" weight="semibold" className="tracking-wide uppercase">Scope</Text>
       <Text className="truncate" aria-live="polite">
-        {loading || !label ? "Checking access…" : label}
+        {loading ? "Checking access…" : label || "Scope unavailable"}
       </Text>
     </span>
   )

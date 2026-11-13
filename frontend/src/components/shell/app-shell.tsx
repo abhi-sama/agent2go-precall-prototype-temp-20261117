@@ -19,7 +19,6 @@ import { PageFrame } from "@/components/layout/page-frame"
 import { PERSONA_CONFIG } from "@/components/shell/persona-config"
 import { AppearanceSettings } from "@/components/shell/appearance-settings"
 import { BrandMark } from "@/components/brand/brand-mark"
-import { FirstRunOrientation } from "@/components/state/first-run-orientation"
 import { OfflineStatus } from "@/components/shell/offline-status"
 import { SharedFilterProvider } from "@/components/filters/filter-context"
 import { useChatPresentation } from "@/hooks/use-chat-presentation"
@@ -206,7 +205,6 @@ function WorkspaceShell({ topNav, renderSideNav, children }: { topNav: React.Rea
           content={
             <LayoutContent padding={0} isScrollable={docked}>
               <PageFrame>
-                <FirstRunOrientation />
                 {children}
               </PageFrame>
             </LayoutContent>

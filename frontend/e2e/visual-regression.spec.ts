@@ -7,9 +7,6 @@ import { VIEWPORTS } from "./support/viewports"
  * D9 (#57): visual regression baselines. Every key screen in all six style x mode looks at every viewport in the
  * matrix; each is compared to a committed screenshot in `e2e/__visual__/<viewport>/`.
  *
- * The once-per-user first-run card is marked seen so the baselines show the screens as people use them; one extra
- * set of baselines (`msl-landing-first-run`) keeps the card itself covered.
- *
  * Opt-in, because pixels depend on the machine: `pnpm test:visual` compares, `pnpm test:visual:update` rewrites the
  * baselines after an intended design change (review the diff in the PR, then commit). The baselines were captured on
  * macOS with the bundled Chromium; a different OS renders text slightly differently, so compare on the same
@@ -26,14 +23,12 @@ const KEY_SCREENS = [
   { name: "admin" },
   { name: "chat" },
   { name: "design-system" },
-  // The once-per-user orientation card, as a new user sees the landing page (every other shot has it dismissed).
-  { name: "msl-landing", firstRun: true },
 ]
 
 test.describe.configure({ mode: "parallel" })
 
-for (const { name, firstRun } of KEY_SCREENS) {
-  const file = firstRun ? `${name}-first-run` : name
+for (const { name } of KEY_SCREENS) {
+  const file = name
   const screen = SCREENS.find((s) => s.name === name)
   if (!screen) throw new Error(`visual-regression: unknown screen ${name}`)
   for (const look of KEY_LOOKS) {
@@ -44,12 +39,11 @@ for (const { name, firstRun } of KEY_SCREENS) {
         const userId = screen.userId ?? "u-msl-ne-01"
         await page.emulateMedia({ reducedMotion: "reduce" })
         await page.addInitScript(
-          ([id, cache, seen]) => {
+          ([id, cache]) => {
             window.localStorage.setItem("a2g.local.userId", id as string)
-            if (seen) window.localStorage.setItem(`a2g.first-run.v1:${id}`, "seen")
             window.localStorage.setItem("a2g.appearance", cache as string)
           },
-          [userId, cacheFor(userId, look), !firstRun] as const,
+          [userId, cacheFor(userId, look)] as const,
         )
         await page.goto(screen.path)
         await screen.ready(page)

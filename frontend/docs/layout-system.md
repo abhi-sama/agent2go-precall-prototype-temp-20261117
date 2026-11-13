@@ -28,7 +28,7 @@ Its `responsive-design` and `css-layout` guidance led to component-scoped `@cont
 
 ## Shell and density contract
 
-- Start every authenticated page inside `PageFrame`.
+- Every authenticated page is already inside `PageFrame`: the shell wraps it. Do not add another one in a page, and do not put your own horizontal padding on a page root. `PageFrame` owns the single page gutter (spacing `4` on every side), so no page content ever touches the sidebar or the screen edge.
 - Use Astryx `Layout` for a named header, main region, and supporting region.
 - Use Astryx `Grid` and `GridSpan` for dashboard regions, and `VStack` or `HStack` for a single flow direction.
 - Use the spacing scale: `4` between dashboard regions, `6` between page sections, and the shell's compact header instead of per-page hero padding.
@@ -135,7 +135,7 @@ After - the supporting pane reflows the map and evidence work, while Ask the age
 
 ## Page-by-page adoption checklist
 
-1. Start with `pnpm exec astryx build "<page intent>"` and retain the shell's `PageFrame`.
+1. Start with `pnpm exec astryx build "<page intent>"` and rely on the shell's `PageFrame` (do not nest another).
 2. Choose a feed, list-detail, supporting-pane, or readable-column pattern before moving components.
 3. Assign every dashboard region a `DashboardGridItem` area and check its compact reading order.
 4. Keep KPIs full width and reserve side-by-side pairs for charts or panels that remain independently legible.
