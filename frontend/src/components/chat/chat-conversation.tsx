@@ -37,7 +37,7 @@ export function ChatConversation({ context, starters, layout, autoFocusInput, co
   const adapter = useDataAdapter()
   const { userId, ready } = useSession()
   const me = useQuery("me", userId, (ctx) => adapter.me(ctx), ready)
-  const { turns, running, send, stop, hydrated } = useChatSession()
+  const { turns, running, send, sendAction, stop, hydrated } = useChatSession()
   const [draft, setDraft] = React.useState("")
   const [citation, setCitation] = React.useState<CitationItem | null>(null)
 
@@ -121,6 +121,9 @@ export function ChatConversation({ context, starters, layout, autoFocusInput, co
                 <AssistantTurnView
                   turn={turn.answer}
                   onAsk={submit}
+                  onAction={(action, question) => {
+                    if (!running) void sendAction(action, question, context)
+                  }}
                   onOpenCitation={setCitation}
                   canAsk={!running}
                   aggregateOnly={me.status === "success" && me.data.persona === "executive"}

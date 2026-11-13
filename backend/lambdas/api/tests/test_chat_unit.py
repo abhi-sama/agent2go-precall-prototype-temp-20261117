@@ -191,3 +191,70 @@ def test_territory_summary_needs_the_team_overview_permission() -> None:
     with pytest.raises(Forbidden):
         start(Denied(), lambda *a: sent.append(a), context={"intent": "TERRITORY_SUMMARY", "territoryId": "T01-02"})
     assert not sent
+
+
+# -- A2UI actions (docs/adr/0017) ------------------------------------------------------------------------
+ACTION = {
+    "name": "refine_answer",
+    "surfaceId": "refine_1_run-1",
+    "sourceComponentId": "submit",
+    "timestamp": "2026-11-12T10:00:00.000Z",
+    "context": {"measure": ["engaged_hcps"], "group": ["month"], "territory": ["T01-01"], "from": "2026-08-06", "to": "2026-11-03"},
+}
+
+
+def test_an_a2ui_action_is_shape_checked_and_forwarded_to_the_agent() -> None:
+    sent: list[tuple[str, dict]] = []
+    start(Cursor(), lambda fn, payload: sent.append((fn, payload)), action=ACTION, message="Update this answer")
+    action = sent[0][1]["a2ui_action"]
+    assert action == {
+        "name": "refine_answer",
+        "surface_id": "refine_1_run-1",
+        "source_component_id": "submit",
+        "timestamp": "2026-11-12T10:00:00.000Z",
+        "context": ACTION["context"],
+    }
+    # AWSJSON may arrive as its JSON text; it is parsed within the size bound.
+    sent.clear()
+    start(Cursor(), lambda fn, payload: sent.append((fn, payload)), action={**ACTION, "context": json.dumps(ACTION["context"])})
+    assert sent[0][1]["a2ui_action"]["context"] == ACTION["context"]
+
+
+def test_a_question_without_an_action_carries_none() -> None:
+    sent: list[tuple[str, dict]] = []
+    start(Cursor(), lambda fn, payload: sent.append((fn, payload)))
+    assert "a2ui_action" not in sent[0][1]
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "refine_answer",
+        {**ACTION, "name": "delete_everything"},
+        {**ACTION, "surfaceId": "../../etc"},
+        {**ACTION, "sourceComponentId": "submit-button"},
+        {**ACTION, "timestamp": "yesterday"},
+        {**ACTION, "extra": 1},
+        {**ACTION, "context": {"measure": {"@call": "openUrl"}}},
+        {**ACTION, "context": {"bad-key": "x"}},
+        {**ACTION, "context": {"measure": ["x" * 65]}},
+        {**ACTION, "context": {f"k{i}": "v" for i in range(13)}},
+        {**ACTION, "context": "{not json"},
+        {**ACTION, "context": json.dumps({"a": "x" * 3000})},
+    ],
+)
+def test_a_malformed_action_is_refused_before_anything_starts(bad) -> None:
+    sent: list = []
+    with pytest.raises(BadRequest):
+        start(Cursor(), lambda *a: sent.append(a), action=bad)
+    assert not sent
+
+
+def test_the_worker_forwards_the_action_to_the_agent(monkeypatch) -> None:
+    monkeypatch.setattr(chat_worker, "_append", lambda *a: None)
+    runtime = FakeRuntime([{"type": "RUN_FINISHED"}])
+    action = {"name": "refine_answer", "surface_id": "s_1", "source_component_id": "submit", "timestamp": "2026-11-12T10:00:00Z", "context": {}}
+    chat_worker.run_chat({**PAYLOAD, "a2ui_action": action}, settings(), runtime)
+    assert runtime.payload["a2ui_action"] == action
+    chat_worker.run_chat(PAYLOAD, settings(), runtime)
+    assert "a2ui_action" not in runtime.payload

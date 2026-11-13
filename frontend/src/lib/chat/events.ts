@@ -8,7 +8,13 @@
  *  - `suggestions`: proposals the user may act on,
  *  - `visual`: a chart, heatmap, timeline or small table (generative UI). A `pending` event reserves its place the
  *    moment the agent starts the query; the `ready` event carries the plotted values, all computed by SQL under RLS.
+ *
+ * A2UI v1.0 surfaces (a table of recorded themes, the Adjust this answer form) arrive as standard AG-UI
+ * `ACTIVITY_SNAPSHOT` events with `activityType: "a2ui-surface"` (docs/adr/0017); only surfaces that pass the
+ * answer-catalog gate in `a2ui/protocol.ts` are kept.
  */
+
+import { surfaceFromActivity, type SurfaceItem } from "./a2ui/protocol"
 
 export interface FactItem {
   factId: string
@@ -137,6 +143,8 @@ export interface AssistantTurn {
   rowSets: RowSetItem[]
   /** True when the agent said rows are unavailable because the viewer's access is aggregate-only. */
   rowsUnavailable: boolean
+  /** A2UI surfaces, screened, in arrival order. Absent on turns stored before surfaces existed. */
+  surfaces?: SurfaceItem[]
   suggestions: string[]
   tools: { id: string; name: string; done: boolean }[]
   mode: "claude" | "stub" | null
@@ -158,6 +166,7 @@ export function newTurn(runId: string): AssistantTurn {
     visuals: [],
     rowSets: [],
     rowsUnavailable: false,
+    surfaces: [],
     suggestions: [],
     tools: [],
     mode: null,
@@ -312,9 +321,24 @@ export function applyEvent(turn: AssistantTurn, event: Json): AssistantTurn {
       return { ...turn, status: "error", error: str(event.message, "The agent could not complete this answer.") }
     case "CUSTOM":
       return applyCustom(turn, str(event.name), event.value)
+    case "ACTIVITY_SNAPSHOT":
+      return applySurface(turn, event)
     default:
       return turn
   }
+}
+
+const MAX_SURFACES = 4
+
+/** A snapshot replaces an earlier one with the same activity id; a rejected one changes nothing. */
+function applySurface(turn: AssistantTurn, event: Json): AssistantTurn {
+  const item = surfaceFromActivity(event)
+  if (!item) return turn
+  const surfaces = turn.surfaces ?? []
+  const at = surfaces.findIndex((s) => s.messageId === item.messageId)
+  if (at >= 0) return { ...turn, surfaces: surfaces.map((s, i) => (i === at ? item : s)) }
+  if (surfaces.length >= MAX_SURFACES || surfaces.some((s) => s.surfaceId === item.surfaceId)) return turn
+  return { ...turn, surfaces: [...surfaces, item] }
 }
 
 function applyCustom(turn: AssistantTurn, name: string, value: unknown): AssistantTurn {

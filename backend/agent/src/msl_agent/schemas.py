@@ -86,6 +86,20 @@ class AgentContext(BaseModel):
     intent: Literal["FREE", "TERRITORY_SUMMARY"] = "FREE"
 
 
+class A2uiAction(BaseModel):
+    """An A2UI v1.0 ``action`` from a surface the agent sent earlier (docs/adr/0017), relayed by the BE Lambda.
+
+    Untrusted browser input: the shape is bounded here and every value is validated against closed lists in
+    ``a2ui.parse_refine_action`` before it can choose a query. It grants nothing a typed question would not.
+    """
+
+    name: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    surface_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,96}$")
+    source_component_id: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    timestamp: str = Field(max_length=40)
+    context: dict[str, Any] = Field(default_factory=dict, max_length=12)
+
+
 class Invocation(BaseModel):
     """AgentCore Runtime input (foundation-contract.md) plus the run id the BE streams events under."""
 
@@ -96,6 +110,8 @@ class Invocation(BaseModel):
     #: Present for work other than a chat answer: a pre-call brief or a leadership summary.
     task: Annotated[BriefTask | SummaryTask, Field(discriminator="type")] | None = None
     context: AgentContext | None = None
+    #: Present when the question is a user action on an A2UI surface (the Adjust this answer form).
+    a2ui_action: A2uiAction | None = None
 
     @field_validator("messages")
     @classmethod

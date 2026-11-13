@@ -705,6 +705,32 @@ export const SCREENS: ScreenSpec[] = [
       await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
     },
   },
+  // A2UI answer surfaces (docs/adr/0017) in the panel: the Adjust this answer form opened, and the recorded-themes table.
+  {
+    name: "chat-drawer-answer-adjust",
+    path: "/msl",
+    ready: testId("kpi-calls"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-open").click()
+      await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await page.getByTestId("answer-follow-up-surfaces").getByRole("button", { name: /Adjust this answer/ }).click()
+      await expect(page.getByRole("form", { name: "Adjust this answer" })).toBeVisible()
+    },
+  },
+  {
+    name: "chat-drawer-themes-table",
+    path: "/msl",
+    ready: testId("kpi-calls"),
+    prepare: async (page) => {
+      await page.getByTestId("chat-open").click()
+      await page.getByTestId("chat-input").fill("What themes are emerging?")
+      await page.getByTestId("chat-send").click()
+      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("a2ui-table")).toBeVisible()
+    },
+  },
   ...([
     ["line", "Show my calls by month", "line-chart"],
     ["heatmap", "Heatmap of calls by product", "heatmap-chart"],

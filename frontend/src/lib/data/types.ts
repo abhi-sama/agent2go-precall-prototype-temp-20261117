@@ -705,6 +705,18 @@ export interface ChatMessageInput {
   content: string
 }
 
+/**
+ * A user action on an A2UI surface in an answer (docs/adr/0017), sent with `startChatRun` like a question. The BE
+ * checks its shape and the agent its values; it never reaches the agent by any other route.
+ */
+export interface ChatSurfaceActionInput {
+  name: string
+  surfaceId: string
+  sourceComponentId: string
+  timestamp: string
+  context: Record<string, unknown>
+}
+
 /** One page of the run's AG-UI events. `data` is the event, JSON-encoded. */
 export interface ChatEventPage {
   events: { seq: number; data: string }[]

@@ -27,7 +27,7 @@ export const EXPORT_CHAT_ROWS_MUTATION = /* GraphQL */ `
     }
   }
 `
-export const START_CHAT_RUN_MUTATION = `mutation StartChatRun($threadId: ID!, $runId: ID!, $message: String!, $history: [ChatMessageInput!], $context: ChatContextInput) { startChatRun(threadId: $threadId, runId: $runId, message: $message, history: $history, context: $context) { runId status } }`
+export const START_CHAT_RUN_MUTATION = `mutation StartChatRun($threadId: ID!, $runId: ID!, $message: String!, $history: [ChatMessageInput!], $context: ChatContextInput, $action: ChatSurfaceActionInput) { startChatRun(threadId: $threadId, runId: $runId, message: $message, history: $history, context: $context, action: $action) { runId status } }`
 
 /** Extension of the foundation contract (added during integration) for the territory map. */
 export const GEO_ACTIVITY_QUERY = /* GraphQL */ `

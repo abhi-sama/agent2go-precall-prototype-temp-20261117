@@ -31,12 +31,12 @@ from botocore.config import Config
 from strands import Agent
 from strands.models import BedrockModel
 
-from . import ag_ui, visuals
+from . import a2ui, ag_ui, visuals
 from .config import Settings
 from .intent import infer_chart_request, infer_executive_facet, wants_region_matrix
 from .numbers import allowed_numbers, unverified_numbers
 from .repository import ScopedReadRepository
-from .schemas import Citation, Identity, Invocation
+from .schemas import Citation, Identity, Invocation, Message
 from .tools import VISUAL_TOOLS, RunContext, build_tools, clean_suggestions
 from .writes import ConversationTurn, ConversationWriteTool, NullConversationWriter
 
@@ -172,7 +172,19 @@ promise rows the tools did not count.
 9. Call data tools first without any commentary; write the answer once, after the tool results. Then, as your last \
 step, call suggest_follow_ups once with up to three short follow-up questions (no numbers in them). Do not repeat \
 the answer after that call.
+10. The interface adds its own tables and an "Adjust this answer" form, built from your tool results. Do not describe \
+or repeat them.
 """
+
+REFINE_NOTE = """
+This turn comes from the "Adjust this answer" form. The user asked: {question}
+The figures are already computed under the user's access and shown on screen. These are the tool results:
+{results}
+Write one or two short plain sentences that quote figures from these results exactly. Call no data tools; then call \
+suggest_follow_ups once."""
+
+REFINE_REFUSAL = "That adjustment could not be applied. Ask the question in your own words instead."
+
 
 EXECUTIVE_ADDENDUM = """
 The user is an Executive with aggregate-only access to the regions they are explicitly authorized for. You do \
@@ -312,17 +324,24 @@ class MslAgent:
                 retries={"max_attempts": 2, "mode": "standard"},
             ),
         )
+        tools = build_tools(ctx, for_model=True)
+        refine_note = ""
+        if ctx.answer_precomputed:
+            # An Adjust-form turn: the runtime already ran the exact query, so the model only words the answer.
+            tools = [t for t in tools if t.tool_name == "suggest_follow_ups"]
+            refine_note = REFINE_NOTE.format(question=invocation.question, results="\n".join(ctx.tool_results)[:12_000])
         return Agent(
             model=model,
             # Avoid offering Executive-only tools to models that cannot use them. Their guarded
             # refusal is useful for direct regression tests, but it is a misleading choice for a
             # non-Executive count question (especially through a strict CLI adapter).
-            tools=build_tools(ctx, for_model=True),
+            tools=tools,
             system_prompt=SYSTEM_PROMPT.format(
                 persona=invocation.identity.persona, today=dt.date.today().isoformat()
             )
             + (EXECUTIVE_ADDENDUM if invocation.identity.persona == "Executive" else "")
-            + context_note(invocation),
+            + context_note(invocation)
+            + refine_note,
             messages=_history(invocation),
             callback_handler=None,  # events are consumed from stream_async, never printed
         )
@@ -338,6 +357,30 @@ class MslAgent:
             to_date=request.to_date,
             tool_context=SimpleNamespace(tool_use={"toolUseId": f"auto-{len(ctx.visuals) + 1}"}, agent=None),
         )
+
+    @staticmethod
+    def _run_refine(ctx: RunContext, tools: dict[str, Any], refine: a2ui.RefineRequest) -> None:
+        """Run exactly the query an Adjust-form action asked for, under the caller's RLS like any tool call."""
+        ctx.tool_calls = 0  # the action's own query is not charged to the model's tool budget
+        use = SimpleNamespace(tool_use={"toolUseId": f"refine-{len(ctx.visuals) + 1}"}, agent=None)
+        if refine.executive:
+            tools["get_executive_activity"](
+                metric=refine.metric, group_by=refine.group_by, from_date=refine.from_date, to_date=refine.to_date, tool_context=use
+            )
+        elif refine.group_by == "total":
+            tools["get_activity_summary"](from_date=refine.from_date, to_date=refine.to_date, territory_id=refine.territory_id)
+        else:
+            tools["show_chart"](
+                metric=refine.metric,
+                group_by=refine.group_by,
+                from_date=refine.from_date,
+                to_date=refine.to_date,
+                territory_id=refine.territory_id,
+                tool_context=use,
+            )
+        # The next form keeps exactly what the person chose, even where a count reports every measure.
+        ctx.adjustable, ctx.adjustable_is_chart = refine, True
+        ctx.answer_precomputed = True
 
     @staticmethod
     def _executive_window(question: str, history: list[str]) -> tuple[str, str]:
@@ -581,6 +624,20 @@ class MslAgent:
         value = result.get(key)
         return f"\n\nThe verified count is {value} {unit} for {period}." if value is not None else ""
 
+    def _refusal(self, invocation: Invocation, run_id: str, message_id: str, text: str, outcome: str) -> list[ag_ui.Event]:
+        """A fixed answer that reads nothing: the same closing events as a normal run, with no figures."""
+        log.info("run refused", thread_id=invocation.thread_id, run_id=run_id, outcome=outcome)
+        return [
+            ag_ui.text_start(message_id),
+            ag_ui.text_content(message_id, text),
+            ag_ui.text_end(message_id),
+            ag_ui.custom("computed_figures", {"figures": []}),
+            ag_ui.custom("number_check", {"status": "verified", "count": 0, "checked": self.mode == "claude"}),
+            ag_ui.custom("suggestions", DEFAULT_SUGGESTIONS),
+            ag_ui.custom("conversation_saved", {"saved": False}),
+            ag_ui.run_finished(invocation.thread_id, run_id),
+        ]
+
     async def run(self, invocation: Invocation) -> AsyncIterator[ag_ui.Event]:
         identity: Identity = invocation.identity
         is_executive = identity.persona == "Executive"
@@ -589,7 +646,17 @@ class MslAgent:
         started = time.perf_counter()
         ctx = RunContext(identity=identity, repository=self._repository, run_id=run_id)
         text_parts: list[str] = []
-        direct_reply = small_talk_reply(invocation.question)
+        refine: a2ui.RefineRequest | None = None
+        if invocation.a2ui_action is not None:
+            # An action on an A2UI surface (docs/adr/0017). Its values are validated against closed lists, then it
+            # becomes the question it stands for, so every scope check below applies exactly as to a typed question.
+            action = invocation.a2ui_action
+            refine = a2ui.parse_refine_action(action.name, action.context, executive=is_executive)
+            if refine is not None:
+                invocation = invocation.model_copy(
+                    update={"messages": [*invocation.messages[:-1], Message(role="user", content=refine.question())]}
+                )
+        direct_reply = None if invocation.a2ui_action is not None else small_talk_reply(invocation.question)
         executive_fallback_fact = None
         open_tool_calls: dict[str, bool] = {}
         text_open = False
@@ -604,6 +671,10 @@ class MslAgent:
         log.info("run started", thread_id=invocation.thread_id, run_id=run_id, outcome=self.mode)
         yield ag_ui.run_started(invocation.thread_id, run_id)
         yield ag_ui.custom("model_mode", {"mode": self.mode})
+        if invocation.a2ui_action is not None and refine is None:
+            for event in self._refusal(invocation, run_id, message_id, REFINE_REFUSAL, "invalid_action"):
+                yield event
+            return
 
         # Do not give a model the opportunity to substitute its normal scope
         # after a request names a territory the caller cannot read.  This check
@@ -612,34 +683,25 @@ class MslAgent:
         requested = _TERRITORY_ID.search(invocation.question)
         if is_executive and self._executive_request_requires_refusal(invocation.question):
             refusal = "That request needs source-record or unsupported filtered data, which is not available to an aggregate-only Executive."
-            yield ag_ui.text_start(message_id)
-            yield ag_ui.text_content(message_id, refusal)
-            yield ag_ui.text_end(message_id)
-            yield ag_ui.custom("computed_figures", {"figures": []})
-            yield ag_ui.custom("number_check", {"status": "verified", "count": 0, "checked": self.mode == "claude"})
-            yield ag_ui.custom("suggestions", DEFAULT_SUGGESTIONS)
-            yield ag_ui.custom("conversation_saved", {"saved": False})
-            log.info("run refused aggregate-only request", thread_id=invocation.thread_id, run_id=run_id, outcome="aggregate_only")
-            yield ag_ui.run_finished(invocation.thread_id, run_id)
+            for event in self._refusal(invocation, run_id, message_id, refusal, "aggregate_only"):
+                yield event
             return
         if requested:
             if not await asyncio.to_thread(
                 self._repository.territory_in_scope, identity, requested.group(1).upper()
             ):
                 refusal = "That territory is outside this user's scope, so no data can be shown."
-                yield ag_ui.text_start(message_id)
-                yield ag_ui.text_content(message_id, refusal)
-                yield ag_ui.text_end(message_id)
-                yield ag_ui.custom("computed_figures", {"figures": []})
-                yield ag_ui.custom("number_check", {"status": "verified", "count": 0, "checked": self.mode == "claude"})
-                yield ag_ui.custom("suggestions", DEFAULT_SUGGESTIONS)
-                yield ag_ui.custom("conversation_saved", {"saved": False})
-                log.info("run refused out of scope", thread_id=invocation.thread_id, run_id=run_id, outcome="out_of_scope")
-                yield ag_ui.run_finished(invocation.thread_id, run_id)
+                for event in self._refusal(invocation, run_id, message_id, refusal, "out_of_scope"):
+                    yield event
                 return
 
         try:
-            if self.mode == "stub" and direct_reply is None:
+            if refine is not None:
+                tools = {t.tool_name: t for t in build_tools(ctx)}
+                await asyncio.to_thread(self._run_refine, ctx, tools, refine)
+                for event in drain():
+                    yield event
+            elif self.mode == "stub" and direct_reply is None:
                 # floci's stub answers with canned text and never calls tools, so the facts the panel
                 # shows are computed up front by the same deterministic tool.  Unlike the former
                 # unconditional activity call, this only runs for a data-shaped request.
@@ -721,7 +783,7 @@ class MslAgent:
                 history = [message.content for message in invocation.messages[:-1]]
                 requested = self._executive_activity_request(invocation.question, history)
                 request_complete = requested is not None and requested in ctx.executive_activity_requests
-                if not ctx.executive_evidence or (requested is not None and not request_complete):
+                if refine is None and (not ctx.executive_evidence or (requested is not None and not request_complete)):
                     # A model can omit dates or use the default total grouping. The backstop repeats the
                     # caller's resolved request, including follow-up context, before any figure is accepted.
                     tools = {t.tool_name: t for t in build_tools(ctx)}
@@ -752,7 +814,7 @@ class MslAgent:
                     ctx.answer_chars += len(paragraph)
                     yield ag_ui.text_content(message_id, paragraph)
                     yield ag_ui.custom("sample_limitations", {"items": list(ctx.limitations)})
-            elif direct_reply is None and not ctx.facts and not open_tool_calls:
+            elif direct_reply is None and refine is None and not ctx.facts and not open_tool_calls:
                 history = [message.content for message in invocation.messages[:-1]]
                 tools = {tool.tool_name: tool for tool in build_tools(ctx)}
                 qualitative_requests = self._qualitative_fallback_requests(invocation.question, history)
@@ -815,7 +877,7 @@ class MslAgent:
             )
             return
 
-        if direct_reply is None and not ctx.visuals and self.mode == "claude" and not is_executive:
+        if direct_reply is None and refine is None and not ctx.visuals and self.mode == "claude" and not is_executive:
             # Floor for the rule "a trend or comparison always gets a chart": the model skipped the tool, so run
             # the same deterministic query from the question's own words.
             request = infer_chart_request(invocation.question)
@@ -827,6 +889,24 @@ class MslAgent:
                     log.error("fallback chart failed", run_id=run_id, error_type=type(exc).__name__)
                 for event in drain():
                     yield event
+
+        scope = await asyncio.to_thread(self._repository.scope, identity)
+        adjustable = ctx.adjustable
+        if direct_reply is None and adjustable is not None:
+            # The Adjust form (A2UI): pre-filled with what this answer covered; territories come from the caller's
+            # own scope under RLS, and an aggregate-only caller gets measure, grouping and period only.
+            through = ctx.data_through or scope.data_through
+            ctx.add_surface(
+                "refine",
+                lambda sid: a2ui.refine_surface(
+                    sid,
+                    adjustable,
+                    territories=[] if is_executive else list(scope.territory_ids),
+                    data_through=through.date().isoformat() if through else None,
+                ),
+            )
+            for event in drain():
+                yield event
 
         answer = "".join(text_parts)
         unverified: list[str] = []
@@ -853,7 +933,6 @@ class MslAgent:
         suggestions = clean_suggestions(ctx.suggestions) or fallback
         yield ag_ui.custom("suggestions", suggestions)
 
-        scope = await asyncio.to_thread(self._repository.scope, identity)
         turn = ConversationTurn(
             identity=identity,
             thread_id=invocation.thread_id,
@@ -863,6 +942,7 @@ class MslAgent:
             facts=ctx.facts,
             citations=list(ctx.citations.values()),
             visuals=[v.model_dump(exclude_none=True) for v in ctx.visuals],
+            surfaces=ctx.surfaces,
             suggestions=suggestions,
             scope_territory_ids=list(scope.territory_ids),
             data_through=ctx.data_through or scope.data_through,

@@ -4,10 +4,10 @@ The AgentCore Runtime-compatible service behind chat (ticket #3, [ADR 0007](../.
 It exposes `GET /ping` and `POST /invocations` on port 8080; an invocation returns an SSE stream of AG-UI events.
 
 ```
-POST /invocations  {identity, thread_id, run_id, messages[]}
+POST /invocations  {identity, thread_id, run_id, messages[], a2ui_action?}
   RUN_STARTED, CUSTOM model_mode,
-  [TOOL_CALL_START, CUSTOM source_facts, CUSTOM citations, TOOL_CALL_END]*,
-  TEXT_MESSAGE_START, TEXT_MESSAGE_CONTENT*, TEXT_MESSAGE_END,
+  [TOOL_CALL_START, CUSTOM source_facts, CUSTOM citations, (ACTIVITY_SNAPSHOT a2ui-surface), TOOL_CALL_END]*,
+  TEXT_MESSAGE_START, TEXT_MESSAGE_CONTENT*, TEXT_MESSAGE_END, (ACTIVITY_SNAPSHOT a2ui-surface: Adjust this answer),
   CUSTOM number_check, CUSTOM suggestions, CUSTOM conversation_saved, RUN_FINISHED   (or RUN_ERROR)
 ```
 
@@ -19,6 +19,7 @@ POST /invocations  {identity, thread_id, run_id, messages[]}
 | `chart_data.py`, `visuals.py`, `intent.py` | Whitelisted aggregate SQL for charts, the `visual` AG-UI event payloads built from it, and the deterministic floor that draws a chart when the model skipped the tool (docs/adr/0009). |
 | `agent.py` | Runs the Strands agent over Bedrock ConverseStream and turns its events into AG-UI events. |
 | `numbers.py` | Checks that figures in the answer came from tool results. |
+| `a2ui.py` | A2UI v1.0 answer surfaces (a themes table, the Adjust this answer form) built from tool results, checked against `docs/a2ui/answer-catalog.json` and the number guard, and the validation of a `refine_answer` action (docs/adr/0017). |
 | `writes.py` | The narrow write tool: assumes the FE role and puts one turn in FE DynamoDB. The model cannot call it. |
 
 The stack (`backend/infra/scripts/up.sh`) builds and runs this as a container next to floci.

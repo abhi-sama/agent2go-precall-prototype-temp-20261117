@@ -39,6 +39,8 @@ class ConversationTurn:
     facts: list[Fact] = field(default_factory=list)
     citations: list[Citation] = field(default_factory=list)
     visuals: list[dict[str, Any]] = field(default_factory=list)
+    #: A2UI surfaces (each a list of v1.0 operations), so history can render them again (docs/adr/0017).
+    surfaces: list[list[dict[str, Any]]] = field(default_factory=list)
     suggestions: list[str] = field(default_factory=list)
     scope_territory_ids: list[str] = field(default_factory=list)
     data_through: dt.datetime | None = None
@@ -77,6 +79,7 @@ def item_for(turn: ConversationTurn, *, now: dt.datetime | None = None) -> dict[
         "evidence": [citation.model_dump() for citation in turn.citations],
         # DynamoDB numbers must be Decimal, never float (share_pct is a one-decimal float).
         "visuals": json.loads(json.dumps(turn.visuals), parse_float=Decimal),
+        "surfaces": json.loads(json.dumps(turn.surfaces), parse_float=Decimal),
         "suggestions": turn.suggestions,
         "scope_territory_ids": turn.scope_territory_ids,
         "data_through": turn.data_through.isoformat() if turn.data_through else None,

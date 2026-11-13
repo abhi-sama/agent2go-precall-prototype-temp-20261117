@@ -3,8 +3,9 @@
 import * as React from "react"
 import type { DataAdapter } from "@/lib/data"
 import type { ChatContext } from "@/lib/data/director-insights"
-import { toDataError, type ChatMessageInput } from "@/lib/data/types"
+import { toDataError, type ChatMessageInput, type ChatSurfaceActionInput } from "@/lib/data/types"
 import { log, newCorrelationId } from "@/lib/log/logger"
+import type { SurfaceAction } from "./a2ui/protocol"
 import { applyEvent, newTurn, parseEvent, type AssistantTurn } from "./events"
 
 export interface ChatTurn {
@@ -65,8 +66,8 @@ export function useChat(adapter: DataAdapter) {
 
   React.useEffect(() => () => abort.current?.abort(), [])
 
-  const send = React.useCallback(
-    async (question: string, context?: ChatContext) => {
+  const run = React.useCallback(
+    async (question: string, context?: ChatContext, action?: ChatSurfaceActionInput) => {
       const text = question.trim().slice(0, MAX_QUESTION_CHARS)
       if (!text || turnsRef.current.some((t) => t.answer.status === "running")) return
       const runId = newId()
@@ -79,7 +80,7 @@ export function useChat(adapter: DataAdapter) {
       const fail = (message: string) => patch(runId, (a) => ({ ...a, status: "error", error: message }))
 
       try {
-        await adapter.startChatRun(ctx, { threadId, runId, message: text, history, ...(context ? { context } : {}) })
+        await adapter.startChatRun(ctx, { threadId, runId, message: text, history, ...(context ? { context } : {}), ...(action ? { action } : {}) })
         let after = 0
         let failures = 0
         const deadline = Date.now() + MAX_RUN_MS
@@ -116,6 +117,24 @@ export function useChat(adapter: DataAdapter) {
     [adapter, commit, patch, threadId],
   )
 
+  const send = React.useCallback((question: string, context?: ChatContext) => run(question, context), [run])
+
+  /**
+   * A user action on an A2UI surface (docs/adr/0017): a new turn whose question is what the person chose, sent
+   * through the same `startChatRun` path with the action attached. The agent validates it and asks it for them.
+   */
+  const sendAction = React.useCallback(
+    (action: SurfaceAction, question: string, context?: ChatContext) =>
+      run(question, context, {
+        name: action.name,
+        surfaceId: action.surfaceId,
+        sourceComponentId: action.sourceComponentId,
+        timestamp: action.timestamp,
+        context: action.context,
+      }),
+    [run],
+  )
+
   const reset = React.useCallback(() => {
     abort.current?.abort()
     commit([])
@@ -147,5 +166,5 @@ export function useChat(adapter: DataAdapter) {
     [commit],
   )
 
-  return { turns, running, send, reset, stop, restore, hydrated, threadId }
+  return { turns, running, send, sendAction, reset, stop, restore, hydrated, threadId }
 }

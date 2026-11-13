@@ -8,10 +8,11 @@ import { todayIso, addDays } from "@/lib/dates"
 import type { ChatContext } from "./director-insights"
 import { TERRITORIES, type FixtureUser } from "./fixtures"
 import { buildMatrix, buildThemes } from "./mock-executive-themes"
-import { inferMockVisual, mockVisual } from "./mock-visuals"
+import { inferMockVisual, mockVisual, type MockVisualRequest } from "./mock-visuals"
 import { rememberRowSets, rowSetsEvent, type MockRowSet } from "./mock-chat-rows"
 import { mockResponseRecord, mockTerritorySummary } from "./mock-director-insights"
-import type { ChatEventPage, SourceRecord } from "./types"
+import { parseRefineAction, refineQuestion, refineSurface, surfaceEvent, surfaceId, tableSurface, type RefineRequest } from "./mock-surfaces"
+import type { ChatEventPage, ChatSurfaceActionInput, SourceRecord } from "./types"
 
 interface ScheduledEvent {
   seq: number
@@ -34,12 +35,33 @@ function smallTalkReply(question: string): string | null {
   return "Hi! I can help with activity counts, recorded HCP perspectives, trends, and your available scope. What would you like to explore?"
 }
 
-export function scriptRun(runId: string, user: FixtureUser, question: string, now = Date.now(), context?: ChatContext): void {
+const REFINE_REFUSAL = "That adjustment could not be applied. Ask the question in your own words instead."
+const THEMES = [
+  { topic: "ctDNA monitoring (emerging)", share: 0.1, prior: 0.04, flag: "Emerging" },
+  { topic: "Access and reimbursement", share: 0.14, prior: 0.15, flag: "No change flagged" },
+  { topic: "Long-term outcomes", share: 0.09, prior: 0.09, flag: "No change flagged" },
+]
+const weekdaysBetween = (from: string, to: string) => {
+  let n = 0
+  for (let d = from; d <= to; d = addDays(d, 1)) if (![0, 6].includes(new Date(`${d}T00:00:00Z`).getUTCDay())) n++
+  return n
+}
+
+export function scriptRun(runId: string, user: FixtureUser, typed: string, now = Date.now(), context?: ChatContext, action?: ChatSurfaceActionInput): void {
+  // An Adjust-form action is validated against closed lists, then asked as the question it stands for (docs/adr/0017).
+  const refine: RefineRequest | null = action ? parseRefineAction(action.name, action.context, user.persona === "executive") : null
+  const question = refine ? refineQuestion(refine) : typed
   const asked = question.match(/\b([A-Z]{2}-\d{2})\b/)?.[1]
   const events: string[] = [ev("RUN_STARTED", { threadId: "mock", runId }), custom("model_mode", { mode: "claude" })]
   let answer: string
   const suggestions = ["Which territories can I see?", "What have HCPs recorded about osimertinib?"]
-  const directReply = smallTalkReply(question)
+  const directReply = action && !refine ? REFINE_REFUSAL : action ? null : smallTalkReply(question)
+  const through = new Date(now - 86_400_000).toISOString()
+  let surfaceCount = 0
+  const nextSurface = (kind: string) => surfaceId(kind, runId, ++surfaceCount)
+  /** What this answer covered, offered back as the Adjust form after the text. */
+  let adjustable: RefineRequest | null = null
+  const themeQuestion = !refine && /\b(?:themes?|emerging|trending)\b/i.test(question) && !/\bconcerns?\b/i.test(question)
   const scopeQuestion = /\b(?:which|what)\s+territor(?:y|ies)\s+(?:can|do)\s+i\s+(?:see|access)\b|\bmy\s+scope\b/i.test(question)
   const explicitTopic = question.match(/\b(?:recorded|said|saying)\b.*?\babout\s+(.+?)[?.!]?\s*$/i)?.[1]?.trim()
   const qualitativeQuestion = /\b(?:concerns?|themes?|topics?|perspectives?)\b|\bwhat\s+(?:are|do|did)\s+hcps?\b/i.test(question)
@@ -63,6 +85,40 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
       )
       answer = `You can access ${territories.join(", ")}.`
     }
+  } else if (themeQuestion && !summaryTerritory && (user.persona === "msl" || user.persona === "director") && user.territoryIds.length > 0) {
+    // Recorded themes by the database's rule (get_topic_trends): key figures, then the A2UI table of themes.
+    const to = todayIso(new Date(now))
+    const from = addDays(to, -89)
+    const period = `${from} to ${to}`
+    const total = user.territoryIds.reduce((sum, id) => sum + Math.round((TERRITORIES.find((t) => t.id === id)?.callsPerWorkday ?? 4) * 64 * 1.6), 0)
+    const rows = THEMES.map((t) => ({ theme: t.topic, latest: Math.round(total * t.share), earlier: Math.round(total * t.prior), flag: t.flag }))
+    const sid = nextSurface("themes")
+    events.push(
+      ev("TOOL_CALL_START", { toolCallId: "t1", toolCallName: "get_topic_trends" }),
+      custom("source_facts", {
+        facts: [
+          { fact_id: "f1", label: "Free-text responses in the latest period", value: total, unit: "responses", period, scope: "your scope", citation_ids: [] },
+          ...rows.map((r, i) => ({ fact_id: `f${i + 2}`, label: `Responses on ${r.theme}`, value: r.latest, unit: "responses", period, scope: "your scope", citation_ids: [] })),
+        ],
+        data_through: through,
+      }),
+      surfaceEvent(
+        sid,
+        tableSurface(sid, {
+          title: "Recorded themes",
+          caption: `${period} against the 90 days before · your scope · Counted by database queries; flags come from the stated rule.`,
+          columns: [
+            { key: "theme", label: "Theme" },
+            { key: "latest", label: "Latest period", numeric: true },
+            { key: "earlier", label: "Earlier period", numeric: true },
+            { key: "flag", label: "Rule flag" },
+          ],
+          rows,
+        }),
+      ),
+      ev("TOOL_CALL_END", { toolCallId: "t1" }),
+    )
+    answer = `${rows[0].theme} was flagged EMERGING by the rule, with ${rows[0].latest} responses in the latest period against ${rows[0].earlier} before.`
   } else if (topic) {
     if (user.persona === "executive") {
       answer = "That request needs source-record data, which is not available to an aggregate-only Executive."
@@ -102,17 +158,21 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
   } else if (user.persona === "executive" && user.territoryIds.length > 0) {
     // Executive activity uses the same aggregate-only wire contract as the runtime. The mock deliberately omits
     // suppressed month points rather than representing them as zero, so responsive UI checks exercise the safe chart.
-    const to = context?.to ?? todayIso(new Date(now))
-    const range = { from: context?.from ?? addDays(to, -89), to }
+    const to = refine?.to ?? context?.to ?? todayIso(new Date(now))
+    const range = { from: refine?.from ?? context?.from ?? addDays(to, -89), to }
     const activityQuestion = /\b(calls?|engaged|hcps?|responses?|insights?)\b/i.test(question) && !/\b(theme|topic|ctdna|sequencing|what .*say)\b/i.test(question)
     if (activityQuestion) {
       const period = `${range.from} to ${range.to}`
-      const total = 48
-      const citation = { record_id: `agg:executive:activity:calls:${range.from}:${range.to}`, dataset: "hcp_raw_insights", label: `Suppressed call aggregate, ${period}`, kind: "aggregate", detail: "Aggregate-only; no source rows are available" }
-      const trend = /\b(month|trend|over time|change|compare)\b/i.test(question)
+      const metric = refine?.metric ?? "calls"
+      const label = { calls: "Distinct calls", engaged_hcps: "Engaged HCPs", responses: "Insight responses" }[metric]
+      const unit = { calls: "calls", engaged_hcps: "HCPs", responses: "responses" }[metric]
+      const total = { calls: 48, engaged_hcps: 36, responses: 84 }[metric]
+      const citation = { record_id: `agg:executive:activity:${metric}:${range.from}:${range.to}`, dataset: "hcp_raw_insights", label: `Suppressed ${label.toLowerCase()} aggregate, ${period}`, kind: "aggregate", detail: "Aggregate-only; no source rows are available" }
+      const trend = refine ? refine.groupBy === "month" : /\b(month|trend|over time|change|compare)\b/i.test(question)
+      adjustable = refine ?? { metric: "calls", groupBy: trend ? "month" : "total", from: range.from, to: range.to, territoryId: "", executive: true }
       events.push(
         ev("TOOL_CALL_START", { toolCallId: "t1", toolCallName: "get_executive_activity" }),
-        custom("source_facts", { facts: [{ fact_id: "f1", label: "Distinct calls", value: total, unit: "calls", period, scope: "your executive scope", citation_ids: [citation.record_id] }], data_through: new Date(now - 86_400_000).toISOString() }),
+        custom("source_facts", { facts: [{ fact_id: "f1", label, value: total, unit, period, scope: "your executive scope", citation_ids: [citation.record_id] }], data_through: new Date(now - 86_400_000).toISOString() }),
         custom("citations", [citation]),
         custom("sample_limitations", { items: ["This is an aggregate-only view; individual records, names and row exports are not available.", "Counts below 5 are withheld, with complementary suppression where needed so a small group cannot be calculated."] }),
       )
@@ -120,21 +180,32 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
         events.push(
           custom("visual", { phase: "pending", visual_id: "exec-v1", tool: "get_executive_activity" }),
           custom("visual", {
-            phase: "ready", visual_id: "exec-v1", kind: "line", title: "Distinct calls by month (shown aggregates)", subtitle: `${period} · your executive scope`, metric: "calls", unit: "calls", period, scope: "your executive scope", definition: "Distinct calls; small groups and complementary values are withheld and are not plotted.", data_through: new Date(now - 86_400_000).toISOString(), total,
-            points: [{ key: "2026-08", label: "Aug 2026", value: 15, partial: false }, { key: "2026-09", label: "Sep 2026", value: 17, partial: false }], peak_key: "2026-09",
+            phase: "ready", visual_id: "exec-v1", kind: "line", title: `${label} by month (shown aggregates)`, subtitle: `${period} · your executive scope`, metric, unit, period, scope: "your executive scope", definition: `${label}; small groups and complementary values are withheld and are not plotted.`, data_through: new Date(now - 86_400_000).toISOString(), total,
+            points: [{ key: "2026-08", label: "Aug 2026", value: Math.round(total * 0.31), partial: false }, { key: "2026-09", label: "Sep 2026", value: Math.round(total * 0.35), partial: false }], peak_key: "2026-09",
+          }),
+        )
+      } else if (refine && (refine.groupBy === "region" || refine.groupBy === "territory")) {
+        const groups = refine.groupBy === "region" ? ["North East", "South East", "West"] : ["NE-01", "SE-03", "WE-04"]
+        const parts = [Math.round(total * 0.5), Math.round(total * 0.3)]
+        events.push(
+          custom("visual", { phase: "pending", visual_id: "exec-v1", tool: "get_executive_activity" }),
+          custom("visual", {
+            phase: "ready", visual_id: "exec-v1", kind: "bar", title: `${label} by ${refine.groupBy} (shown aggregates)`, subtitle: `${period} · your executive scope`, metric, unit, period, scope: "your executive scope", definition: `${label}; small groups and complementary values are withheld and are not plotted.`, data_through: new Date(now - 86_400_000).toISOString(), total,
+            // The smallest group is withheld: it is left out of the chart, never drawn as zero.
+            points: parts.map((value, i) => ({ key: groups[i], label: groups[i], value, partial: false })),
           }),
         )
       } else {
         events.push(
           custom("visual", { phase: "pending", visual_id: "exec-v1", tool: "get_executive_activity" }),
           custom("visual", {
-            phase: "ready", visual_id: "exec-v1", kind: "bar", title: "Distinct calls (shown aggregate)", subtitle: `${period} · your executive scope`, metric: "calls", unit: "calls", period, scope: "your executive scope", definition: "Distinct calls; small groups and complementary values are withheld and are not plotted.", data_through: new Date(now - 86_400_000).toISOString(), total,
+            phase: "ready", visual_id: "exec-v1", kind: "bar", title: `${label} (shown aggregate)`, subtitle: `${period} · your executive scope`, metric, unit, period, scope: "your executive scope", definition: `${label}; small groups and complementary values are withheld and are not plotted.`, data_through: new Date(now - 86_400_000).toISOString(), total,
             points: [{ key: "total", label: "All authorized scope", value: total, partial: false }],
           }),
         )
       }
       events.push(ev("TOOL_CALL_END", { toolCallId: "t1" }))
-      answer = `The shown aggregate count is ${total} distinct calls for ${period}. Small-group months are withheld, and individual records are not available for your role.`
+      answer = `The shown aggregate count is ${total} ${unit === "calls" ? "distinct calls" : unit === "HCPs" ? "engaged HCPs" : "insight responses"} for ${period}. Small-group months are withheld, and individual records are not available for your role.`
       suggestions.splice(0, suggestions.length, "How have calls changed by month?", "Compare calls across my regions", "What activity groups are withheld?")
     } else {
       // Organisational theme analysis for an Executive: aggregate figures only, with cited sets described (never named).
@@ -166,8 +237,35 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
       custom("sample_limitations", { items: matrix.sampleLimitations }),
       // Aggregate-only access: the answer says rows are unavailable instead of offering a Show rows control.
       custom("rows_unavailable", { reason: "aggregate_only" }),
-      ev("TOOL_CALL_END", { toolCallId: "t1" }),
     )
+    const trendLabel: Record<string, string> = { RISING: "Rising", FALLING: "Falling", STEADY: "Steady", WITHHELD: "Withheld", INSUFFICIENT_SAMPLE: "Too few responses" }
+    const themeRows = portfolio.cards.slice(0, 6).map((c) => ({
+      theme: c.topic,
+      // A withheld small group stays the word, never a number.
+      latest: c.responses.value ?? "Withheld",
+      earlier: c.priorResponses?.value ?? "Withheld",
+      trend: trendLabel[String(c.trend)] ?? "Not judged",
+    }))
+    if (themeRows.length >= 2) {
+      const sid = nextSurface("org_themes")
+      events.push(
+        surfaceEvent(
+          sid,
+          tableSurface(sid, {
+            title: "Recorded themes across your regions",
+            caption: `${period} · Aggregate-only; small groups are withheld; trends follow the approved threshold rule.`,
+            columns: [
+              { key: "theme", label: "Theme" },
+              { key: "latest", label: "Latest period", numeric: true },
+              { key: "earlier", label: "Earlier period", numeric: true },
+              { key: "trend", label: "Trend" },
+            ],
+            rows: themeRows,
+          }),
+        ),
+      )
+    }
+    events.push(ev("TOOL_CALL_END", { toolCallId: "t1" }))
     const lead = top.map((c) => `${c.topic} (${c.responses.value?.toLocaleString("en-US")} responses)`).join(" and ")
     answer =
       `Between ${period}, ${total === null ? "a small number of" : total.toLocaleString("en-US")} free-text responses were recorded in your regions. ` +
@@ -182,15 +280,17 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
     answer = `Territory ${asked} is outside your scope, so I cannot show any data for it. I can answer for the territories you have access to.`
   } else if (activityQuestion) {
     const territory = TERRITORIES.find((t) => t.id === (asked ?? user.territoryIds[0]))!
-    const calls = Math.round(territory.callsPerWorkday * 64)
+    // A stated period (an adjusted answer) scales the fixture by its working days; otherwise the last 90 days.
+    const to = refine?.to ?? todayIso(new Date(now))
+    const from = refine?.from ?? addDays(to, -89)
+    const calls = refine ? Math.round(territory.callsPerWorkday * weekdaysBetween(from, to)) : Math.round(territory.callsPerWorkday * 64)
     const hcps = Math.round(calls * 0.86)
     const responses = Math.round(calls * territory.responsesPerCall)
-    const to = todayIso(new Date(now))
-    const period = `${addDays(to, -89)} to ${to}`
+    const period = `${from} to ${to}`
     const cites = [1, 2, 3].map((n) => ({ record_id: `CALL-0000${n}`, dataset: "call_activity", label: `Call on ${addDays(to, -n)} (scientific)` }))
     // The rows behind each key figure: exactly as many as the figure says, in the viewer's territory.
     const setOf = (n: number, kind: MockRowSet["kind"], label: string, count: number): MockRowSet => ({
-      rowSetId: `rs${n}`, kind, label, count, periodFrom: addDays(to, -89), periodTo: to, scope: territory.id, sourceId: `f${n}`, territoryId: territory.id,
+      rowSetId: `rs${n}`, kind, label, count, periodFrom: from, periodTo: to, scope: territory.id, sourceId: `f${n}`, territoryId: territory.id,
     })
     const rowSets = [setOf(1, "calls", "Distinct calls", calls), setOf(2, "hcps", "Engaged HCPs", hcps), setOf(3, "responses", "Insight responses", responses)]
     events.push(
@@ -208,22 +308,36 @@ export function scriptRun(runId: string, user: FixtureUser, question: string, no
       ev("TOOL_CALL_END", { toolCallId: "t1" }),
     )
     rememberRowSets(runId, rowSets)
-    const request = inferMockVisual(question)
+    const chartFor: Record<string, MockVisualRequest> = { month: { type: "line", by: "month" }, week: { type: "timeline", by: "week" }, product: { type: "bar", by: "product" } }
+    const request = refine ? (chartFor[refine.groupBy] ?? null) : inferMockVisual(question)
     if (request) {
-      const through = new Date(now - 86_400_000).toISOString()
-      const common = { from: addDays(to, -89), to, total: request.type === "distribution" ? responses : calls, scope: territory.id, dataThrough: through, metric: request.type === "distribution" ? ("responses" as const) : ("calls" as const) }
+      const metric = refine?.metric ?? (request.type === "distribution" ? "responses" : "calls")
+      const total = { calls, engaged_hcps: hcps, responses }[metric]
+      const common = { from, to, total, scope: territory.id, dataThrough: through, metric: metric === "responses" ? ("responses" as const) : ("calls" as const) }
+      const drawn = mockVisual(request, common, "v1")
+      // The mock series helper knows calls and responses; HCPs reuse its arithmetic under their own name.
+      const visual = metric === "engaged_hcps" ? { ...drawn, metric, unit: "HCPs", title: String(drawn.title).replace("Distinct calls", "Engaged HCPs") } : drawn
       // The placeholder streams first, then the plotted values: the same two steps as the real agent.
-      events.push(ev("TOOL_CALL_START", { toolCallId: "v1", toolCallName: "show_chart" }), custom("visual", { phase: "pending", visual_id: "v1", tool: "show_chart" }), custom("visual", mockVisual(request, common, "v1")), ev("TOOL_CALL_END", { toolCallId: "v1" }))
+      events.push(ev("TOOL_CALL_START", { toolCallId: "v1", toolCallName: "show_chart" }), custom("visual", { phase: "pending", visual_id: "v1", tool: "show_chart" }), custom("visual", visual), ev("TOOL_CALL_END", { toolCallId: "v1" }))
     }
-    answer = `In ${territory.id} you had ${calls} distinct calls with ${hcps} engaged HCPs and ${responses} insight responses over the last 90 days.`
+    const groupOf: Record<string, string> = { line: "month", timeline: "week", bar: "product" }
+    adjustable = refine ?? { metric: "calls", groupBy: (request && groupOf[request.type]) ?? "total", from, to, territoryId: asked ?? "", executive: false }
+    answer = refine
+      ? `In ${territory.id} you had ${calls} distinct calls with ${hcps} engaged HCPs and ${responses} insight responses from ${from} to ${to}.`
+      : `In ${territory.id} you had ${calls} distinct calls with ${hcps} engaged HCPs and ${responses} insight responses over the last 90 days.`
   } else {
     answer = "This mock preview does not have a scripted answer for that question. Switch to the live local agent to ask it against the seeded data."
   }
 
   events.push(ev("TEXT_MESSAGE_START", { messageId: "m1", role: "assistant" }))
   for (const part of answer.match(/\S+\s*/g) ?? []) events.push(ev("TEXT_MESSAGE_CONTENT", { messageId: "m1", delta: part }))
+  events.push(ev("TEXT_MESSAGE_END", { messageId: "m1" }))
+  if (adjustable && !directReply) {
+    // The Adjust form follows the text: pre-filled with what this answer covered, territories from the caller's scope.
+    const sid = nextSurface("refine")
+    events.push(surfaceEvent(sid, refineSurface(sid, adjustable, adjustable.executive ? [] : user.territoryIds, through.slice(0, 10))))
+  }
   events.push(
-    ev("TEXT_MESSAGE_END", { messageId: "m1" }),
     custom("number_check", { status: "verified", count: 0, checked: true }),
     custom("suggestions", suggestions),
     custom("conversation_saved", { saved: true }),

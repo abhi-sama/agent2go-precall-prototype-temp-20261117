@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation"
 import * as React from "react"
 import { useSharedFilters } from "@/components/filters/filter-context"
+import type { SurfaceAction } from "@/lib/chat/a2ui/protocol"
 import { loadChat, saveChat } from "@/lib/chat/persistence"
 import { screenContextFor, type ScreenContext } from "@/lib/chat/screen-context"
 import { useChat, type ChatTurn } from "@/lib/chat/use-chat"
@@ -17,6 +18,8 @@ export interface ChatSession {
   turns: ChatTurn[]
   running: boolean
   send: (question: string, context?: ChatContext) => Promise<void>
+  /** Send a user action on an A2UI surface as the next question (docs/adr/0017). */
+  sendAction: (action: SurfaceAction, question: string, context?: ChatContext) => Promise<void>
   stop: () => void
   reset: () => void
   /** False until a stored conversation has been put back (it is read after hydration, never during it). */
@@ -46,7 +49,7 @@ function ChatSessionProvider({ userId, children }: { userId: string; children: R
   const adapter = useDataAdapter()
   const pathname = usePathname()
   const { filters } = useSharedFilters()
-  const { turns, running, send, stop, reset, restore, hydrated, threadId } = useChat(adapter)
+  const { turns, running, send, sendAction, stop, reset, restore, hydrated, threadId } = useChat(adapter)
   // Open for one screen: a route change (or the full page, which is the same conversation) closes the panel.
   const [openPath, setOpenPath] = React.useState<string | null>(null)
   const open = openPath === pathname && pathname !== "/chat"
@@ -79,8 +82,8 @@ function ChatSessionProvider({ userId, children }: { userId: string; children: R
 
   const screen = React.useMemo(() => screenContextFor(pathname, filters), [pathname, filters])
   const value = React.useMemo<ChatSession>(
-    () => ({ open, setOpen, turns, running, send, stop, reset, hydrated, screen }),
-    [open, setOpen, turns, running, send, stop, reset, hydrated, screen],
+    () => ({ open, setOpen, turns, running, send, sendAction, stop, reset, hydrated, screen }),
+    [open, setOpen, turns, running, send, sendAction, stop, reset, hydrated, screen],
   )
   return <ChatSessionContext.Provider value={value}>{children}</ChatSessionContext.Provider>
 }

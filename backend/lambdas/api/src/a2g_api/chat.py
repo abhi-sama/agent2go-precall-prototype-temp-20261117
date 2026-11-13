@@ -36,6 +36,13 @@ _CONTEXT_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 _CONTEXT_VIEW = re.compile(r"^[a-z0-9-]{1,40}$")
 _CONTEXT_KEYS = frozenset({"view", "territoryId", "questionId", "from", "to", "intent"})
 
+#: A2UI user actions the chat accepts (docs/adr/0017). The agent validates the values again against its closed lists.
+_ACTIONS = frozenset({"refine_answer"})
+_ACTION_KEYS = frozenset({"name", "surfaceId", "sourceComponentId", "timestamp", "context"})
+_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+_SURFACE = re.compile(r"^[A-Za-z0-9_-]{1,96}$")
+MAX_ACTION_CHARS = 2_000
+
 
 def _id(args: Mapping[str, Any], name: str) -> str:
     value = args.get(name)
@@ -96,6 +103,47 @@ def _clean_context(raw: Any) -> dict[str, str] | None:
     return out
 
 
+def _action_value(value: Any) -> bool:
+    """An action context value: a short string, a list of a few short strings, a boolean or a whole number."""
+    if isinstance(value, bool | int) or (isinstance(value, str) and len(value) <= 64):
+        return True
+    return isinstance(value, list) and len(value) <= 4 and all(isinstance(v, str) and len(v) <= 64 for v in value)
+
+
+def _clean_action(raw: Any) -> dict[str, Any] | None:
+    """A user action on an A2UI surface: shape and size only. It becomes a question; it never widens access."""
+    if raw in (None, ""):
+        return None
+    if not isinstance(raw, Mapping) or not set(raw) <= _ACTION_KEYS:
+        raise BadRequest("invalid_action")
+    name, surface, source, stamp = raw.get("name"), raw.get("surfaceId"), raw.get("sourceComponentId"), raw.get("timestamp")
+    if name not in _ACTIONS or not isinstance(surface, str) or not _SURFACE.match(surface):
+        raise BadRequest("invalid_action")
+    if not isinstance(source, str) or not _IDENT.match(source) or not isinstance(stamp, str) or len(stamp) > 40:
+        raise BadRequest("invalid_action")
+    try:
+        dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise BadRequest("invalid_action") from exc
+    context = raw.get("context") or {}
+    if isinstance(context, str):
+        # AWSJSON can arrive as its JSON text; it is parsed only within the size bound.
+        if len(context) > MAX_ACTION_CHARS:
+            raise BadRequest("invalid_action")
+        try:
+            context = json.loads(context)
+        except ValueError as exc:
+            raise BadRequest("invalid_action") from exc
+    if (
+        not isinstance(context, Mapping)
+        or len(context) > 12
+        or not all(isinstance(k, str) and _IDENT.match(k) and _action_value(v) for k, v in context.items())
+        or len(json.dumps(context)) > MAX_ACTION_CHARS
+    ):
+        raise BadRequest("invalid_action")
+    return {"name": name, "surface_id": surface, "source_component_id": source, "timestamp": stamp, "context": dict(context)}
+
+
 def invoke_worker(function_name: str, payload: dict[str, Any]) -> None:
     """Start the chat worker asynchronously (``InvocationType=Event``)."""
     import boto3
@@ -121,6 +169,7 @@ def start_chat_run(
         raise BadRequest("invalid_message")
     history = _clean_history(args.get("history"))
     context = _clean_context(args.get("context"))
+    action = _clean_action(args.get("action"))
     if context and context["intent"] == "TERRITORY_SUMMARY":
         # Territory summaries are a Director task; the agent would read the same rows either way, but who may
         # ask for one is decided here, in code, not by the prompt.
@@ -151,6 +200,7 @@ def start_chat_run(
         "run_id": run_id,
         "messages": [*history, {"role": "user", "content": message.strip()}],
         **({"context": context} if context else {}),
+        **({"a2ui_action": action} if action else {}),
     }
     try:
         invoker(worker_function, payload)

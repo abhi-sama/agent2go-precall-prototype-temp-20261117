@@ -11,6 +11,7 @@ import type {
   ActivityTrends,
   ChatEventPage,
   ChatMessageInput,
+  ChatSurfaceActionInput,
   ChatRowsExport,
   ChatRowsPage,
   ChatRowsQuery,
@@ -65,6 +66,16 @@ import type {
  * worker, via `createGraphQLAdapter`) both implement it, so swapping is a one-line change in
  * `getDataAdapter()`.
  */
+/** What `startChatRun` sends: a question, or a surface action that stands for one. */
+export interface ChatRunInput {
+  threadId: string
+  runId: string
+  message: string
+  history: ChatMessageInput[]
+  context?: ChatContext
+  action?: ChatSurfaceActionInput
+}
+
 export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter, EvalsAdapter, ExecutiveThemesAdapter, ExecutiveTrendsAdapter {
   readonly kind: "mock" | "appsync"
   me(ctx: RequestContext): Promise<Me>
@@ -96,15 +107,12 @@ export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter,
   createScopeAssignment(ctx: RequestContext, input: ScopeAssignmentInput): Promise<ScopeAssignment>
   setRolePermissions(ctx: RequestContext, input: { roleId: string; permissionCodes: string[] }): Promise<RolePermissionMatrix>
   approveIdentityMapping(ctx: RequestContext, input: { userId: string; rosterSourceRowId: string }): Promise<IdentityMatch>
-  startChatRun(ctx: RequestContext, input: { threadId: string; runId: string; message: string; history: ChatMessageInput[]; context?: ChatContext }): Promise<ChatRun>
+  startChatRun(ctx: RequestContext, input: ChatRunInput): Promise<ChatRun>
   /**
    * Start a streamed chat answer. The caller picks `runId` so it can poll straight away. The mutation
    * returns once the BE accepted the run; the answer arrives through `chatEvents`.
    */
-  startChatRun(
-    ctx: RequestContext,
-    input: { threadId: string; runId: string; message: string; history: ChatMessageInput[]; context?: ChatContext },
-  ): Promise<ChatRun>
+  startChatRun(ctx: RequestContext, input: ChatRunInput): Promise<ChatRun>
   /** Events with `seq > after`, in order. Stand-in for an AppSync subscription (docs/adr/0007). */
   chatEvents(ctx: RequestContext, runId: string, after: number): Promise<ChatEventPage>
   /** Re-checks record access. `auditExport` is true only for an explicit user export. */

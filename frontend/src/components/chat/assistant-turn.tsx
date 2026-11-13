@@ -1,6 +1,7 @@
 "use client"
 
 import { BarChart3, FileText, Lock } from "lucide-react"
+import dynamic from "next/dynamic"
 import * as React from "react"
 import { Avatar } from "@astryxdesign/core/Avatar"
 import { Badge } from "@astryxdesign/core/Badge"
@@ -20,8 +21,24 @@ import { AnswerRows } from "@/components/chat/answer-rows"
 import { VisualCard } from "@/components/chat/visual-card"
 import { AiSummary, CitationChip, ExportButton, SourceFact, Suggestion, type ProvenanceCitation } from "@/components/provenance/provenance"
 import { useCountUp } from "@/hooks/use-count-up"
+import type { SurfaceAction, SurfaceItem } from "@/lib/chat/a2ui/protocol"
 import { citationNumber, citationsForFact, factsAreComparable, isAggregateCitation, type AssistantTurn, type CitationItem, type FactItem } from "@/lib/chat/events"
 import { buildProvenanceExport, downloadText, type ExportBlock } from "@/lib/provenance"
+
+/**
+ * The A2UI renderer and catalog load with the first answer that has a surface (docs/adr/0017), in their own chunk and
+ * only in the browser: the renderer defines custom elements when it loads, which a server render cannot do.
+ */
+const AnswerSurfaces = dynamic(() => import("@/components/chat/answer-surfaces"), { ssr: false, loading: () => null })
+
+function Surfaces({ surfaces, testId, canAct, onAction }: { surfaces: SurfaceItem[]; testId: string; canAct: boolean; onAction?: (action: SurfaceAction, question: string) => void }) {
+  if (surfaces.length === 0) return null
+  return (
+    <VStack as="section" aria-label={testId === "answer-surfaces" ? "Tables from your data" : "Refine this answer"} data-testid={testId} gap={3} className="min-w-0">
+      <AnswerSurfaces surfaces={surfaces} canAct={canAct && !!onAction} onAction={onAction ?? (() => undefined)} />
+    </VStack>
+  )
+}
 
 const TOOL_LABELS: Record<string, string> = {
   get_activity_summary: "Counting calls, HCPs and responses",
@@ -124,17 +141,24 @@ function exportTurn(turn: AssistantTurn, through: string | null) {
 export function AssistantTurnView({
   turn,
   onAsk,
+  onAction,
   onOpenCitation,
   canAsk,
   aggregateOnly,
 }: {
   turn: AssistantTurn
   onAsk: (question: string) => void
+  /** Sends an action on one of the answer's A2UI surfaces; without it, forms are not offered. */
+  onAction?: (action: SurfaceAction, question: string) => void
   onOpenCitation: (citation: CitationItem) => void
   canAsk: boolean
   aggregateOnly: boolean
 }) {
   const running = turn.status === "running"
+  // A turn restored from an older session copy has no surfaces.
+  const surfaces = turn.surfaces ?? []
+  const evidenceSurfaces = surfaces.filter((s) => s.slot === "evidence")
+  const followUpSurfaces = onAction ? surfaces.filter((s) => s.slot === "follow_up") : []
   // A turn restored from an older session copy has no row sets.
   const rowSets = turn.rowSets ?? []
   const through = formatThrough(turn.dataThrough)
@@ -195,6 +219,8 @@ export function AssistantTurnView({
           ))}
         </VStack>
       )}
+
+      <Surfaces surfaces={evidenceSurfaces} testId="answer-surfaces" canAct={canAsk} onAction={onAction} />
 
       {hasAi && (
         <AiSummary
@@ -307,6 +333,8 @@ export function AssistantTurnView({
           </VStack>
         </VStack>
       )}
+
+      {turn.status === "done" && <Surfaces surfaces={followUpSurfaces} testId="answer-follow-up-surfaces" canAct={canAsk} onAction={onAction} />}
 
       {turn.status === "done" && turn.suggestions.length > 0 && (
         <Suggestion title="You could ask next">

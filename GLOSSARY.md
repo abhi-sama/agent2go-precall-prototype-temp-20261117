@@ -301,3 +301,11 @@ _Avoid_: result set, drill-down (a drill-down is a dashboard click-through, not 
 The collapsed control under a numeric chat answer that lists the rows each stated figure counted, for users with record access only.
 _Avoid_: evidence drawer (that opens one cited record)
 
+**Answer surface**:
+A small piece of interface a chat answer carries besides its text and charts (a table of recorded themes, the Adjust this answer form), sent as A2UI and drawn only from the answer catalog's components. Built by the agent from tool results, never written by the model.
+_Avoid_: widget, generative card
+
+**Adjust this answer**:
+The answer surface form that asks the agent again with another measure, grouping, period or territory; submitting it is the same as asking that question, under the same access.
+_Avoid_: filter form, refine panel
+

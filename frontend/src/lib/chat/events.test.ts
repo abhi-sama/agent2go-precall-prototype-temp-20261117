@@ -118,3 +118,44 @@ describe("fact comparisons", () => {
     expect(factsAreComparable([fact("calls"), fact("HCPs"), fact("responses")])).toBe(false)
   })
 })
+
+describe("A2UI surfaces (docs/adr/0017)", () => {
+  const surfaceOp = (surfaceId: string, text = "Hi", slot = "evidence") => ({
+    version: "1.0",
+    createSurface: {
+      surfaceId,
+      catalogId: "urn:agent2go:a2ui:answer-catalog:v1",
+      components: [{ id: "root", component: "Text", text }],
+      metadata: { extensions: { com_agent2go_slot: slot } },
+    },
+  })
+  const snapshot = (messageId: string, ops: unknown[], activityType = "a2ui-surface") => ({ type: "ACTIVITY_SNAPSHOT", messageId, activityType, content: { a2ui_operations: ops }, replace: true })
+
+  it("keeps each surface the agent streams, with its slot, alongside the rest of the answer", () => {
+    const turn = fold([
+      { type: "RUN_STARTED" },
+      snapshot("a2ui-surface-themes_1_r", [surfaceOp("themes_1_r")]),
+      { type: "TEXT_MESSAGE_CONTENT", delta: "Two themes." },
+      snapshot("a2ui-surface-refine_2_r", [surfaceOp("refine_2_r", "Adjust", "follow_up")]),
+      { type: "RUN_FINISHED" },
+    ])
+    expect(turn.text).toBe("Two themes.")
+    expect(turn.surfaces?.map((s) => [s.surfaceId, s.slot])).toEqual([["themes_1_r", "evidence"], ["refine_2_r", "follow_up"]])
+  })
+
+  it("replaces a surface when its activity is snapshotted again, and ignores other activities and rejected surfaces", () => {
+    const turn = fold([
+      snapshot("a2ui-surface-s_1", [surfaceOp("s_1", "first")]),
+      snapshot("a2ui-surface-s_1", [surfaceOp("s_1", "second")]),
+      snapshot("plan-1", [surfaceOp("s_2")], "plan"),
+      snapshot("a2ui-surface-s_3", [surfaceOp("s_3", "<script>alert(1)</script>")]),
+    ])
+    expect(turn.surfaces).toHaveLength(1)
+    expect(JSON.stringify(turn.surfaces?.[0].operations)).toContain("second")
+  })
+
+  it("keeps at most four surfaces per answer", () => {
+    const turn = fold(Array.from({ length: 6 }, (_, i) => snapshot(`a2ui-surface-s_${i}`, [surfaceOp(`s_${i}`)])))
+    expect(turn.surfaces).toHaveLength(4)
+  })
+})

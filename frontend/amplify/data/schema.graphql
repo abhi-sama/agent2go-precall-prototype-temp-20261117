@@ -1470,6 +1470,12 @@ type LeadershipSummaryExport {
 """What the user is looking at when they open the chat from a dashboard. The agent treats it as defaults, not as authority."""
 enum ChatIntent { FREE TERRITORY_SUMMARY }
 input ChatContextInput { view: String, territoryId: String, questionId: String, from: AWSDate, to: AWSDate, intent: ChatIntent }
+"""
+A user action on an A2UI surface in a chat answer, such as the Adjust this answer form (docs/adr/0017). The BE checks
+its shape and the agent its values; it becomes the question it stands for and grants nothing a typed question would not.
+`context` is the action's resolved key-value context as JSON.
+"""
+input ChatSurfaceActionInput { name: String!, surfaceId: String!, sourceComponentId: String!, timestamp: String!, context: AWSJSON }
 
 # --- AI evaluation panel (ticket 18, docs/adr/0013) -------------------------------------------------
 
@@ -1840,7 +1846,7 @@ type Mutation {
   approveDefinition(input: ApproveDefinitionInput!): GovernedDefinition!
   createGovernanceRequest(input: CreateGovernanceRequestInput!): GovernanceRequest!
   decideGovernanceRequest(input: DecideGovernanceRequestInput!): GovernanceRequest!
-  startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!], context: ChatContextInput): ChatRun!
+  startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!], context: ChatContextInput, action: ChatSurfaceActionInput): ChatRun!
   saveView(input: SaveViewInput!): SavedView!
   "Save the caller's style, mode and density. Always the caller's own; there is no way to name another user."
   setAppearance(input: AppearanceInput!): AppearancePreference!

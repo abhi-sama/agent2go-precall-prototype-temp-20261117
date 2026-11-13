@@ -54,5 +54,10 @@ def custom(name: str, value: Any) -> Event:
     return _event("CUSTOM", name=name, value=value)
 
 
+def activity_snapshot(message_id: str, activity_type: str, content: dict[str, Any], *, replace: bool = True) -> Event:
+    """AG-UI activity event; A2UI surfaces ride it as ``activityType: a2ui-surface`` (docs/adr/0017)."""
+    return _event("ACTIVITY_SNAPSHOT", messageId=message_id, activityType=activity_type, content=content, replace=replace)
+
+
 def sse(event: Event) -> bytes:
     return f"data: {json.dumps(event, separators=(',', ':'), default=str)}\n\n".encode()

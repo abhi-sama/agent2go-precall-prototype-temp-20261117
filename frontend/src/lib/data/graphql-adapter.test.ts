@@ -107,4 +107,16 @@ describe("graphql adapter", () => {
       },
     }])
   })
+
+  it("sends an A2UI surface action with its context as AWSJSON text", async () => {
+    const seen: { variables?: Record<string, unknown> }[] = []
+    const adapter = createGraphQLAdapter(async (req) => {
+      seen.push(req as never)
+      return { data: { startChatRun: { runId: "run-live-2", status: "RUNNING" } } as never }
+    })
+    const action = { name: "refine_answer", surfaceId: "refine_1_r", sourceComponentId: "submit", timestamp: "2026-11-12T10:00:00.000Z", context: { measure: ["calls"] } }
+    await adapter.startChatRun(ctx, { threadId: "thread-live-1", runId: "run-live-2", message: "Update this answer: Distinct calls", history: [], action })
+    expect(seen[0].variables?.action).toEqual({ ...action, context: '{"measure":["calls"]}' })
+    expect(seen[0].variables).not.toHaveProperty("context")
+  })
 })

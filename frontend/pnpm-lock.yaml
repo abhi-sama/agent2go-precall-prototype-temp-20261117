@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@a2ui/react':
+        specifier: 0.15.0
+        version: 0.15.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@3.25.76)
+      '@a2ui/web_core':
+        specifier: 0.15.0
+        version: 0.15.0
       '@astryxdesign/core':
         specifier: 0.7.13
         version: 0.7.13(@stylexjs/stylex@0.19.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -134,13 +140,16 @@ importers:
       world-atlas:
         specifier: ^2.0.2
         version: 2.0.2
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
     devDependencies:
       '@astryxdesign/cli':
         specifier: 0.7.13
         version: 0.7.13(@astryxdesign/core@0.7.13(@stylexjs/stylex@0.19.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
       '@aws-amplify/backend':
         specifier: ^1.25.1
-        version: 1.25.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/client-cloudformation@3.1161.0)(@aws-sdk/client-s3@3.1161.0)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
+        version: 1.25.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/client-cloudformation@3.1161.0)(@aws-sdk/client-s3@3.1161.0)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
       '@aws-amplify/backend-cli':
         specifier: ^1.10.0
         version: 1.10.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(@types/node@20.19.43)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@5.9.3)
@@ -203,6 +212,22 @@ importers:
         version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(vite@8.3.5(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
 packages:
+
+  '@a2ui/markdown-it@0.2.2':
+    resolution: {integrity: sha512-oj58ybxIPwnRzN2NpvgxrOOwDlZuBKoEtW5U6wRs6SOq1dDjk/zAAkRtb0U52WPSu01gHJOFSGEkuE+Xe09dcQ==}
+    peerDependencies:
+      '@a2ui/web_core': ^0.14.0
+
+  '@a2ui/react@0.15.0':
+    resolution: {integrity: sha512-SkbdIMoRgtYNGh+nSEvK8YHDSAgS8LVFggDMCYdDqrUAWMLb2PS1unYOL8lfkXjskYK/+VoD7sa6X+I2F+F62w==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+      zod: ^3.25.76
+
+  '@a2ui/web_core@0.15.0':
+    resolution: {integrity: sha512-S3k9rAJ9O55z5TlDeWy22ly3yQnDLO+XBWihlL5JQSuyxaCUmd7jgFnxO4eq/Bn6dSgdBF0WG8cve/euMoz8SA==}
 
   '@alloc/quick-lru@5.3.0':
     resolution: {integrity: sha512-U4+70Pc5ZS9osnCBCE5Jha/ciHM+Yp+CNMNC/7HvYbNRk1Ldd+f7qO65W5qfhu/TCv+/ozljlXXe9Nj8419DMA==}
@@ -2349,6 +2374,15 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
+  '@lit-labs/ssr-dom-shim@1.6.0':
+    resolution: {integrity: sha512-VHb0ALPMTlgKjM6yIxxoQNnpKyUKLD04VzeQdsiXkMqkvYlAHxq9glGLmgbb889/1GsohSOAjvQYoiBppXFqrQ==}
+
+  '@lit/context@1.1.6':
+    resolution: {integrity: sha512-M26qDE6UkQbZA2mQ3RjJ3Gzd8TxP+/0obMgE5HfkfLhEEyYE3Bui4A5XHiGPjy0MUGAyxB3QgVuw2ciS0kHn6A==}
+
+  '@lit/reactive-element@2.1.2':
+    resolution: {integrity: sha512-pbCDiVMnne1lYUIaYNN5wrwQXDtHaYtg7YEFPeW+hws6U47WeFvISGUWekPGKWOP1ygrs0ef0o1VJMk1exos5A==}
+
   '@modelcontextprotocol/core@2.4.0':
     resolution: {integrity: sha512-z8QBKqdfXLPzkLQuG4xp8hrVEMm1PZ1IgxMN2sMbJiFiAKOWXnAzogXn2W4aqIBlP1ea6U5yiqVquvUNM1Cj6Q==}
     engines: {node: '>=20'}
@@ -2562,6 +2596,9 @@ packages:
     resolution: {integrity: sha512-IaYGml/nSOiZWROfPtuIL7neuu9qDOZ3TNvNljUIrhDMxiGTgPjzj/g9p9RxpS2tSepPDRY+UwAaEeiKtUvIAg==}
     engines: {node: '>=20'}
     hasBin: true
+
+  '@preact/signals-core@1.14.5':
+    resolution: {integrity: sha512-vcRv7Ityz5JVmeiVqIluLFzT/PDS/AlhHUpw3/aUWqcVUs6bDGIPXE/6RSC4evBNWYvnniozg5Syfj33al3gkg==}
 
   '@react-three/fiber@9.8.2':
     resolution: {integrity: sha512-6s0ejw0bT1myQ/aLLugcil8/zBmNnnHw/AISWF1yfDLOxfX3yYaTS+0IkpJITEnm/SSMLtxje6CJDt0i5Wu1Sw==}
@@ -3020,6 +3057,9 @@ packages:
 
   '@types/topojson-specification@1.0.5':
     resolution: {integrity: sha512-C7KvcQh+C2nr6Y2Ub4YfgvWvWCgP2nOQMtfhlnwsRL4pYmmwzBS7HclGiS87eQfDOU/DLQpX6GEscviaz4yLIQ==}
+
+  '@types/trusted-types@2.0.7':
+    resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
 
   '@types/use-sync-external-store@0.0.6':
     resolution: {integrity: sha512-zFDAD+tlpf2r4asuHEj0XH6pY6i0g5NeAHPn+15wk3BV6JA69eERFXC1gyGThDkVa1zCyKr5jox1+2LbV/AMLg==}
@@ -3973,6 +4013,9 @@ packages:
   domhandler@6.0.1:
     resolution: {integrity: sha512-gYzvtM72ZtxQO0T048kd6HWSbbGCNOUwcnfQ01cqIJ4X2IYKFFHZ5mKvrQETcFXxsRObZulDaKmy//R7TPtsBg==}
     engines: {node: '>=20.19.0'}
+
+  dompurify@3.4.11:
+    resolution: {integrity: sha512-zhlUV12GsaRzMsf9q5M254YhA4+VuF0fG+QFqu6aYpoGlKtz+w8//jBcGVYBgQkR5GHjUomejY84AV+/uPbWdw==}
 
   domutils@3.2.2:
     resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}
@@ -5159,6 +5202,18 @@ packages:
       canvas:
         optional: true
 
+  linkify-it@5.0.2:
+    resolution: {integrity: sha512-ONTm2jCMAVZjgQa/Fy1kScXsuOoF5NPTsoFBdE1KVIZ2vAh/r9+Bqo+0jINCBYnavTPQZz38QzFTme79ENoN3Q==}
+
+  lit-element@4.2.2:
+    resolution: {integrity: sha512-aFKhNToWxoyhkNDmWZwEva2SlQia+jfG0fjIWV//YeTaWrVnOxD89dPKfigCUspXFmjzOEUQpOkejH5Ly6sG0w==}
+
+  lit-html@3.3.3:
+    resolution: {integrity: sha512-el8M6jK2o3RXBnrSHX3ZKrsN8zEV63pSExTO1wYJz7QndGYZ8353e2a5PPX+qHe2aGayfnchQmkAojaWAREOIA==}
+
+  lit@3.3.3:
+    resolution: {integrity: sha512-fycuvZg/hkpozL00lm1pEJH5nN/lr9ZXd6mJI2HSN4+Bzc+LDNdEApJ6HFbPkdFNHLvOplIIuJvxkS4XUxqirw==}
+
   local-pkg@0.5.1:
     resolution: {integrity: sha512-9rrA30MRRP3gBD3HTGnC6cDFpaE1kVDWxWgqWJUN0RvDNAo+Nz/9GxB+nHOH0ifbVFy0hSA1V6vFDvnx54lTEQ==}
     engines: {node: '>=14'}
@@ -5252,12 +5307,19 @@ packages:
     resolution: {integrity: sha512-8y/eV9QQZCiyn1SprXSrCmqJN0yNRATe+PO8ztwqrvrbdRLA3eYJF0yaR0YayLWkMbsQSKWS9N2gPcGEc4UsZg==}
     engines: {node: '>=0.10.0'}
 
+  markdown-it@14.3.3:
+    resolution: {integrity: sha512-L//tDAkjTjJCU6pBUSBTgs3Kg4InVaZuUZog/b6V12UKhcDQ7S78877ibbCanRExwPuYP1CZD7Gd2dxSy1GXRg==}
+    hasBin: true
+
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
 
   md5@2.3.0:
     resolution: {integrity: sha512-T1GITYmFaKuO91vxyoQMFETst+O71VUPEU3ze5GNzDm0OWdP8v1ziTaAEPUr/3kLsY3Sftgz242A1SetQiDL7g==}
+
+  mdurl@2.1.0:
+    resolution: {integrity: sha512-1+HBaOx0zi/dQWht8rNv9MYf9qqpqL/kxI0hXImU6Y547zM6Sni8BQibt7ifgMcYtQg41ao3Ivd6cnSM86inpg==}
 
   merge-stream@2.0.0:
     resolution: {integrity: sha512-abv/qOcuPfk3URPfDzmZU1LKmuw8kT+0nIHvKrKgFrwifol/doWcdA4ZqsWQ8ENrFKkd67Mfpo/LovbIUsbt3w==}
@@ -5788,6 +5850,10 @@ packages:
   property-expr@2.0.6:
     resolution: {integrity: sha512-SVtmxhRE/CGkn3eZY1T6pC8Nln6Fr/lu1mKSgRud0eC73whjGfoAogbn78LkD8aFL0zz3bAFerKSnOl7NlErBA==}
 
+  punycode.js@2.3.1:
+    resolution: {integrity: sha512-uxFIHU0YlHYhDQtV4R9J6a52SLx28BCjT+4ieh7IGbgwVJWO+km431c4yRlREUAsAmt/uMjQUyQHNEPf0M39CA==}
+    engines: {node: '>=6'}
+
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
@@ -5864,6 +5930,11 @@ packages:
     resolution: {integrity: sha512-/vxpCXddiX8NGfGO/mTafwjq4aFa/71pvamip0++IQk3zG8cbCj0fifNPrjjF1XMXUne91jL9OoxmdykoEtifQ==}
     engines: {node: '>= 10.13.0'}
 
+  redos-detector@6.1.4:
+    resolution: {integrity: sha512-lPlka1rEH6kK42gtgokvvxMmpAvyc28DcRjQbGxeP5RJsJWgAduBOdGedVCDPdSyCr4ay/JDxq3nGYsJZyt8tA==}
+    engines: {node: '>=16.0.0'}
+    hasBin: true
+
   redux-thunk@3.1.0:
     resolution: {integrity: sha512-NW2r5T6ksUKXCabzhL9z+h206HQw/NJkcLm1GPImRQ8IzfXwRGqjVhKJGauHirT0DAuyy6hjdnMZaRoAcy0Klw==}
     peerDependencies:
@@ -5882,6 +5953,10 @@ packages:
   regexp.prototype.flags@1.5.4:
     resolution: {integrity: sha512-dYqgNSZbDwkaJ2ceRd9ojCGjBq+mOm9LmtXnAnEGyHhN/5R7iDW2TRw3h+o/jCFxus3P2LfWIIiwowAjANm7IA==}
     engines: {node: '>= 0.4'}
+
+  regjsparser@0.13.0:
+    resolution: {integrity: sha512-NZQZdC5wOE/H3UT28fVGL+ikOZcEzfMGk/c3iN9UGxzWHMa1op7274oyiUVrAG4B2EuFhus8SvkaYnhvW92p9Q==}
+    hasBin: true
 
   relay-runtime@12.0.0:
     resolution: {integrity: sha512-QU6JKr1tMsry22DXNy9Whsq5rmvwr3LSZiiWV/9+DFpuTWvp+WFhobWMc8TC4OjKFfNhEZy7mOiqUAn5atQtug==}
@@ -6480,6 +6555,9 @@ packages:
     resolution: {integrity: sha512-LbBDqdIC5s8iROCUjMbW1f5dJQTEFB1+KO9ogbvlb3nm9n4YHa5p4KTvFPWvh2Hs8gZMBuiB1/8+pdfe/tDPug==}
     hasBin: true
 
+  uc.micro@2.1.0:
+    resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
+
   ufo@1.6.4:
     resolution: {integrity: sha512-JFNbkD1Svwe0KvGi8GOeLcP4kAWQ609twvCdcHxq1oSL8svv39ZuSvajcD8B+5D0eL4+s1Is2D/O6KN3qcTeRA==}
 
@@ -6557,6 +6635,9 @@ packages:
   uuid@11.1.1:
     resolution: {integrity: sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==}
     hasBin: true
+
+  validate-color@2.2.4:
+    resolution: {integrity: sha512-Znolz+b6CwW6eBXYld7MFM3O7funcdyRfjKC/X9hqYV/0VcC5LB/L45mff7m3dIn9wdGdNOAQ/fybNuD5P/HDw==}
 
   validate-npm-package-name@7.0.2:
     resolution: {integrity: sha512-hVDIBwsRruT73PbK7uP5ebUt+ezEtCmzZz3F59BSr2F6OVFnJ/6h8liuvdLrQ88Xmnk6/+xGGuq+pG9WwTuy3A==}
@@ -6807,6 +6888,11 @@ packages:
     resolution: {integrity: sha512-Z2Fe1bn+eLstG8DRR6FTavGD+MeAwyfmouhHsIUgaADz8jvFKbO/fXc2trJKZg+5EBjh4gGm3iU/t3onKlXHIg==}
     engines: {node: '>=10'}
 
+  zod-to-json-schema@3.25.2:
+    resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
+    peerDependencies:
+      zod: ^3.25.28 || ^4
+
   zod-validation-error@4.0.2:
     resolution: {integrity: sha512-Q6/nZLe6jxuU80qb/4uJ4t5v2VEZ44lzQjPDhYJNztRQ4wyWc6VF3D3Kb/fAuPetZQnhS3hnajCf9CsWesghLQ==}
     engines: {node: '>=18.0.0'}
@@ -6844,6 +6930,32 @@ packages:
         optional: true
 
 snapshots:
+
+  '@a2ui/markdown-it@0.2.2(@a2ui/web_core@0.15.0)':
+    dependencies:
+      '@a2ui/web_core': 0.15.0
+      dompurify: 3.4.11
+      markdown-it: 14.3.3
+
+  '@a2ui/react@0.15.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@3.25.76)':
+    dependencies:
+      '@a2ui/markdown-it': 0.2.2(@a2ui/web_core@0.15.0)
+      '@a2ui/web_core': 0.15.0
+      clsx: 2.1.1
+      markdown-it: 14.3.3
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
+      zod: 3.25.76
+
+  '@a2ui/web_core@0.15.0':
+    dependencies:
+      '@lit/context': 1.1.6
+      '@preact/signals-core': 1.14.5
+      lit: 3.3.3
+      redos-detector: 6.1.4
+      validate-color: 2.2.4
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
 
   '@alloc/quick-lru@5.3.0': {}
 
@@ -7020,10 +7132,10 @@ snapshots:
       - encoding
       - supports-color
 
-  '@aws-amplify/auth-construct@1.12.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)':
+  '@aws-amplify/auth-construct@1.12.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)':
     dependencies:
-      '@aws-amplify/backend-output-schemas': 1.8.0(zod@4.6.7)
-      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
+      '@aws-amplify/backend-output-schemas': 1.8.0(zod@3.25.76)
+      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
       '@aws-amplify/platform-core': 1.12.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)
       '@aws-amplify/plugin-types': 1.13.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)
       '@aws-sdk/util-arn-parser': 3.972.49
@@ -7041,11 +7153,11 @@ snapshots:
       '@smithy/types': 3.7.2
       tslib: 2.9.1
 
-  '@aws-amplify/backend-auth@1.10.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)':
+  '@aws-amplify/backend-auth@1.10.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)':
     dependencies:
-      '@aws-amplify/auth-construct': 1.12.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
-      '@aws-amplify/backend-output-schemas': 1.8.0(zod@4.6.7)
-      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
+      '@aws-amplify/auth-construct': 1.12.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
+      '@aws-amplify/backend-output-schemas': 1.8.0(zod@3.25.76)
+      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
       '@aws-amplify/plugin-types': 1.13.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)
       aws-cdk-lib: 2.275.0(constructs@10.8.1)
       constructs: 10.8.1
@@ -7109,10 +7221,10 @@ snapshots:
       - tedious
       - typescript
 
-  '@aws-amplify/backend-data@1.9.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)':
+  '@aws-amplify/backend-data@1.9.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)':
     dependencies:
-      '@aws-amplify/backend-output-schemas': 1.8.0(zod@4.6.7)
-      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
+      '@aws-amplify/backend-output-schemas': 1.8.0(zod@3.25.76)
+      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
       '@aws-amplify/data-construct': 1.17.8(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)
       '@aws-amplify/data-schema-types': 1.3.1
       '@aws-amplify/graphql-generator': 0.5.4
@@ -7143,10 +7255,10 @@ snapshots:
       - '@aws-sdk/types'
       - constructs
 
-  '@aws-amplify/backend-function@1.19.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)':
+  '@aws-amplify/backend-function@1.19.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)':
     dependencies:
-      '@aws-amplify/backend-output-schemas': 1.8.0(zod@4.6.7)
-      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
+      '@aws-amplify/backend-output-schemas': 1.8.0(zod@3.25.76)
+      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
       '@aws-amplify/plugin-types': 1.13.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)
       '@aws-sdk/client-s3': 3.1161.0
       aws-cdk-lib: 2.275.0(constructs@10.8.1)
@@ -7161,9 +7273,9 @@ snapshots:
     dependencies:
       zod: 3.25.17
 
-  '@aws-amplify/backend-output-schemas@1.8.0(zod@4.6.7)':
+  '@aws-amplify/backend-output-schemas@1.8.0(zod@3.25.76)':
     dependencies:
-      zod: 4.6.7
+      zod: 3.25.76
 
   '@aws-amplify/backend-output-storage@1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.17)':
     dependencies:
@@ -7177,9 +7289,9 @@ snapshots:
       - constructs
       - zod
 
-  '@aws-amplify/backend-output-storage@1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)':
+  '@aws-amplify/backend-output-storage@1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)':
     dependencies:
-      '@aws-amplify/backend-output-schemas': 1.8.0(zod@4.6.7)
+      '@aws-amplify/backend-output-schemas': 1.8.0(zod@3.25.76)
       '@aws-amplify/platform-core': 1.12.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)
       '@aws-amplify/plugin-types': 1.13.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)
       aws-cdk-lib: 2.275.0(constructs@10.8.1)
@@ -7200,10 +7312,10 @@ snapshots:
       - aws-cdk-lib
       - constructs
 
-  '@aws-amplify/backend-storage@1.6.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)':
+  '@aws-amplify/backend-storage@1.6.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)':
     dependencies:
-      '@aws-amplify/backend-output-schemas': 1.8.0(zod@4.6.7)
-      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
+      '@aws-amplify/backend-output-schemas': 1.8.0(zod@3.25.76)
+      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
       '@aws-amplify/plugin-types': 1.13.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)
       aws-cdk-lib: 2.275.0(constructs@10.8.1)
       constructs: 10.8.1
@@ -7212,15 +7324,15 @@ snapshots:
       - '@aws-sdk/types'
       - zod
 
-  '@aws-amplify/backend@1.25.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/client-cloudformation@3.1161.0)(@aws-sdk/client-s3@3.1161.0)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)':
+  '@aws-amplify/backend@1.25.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/client-cloudformation@3.1161.0)(@aws-sdk/client-s3@3.1161.0)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)':
     dependencies:
-      '@aws-amplify/backend-auth': 1.10.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
-      '@aws-amplify/backend-data': 1.9.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
-      '@aws-amplify/backend-function': 1.19.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
-      '@aws-amplify/backend-output-schemas': 1.8.0(zod@4.6.7)
-      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
+      '@aws-amplify/backend-auth': 1.10.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
+      '@aws-amplify/backend-data': 1.9.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
+      '@aws-amplify/backend-function': 1.19.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
+      '@aws-amplify/backend-output-schemas': 1.8.0(zod@3.25.76)
+      '@aws-amplify/backend-output-storage': 1.4.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
       '@aws-amplify/backend-secret': 1.4.2(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)
-      '@aws-amplify/backend-storage': 1.6.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@4.6.7)
+      '@aws-amplify/backend-storage': 1.6.0(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)(zod@3.25.76)
       '@aws-amplify/client-config': 1.11.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/client-amplify@3.1161.0)(@aws-sdk/client-cloudformation@3.1161.0)(@aws-sdk/client-s3@3.1161.0)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)
       '@aws-amplify/data-schema': 1.26.3
       '@aws-amplify/platform-core': 1.12.1(@aws-cdk/cli-plugin-contract@2.182.2)(@aws-sdk/types@3.975.0)(aws-cdk-lib@2.275.0(constructs@10.8.1))(constructs@10.8.1)
@@ -7620,7 +7732,7 @@ snapshots:
       local-pkg: 0.5.1
       parse-cache-control: 1.0.1
       semver: 7.8.6
-      zod: 3.25.17
+      zod: 3.25.76
     optionalDependencies:
       typescript: 5.9.3
 
@@ -9520,6 +9632,16 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
+  '@lit-labs/ssr-dom-shim@1.6.0': {}
+
+  '@lit/context@1.1.6':
+    dependencies:
+      '@lit/reactive-element': 2.1.2
+
+  '@lit/reactive-element@2.1.2':
+    dependencies:
+      '@lit-labs/ssr-dom-shim': 1.6.0
+
   '@modelcontextprotocol/core@2.4.0':
     dependencies:
       zod: 4.6.7
@@ -9673,6 +9795,8 @@ snapshots:
   '@playwright/test@1.64.1':
     dependencies:
       playwright: 1.64.1
+
+  '@preact/signals-core@1.14.5': {}
 
   '@react-three/fiber@9.8.2(@types/react@19.3.0)(immer@11.2.9)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(three@0.187.0)':
     dependencies:
@@ -10122,6 +10246,8 @@ snapshots:
   '@types/topojson-specification@1.0.5':
     dependencies:
       '@types/geojson': 7946.0.16
+
+  '@types/trusted-types@2.0.7': {}
 
   '@types/use-sync-external-store@0.0.6': {}
 
@@ -11075,6 +11201,10 @@ snapshots:
   domhandler@6.0.1:
     dependencies:
       domelementtype: 3.0.0
+
+  dompurify@3.4.11:
+    optionalDependencies:
+      '@types/trusted-types': 2.0.7
 
   domutils@3.2.2:
     dependencies:
@@ -12421,6 +12551,26 @@ snapshots:
       htmlparser2: 10.1.0
       uhyphen: 0.2.0
 
+  linkify-it@5.0.2:
+    dependencies:
+      uc.micro: 2.1.0
+
+  lit-element@4.2.2:
+    dependencies:
+      '@lit-labs/ssr-dom-shim': 1.6.0
+      '@lit/reactive-element': 2.1.2
+      lit-html: 3.3.3
+
+  lit-html@3.3.3:
+    dependencies:
+      '@types/trusted-types': 2.0.7
+
+  lit@3.3.3:
+    dependencies:
+      '@lit/reactive-element': 2.1.2
+      lit-element: 4.2.2
+      lit-html: 3.3.3
+
   local-pkg@0.5.1:
     dependencies:
       mlly: 1.8.2
@@ -12503,6 +12653,15 @@ snapshots:
 
   map-cache@0.2.2: {}
 
+  markdown-it@14.3.3:
+    dependencies:
+      argparse: 2.0.1
+      entities: 4.5.0
+      linkify-it: 5.0.2
+      mdurl: 2.1.0
+      punycode.js: 2.3.1
+      uc.micro: 2.1.0
+
   math-intrinsics@1.1.0: {}
 
   md5@2.3.0:
@@ -12510,6 +12669,8 @@ snapshots:
       charenc: 0.0.2
       crypt: 0.0.2
       is-buffer: 1.1.6
+
+  mdurl@2.1.0: {}
 
   merge-stream@2.0.0: {}
 
@@ -13009,6 +13170,8 @@ snapshots:
 
   property-expr@2.0.6: {}
 
+  punycode.js@2.3.1: {}
+
   punycode@2.3.1: {}
 
   queue-microtask@1.2.3: {}
@@ -13091,6 +13254,10 @@ snapshots:
     dependencies:
       resolve: 1.22.14
 
+  redos-detector@6.1.4:
+    dependencies:
+      regjsparser: 0.13.0
+
   redux-thunk@3.1.0(redux@5.0.1):
     dependencies:
       redux: 5.0.1
@@ -13118,6 +13285,10 @@ snapshots:
       get-proto: 1.0.1
       gopd: 1.2.0
       set-function-name: 2.0.2
+
+  regjsparser@0.13.0:
+    dependencies:
+      jsesc: 3.1.0
 
   relay-runtime@12.0.0:
     dependencies:
@@ -13815,6 +13986,8 @@ snapshots:
 
   ua-parser-js@1.0.41: {}
 
+  uc.micro@2.1.0: {}
+
   ufo@1.6.4: {}
 
   uglify-js@3.19.3:
@@ -13898,6 +14071,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   uuid@11.1.1: {}
+
+  validate-color@2.2.4: {}
 
   validate-npm-package-name@7.0.2: {}
 
@@ -14133,6 +14308,10 @@ snapshots:
       nanoclone: 0.2.1
       property-expr: 2.0.6
       toposort: 2.0.2
+
+  zod-to-json-schema@3.25.2(zod@3.25.76):
+    dependencies:
+      zod: 3.25.76
 
   zod-validation-error@4.0.2(zod@4.6.7):
     dependencies:

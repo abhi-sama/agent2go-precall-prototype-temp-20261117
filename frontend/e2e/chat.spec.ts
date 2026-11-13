@@ -161,7 +161,8 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await page.addInitScript(() => window.localStorage.setItem("a2g.local.userId", "u-exec-all"))
     await page.goto("/chat")
     await ask(page, "Which topics are rising across regions?")
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    // The scripted organisational answer streams for about 14.5 seconds (it now also carries its A2UI theme table).
+    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
     await expect(page.getByTestId("sample-limitations")).toBeVisible()
     await expect(page.getByTestId("ai-summary")).not.toContainText("Sample limitations")
     await expect(page.getByTestId("aggregate-only-note")).toContainText("does not grant source-row access")
@@ -282,7 +283,8 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
 test.describe("Show rows (mock adapter, iPad viewports)", () => {
   const COUNT_QUESTION = "How many calls did I have in the last 90 days?"
   const done = async (page: import("@playwright/test").Page) => {
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    // 20 seconds: the Executive's scripted organisational answer alone streams for about 14.5.
+    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
   }
   const numbers = (page: import("@playwright/test").Page, column: string) =>
     page.locator(`[data-testid="answer-row"] [data-column="${column}"]`).evaluateAll((els) => els.map((e) => Number(e.textContent)))

@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent2go:a2ui:answer-catalog:v1",
+  "protocolVersion": "1.0",
+  "title": "agent2go answer catalog",
+  "description": "The only A2UI components and functions the Ask the agent chat renders (docs/adr/0017). Plain text only: no Markdown, HTML, images, media, links or URLs. Every component maps to an Astryx component in frontend/src/lib/chat/a2ui/catalog.tsx.",
+  "catalogId": "urn:agent2go:a2ui:answer-catalog:v1",
+  "instructions": "Surfaces are composed by the agent runtime from tool results, never by the model. Every number on a surface must be a figure a read tool returned. A value withheld by small-group suppression is the text 'Withheld', never 0. Aggregate-only callers never receive record-level content (record ids, names, quotes or rows).",
+  "components": {
+    "Card": {
+      "type": "object",
+      "description": "A bordered container for one surface.",
+      "properties": {
+        "component": { "const": "Card" },
+        "child": { "$ref": "common_types.json#/$defs/ComponentId" }
+      },
+      "required": ["component", "child"],
+      "additionalProperties": false
+    },
+    "Column": {
+      "type": "object",
+      "description": "Stacks its children vertically.",
+      "properties": {
+        "component": { "const": "Column" },
+        "children": { "$ref": "common_types.json#/$defs/ChildList" }
+      },
+      "required": ["component", "children"],
+      "additionalProperties": false
+    },
+    "Row": {
+      "type": "object",
+      "description": "Places its children side by side, wrapping onto new lines when the container is narrow.",
+      "properties": {
+        "component": { "const": "Row" },
+        "children": { "$ref": "common_types.json#/$defs/ChildList" }
+      },
+      "required": ["component", "children"],
+      "additionalProperties": false
+    },
+    "Text": {
+      "type": "object",
+      "description": "Plain text. Never interpreted as Markdown or HTML.",
+      "properties": {
+        "component": { "const": "Text" },
+        "text": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "variant": { "type": "string", "enum": ["title", "body", "caption"], "default": "body" }
+      },
+      "required": ["component", "text"],
+      "additionalProperties": false
+    },
+    "Table": {
+      "type": "object",
+      "description": "A small data table. Cells are plain text or numbers; the first column heads each row.",
+      "properties": {
+        "component": { "const": "Table" },
+        "caption": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "columns": {
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$" },
+              "label": { "type": "string", "maxLength": 40 },
+              "numeric": { "type": "boolean", "default": false }
+            },
+            "required": ["key", "label"],
+            "additionalProperties": false
+          }
+        },
+        "rows": { "$ref": "common_types.json#/$defs/DynamicValue", "description": "Bound to an array of at most 24 objects keyed by column key." }
+      },
+      "required": ["component", "caption", "columns", "rows"],
+      "additionalProperties": false
+    },
+    "Form": {
+      "type": "object",
+      "description": "A named form that refines the answer. Its primary Button submits it.",
+      "properties": {
+        "component": { "const": "Form" },
+        "title": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "description": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "children": { "$ref": "common_types.json#/$defs/ChildList" }
+      },
+      "required": ["component", "title", "children"],
+      "additionalProperties": false
+    },
+    "ChoicePicker": {
+      "type": "object",
+      "description": "One choice from a closed list: radio buttons for up to five options, a menu for more.",
+      "allOf": [{ "$ref": "common_types.json#/$defs/Checkable" }],
+      "properties": {
+        "component": { "const": "ChoicePicker" },
+        "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "variant": { "type": "string", "enum": ["mutuallyExclusive"], "default": "mutuallyExclusive" },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 31,
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+              "value": { "type": "string", "maxLength": 64 }
+            },
+            "required": ["label", "value"],
+            "additionalProperties": false
+          }
+        },
+        "value": { "$ref": "common_types.json#/$defs/DynamicStringList" }
+      },
+      "required": ["component", "label", "options", "value"]
+    },
+    "DateTimeInput": {
+      "type": "object",
+      "description": "A calendar date (no time).",
+      "allOf": [{ "$ref": "common_types.json#/$defs/Checkable" }],
+      "properties": {
+        "component": { "const": "DateTimeInput" },
+        "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "value": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "enableDate": { "const": true },
+        "min": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "max": { "$ref": "common_types.json#/$defs/DynamicString" }
+      },
+      "required": ["component", "label", "value", "enableDate"]
+    },
+    "Button": {
+      "type": "object",
+      "description": "Dispatches an agent action. The primary Button inside a Form submits it.",
+      "allOf": [{ "$ref": "common_types.json#/$defs/Checkable" }],
+      "properties": {
+        "component": { "const": "Button" },
+        "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "variant": { "type": "string", "enum": ["primary", "default"], "default": "default" },
+        "action": { "$ref": "common_types.json#/$defs/Action" }
+      },
+      "required": ["component", "label", "action"]
+    }
+  },
+  "functions": {
+    "required": {
+      "type": "object",
+      "description": "Checks that the value is not null, undefined or empty.",
+      "returnType": "validationResult",
+      "allowedCallers": "rendererOnly",
+      "properties": {
+        "@call": { "const": "required" },
+        "args": { "type": "object", "properties": { "value": {} }, "required": ["value"], "additionalProperties": false }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    },
+    "isOnOrBefore": {
+      "type": "object",
+      "description": "True when the ISO date in value is on or before the ISO date in limit, or either is empty.",
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "properties": {
+        "@call": { "const": "isOnOrBefore" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": { "$ref": "common_types.json#/$defs/DynamicString" },
+            "limit": { "$ref": "common_types.json#/$defs/DynamicString" }
+          },
+          "required": ["value", "limit"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    },
+    "formatString": {
+      "type": "object",
+      "description": "Interpolates data model values with ${/path}.",
+      "returnType": "string",
+      "allowedCallers": "rendererOnly",
+      "properties": {
+        "@call": { "const": "formatString" },
+        "args": {
+          "type": "object",
+          "properties": { "value": { "$ref": "common_types.json#/$defs/DynamicString" } },
+          "required": ["value"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    },
+    "and": {
+      "type": "object",
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "properties": {
+        "@call": { "const": "and" },
+        "args": {
+          "type": "object",
+          "properties": { "values": { "type": "array", "items": { "$ref": "common_types.json#/$defs/DynamicBoolean" }, "minItems": 2 } },
+          "required": ["values"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    },
+    "or": {
+      "type": "object",
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "properties": {
+        "@call": { "const": "or" },
+        "args": {
+          "type": "object",
+          "properties": { "values": { "type": "array", "items": { "$ref": "common_types.json#/$defs/DynamicBoolean" }, "minItems": 2 } },
+          "required": ["values"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    },
+    "not": {
+      "type": "object",
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "properties": {
+        "@call": { "const": "not" },
+        "args": {
+          "type": "object",
+          "properties": { "value": { "$ref": "common_types.json#/$defs/DynamicBoolean" } },
+          "required": ["value"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        { "$ref": "#/components/Card" },
+        { "$ref": "#/components/Column" },
+        { "$ref": "#/components/Row" },
+        { "$ref": "#/components/Text" },
+        { "$ref": "#/components/Table" },
+        { "$ref": "#/components/Form" },
+        { "$ref": "#/components/ChoicePicker" },
+        { "$ref": "#/components/DateTimeInput" },
+        { "$ref": "#/components/Button" }
+      ],
+      "discriminator": { "propertyName": "component" }
+    },
+    "anyFunction": {
+      "oneOf": [
+        { "$ref": "#/functions/required" },
+        { "$ref": "#/functions/isOnOrBefore" },
+        { "$ref": "#/functions/formatString" },
+        { "$ref": "#/functions/and" },
+        { "$ref": "#/functions/or" },
+        { "$ref": "#/functions/not" }
+      ]
+    }
+  }
+}

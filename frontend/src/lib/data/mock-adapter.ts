@@ -532,7 +532,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     async startChatRun(ctx, input) {
       const s = await gate(ctx, "startChatRun")
       if (s === "forbidden") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
-      scriptRun(input.runId, findUser(options.getUserId()), input.message, now().getTime(), input.context)
+      scriptRun(input.runId, findUser(options.getUserId()), input.message, now().getTime(), input.context, input.action)
       return { runId: input.runId, status: "RUNNING" }
     },
 

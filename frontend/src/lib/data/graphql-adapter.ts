@@ -285,8 +285,13 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     },
     async startChatRun(ctx, input): Promise<ChatRun> {
       // The dashboard context is optional and omitted (never null) when absent: floci's executor rejects explicit nulls.
-      const { context, ...rest } = input
-      const variables = context && Object.keys(context).length ? { ...rest, context } : rest
+      const { context, action, ...rest } = input
+      const variables = {
+        ...rest,
+        ...(context && Object.keys(context).length ? { context } : {}),
+        // AWSJSON travels as JSON text.
+        ...(action ? { action: { ...action, context: JSON.stringify(action.context) } } : {}),
+      }
       return (await run<{ startChatRun: ChatRun }>(transport, START_CHAT_RUN_MUTATION, variables, ctx)).startChatRun
     },
     async chatEvents(ctx, runId, after): Promise<ChatEventPage> { return (await run<{ chatEvents: ChatEventPage }>(transport, `query ChatEvents($runId: ID!, $after: Int) { chatEvents(runId: $runId, after: $after) { done status events { seq data } } }`, { runId, after }, ctx)).chatEvents },
