@@ -249,6 +249,10 @@ _Avoid_: filter command, auto-filter
 The single chat experience available from the global header. It opens beside the workspace on desktop and as an overlay on narrower screens; its full-screen route is `/chat`.
 _Avoid_: Ask AI, assistant, chat drawer
 
+**Earlier conversations**:
+The list in Ask the agent of a person's own saved conversations, newest first, each titled by its first question; choosing one reopens it with its saved answers and the next question continues it. Listed and read by the BE from the caller's own saved turns, and only while their scope still covers each answer.
+_Avoid_: chat history panel, threads (the code's `threadId` is the conversation's identifier)
+
 ## Governance
 
 **Ingestion run**:

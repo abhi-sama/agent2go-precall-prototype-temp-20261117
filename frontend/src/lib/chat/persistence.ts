@@ -1,6 +1,6 @@
 import type { Message } from "@ag-ui/core"
 import { A2UI_ACTIVITY_TYPE } from "./a2ui/protocol"
-import { ANSWER_ACTIVITY, ids, type AnswerActivity } from "./agent/answer"
+import { ANSWER_ACTIVITY, HEAD_EVENTS, ids, type AnswerActivity } from "./agent/answer"
 import { settle, turnsOf } from "./agent/turns"
 import type { SavedChatTurn } from "@/lib/data"
 
@@ -142,6 +142,12 @@ export function messagesFromHistory(turns: readonly SavedChatTurn[]): Message[] 
     events.push({ type: "CUSTOM", name: "conversation_saved", value: { saved: true } })
     const questionId = `history~${turn.runId}~question`
     messages.push({ id: questionId, role: "user", content: turn.userMessage } as Message)
+    // Figures and charts sit before the text, as in a live answer: the head holds the evidence that is drawn there.
+    const headEvents = events.filter((event) => HEAD_EVENTS.has(String(event.name)))
+    const drawn = [payload.facts, payload.citations, payload.visuals, payload.sampleLimitations].some((value) => Array.isArray(value) && value.length > 0)
+    if (drawn) {
+      messages.push({ id: ids.head(turn.runId), role: "activity", activityType: ANSWER_ACTIVITY, content: { v: 1, runId: turn.runId, part: "head", userMessageId: questionId, status: "done", error: null, events: headEvents } } as Message)
+    }
     messages.push({ id: ids.text(turn.runId, 0), role: "assistant", content: turn.assistantText } as Message)
     if (Array.isArray(payload.surfaces)) {
       for (const [index, operations] of payload.surfaces.entries()) {

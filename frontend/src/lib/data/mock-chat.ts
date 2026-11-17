@@ -13,7 +13,7 @@ import { rememberRowSets, rowSetsEvent, type MockRowSet } from "./mock-chat-rows
 import { mockResponseRecord, mockTerritorySummary } from "./mock-director-insights"
 import { inferMockProposal, proposalSummary, withProgress, type MockProposal } from "./mock-page-state"
 import { parseRefineAction, refineQuestion, refineSurface, surfaceEvent, surfaceId, tableSurface, type RefineRequest } from "./mock-surfaces"
-import type { ChatEventPage, ChatSurfaceActionInput, SourceRecord } from "./types"
+import type { ChatEventPage, ChatSurfaceActionInput, ChatThreadSummary, SavedChatTurn, SourceRecord } from "./types"
 
 interface ScheduledEvent {
   seq: number
@@ -392,6 +392,70 @@ export function readRun(runId: string, after: number, now = Date.now()): ChatEve
   const last = run.events[run.events.length - 1]
   const finished = elapsed >= last.at
   return { events, done: finished && events.length === run.events.filter((e) => e.seq > after).length, status: finished ? "FINISHED" : "RUNNING" }
+}
+
+/** A question a person asked in a conversation, as the mock chat table would hold it once the answer is done. */
+export interface MockAskedTurn {
+  threadId: string
+  runId: string
+  question: string
+  generatedAt: string
+}
+
+/**
+ * What the BE saves for a finished run, read back from the run's event log: the answer text and the evidence the
+ * answer showed. A run that is still streaming, ended in an error or stopped for an approval is not a saved turn.
+ */
+export function savedTurnOfRun(asked: MockAskedTurn, now = Date.now()): SavedChatTurn | null {
+  const run = runs.get(asked.runId)
+  if (!run || now - run.startedAt < run.events[run.events.length - 1].at) return null
+  let text = ""
+  let finished = false
+  const payload: Record<string, unknown> = { surfaces: [], visuals: [], suggestions: [] }
+  for (const { data } of run.events) {
+    const event = JSON.parse(data) as { type: string; name?: string; value?: unknown; delta?: string; content?: Record<string, unknown>; outcome?: { type?: string } }
+    if (event.type === "TEXT_MESSAGE_CONTENT") text += event.delta ?? ""
+    else if (event.type === "RUN_FINISHED") finished = event.outcome?.type !== "interrupt"
+    else if (event.type === "RUN_ERROR") return null
+    else if (event.type === "ACTIVITY_SNAPSHOT" && Array.isArray(event.content?.a2ui_operations)) (payload.surfaces as unknown[]).push(event.content.a2ui_operations)
+    else if (event.type === "CUSTOM") {
+      const value = event.value as Record<string, unknown> | unknown[]
+      if (event.name === "source_facts" && !Array.isArray(value)) {
+        payload.facts = value.facts
+        payload.dataThrough = value.data_through
+      } else if (event.name === "citations") payload.citations = value
+      else if (event.name === "visual" && !Array.isArray(value) && value.phase !== "pending") (payload.visuals as unknown[]).push(value)
+      else if (event.name === "suggestions") payload.suggestions = value
+      else if (event.name === "model_mode" && !Array.isArray(value)) payload.modelMode = value.mode
+    }
+  }
+  if (!finished || !text.trim()) return null
+  return { threadId: asked.threadId, runId: asked.runId, userMessage: asked.question, assistantText: text, generatedAt: asked.generatedAt, payload: JSON.stringify(payload) }
+}
+
+/** The caller's finished turns of one conversation, oldest first. */
+export function savedThread(asked: readonly MockAskedTurn[], threadId: string, now = Date.now()): SavedChatTurn[] {
+  return asked
+    .filter((turn) => turn.threadId === threadId)
+    .map((turn) => savedTurnOfRun(turn, now))
+    .filter((turn): turn is SavedChatTurn => turn !== null)
+    .sort((a, b) => a.generatedAt.localeCompare(b.generatedAt))
+}
+
+/** The caller's conversations as the BE lists them: one per thread with a finished turn, most recently active first. */
+export function savedThreads(asked: readonly MockAskedTurn[], now = Date.now()): ChatThreadSummary[] {
+  const threads = new Map<string, ChatThreadSummary>()
+  for (const turn of asked.map((item) => savedTurnOfRun(item, now)).filter((item): item is SavedChatTurn => item !== null).sort((a, b) => a.generatedAt.localeCompare(b.generatedAt))) {
+    const found = threads.get(turn.threadId)
+    if (found) {
+      found.updatedAt = turn.generatedAt
+      found.turnCount++
+    } else {
+      const title = turn.userMessage.replace(/\s+/g, " ").trim()
+      threads.set(turn.threadId, { threadId: turn.threadId, title: title.length > 80 ? `${title.slice(0, 79).trimEnd()}…` : title, startedAt: turn.generatedAt, updatedAt: turn.generatedAt, turnCount: 1 })
+    }
+  }
+  return [...threads.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
 export function mockCitation(dataset: string, recordId: string, user: FixtureUser, now: Date = new Date(), recordAccess = false): SourceRecord | null {

@@ -98,7 +98,7 @@ describe("chat persistence", () => {
       },
       { threadId: "t1", runId: "bad", userMessage: "Ignored", assistantText: "Ignored", generatedAt: "2026-11-04T10:00:00Z", payload: "not JSON" },
     ])
-    expect(messages.map((message) => message.id)).toEqual(["history~r1~question", ids.text("r1", 0), "history~r1~surface~0", ids.tail("r1")])
+    expect(messages.map((message) => message.id)).toEqual(["history~r1~question", ids.head("r1"), ids.text("r1", 0), "history~r1~surface~0", ids.tail("r1")])
     expect(turnsOf(messages)[0].tail?.events.map((event) => event.name)).toEqual(["source_facts", "visual", "number_check", "suggestions", "conversation_saved"])
   })
 })

@@ -527,6 +527,8 @@ input ScopeAssignmentInput { userId: ID!, territoryId: String!, assignmentType: 
 input RolePermissionInput { roleId: ID!, permissionCodes: [String!]! }
 input IdentityMappingInput { userId: ID!, rosterSourceRowId: ID! }
 type ChatRun { runId: ID!, status: String! }
+"One saved conversation in the list of a caller's earlier conversations: its id, a title from its first question, and when it ran."
+type ChatThreadSummary { threadId: ID!, title: String!, startedAt: AWSDateTime!, updatedAt: AWSDateTime!, turnCount: Int! }
 "One caller-owned turn stored by the agent after a completed answer. `payload` is evidence, never a new agent input."
 type SavedChatTurn { threadId: ID!, runId: ID!, userMessage: String!, assistantText: String!, generatedAt: AWSDateTime!, payload: AWSJSON! }
 type ChatEvent { seq: Int!, data: String! }
@@ -1817,8 +1819,10 @@ type Query {
   preCallBrief(briefId: ID!): PreCallBrief!
   "The caller's saved briefs, newest first."
   myBriefs: [BriefSummary!]!
-  "The caller's completed saved chat turns, newest first. The API reads only the caller's DynamoDB partition."
-  myChatHistory(limit: Int): [SavedChatTurn!]!
+  "The caller's earlier conversations, most recently active first. The API reads only the caller's DynamoDB partition and drops turns that are out of their current scope."
+  myChatThreads(limit: Int): [ChatThreadSummary!]!
+  "One of the caller's earlier conversations as its saved turns, oldest first, to reopen it. Same ownership and scope rules as myChatThreads."
+  myChatThread(threadId: ID!): [SavedChatTurn!]!
   "The golden-question suites, one per persona. Administrators only."
   evalSuites: [EvalSuite!]!
   "Evaluation runs, newest first. Administrators only."

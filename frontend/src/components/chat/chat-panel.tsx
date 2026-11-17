@@ -1,10 +1,12 @@
 "use client"
 
-import { MessageSquarePlus, Sparkles } from "lucide-react"
+import { History, MessageSquarePlus, Sparkles } from "lucide-react"
 import dynamic from "next/dynamic"
 import { useSearchParams } from "next/navigation"
 import * as React from "react"
+import { ConversationHistoryView, ConversationList } from "@/components/chat/conversation-history"
 import { useChatSession } from "@/components/chat/chat-session"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { ScopeLabel } from "@/components/shell/scope-label"
 import { parseChatContext } from "@/lib/chat/context"
 import { useDataAdapter } from "@/lib/data/data-provider"
@@ -22,7 +24,8 @@ export function ChatPanel() {
   const adapter = useDataAdapter()
   const { userId, ready } = useSession()
   const me = useQuery("me", userId, (ctx) => adapter.me(ctx), ready)
-  const { hydrated, reset, running, agent } = useChatSession()
+  const { hydrated, reset, running, agent, historyOpen, setHistoryOpen, chatKey } = useChatSession()
+  const railShown = useMediaQuery("(min-width: 768px)")
   const params = useSearchParams()
   // The screen the chat was opened from (a Director's territory or question). Defaults for the agent only.
   const context = React.useMemo(() => parseChatContext(new URLSearchParams(params.toString())), [params])
@@ -49,6 +52,15 @@ export function ChatPanel() {
               Asking about {[context.territoryId, context.questionId, context.from && context.to ? `${context.from} to ${context.to}` : null].filter(Boolean).join(" · ") || "this screen"}
             </span>
           )}
+          <button
+            type="button"
+            data-testid="chat-history-toggle"
+            aria-expanded={historyOpen}
+            onClick={() => setHistoryOpen(!historyOpen)}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border px-3 text-sm font-medium hover:bg-muted pointer-coarse:min-h-11 md:hidden"
+          >
+            <History aria-hidden className="size-4" /> Conversations
+          </button>
           {hasMessages && (
             <button
               type="button"
@@ -62,8 +74,18 @@ export function ChatPanel() {
           )}
         </div>
       </header>
-      <div data-testid="chat-thread" className="min-h-0 flex-1">
-        {hydrated && <PageChat context={context} />}
+      <div className="flex min-h-0 flex-1">
+        {/* From tablet width the conversations sit beside the chat; below it, the same list is a view over the chat. */}
+        <aside aria-labelledby="chat-rail-title" data-testid="chat-history-rail" className="hidden w-64 shrink-0 flex-col border-e border-border md:flex xl:w-72">
+          <h2 id="chat-rail-title" className="px-5 pt-4 pb-1 text-sm font-medium text-muted-foreground">
+            Conversations
+          </h2>
+          <ConversationList />
+        </aside>
+        <div data-testid="chat-thread" className="relative min-h-0 min-w-0 flex-1">
+          {hydrated && <PageChat key={chatKey} context={context} />}
+          {historyOpen && !railShown && <ConversationHistoryView />}
+        </div>
       </div>
     </div>
   )

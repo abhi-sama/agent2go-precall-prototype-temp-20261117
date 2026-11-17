@@ -17,6 +17,7 @@ import type {
   ChatRowsPage,
   ChatRowsQuery,
   ChatRun,
+  ChatThreadSummary,
   SavedChatTurn,
   AccessAuditEvent,
   AccessAuditFilter,
@@ -121,8 +122,10 @@ export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter,
   setRolePermissions(ctx: RequestContext, input: { roleId: string; permissionCodes: string[] }): Promise<RolePermissionMatrix>
   approveIdentityMapping(ctx: RequestContext, input: { userId: string; rosterSourceRowId: string }): Promise<IdentityMatch>
   startChatRun(ctx: RequestContext, input: ChatRunInput): Promise<ChatRun>
-  /** Completed turns the agent saved for this caller. The BE queries only their FE DynamoDB partition. */
-  myChatHistory(ctx: RequestContext, limit?: number): Promise<SavedChatTurn[]>
+  /** The caller's earlier conversations, most recently active first. The BE queries only their FE DynamoDB partition. */
+  myChatThreads(ctx: RequestContext, limit?: number): Promise<ChatThreadSummary[]>
+  /** One earlier conversation of the caller's as saved turns, oldest first, to reopen it. */
+  myChatThread(ctx: RequestContext, threadId: string): Promise<SavedChatTurn[]>
   /** Resume an owner-visible approval through the same AppSync chat path. */
   resumeChatRun(ctx: RequestContext, input: ChatResumeInput): Promise<ChatRun>
   /**

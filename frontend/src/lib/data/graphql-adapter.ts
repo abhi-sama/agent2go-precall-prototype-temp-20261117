@@ -62,6 +62,7 @@ import {
   type BriefSummary,
   type BriefExport,
   type ChatRun,
+  type ChatThreadSummary,
   type SavedChatTurn,
   type PreCallBrief,
   type AccessAuditEvent,
@@ -297,8 +298,11 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
       }
       return (await run<{ startChatRun: ChatRun }>(transport, START_CHAT_RUN_MUTATION, variables, ctx)).startChatRun
     },
-    async myChatHistory(ctx, limit = 50): Promise<SavedChatTurn[]> {
-      return (await run<{ myChatHistory: SavedChatTurn[] }>(transport, `query MyChatHistory($limit: Int) { myChatHistory(limit: $limit) { threadId runId userMessage assistantText generatedAt payload } }`, { limit }, ctx)).myChatHistory
+    async myChatThreads(ctx, limit = 30): Promise<ChatThreadSummary[]> {
+      return (await run<{ myChatThreads: ChatThreadSummary[] }>(transport, `query MyChatThreads($limit: Int) { myChatThreads(limit: $limit) { threadId title startedAt updatedAt turnCount } }`, { limit }, ctx)).myChatThreads
+    },
+    async myChatThread(ctx, threadId): Promise<SavedChatTurn[]> {
+      return (await run<{ myChatThread: SavedChatTurn[] }>(transport, `query MyChatThread($threadId: ID!) { myChatThread(threadId: $threadId) { threadId runId userMessage assistantText generatedAt payload } }`, { threadId }, ctx)).myChatThread
     },
     async resumeChatRun(ctx, input): Promise<ChatRun> {
       const { values, ...rest } = input

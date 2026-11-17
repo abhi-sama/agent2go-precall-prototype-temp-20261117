@@ -56,7 +56,7 @@ const SidebarWelcome = (props: React.ComponentProps<typeof CopilotSidebarView.We
  */
 function ChatDrawer() {
   const pathname = usePathname()
-  const { open, setOpen, hydrated } = useChatSession()
+  const { open, setOpen, hydrated, chatKey } = useChatSession()
   const presentation = useChatPresentation()
   const { context, page, chips, starters } = useScreenChips(open)
   // Not before the stored conversation is back: CopilotKit's chat clears the thread when its id changes under it.
@@ -66,6 +66,7 @@ function ChatDrawer() {
     <div data-a2g-chat={presentation} data-testid={open ? "chat-drawer" : undefined} data-presentation={presentation} className="contents">
       <AskTheAgentFrame context={context} page={page} starters={starters} chips={chips}>
         <CopilotPopup
+          key={chatKey}
           {...CHAT_PROPS}
           open={open}
           onOpenChange={setOpen}
@@ -87,7 +88,7 @@ function ChatDrawer() {
  */
 function ChatDock() {
   const pathname = usePathname()
-  const { open, setOpen, hydrated } = useChatSession()
+  const { open, setOpen, hydrated, chatKey } = useChatSession()
   const presentation = useChatPresentation()
   const docked = hydrated && presentation === "docked" && pathname !== "/chat"
   const mounted = useKeepMounted(open && docked)
@@ -96,7 +97,7 @@ function ChatDock() {
   return (
     <div data-a2g-chat="docked" data-testid={open ? "chat-dock" : undefined} className="contents">
       <AskTheAgentFrame context={context} page={page} starters={starters} chips={chips}>
-        <CopilotSidebar {...CHAT_PROPS} open={open} onOpenChange={setOpen} toggleButton={NoToggle} header={PanelHeader} welcomeScreen={SidebarWelcome} width={420} />
+        <CopilotSidebar key={chatKey} {...CHAT_PROPS} open={open} onOpenChange={setOpen} toggleButton={NoToggle} header={PanelHeader} welcomeScreen={SidebarWelcome} width={420} />
       </AskTheAgentFrame>
     </div>
   )

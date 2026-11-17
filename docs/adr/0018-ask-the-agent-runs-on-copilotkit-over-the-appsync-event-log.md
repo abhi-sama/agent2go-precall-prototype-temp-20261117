@@ -34,7 +34,7 @@ The agent itself was aligned too: it emits `TOOL_CALL_RESULT` (the outcome only,
 | Starters and follow-up suggestions | CopilotKit's suggestion pills (`useConfigureSuggestions`): starters before the first question, the latest answer's suggestions after |
 | Tool activity | Named `useRenderTool` registrations for the agent's allow-listed tools, one row per call in plain words |
 | Screen context and its chips | `useAgentContext` (checked again by the agent and by the BE); the chips sit above CopilotKit's composer, each removable |
-| One conversation per person, across close, navigation and reload | The agent's message list is cached in `sessionStorage`; if that cache is absent, the newest still-in-scope saved thread is restored through AppSync and the BE's query-only FE DynamoDB role. An answer cut off by a reload is marked interrupted. |
+| One conversation per person, across close, navigation and reload | The agent's message list is cached in `sessionStorage`; if that cache is absent, the newest still-in-scope saved thread is restored through AppSync and the BE's query-only FE DynamoDB role (ADR 0021, which also lists the earlier conversations). An answer cut off by a reload is marked interrupted. |
 
 Markdown from the model is rendered without raw HTML, links render only as citation markers, and images are not loaded.
 

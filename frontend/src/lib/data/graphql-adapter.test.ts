@@ -16,6 +16,21 @@ describe("graphql adapter", () => {
     expect(seen[0]).toMatchObject({ req: { query: LANDING_KPIS_QUERY, variables: { from: "2026-10-01", to: "2026-10-31" } }, c: ctx })
   })
 
+  it("lists earlier conversations and reopens one by its thread id, with no user identifier of its own", async () => {
+    const seen: { query: string; variables?: unknown }[] = []
+    const adapter = createGraphQLAdapter(async (req) => {
+      seen.push(req)
+      return req.query.includes("myChatThreads")
+        ? ({ data: { myChatThreads: [{ threadId: "t-1", title: "How many calls?", startedAt: "2026-11-01T09:00:00Z", updatedAt: "2026-11-01T09:05:00Z", turnCount: 2 }] } } as never)
+        : ({ data: { myChatThread: [{ threadId: "t-1", runId: "r-1", userMessage: "How many calls?", assistantText: "132", generatedAt: "2026-11-01T09:00:00Z", payload: "{}" }] } } as never)
+    })
+    expect(await adapter.myChatThreads(ctx, 10)).toMatchObject([{ threadId: "t-1", turnCount: 2 }])
+    expect(await adapter.myChatThread(ctx, "t-1")).toMatchObject([{ runId: "r-1" }])
+    expect(seen.map((r) => r.variables)).toEqual([{ limit: 10 }, { threadId: "t-1" }])
+    // The caller is whoever AppSync authenticated: nothing in these operations names a user.
+    expect(seen.every((r) => !/userId|owner/i.test(r.query))).toBe(true)
+  })
+
   it("maps GraphQL errors to typed errors without leaking server text", async () => {
     const adapter = createGraphQLAdapter(async () => ({ errors: [{ message: "row 42 of priya.raman@example.test", errorType: "Unauthorized" }] }))
     const err = await adapter.me(ctx).catch((e) => e)

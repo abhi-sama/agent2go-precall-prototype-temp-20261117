@@ -36,10 +36,12 @@ test.afterEach(() => {
   expect(problems).toEqual([])
 })
 
-async function expectAnswer(page: Page) {
+/** `saved`: a conversation reopened from the list. Its answer has everything but the tool rows, which are not saved. */
+async function expectAnswer(page: Page, { saved = false } = {}) {
   const turn = page.getByTestId("chat-turn").last()
   await expect(turn).toHaveAttribute("data-status", "done", { timeout: 20_000 })
-  await expect(turn.getByTestId("tool-call").first()).toHaveAttribute("data-status", "complete")
+  if (saved) await expect(turn.getByTestId("tool-call")).toHaveCount(0)
+  else await expect(turn.getByTestId("tool-call").first()).toHaveAttribute("data-status", "complete")
   const calls = Number(await turn.getByTestId("fact-f1").getAttribute("data-value"))
   expect(calls).toBeGreaterThan(0)
   await expect(turn.getByTestId("ai-summary")).toContainText(String(calls))
@@ -144,4 +146,124 @@ test("the full page: a proposed write can be edited, approved, or rejected", asy
   await expect(page.getByRole("button", { name: "Reject" })).toBeVisible({ timeout: 20_000 })
   await page.getByRole("button", { name: "Reject" }).click()
   await expect(page.getByText("No changes were saved.")).toBeVisible({ timeout: 20_000 })
+})
+
+const FIRST_QUESTION = "How many calls did I have in the last 90 days?"
+const SECOND_QUESTION = "Which territories can I see?"
+
+async function ask(page: Page, question: string) {
+  await page.getByTestId("chat-input").fill(question)
+  await page.getByTestId("chat-send").click()
+  await expect(page.getByTestId("user-message").last()).toContainText(question)
+}
+
+test("earlier conversations in the panel: ask, start a new conversation, reopen the first and see its answer", async ({ page }) => {
+  await page.goto("/msl")
+  await expect(page.getByTestId("kpi-calls").first()).toBeVisible()
+  await page.getByTestId("chat-open").click()
+  await expect(panel(page)).toBeVisible()
+
+  // Nothing is saved yet: the list says so, and Back returns to the (empty) conversation.
+  await page.getByTestId("chat-history-toggle").click()
+  await expect(page.getByTestId("chat-history-empty")).toBeVisible()
+  await page.getByTestId("chat-history-back").click()
+  await expect(page.getByTestId("chat-history")).toHaveCount(0)
+
+  await ask(page, FIRST_QUESTION)
+  const firstAnswer = await expectAnswer(page)
+  const calls = await firstAnswer.getByTestId("fact-f1").getAttribute("data-value")
+
+  await page.getByTestId("chat-new").click()
+  await expect(page.getByTestId("chat-turn")).toHaveCount(0)
+  await ask(page, SECOND_QUESTION)
+  await expect(page.getByTestId("chat-turn").last()).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+
+  // The list: both conversations, newest first, each titled by its first question, with a date; this one is marked.
+  await page.getByTestId("chat-history-toggle").click()
+  const view = page.getByTestId("chat-history")
+  await expect(view).toBeVisible()
+  await expect(view.getByRole("heading", { name: "Conversations" })).toBeVisible()
+  await expect(view.getByTestId("chat-history-back")).toBeFocused()
+  const items = view.getByTestId("chat-thread-item")
+  await expect(items).toHaveCount(2)
+  await expect(items.nth(0)).toContainText(SECOND_QUESTION)
+  await expect(items.nth(0)).toHaveAttribute("aria-current", "true")
+  await expect(items.nth(1)).toContainText(FIRST_QUESTION)
+  await expect(items.nth(1)).toContainText("1 question")
+  await expect(items.nth(1).locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/)
+
+  // The conversation behind the list cannot be reached while it shows.
+  await expect(page.getByTestId("chat-input").locator("xpath=ancestor-or-self::*[@inert]")).toHaveCount(1)
+  await noSidewaysScroll(page)
+  if (await isTouch(page)) {
+    for (const [name, target] of [
+      ["back", view.getByTestId("chat-history-back")],
+      ["new conversation", view.getByTestId("chat-history-new")],
+      ["conversation", items.first()],
+      ["toggle", page.getByTestId("chat-history-toggle")],
+    ] as const) {
+      expect((await target.boundingBox())!.height, name).toBeGreaterThanOrEqual(44)
+    }
+  }
+
+  // Reopen the first conversation: its saved answer comes back with its figures and citations.
+  await items.nth(1).click()
+  await expect(view).toHaveCount(0)
+  await expect(page.getByTestId("chat-turn")).toHaveCount(1)
+  await expect(page.getByTestId("user-message")).toContainText(FIRST_QUESTION)
+  const reopened = await expectAnswer(page, { saved: true })
+  expect(await reopened.getByTestId("fact-f1").getAttribute("data-value")).toBe(calls)
+
+  // It is a live conversation again: the next question continues it (two turns), and it is still the first in the list.
+  await ask(page, SECOND_QUESTION)
+  await expect(page.getByTestId("chat-turn")).toHaveCount(2)
+  await expect(page.getByTestId("chat-turn").last()).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+  await page.getByTestId("chat-history-toggle").click()
+  await expect(page.getByTestId("chat-thread-item")).toHaveCount(2)
+  await expect(page.getByTestId("chat-thread-item").first()).toContainText(FIRST_QUESTION)
+  await expect(page.getByTestId("chat-thread-item").first()).toContainText("2 questions")
+
+  // Escape goes back one step, to the control that opened the list, and leaves the panel open.
+  await page.keyboard.press("Escape")
+  await expect(page.getByTestId("chat-history")).toHaveCount(0)
+  await expect(page.getByTestId("chat-history-toggle")).toBeFocused()
+  await expect(panel(page)).toBeVisible()
+
+  // "New conversation" from the list starts an empty one and closes the list.
+  await page.getByTestId("chat-history-toggle").click()
+  await page.getByTestId("chat-history-new").click()
+  await expect(page.getByTestId("chat-history")).toHaveCount(0)
+  await expect(page.getByTestId("chat-empty")).toBeVisible()
+})
+
+test("earlier conversations on the full page: the list beside the chat reopens a conversation", async ({ page }) => {
+  await page.goto("/chat")
+  const rail = page.getByTestId("chat-history-rail")
+  await expect(rail).toBeVisible()
+  await expect(rail.getByTestId("chat-history-empty")).toBeVisible()
+  // The panel's control is for narrow screens; here the list is already on the page.
+  await expect(page.getByTestId("chat-history-toggle")).toBeHidden()
+
+  await ask(page, FIRST_QUESTION)
+  await expectAnswer(page)
+  await page.getByTestId("chat-new").click()
+  await ask(page, SECOND_QUESTION)
+  await expect(page.getByTestId("chat-turn").last()).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+
+  const items = rail.getByTestId("chat-thread-item")
+  await expect(items).toHaveCount(2)
+  await expect(items.nth(0)).toContainText(SECOND_QUESTION)
+  await expect(items.nth(1)).toContainText(FIRST_QUESTION)
+  await noSidewaysScroll(page)
+
+  await items.nth(1).click()
+  await expect(page.getByTestId("user-message")).toContainText(FIRST_QUESTION)
+  await expect(page.getByTestId("chat-turn")).toHaveCount(1)
+  await expectAnswer(page, { saved: true })
+  await expect(items.nth(1)).toHaveAttribute("aria-current", "true")
+
+  // The reopened conversation is the one a reload brings back.
+  await page.reload()
+  await expect(page.getByTestId("user-message")).toContainText(FIRST_QUESTION)
+  await expect(page.getByTestId("chat-turn")).toHaveCount(1)
 })

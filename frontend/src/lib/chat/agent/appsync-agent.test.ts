@@ -6,6 +6,7 @@ import { DataError, type ChatEventPage } from "@/lib/data/types"
 import { ids } from "./answer"
 import { PAGE_FIGURES_CONTEXT } from "@/lib/chat/page-state"
 import { AppSyncChatAgent, MESSAGES, SCREEN_CONTEXT, SURFACE_ACTION_PROP, contextOf, pageOf, surfaceActionOf } from "./appsync-agent"
+import { messagesFromHistory } from "@/lib/chat/persistence"
 import { turnsOf } from "./turns"
 
 const ANSWER = [
@@ -62,6 +63,31 @@ describe("AppSyncChatAgent", () => {
     await agentWith(adapter).runAgent({ runId: "run-2", resume: [{ interruptId: "write-run-12345678", status: "resolved", payload: { approved: true, values: { notes: "Edited" } } }] })
     expect(started).toHaveLength(0)
     expect(resume).toHaveBeenCalledWith(expect.anything(), { threadId: "thread-1", runId: "run-2", interruptedRunId: "run-12345678", approved: true, values: { notes: "Edited" } })
+  })
+
+  it("continues a reopened conversation on its own thread, with its saved turns as context like a live one", async () => {
+    const { adapter, started } = fakeAdapter()
+    const saved = (runId: string, question: string, answer: string, generatedAt: string) => ({ threadId: "thread-1", runId, userMessage: question, assistantText: answer, generatedAt, payload: "{}" })
+    const reopened = messagesFromHistory([
+      saved("old-run-2", "Which territories can I see?", "NE-01 only.", "2026-11-03T10:00:00Z"),
+      saved("old-run-1", "How many calls did I have?", "You had 132 calls.", "2026-11-03T09:00:00Z"),
+    ])
+    const agent = agentWith(adapter, reopened)
+    agent.addMessage(ask("And last month?", "q-new"))
+    await agent.runAgent({ runId: "new-run-1" })
+    expect(started).toEqual([
+      {
+        threadId: "thread-1",
+        runId: "new-run-1",
+        message: "And last month?",
+        history: [
+          { role: "user", content: "How many calls did I have?" },
+          { role: "assistant", content: "You had 132 calls." },
+          { role: "user", content: "Which territories can I see?" },
+          { role: "assistant", content: "NE-01 only." },
+        ],
+      },
+    ])
   })
 
   it("sends the checked screen context and a short history of finished answers", async () => {

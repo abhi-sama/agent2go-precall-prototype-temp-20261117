@@ -700,6 +700,16 @@ export interface ChatRun {
   status: string
 }
 
+/** One earlier conversation in the list the panel offers, as the BE grouped it (`myChatThreads`). Newest activity first. */
+export interface ChatThreadSummary {
+  threadId: string
+  /** The conversation's first question, shortened. */
+  title: string
+  startedAt: IsoDateTime
+  updatedAt: IsoDateTime
+  turnCount: number
+}
+
 /** A completed, caller-owned turn read from the FE DynamoDB chat table through the existing AppSync → BE route. */
 export interface SavedChatTurn {
   threadId: string

@@ -40,6 +40,7 @@ import {
 } from "@/components/chat/chat-thread"
 import { CitationSheet } from "@/components/chat/citation-sheet"
 import { ChatCapabilities } from "@/components/chat/chat-capabilities"
+import { ConversationHistoryView, HistoryToggle } from "@/components/chat/conversation-history"
 import { evidenceOf } from "@/lib/chat/agent/answer"
 import { ASK_THE_AGENT, SCREEN_CONTEXT, SURFACE_ACTION_PROP } from "@/lib/chat/agent/appsync-agent"
 import { turnsOf } from "@/lib/chat/agent/turns"
@@ -188,9 +189,11 @@ export function AskTheAgentFrame({ context, page, starters, chips = null, childr
 // The panel header: CopilotKit's header, with this app's actions beside its close button
 // ---------------------------------------------------------------------------------------------------------------
 
+const HEADER_ACTION =
+  "inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-40 pointer-coarse:size-11"
+
 function HeaderAction({ label, testId, onClick, href, disabled, children }: { label: string; testId?: string; onClick?: () => void; href?: string; disabled?: boolean; children: React.ReactNode }) {
-  const className =
-    "inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-40 pointer-coarse:size-11"
+  const className = HEADER_ACTION
   return href ? (
     <Link href={href} aria-label={label} title={label} data-testid={testId} className={className}>
       {children}
@@ -203,28 +206,32 @@ function HeaderAction({ label, testId, onClick, href, disabled, children }: { la
 }
 
 export function PanelHeader(props: CopilotModalHeaderProps) {
-  const { reset, running, agent } = useChatSession()
+  const { reset, running, agent, historyOpen } = useChatSession()
   const thread = React.useContext(ChatThreadContext)
   return (
     <CopilotModalHeader {...props}>
       {({ closeButton }) => (
-        <header data-slot="copilot-modal-header" className="flex items-center justify-between gap-2 border-b border-border bg-background/95 px-4 py-2 backdrop-blur">
-          <h2 className="inline-flex min-w-0 items-center gap-2 text-base font-medium text-foreground">
-            <Sparkles aria-hidden className="size-4 shrink-0" />
-            <span className="truncate">Ask the agent</span>
-          </h2>
-          <div className="flex items-center gap-1">
-            <HeaderAction label="Open full chat" href="/chat" testId="chat-full">
-              <Maximize2 aria-hidden className="size-4" />
-            </HeaderAction>
-            {thread?.hasMessages && (
-              <HeaderAction label="New conversation" testId="chat-new" disabled={running || agent.isRunning} onClick={reset}>
-                <MessageSquarePlus aria-hidden className="size-4" />
+        <>
+          <header data-slot="copilot-modal-header" className="flex items-center justify-between gap-2 border-b border-border bg-background/95 px-4 py-2 backdrop-blur">
+            <h2 className="inline-flex min-w-0 items-center gap-2 text-base font-medium text-foreground">
+              <Sparkles aria-hidden className="size-4 shrink-0" />
+              <span className="truncate">Ask the agent</span>
+            </h2>
+            <div className="flex items-center gap-1">
+              <HistoryToggle className={HEADER_ACTION} />
+              <HeaderAction label="Open full chat" href="/chat" testId="chat-full">
+                <Maximize2 aria-hidden className="size-4" />
               </HeaderAction>
-            )}
-            <span className={cn("[&>button]:pointer-coarse:size-11")}>{closeButton}</span>
-          </div>
-        </header>
+              {thread?.hasMessages && (
+                <HeaderAction label="New conversation" testId="chat-new" disabled={running || agent.isRunning} onClick={reset}>
+                  <MessageSquarePlus aria-hidden className="size-4" />
+                </HeaderAction>
+              )}
+              <span className={cn("[&>button]:pointer-coarse:size-11")}>{closeButton}</span>
+            </div>
+          </header>
+          {historyOpen && <ConversationHistoryView />}
+        </>
       )}
     </CopilotModalHeader>
   )

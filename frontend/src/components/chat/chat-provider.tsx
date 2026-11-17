@@ -4,9 +4,10 @@ import { usePathname } from "next/navigation"
 import * as React from "react"
 import { useSharedFilters } from "@/components/filters/filter-context"
 import { PageFiguresProvider } from "@/components/chat/page-figures"
-import { ChatSessionContext, type ChatSession } from "@/components/chat/chat-session"
+import { ChatSessionContext, type ChatSession, type OpenThreadResult } from "@/components/chat/chat-session"
 import { AppSyncChatAgent } from "@/lib/chat/agent/appsync-agent"
-import { clearChat, loadChat, messagesFromHistory, saveChat } from "@/lib/chat/persistence"
+import { clearChat, loadChat, saveChat } from "@/lib/chat/persistence"
+import { loadThreadMessages } from "@/lib/chat/threads"
 import { newCorrelationId } from "@/lib/log/logger"
 import { screenContextFor } from "@/lib/chat/screen-context"
 import { useDataAdapter } from "@/lib/data/data-provider"
@@ -37,12 +38,25 @@ function ChatSessionProvider({ userId, children }: { userId: string; children: R
   const { filters } = useSharedFilters()
   const [agent] = React.useState(() => new AppSyncChatAgent({ adapter }))
   const [threadId, setThreadId] = React.useState(() => crypto.randomUUID())
+  // The thread the saved messages belong to, moved in the same step as the messages (never a render later).
+  const threadRef = React.useRef(threadId)
+  const [chatKey, setChatKey] = React.useState(0)
   const [hydrated, setHydrated] = React.useState(false)
   const [running, setRunning] = React.useState(false)
   // Open for one screen: a route change (or the full page, which is the same conversation) closes the panel.
   const [openPath, setOpenPath] = React.useState<string | null>(null)
   const open = openPath === pathname && pathname !== "/chat"
-  const setOpen = React.useCallback((next: boolean) => setOpenPath(next ? pathname : null), [pathname])
+  // The conversation list belongs to one screen too, and a closed panel always reopens on the conversation.
+  const [historyPath, setHistoryPath] = React.useState<string | null>(null)
+  const historyOpen = historyPath === pathname
+  const setHistoryOpen = React.useCallback((next: boolean) => setHistoryPath(next ? pathname : null), [pathname])
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      setOpenPath(next ? pathname : null)
+      if (!next) setHistoryPath(null)
+    },
+    [pathname],
+  )
 
   // Put a stored conversation back, then save shortly after each change (tokens stream in many times a second) and
   // once more when the page goes away.
@@ -50,6 +64,7 @@ function ChatSessionProvider({ userId, children }: { userId: string; children: R
     const stored = loadChat(userId)
     if (stored) {
       agent.setMessages(stored.messages)
+      threadRef.current = stored.threadId
       // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is read after hydration, never during it
       setThreadId(stored.threadId)
       setHydrated(true)
@@ -57,13 +72,13 @@ function ChatSessionProvider({ userId, children }: { userId: string; children: R
     }
     let cancelled = false
     void adapter
-      .myChatHistory({ correlationId: newCorrelationId() })
-      .then((history) => {
-        if (cancelled || history.length === 0) return
-        const newest = [...history].sort((a, b) => b.generatedAt.localeCompare(a.generatedAt))[0]
-        const messages = messagesFromHistory(history.filter((turn) => turn.threadId === newest.threadId))
-        if (!messages.length) return
+      .myChatThreads({ correlationId: newCorrelationId() }, 1)
+      .then(async ([newest]) => {
+        if (cancelled || !newest) return
+        const messages = await loadThreadMessages(adapter, newest.threadId)
+        if (cancelled || !messages.length) return
         agent.setMessages(messages)
+        threadRef.current = newest.threadId
         setThreadId(newest.threadId)
       })
       .catch(() => undefined)
@@ -78,7 +93,7 @@ function ChatSessionProvider({ userId, children }: { userId: string; children: R
   React.useEffect(() => {
     if (!hydrated) return
     let timer: ReturnType<typeof setTimeout> | undefined
-    const save = () => saveChat(userId, { threadId, messages: agent.messages })
+    const save = () => saveChat(userId, { threadId: threadRef.current, messages: agent.messages })
     const subscription = agent.subscribe({
       onMessagesChanged: () => {
         clearTimeout(timer)
@@ -95,20 +110,50 @@ function ChatSessionProvider({ userId, children }: { userId: string; children: R
       clearTimeout(timer)
       save()
     }
-  }, [agent, hydrated, threadId, userId])
+  }, [agent, hydrated, userId])
 
   // CopilotKit's chat moves the agent to the new thread and clears it when the thread id changes.
   const reset = React.useCallback(() => {
     agent.abortRun()
     agent.setMessages([])
-    setThreadId(crypto.randomUUID())
+    const next = crypto.randomUUID()
+    threadRef.current = next
+    setThreadId(next)
+    setHistoryOpen(false)
     clearChat(userId)
-  }, [agent, userId])
+  }, [agent, userId, setHistoryOpen])
+
+  const openThread = React.useCallback(
+    async (id: string): Promise<OpenThreadResult> => {
+      if (agent.isRunning) return "busy"
+      if (id === threadRef.current && agent.messages.length) {
+        setHistoryOpen(false)
+        return "opened"
+      }
+      let messages
+      try {
+        messages = await loadThreadMessages(adapter, id)
+      } catch {
+        return "unavailable"
+      }
+      if (!messages.length) return "empty"
+      // The person may have asked something while the turns were on their way.
+      if (agent.isRunning) return "busy"
+      agent.setMessages(messages)
+      threadRef.current = id
+      setChatKey((key) => key + 1)
+      setThreadId(id)
+      setHistoryOpen(false)
+      saveChat(userId, { threadId: id, messages })
+      return "opened"
+    },
+    [adapter, agent, userId, setHistoryOpen],
+  )
 
   const screen = React.useMemo(() => screenContextFor(pathname, filters), [pathname, filters])
   const value = React.useMemo<ChatSession>(
-    () => ({ open, setOpen, agent, threadId, running, hydrated, reset, screen }),
-    [open, setOpen, agent, threadId, running, hydrated, reset, screen],
+    () => ({ open, setOpen, agent, threadId, chatKey, running, hydrated, reset, openThread, historyOpen, setHistoryOpen, screen }),
+    [open, setOpen, agent, threadId, chatKey, running, hydrated, reset, openThread, historyOpen, setHistoryOpen, screen],
   )
 
   return <ChatSessionContext.Provider value={value}>{children}</ChatSessionContext.Provider>

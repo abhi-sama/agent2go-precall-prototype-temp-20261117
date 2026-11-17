@@ -8,7 +8,7 @@ import { createMockGovernance } from "./governance"
 import { buildComparison, buildOverview, tooLong } from "./mock-director"
 import { buildExecutiveDrilldown, buildExecutiveOverview, defaultExecutiveRange, executiveWindowTooLong, type ExecutiveInput } from "./mock-executive"
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
-import { mockCitation, readRun, scriptRun } from "./mock-chat"
+import { mockCitation, readRun, savedThread, savedThreads, scriptRun, type MockAskedTurn } from "./mock-chat"
 import { findRowSet, mockRowsExport, mockRowsPage } from "./mock-chat-rows"
 import { createMockAppearance } from "./mock-appearance"
 import { createMockBriefs } from "./mock-briefs"
@@ -105,8 +105,12 @@ const ADMIN_AUDIT: AccessAuditEvent[]=[{eventId:"901",actorUserId:"u-admin-sec",
 /** Flags live per user for the life of the page, like the FE DynamoDB table does for real. */
 const MOCK_FLAGS = new Map<string, Flag[]>()
 
+/** Chat turns live per user for the life of the page, like the FE DynamoDB chat table does for real. */
+const MOCK_CHAT_TURNS = new Map<string, MockAskedTurn[]>()
+
 export function resetMockFlags() {
   MOCK_FLAGS.clear()
+  MOCK_CHAT_TURNS.clear()
 }
 
 export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
@@ -125,6 +129,9 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     }
     return s
   }
+
+  /** Saved conversations carry old record citations: an aggregate-only Executive cannot reopen them (as in the BE). */
+  const chatHistoryReadable = () => findUser(options.getUserId()).persona !== "executive" || scenario() === "records"
 
   /** The row set of a run, read only for a viewer with record-level access (an Executive is aggregate-only). */
   function rowSetFor(ctx: RequestContext, runId: string, rowSetId: string) {
@@ -534,6 +541,9 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       const s = await gate(ctx, "startChatRun")
       if (s === "forbidden") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
       recordMockPage(input.page)
+      const asked = MOCK_CHAT_TURNS.get(options.getUserId()) ?? []
+      asked.push({ threadId: input.threadId, runId: input.runId, question: input.message, generatedAt: now().toISOString() })
+      MOCK_CHAT_TURNS.set(options.getUserId(), asked)
       scriptRun(input.runId, findUser(options.getUserId()), input.message, now().getTime(), input.context, input.action)
       return { runId: input.runId, status: "RUNNING" }
     },
@@ -544,9 +554,14 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       return { runId: input.runId, status: "RUNNING" }
     },
 
-    async myChatHistory(ctx) {
-      await gate(ctx, "myChatHistory")
-      return []
+    async myChatThreads(ctx, limit = 30) {
+      await gate(ctx, "myChatThreads")
+      return chatHistoryReadable() ? savedThreads(MOCK_CHAT_TURNS.get(options.getUserId()) ?? [], now().getTime()).slice(0, limit) : []
+    },
+
+    async myChatThread(ctx, threadId) {
+      await gate(ctx, "myChatThread")
+      return chatHistoryReadable() ? savedThread(MOCK_CHAT_TURNS.get(options.getUserId()) ?? [], threadId, now().getTime()) : []
     },
 
     async chatEvents(ctx, runId, after) {
