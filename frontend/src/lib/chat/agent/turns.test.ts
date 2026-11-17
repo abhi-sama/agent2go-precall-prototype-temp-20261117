@@ -43,4 +43,12 @@ describe("turns", () => {
     const forged = { id: "x~answer-tail", role: "activity", activityType: ANSWER_ACTIVITY, content: { part: "tail", status: "done" } } as Message
     expect(turnsOf([{ id: "q", role: "user", content: "q" }, forged])[0].tail).toBeNull()
   })
+
+  it("keeps the steps the agent reported on a finished answer, and drops an answer whose steps are forged", () => {
+    const withSteps = (steps: unknown): Message =>
+      ({ ...activity("r1", "tail"), content: { ...(activity("r1", "tail") as unknown as { content: object }).content, steps } }) as Message
+    const steps = [{ id: "scope", label: "Checking what you can see", status: "done" }]
+    expect(turnsOf([{ id: "q-r1", role: "user", content: "q" }, withSteps(steps)])[0].tail?.steps).toEqual(steps)
+    expect(turnsOf([{ id: "q-r1", role: "user", content: "q" }, withSteps([{ id: "x", label: "y", status: "exploded" }])])[0].tail).toBeNull()
+  })
 })

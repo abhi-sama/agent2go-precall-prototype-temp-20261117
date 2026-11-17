@@ -4,11 +4,11 @@ The AgentCore Runtime-compatible service behind chat (ticket #3, [ADR 0007](../.
 It exposes `GET /ping` and `POST /invocations` on port 8080; an invocation returns an SSE stream of AG-UI events.
 
 ```
-POST /invocations  {identity, thread_id, run_id, messages[], a2ui_action?}
-  RUN_STARTED, CUSTOM model_mode,
+POST /invocations  {identity, thread_id, run_id, messages[], context?, a2ui_action?, page?}
+  RUN_STARTED, CUSTOM model_mode, STATE_SNAPSHOT (progress),
   [TOOL_CALL_START, CUSTOM source_facts, CUSTOM citations, (ACTIVITY_SNAPSHOT a2ui-surface), TOOL_CALL_END]*,
   TEXT_MESSAGE_START, TEXT_MESSAGE_CONTENT*, TEXT_MESSAGE_END, (ACTIVITY_SNAPSHOT a2ui-surface: Adjust this answer),
-  CUSTOM number_check, CUSTOM suggestions, CUSTOM conversation_saved, RUN_FINISHED   (or RUN_ERROR)
+  CUSTOM number_check, STATE_SNAPSHOT (progress done), CUSTOM suggestions, CUSTOM conversation_saved, RUN_FINISHED   (or RUN_ERROR)
 ```
 
 | Module | Role |
@@ -20,7 +20,15 @@ POST /invocations  {identity, thread_id, run_id, messages[], a2ui_action?}
 | `agent.py` | Runs the Strands agent over Bedrock ConverseStream and turns its events into AG-UI events. |
 | `numbers.py` | Checks that figures in the answer came from tool results. |
 | `a2ui.py` | A2UI v1.0 answer surfaces (a themes table, the Adjust this answer form) built from tool results, checked against `docs/a2ui/answer-catalog.json` and the number guard, and the validation of a `refine_answer` action (docs/adr/0017). |
+| `page_proposals.py` | The deterministic detector for "set the page to ..." requests (docs/adr/0019). No model involved. |
+| `progress.py` | The run's progress steps as AG-UI shared state, with a closed, data-free label catalog. |
 | `writes.py` | The narrow write tool: assumes the FE role and puts one turn in FE DynamoDB. The model cannot call it. |
+
+## Page context and shared state (docs/adr/0019)
+
+- **`page`** (optional, validated by the BE Lambda and again by `schemas.PageContext`): the page's name, its filters and its headline figures, as the browser printed them. `agent.page_note` puts it in the system prompt as quoted JSON, labelled *unverified display text*; the persona in that note is the verified identity's. The model may use it only to tell which number a question means and may never repeat a page figure: the number guard accepts only tool results (and the user's own words), and it never reads `page`.
+- **`STATE_SNAPSHOT` progress**: `{"progress": {"status": "running"|"done"|"error", "steps": [{"id", "label", "status"}]}}`, at most 12 steps, labels from `progress.py` only (`scope`, `tool:<toolUseId>`, `write`, `check`). The first follows `model_mode`; the last (status `done`, or `error` before `RUN_ERROR`) follows the number check.
+- **`STATE_SNAPSHOT` proposal**: a question such as "filter the page to T01-01 for the last 30 days" is answered by code, before the model and any tool. After the usual scope checks, the snapshot also carries `"proposal": {"id", "status": "proposed", "reason", "filters": {"preset"|"from"+"to", "territoryId", "questionId"}, "reset"?}` and a fixed-text answer follows. A territory outside the caller's scope is refused with no proposal; an aggregate-only caller may propose dates only. Nothing changes on the page until the person chooses Apply.
 
 The stack (`backend/infra/scripts/up.sh`) builds and runs this as a container next to floci.
 Bedrock calls go to floci, which proxies to LiteLLM and Claude when a key is present and answers with its stub when not.

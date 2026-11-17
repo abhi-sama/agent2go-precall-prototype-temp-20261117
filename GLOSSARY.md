@@ -237,6 +237,14 @@ _Avoid_: error, violation
 The territory, question, dates and view a chat was opened from; a default for the agent's tools and never extra access.
 _Avoid_: scope (scope means the territories a user may see)
 
+**Page context**:
+What the person sees on the page a chat was opened from: its name, its filters and its printed headline figures. The agent reads it to know which number a question means; the figures are never evidence, and it is never extra access.
+_Avoid_: scope, screen context (the territory, question and dates the screen sends as defaults)
+
+**Page proposal**:
+A change to the page's filters that the agent suggests in the chat; nothing changes until the person applies it, and the page still shows only what their access allows.
+_Avoid_: filter command, auto-filter
+
 **Ask the agent**:
 The single chat experience available from the global header. It opens beside the workspace on desktop and as an overlay on narrower screens; its full-screen route is `/chat`.
 _Avoid_: Ask AI, assistant, chat drawer

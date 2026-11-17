@@ -7,6 +7,7 @@ import { Heading } from "@astryxdesign/core/Heading"
 import { Icon } from "@astryxdesign/core/Icon"
 import { Stack } from "@astryxdesign/core/Stack"
 import { Text } from "@astryxdesign/core/Text"
+import { useRegisterFigure } from "@/components/chat/page-figures"
 import { useCountUp } from "@/hooks/use-count-up"
 import { useEnter } from "@/hooks/use-enter"
 import { cn } from "@/lib/utils"
@@ -39,6 +40,8 @@ export function KpiTile({ id, label, value, definition, caption, icon: Glyph, se
   const shown = useCountUp(value, undefined, `kpi:${screen}:${id}`)
   const enter = useEnter(`kpi-${id}`, index)
   const color = seriesColor(series)
+  // What this tile prints, for the chat to read as page context (docs/adr/0019).
+  useRegisterFigure({ id: `kpi-${id}`.replace(/[^A-Za-z0-9_.:-]/g, "-").slice(0, 64), label, value: value.toLocaleString("en-US"), definition })
   return (
     <Card
       data-testid={`kpi-${id}`}

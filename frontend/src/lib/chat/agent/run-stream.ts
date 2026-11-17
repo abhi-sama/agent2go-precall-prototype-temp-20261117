@@ -3,7 +3,8 @@
  *
  * This is the trust boundary on the browser side (docs/adr/0018). It is an allow-list: only the event types and
  * custom names below reach CopilotKit, A2UI surfaces only after the answer-catalog gate (ADR 0017), and nothing can
- * start a frontend tool, an interrupt or a state change. It also repairs what the AG-UI verifier rejects, because a
+ * start a frontend tool or an interrupt, and the only state it can change is the agent's own `progress` and a
+ * `proposal` to change the page's filters (docs/adr/0019), both checked. It also repairs what the AG-UI verifier rejects, because a
  * stored event log can end early (the worker appends a bare `RUN_ERROR` when the agent is unavailable):
  *  - `RUN_STARTED` always comes first and carries this run's ids;
  *  - open text messages and tool calls are closed, and tool calls get a result, before the run ends;
@@ -13,12 +14,14 @@
 import { EventType, type BaseEvent } from "@ag-ui/core"
 import { A2UI_ACTIVITY_TYPE, surfaceFromActivity } from "@/lib/chat/a2ui/protocol"
 import type { ChatContext } from "@/lib/data/director-insights"
+import { sanitizeProgress, sanitizeProposal, settleProgress, type AgentProgress } from "@/lib/chat/page-state"
 import { ANSWER_ACTIVITY, EVIDENCE_EVENTS, HEAD_EVENTS, ids, type AnswerActivity, type AnswerPart, type AnswerStatus, type EvidenceEvent } from "./answer"
 
 type Json = Record<string, unknown>
 
 const MAX_SURFACES = 4
 const MAX_EVIDENCE_EVENTS = 400
+const MAX_STATE_EVENTS = 80
 const MAX_ERROR_CHARS = 300
 const DEFAULT_ERROR = "The agent could not complete this answer."
 
@@ -48,6 +51,9 @@ export class RunStream {
   private readonly knownTools = new Set<string>()
   private readonly surfaces = new Map<string, string>()
   private readonly evidence: EvidenceEvent[] = []
+  /** The agent's latest progress, kept so the answer can carry its final steps and the run can settle it. */
+  private progress: AgentProgress | null = null
+  private stateEvents = 0
 
   constructor(
     private readonly ids: RunIds,
@@ -62,7 +68,14 @@ export class RunStream {
   start(): BaseEvent[] {
     if (this.started || this.ended) return []
     this.started = true
-    return [{ type: EventType.RUN_STARTED, threadId: this.ids.threadId, runId: this.ids.runId } as BaseEvent]
+    return [
+      { type: EventType.RUN_STARTED, threadId: this.ids.threadId, runId: this.ids.runId } as BaseEvent,
+      // The last run's steps and proposal give way to this run's.
+      this.stateDelta([
+        { op: "add", path: "/progress", value: { status: "running", steps: [] } },
+        { op: "add", path: "/proposal", value: null },
+      ]),
+    ]
   }
 
   /** One event from the log, as zero or more events for CopilotKit. */
@@ -138,6 +151,9 @@ export class RunStream {
       case "ACTIVITY_SNAPSHOT":
         out.push(...this.surface(event))
         return out
+      case "STATE_SNAPSHOT":
+        out.push(...this.agentState(event.snapshot))
+        return out
       case "RUN_FINISHED":
         out.push(...this.finish({ status: "done" }))
         return out
@@ -145,7 +161,7 @@ export class RunStream {
         out.push(...this.finish({ status: "error", message: str(event.message)?.slice(0, MAX_ERROR_CHARS) ?? DEFAULT_ERROR }))
         return out
       default:
-        // State, message snapshots, raw, step and reasoning events are not part of this contract.
+        // State deltas, message snapshots, raw, step and reasoning events are not part of this contract.
         return out
     }
   }
@@ -161,6 +177,9 @@ export class RunStream {
     this.awaitingResult.clear()
     const status: AnswerStatus = outcome.status
     const error = outcome.status === "error" ? outcome.message : null
+    // Nothing is left "running" once the run is over, whatever the agent last said.
+    this.progress = settleProgress(this.progress, outcome.status)
+    out.push(this.stateDelta([{ op: "add", path: "/progress", value: this.progress }]))
     if (this.headShown) out.push(this.snapshot("head", status, error))
     out.push(this.snapshot("tail", status, error))
     this.ended = true
@@ -208,6 +227,7 @@ export class RunStream {
       status,
       error,
       events: [...this.evidence],
+      ...(part === "tail" && this.progress?.steps.length ? { steps: this.progress.steps } : {}),
     }
     return {
       type: EventType.ACTIVITY_SNAPSHOT,
@@ -216,6 +236,29 @@ export class RunStream {
       content,
       replace: true,
     } as BaseEvent
+  }
+
+  private stateDelta(delta: { op: "add"; path: string; value: unknown }[]): BaseEvent {
+    this.stateEvents++
+    return { type: EventType.STATE_DELTA, delta } as BaseEvent
+  }
+
+  /**
+   * The agent's own part of the shared state: its progress and a proposal for the page. Anything else in the snapshot
+   * (including the page's own `page` key) is ignored, so the agent can never write the page's state or the person's.
+   */
+  private agentState(snapshot: unknown): BaseEvent[] {
+    if (typeof snapshot !== "object" || snapshot === null || this.stateEvents >= MAX_STATE_EVENTS) return []
+    const raw = snapshot as Record<string, unknown>
+    const delta: { op: "add"; path: string; value: unknown }[] = []
+    const progress = sanitizeProgress(raw.progress)
+    if (progress) {
+      this.progress = progress
+      delta.push({ op: "add", path: "/progress", value: progress })
+    }
+    const proposal = sanitizeProposal(raw.proposal)
+    if (proposal) delta.push({ op: "add", path: "/proposal", value: { ...proposal, status: "proposed" } })
+    return delta.length ? [this.stateDelta(delta)] : []
   }
 
   /** An A2UI surface that passes the answer-catalog gate (ADR 0017); anything else is dropped whole. */

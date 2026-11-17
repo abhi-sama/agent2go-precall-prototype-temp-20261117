@@ -96,7 +96,7 @@ async def test_streams_facts_then_text_then_suggestions(settings, repository) ->
     agent, writer = runtime(settings, repository, steps)
     events = await collect(agent, make_invocation())
 
-    order = names(events)
+    order = [n for n in names(events) if n != "STATE_SNAPSHOT"]  # progress state is covered in test_page_state.py
     assert order[:2] == ["RUN_STARTED", "model_mode"]
     assert order.index("source_facts") < order.index("TEXT_MESSAGE_START")
     assert order[-1] == "RUN_FINISHED"

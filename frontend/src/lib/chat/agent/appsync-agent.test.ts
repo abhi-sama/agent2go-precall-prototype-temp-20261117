@@ -4,7 +4,8 @@ import type { DataAdapter } from "@/lib/data"
 import type { ChatRunInput } from "@/lib/data/adapter"
 import { DataError, type ChatEventPage } from "@/lib/data/types"
 import { ids } from "./answer"
-import { AppSyncChatAgent, MESSAGES, SCREEN_CONTEXT, SURFACE_ACTION_PROP, contextOf, surfaceActionOf } from "./appsync-agent"
+import { PAGE_FIGURES_CONTEXT } from "@/lib/chat/page-state"
+import { AppSyncChatAgent, MESSAGES, SCREEN_CONTEXT, SURFACE_ACTION_PROP, contextOf, pageOf, surfaceActionOf } from "./appsync-agent"
 import { turnsOf } from "./turns"
 
 const ANSWER = [
@@ -138,5 +139,50 @@ describe("AppSyncChatAgent", () => {
     const copy = agentWith(adapter).clone()
     expect(copy).toBeInstanceOf(AppSyncChatAgent)
     expect(copy.messages).toHaveLength(1)
+  })
+})
+
+describe("the page the question was asked from (docs/adr/0019)", () => {
+  const figures = [{ id: "kpi-calls", label: "Distinct calls", value: "132", definition: "Each call counted once." }]
+
+  it("reads the page's state and its printed figures, checked", () => {
+    const page = pageOf({
+      state: { page: { label: "My territory", filters: { territoryId: "NE-01", from: "2026-10-01", to: "2026-10-31", hcpId: "H-1", molecule: "<b>" } } },
+      context: [{ description: PAGE_FIGURES_CONTEXT, value: JSON.stringify([...figures, { id: "bad id", label: "x", value: "1" }]) }],
+    })
+    expect(page).toEqual({ label: "My territory", filters: { territoryId: "NE-01", from: "2026-10-01", to: "2026-10-31" }, figures })
+  })
+
+  it("sends nothing when there is no page state and no figures, and survives junk", () => {
+    expect(pageOf({ state: {}, context: [] })).toBeUndefined()
+    expect(pageOf({ state: { page: "x" }, context: [{ description: PAGE_FIGURES_CONTEXT, value: "not json" }] })).toBeUndefined()
+  })
+
+  it("sends it with the question through startChatRun", async () => {
+    const { adapter, started } = fakeAdapter()
+    const agent = agentWith(adapter)
+    agent.setState({ page: { label: "My territory", filters: { territoryId: "NE-01" } } })
+    await agent.runAgent({ runId: "run-1", context: [{ description: PAGE_FIGURES_CONTEXT, value: JSON.stringify(figures) }] })
+    expect(started[0].page).toEqual({ label: "My territory", filters: { territoryId: "NE-01" }, figures })
+  })
+
+  it("writes the agent's progress into the shared state and leaves the page's own state alone", async () => {
+    const progress = { type: "STATE_SNAPSHOT", snapshot: { progress: { status: "running", steps: [{ id: "scope", label: "Checking what you can see", status: "running" }] }, page: { filters: { territoryId: "XX-99" } } } }
+    const { adapter } = fakeAdapter([ANSWER[0], progress, ...ANSWER.slice(1)])
+    const agent = agentWith(adapter)
+    agent.setState({ page: { label: "My territory", filters: { territoryId: "NE-01" } } })
+    await agent.runAgent({ runId: "run-1" })
+    const state = agent.state as { page: unknown; progress: { status: string; steps: { status: string }[] }; proposal: unknown }
+    expect(state.page).toEqual({ label: "My territory", filters: { territoryId: "NE-01" } })
+    expect(state.progress).toEqual({ status: "done", steps: [{ id: "scope", label: "Checking what you can see", status: "done" }] })
+    expect(state.proposal).toBeNull()
+  })
+
+  it("puts the agent's proposal in the shared state for the page to offer", async () => {
+    const proposal = { id: "run-1-proposal", status: "proposed", reason: "Set the page to territory NE-01.", filters: { territoryId: "NE-01" } }
+    const { adapter } = fakeAdapter([ANSWER[0], { type: "STATE_SNAPSHOT", snapshot: { proposal } }, ...ANSWER.slice(1)])
+    const agent = agentWith(adapter)
+    await agent.runAgent({ runId: "run-1" })
+    expect((agent.state as { proposal: unknown }).proposal).toEqual(proposal)
   })
 })

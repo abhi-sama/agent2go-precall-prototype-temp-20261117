@@ -14,7 +14,7 @@ import { CopilotRoot } from "@/components/chat/copilot-root"
 import { useKeepMounted } from "@/components/chat/use-keep-mounted"
 import { useChatPresentation } from "@/hooks/use-chat-presentation"
 import { startersFor } from "@/lib/chat/context"
-import type { ContextChip } from "@/lib/chat/screen-context"
+import { pageWithout, type ContextChip } from "@/lib/chat/screen-context"
 import type { ChatContext } from "@/lib/data/director-insights"
 
 function contextWithout(hidden: Set<ContextChip["kind"]>, context: ChatContext): ChatContext | undefined {
@@ -43,7 +43,8 @@ function useScreenChips(open: boolean) {
   const remove = React.useCallback((kind: ContextChip["kind"]) => setHidden((current) => new Set([...current, kind])), [])
   const context = React.useMemo(() => contextWithout(hidden, screen.context), [screen, hidden])
   const chips = React.useMemo<ChatThreadValue["chips"]>(() => ({ items: screen.chips.filter((chip) => !hidden.has(chip.kind)), remove }), [screen, hidden, remove])
-  return { context, chips, starters: startersFor(context, STARTERS) }
+  const page = React.useMemo(() => pageWithout(hidden, screen.page), [screen, hidden])
+  return { context, page, chips, starters: startersFor(context, STARTERS) }
 }
 
 const PopupWelcome = (props: React.ComponentProps<typeof CopilotPopupView.WelcomeScreen>) => <CopilotPopupView.WelcomeScreen {...props} welcomeMessage={WelcomeMessage} />
@@ -57,13 +58,13 @@ function ChatDrawer() {
   const pathname = usePathname()
   const { open, setOpen, hydrated } = useChatSession()
   const presentation = useChatPresentation()
-  const { context, chips, starters } = useScreenChips(open)
+  const { context, page, chips, starters } = useScreenChips(open)
   // Not before the stored conversation is back: CopilotKit's chat clears the thread when its id changes under it.
   if (!hydrated || pathname === "/chat" || presentation === "docked") return null
   const sheet = presentation === "sheet"
   return (
     <div data-a2g-chat={presentation} data-testid={open ? "chat-drawer" : undefined} data-presentation={presentation} className="contents">
-      <AskTheAgentFrame context={context} starters={starters} chips={chips}>
+      <AskTheAgentFrame context={context} page={page} starters={starters} chips={chips}>
         <CopilotPopup
           {...CHAT_PROPS}
           open={open}
@@ -90,11 +91,11 @@ function ChatDock() {
   const presentation = useChatPresentation()
   const docked = hydrated && presentation === "docked" && pathname !== "/chat"
   const mounted = useKeepMounted(open && docked)
-  const { context, chips, starters } = useScreenChips(open)
+  const { context, page, chips, starters } = useScreenChips(open)
   if (!docked || !mounted) return null
   return (
     <div data-a2g-chat="docked" data-testid={open ? "chat-dock" : undefined} className="contents">
-      <AskTheAgentFrame context={context} starters={starters} chips={chips}>
+      <AskTheAgentFrame context={context} page={page} starters={starters} chips={chips}>
         <CopilotSidebar {...CHAT_PROPS} open={open} onOpenChange={setOpen} toggleButton={NoToggle} header={PanelHeader} welcomeScreen={SidebarWelcome} width={420} />
       </AskTheAgentFrame>
     </div>

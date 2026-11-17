@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation"
 import * as React from "react"
 import { useSharedFilters } from "@/components/filters/filter-context"
+import { PageFiguresProvider } from "@/components/chat/page-figures"
 import { ChatSessionContext, type ChatSession } from "@/components/chat/chat-session"
 import { AppSyncChatAgent } from "@/lib/chat/agent/appsync-agent"
 import { clearChat, loadChat, saveChat } from "@/lib/chat/persistence"
@@ -21,9 +22,11 @@ const SAVE_DELAY_MS = 300
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { userId } = useSession()
   return (
-    <ChatSessionProvider key={userId} userId={userId}>
-      {children}
-    </ChatSessionProvider>
+    <PageFiguresProvider>
+      <ChatSessionProvider key={userId} userId={userId}>
+        {children}
+      </ChatSessionProvider>
+    </PageFiguresProvider>
   )
 }
 

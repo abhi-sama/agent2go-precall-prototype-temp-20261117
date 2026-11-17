@@ -11,6 +11,7 @@ import { buildMatrix, buildThemes } from "./mock-executive-themes"
 import { inferMockVisual, mockVisual, type MockVisualRequest } from "./mock-visuals"
 import { rememberRowSets, rowSetsEvent, type MockRowSet } from "./mock-chat-rows"
 import { mockResponseRecord, mockTerritorySummary } from "./mock-director-insights"
+import { inferMockProposal, proposalSummary, withProgress, type MockProposal } from "./mock-page-state"
 import { parseRefineAction, refineQuestion, refineSurface, surfaceEvent, surfaceId, tableSurface, type RefineRequest } from "./mock-surfaces"
 import type { ChatEventPage, ChatSurfaceActionInput, SourceRecord } from "./types"
 
@@ -47,6 +48,8 @@ const weekdaysBetween = (from: string, to: string) => {
   return n
 }
 
+const AGGREGATE_ONLY_PAGE = "An aggregate-only role can change the page's date range, but not filter it to a territory or a question."
+
 export function scriptRun(runId: string, user: FixtureUser, typed: string, now = Date.now(), context?: ChatContext, action?: ChatSurfaceActionInput): void {
   // An Adjust-form action is validated against closed lists, then asked as the question it stands for (docs/adr/0017).
   const refine: RefineRequest | null = action ? parseRefineAction(action.name, action.context, user.persona === "executive") : null
@@ -69,8 +72,28 @@ export function scriptRun(runId: string, user: FixtureUser, typed: string, now =
   const activityQuestion = /\b(?:calls?|engaged|hcps?|responses?|insights?|activity)\b|\bhow\s+(?:am|did)\s+i\s+do\b/i.test(question)
 
   const summaryTerritory = context?.intent === "TERRITORY_SUMMARY" ? context.territoryId : undefined
+  // A request to change what the page shows is found by rule and offered as a proposal; nothing changes until the person
+  // applies it (docs/adr/0019). A territory outside the caller's scope is refused like any other question about it.
+  const proposal: MockProposal | null = action || directReply ? null : inferMockProposal(question)
+  const proposedTerritory = proposal?.filters.territoryId
+  const proposable = proposal && !(proposedTerritory && !user.territoryIds.includes(proposedTerritory))
+  let proposalState: Record<string, unknown> | undefined
   if (directReply) {
     answer = directReply
+  } else if (proposal && user.persona === "executive" && (proposedTerritory || proposal.filters.questionId)) {
+    answer = AGGREGATE_ONLY_PAGE
+  } else if (proposal && proposable) {
+    const proposalFilters = proposal.filters
+    proposalState = {
+      proposal: {
+        id: `${runId}-proposal`,
+        status: "proposed",
+        reason: proposal.reset && !Object.keys(proposalFilters).length ? "Reset the page filters to their defaults." : `Set the page to ${proposalSummary(proposal)}.`,
+        filters: proposalFilters,
+        ...(proposal.reset ? { reset: true } : {}),
+      },
+    }
+    answer = `I can set the page to ${proposalSummary(proposal)}. Choose Apply on the card below to change the page filters; nothing changes until you do.`
   } else if (scopeQuestion) {
     if (user.persona === "executive") {
       answer = "Your role has aggregate-only access to its configured regions; individual territory records are not available in chat."
@@ -343,7 +366,9 @@ export function scriptRun(runId: string, user: FixtureUser, typed: string, now =
     custom("conversation_saved", { saved: true }),
     ev("RUN_FINISHED", { threadId: "mock", runId }),
   )
-  runs.set(runId, { startedAt: now, events: events.map((data, i) => ({ seq: i + 1, at: 150 + i * TOKEN_MS, data })) })
+  // The proposal rides the run's last progress snapshot, ahead of the answer's closing events.
+  const woven = withProgress(events, proposalState)
+  runs.set(runId, { startedAt: now, events: woven.map((data, i) => ({ seq: i + 1, at: 150 + i * TOKEN_MS, data })) })
 }
 
 export function readRun(runId: string, after: number, now = Date.now()): ChatEventPage | null {

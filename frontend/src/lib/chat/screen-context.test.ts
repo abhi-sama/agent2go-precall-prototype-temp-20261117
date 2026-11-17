@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { describeContext, screenContextFor, viewOf } from "./screen-context"
+import { describeContext, pageOfContext, pageWithout, screenContextFor, viewOf } from "./screen-context"
 
 describe("viewOf", () => {
   it("turns a route into the BE's view slug", () => {
@@ -42,6 +42,39 @@ describe("screenContextFor", () => {
 
   it("describes an unknown route from its path", () => {
     expect(screenContextFor("/reports/quarterly", {}).chips[0].label).toBe("Quarterly")
+  })
+})
+
+describe("the page state (docs/adr/0019)", () => {
+  const filters = { from: "2026-10-05", to: "2026-11-04", territoryId: "NE-01", questionId: "Q-0001", molecule: "osimertinib", landscape: "NSCLC", theme: "access", hcpId: "HCP-0001" }
+
+  it("names the page and carries every filter the chips stand for, never the record-level HCP", () => {
+    const { page, chips } = screenContextFor("/director/insights", filters)
+    expect(page).toEqual({
+      label: "Director insights",
+      filters: { from: "2026-10-05", to: "2026-11-04", territoryId: "NE-01", questionId: "Q-0001", molecule: "osimertinib", landscape: "NSCLC", theme: "access" },
+    })
+    expect(chips.map((c) => c.kind)).toEqual(["screen", "range", "territory", "product", "question", "landscape", "theme"])
+  })
+
+  it("carries no filters from a screen that does not show them", () => {
+    expect(screenContextFor("/msl/briefs", filters).page).toEqual({ label: "Pre-call brief", filters: {} })
+  })
+
+  it("leaves out the filters whose chips were removed, and the label when the screen chip was", () => {
+    const { page } = screenContextFor("/msl", filters)
+    expect(pageWithout(new Set(["territory", "product"]), page).filters).toEqual({ from: "2026-10-05", to: "2026-11-04", questionId: "Q-0001", landscape: "NSCLC", theme: "access" })
+    expect(pageWithout(new Set(["range"]), page).filters).not.toHaveProperty("from")
+    expect(pageWithout(new Set(["range"]), page).filters).not.toHaveProperty("to")
+    expect(pageWithout(new Set(["screen"]), page).label).toBeUndefined()
+  })
+
+  it("takes the page state of a chat opened from a link from the link's screen context", () => {
+    expect(pageOfContext({ view: "director-insights", territoryId: "NE-01", questionId: "Q-1", from: "2026-10-01", to: "2026-10-31" }, "Ask the agent")).toEqual({
+      label: "Ask the agent",
+      filters: { from: "2026-10-01", to: "2026-10-31", territoryId: "NE-01", questionId: "Q-1" },
+    })
+    expect(pageOfContext(undefined, "Ask the agent")).toEqual({ label: "Ask the agent", filters: {} })
   })
 })
 

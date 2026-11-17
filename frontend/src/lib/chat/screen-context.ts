@@ -1,17 +1,33 @@
 import type { ChatContext } from "@/lib/data/director-insights"
 import type { InsightFilters } from "@/lib/data/types"
 import { formatRange } from "@/lib/dates"
+import { sanitizePageFilters, type PageFilterKey, type PageState } from "@/lib/chat/page-state"
 
 /** What the slide-in chat panel tells the agent, and the chips that show the person exactly that. */
 export interface ContextChip {
-  kind: "screen" | "range" | "territory" | "product" | "question"
+  kind: "screen" | "range" | "territory" | "product" | "question" | "landscape" | "study" | "survey" | "theme"
   label: string
+}
+
+/** The chip that stands for each filter the chat can carry: removing the chip stops that filter being sent. */
+export const FILTER_CHIP: Record<PageFilterKey, ContextChip["kind"]> = {
+  from: "range",
+  to: "range",
+  territoryId: "territory",
+  molecule: "product",
+  landscape: "landscape",
+  study: "study",
+  survey: "survey",
+  questionId: "question",
+  theme: "theme",
 }
 
 export interface ScreenContext {
   /** Sent through the approved path (`ChatContextInput`). Defaults for the agent, never authority. */
   context: ChatContext
   chips: ContextChip[]
+  /** The page's own state for the agent (`state.page`, docs/adr/0019): its name and every filter the chips stand for. */
+  page: PageState
 }
 
 interface ScreenInfo {
@@ -64,8 +80,9 @@ export function isFilteredScreen(pathname: string): boolean {
  */
 export function screenContextFor(pathname: string, filters: InsightFilters): ScreenContext {
   const context: ChatContext = { view: viewOf(pathname) }
-  const chips: ContextChip[] = [{ kind: "screen", label: labelOf(pathname) }]
-  if (!isFilteredScreen(pathname)) return { context, chips }
+  const label = labelOf(pathname)
+  const chips: ContextChip[] = [{ kind: "screen", label }]
+  if (!isFilteredScreen(pathname)) return { context, chips, page: { label, filters: {} } }
 
   if (filters.from && filters.to && filters.from <= filters.to) {
     context.from = filters.from
@@ -76,14 +93,34 @@ export function screenContextFor(pathname: string, filters: InsightFilters): Scr
     context.territoryId = filters.territoryId
     chips.push({ kind: "territory", label: `Territory ${filters.territoryId}` })
   }
-  // The chat API deliberately has no molecule field. Keep the active product visible and removable rather than
-  // widening the approved request contract in this layout-only change.
+  // The chat API deliberately has no molecule field on its context. The product rides `page.filters` (docs/adr/0019),
+  // and its chip stays visible and removable like the others.
   if (filters.molecule) chips.push({ kind: "product", label: `Product ${filters.molecule}` })
   if (filters.questionId && /^[A-Za-z0-9_.:-]{1,64}$/.test(filters.questionId)) {
     context.questionId = filters.questionId
     chips.push({ kind: "question", label: `Question ${filters.questionId}` })
   }
-  return { context, chips }
+  const clean = sanitizePageFilters(filters)
+  for (const [key, kind, title] of [
+    ["landscape", "landscape", "Disease area"],
+    ["study", "study", "Study"],
+    ["survey", "survey", "Survey"],
+    ["theme", "theme", "Theme"],
+  ] as const) {
+    if (clean[key]) chips.push({ kind, label: `${title} ${clean[key]}` })
+  }
+  return { context, chips, page: { label, filters: clean } }
+}
+
+/** The page's state without the filters whose chips the person removed. */
+export function pageWithout(hidden: ReadonlySet<ContextChip["kind"]>, page: PageState): PageState {
+  const filters = Object.fromEntries(Object.entries(page.filters).filter(([key]) => !hidden.has(FILTER_CHIP[key as PageFilterKey])))
+  return { ...(page.label && !hidden.has("screen") ? { label: page.label } : {}), filters }
+}
+
+/** The page state for a chat opened from a link: the link's own screen context (the full page has no chips). */
+export function pageOfContext(context: ChatContext | undefined, label: string): PageState {
+  return { label, filters: sanitizePageFilters({ from: context?.from, to: context?.to, territoryId: context?.territoryId, questionId: context?.questionId }) }
 }
 
 /** One line for a past turn: where the question was asked from. */

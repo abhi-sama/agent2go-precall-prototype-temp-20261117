@@ -9,7 +9,9 @@
  * Extension points for the features built on this (they are not used here):
  *  - context: CopilotKit's `useAgentContext` entries arrive in `input.context`; the screen context is one of them.
  *  - forwarded props: an A2UI surface action rides `input.forwardedProps` (`SURFACE_ACTION_PROP`).
- *  - tools and state: `input.tools` and `input.state` reach `run`, but the AppSync contract has no field for them yet.
+ *  - state and page context (docs/adr/0019): `input.state.page` (the page's name and filters) and the page's visible
+ *    figures (a context entry) ride `startChatRun`'s `page`; the agent's progress and page proposals come back as state.
+ *  - tools: `input.tools` reaches `run`, but the AppSync contract has no field for them yet.
  */
 
 import { AbstractAgent, type AgentConfig, type BaseEvent, type Message, type RunAgentInput } from "@ag-ui/client"
@@ -17,9 +19,10 @@ import { Observable } from "rxjs"
 import { isAllowedAction, type SurfaceAction } from "@/lib/chat/a2ui/protocol"
 import { sanitizeChatContext } from "@/lib/chat/context"
 import { parseEvent } from "@/lib/chat/events"
+import { PAGE_FIGURES_CONTEXT, pageInputOf, sanitizeFigures, sanitizePageState } from "@/lib/chat/page-state"
 import type { DataAdapter } from "@/lib/data"
 import type { ChatContext } from "@/lib/data/director-insights"
-import { toDataError, type ChatSurfaceActionInput } from "@/lib/data/types"
+import { toDataError, type ChatPageInput, type ChatSurfaceActionInput } from "@/lib/data/types"
 import { log, newCorrelationId } from "@/lib/log/logger"
 import { RunStream, type RunOutcome } from "./run-stream"
 import { historyOf, textOf } from "./turns"
@@ -61,6 +64,21 @@ export function contextOf(input: Pick<RunAgentInput, "context">): ChatContext | 
   } catch {
     return undefined
   }
+}
+
+/** The page the question was asked from: its state (name and filters) and the figures it prints. Both are checked again. */
+export function pageOf(input: Pick<RunAgentInput, "state" | "context">): ChatPageInput | undefined {
+  const page = sanitizePageState((input.state as Record<string, unknown> | undefined)?.page)
+  const entry = input.context?.find((c) => c.description === PAGE_FIGURES_CONTEXT)
+  let figures: ReturnType<typeof sanitizeFigures> = []
+  if (entry) {
+    try {
+      figures = sanitizeFigures(JSON.parse(entry.value))
+    } catch {
+      figures = []
+    }
+  }
+  return pageInputOf(page, figures)
 }
 
 /** A surface action forwarded with this run, if it is one the BE accepts; anything else is ignored. */
@@ -157,6 +175,7 @@ export class AppSyncChatAgent extends AbstractAgent {
     const message = question ? textOf(question).trim().slice(0, MAX_QUESTION_CHARS) : ""
     if (!message) return end({ status: "error", message: MESSAGES.empty })
     const action = surfaceActionOf(input)
+    const page = pageOf(input)
     // From the agent's own list: the AG-UI client leaves activity messages (the answers' outcomes) out of `input`.
     const asked = this.messages.findIndex((m) => m.id === question!.id)
     const history = historyOf(asked >= 0 ? this.messages.slice(0, asked) : this.messages)
@@ -168,6 +187,7 @@ export class AppSyncChatAgent extends AbstractAgent {
         history,
         ...(context ? { context } : {}),
         ...(action ? { action } : {}),
+        ...(page ? { page } : {}),
       })
       let after = 0
       let failures = 0

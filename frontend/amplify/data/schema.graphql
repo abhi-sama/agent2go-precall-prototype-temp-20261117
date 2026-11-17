@@ -1471,6 +1471,20 @@ type LeadershipSummaryExport {
 enum ChatIntent { FREE TERRITORY_SUMMARY }
 input ChatContextInput { view: String, territoryId: String, questionId: String, from: AWSDate, to: AWSDate, intent: ChatIntent }
 """
+One headline figure the person can see on the page the chat was opened from, as the page printed it. It is shown text,
+copied by the browser: the agent reads it only to know which number a question is about, and never repeats it as a fact
+(every figure in an answer is counted by RLS-scoped SQL and checked).
+"""
+input ChatFigureInput { id: String!, label: String!, value: String!, definition: String }
+"""The filters on the page the chat was opened from (the shared filter bar), for the filters the person left on."""
+input ChatPageFiltersInput { from: AWSDate, to: AWSDate, territoryId: String, molecule: String, landscape: String, study: String, survey: String, questionId: String, theme: String }
+"""
+What the person is looking at: the page's name, its filters and its headline figures (docs/adr/0019). Readable context for
+the agent, validated by the BE and never authority: every tool still reads under the caller's row-level security, and the
+persona is the verified caller's, not one named here.
+"""
+input ChatPageInput { label: String, filters: ChatPageFiltersInput, figures: [ChatFigureInput!] }
+"""
 A user action on an A2UI surface in a chat answer, such as the Adjust this answer form (docs/adr/0017). The BE checks
 its shape and the agent its values; it becomes the question it stands for and grants nothing a typed question would not.
 `context` is the action's resolved key-value context as JSON.
@@ -1846,7 +1860,7 @@ type Mutation {
   approveDefinition(input: ApproveDefinitionInput!): GovernedDefinition!
   createGovernanceRequest(input: CreateGovernanceRequestInput!): GovernanceRequest!
   decideGovernanceRequest(input: DecideGovernanceRequestInput!): GovernanceRequest!
-  startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!], context: ChatContextInput, action: ChatSurfaceActionInput): ChatRun!
+  startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!], context: ChatContextInput, action: ChatSurfaceActionInput, page: ChatPageInput): ChatRun!
   saveView(input: SaveViewInput!): SavedView!
   "Save the caller's style, mode and density. Always the caller's own; there is no way to name another user."
   setAppearance(input: AppearanceInput!): AppearancePreference!

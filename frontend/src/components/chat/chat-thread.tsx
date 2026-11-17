@@ -24,8 +24,9 @@ import {
   type MessageRow,
 } from "@copilotkit/react-core/v2"
 import type { Message } from "@ag-ui/core"
-import { Check, CircleHelp, Download, FileText, LayoutDashboard, LoaderCircle, MapPin, Pill, CalendarRange, X } from "lucide-react"
+import { Check, CircleHelp, Download, FileText, FlaskConical, LayoutDashboard, ListChecks, LoaderCircle, MapPin, Microscope, Pill, CalendarRange, Tag, X } from "lucide-react"
 import * as React from "react"
+import { ProposalCard, TurnProgress } from "@/components/chat/agent-state"
 import { KindLabel } from "@/components/chat/chat-provenance"
 import { useChatSession } from "@/components/chat/chat-session"
 import { useAppToast } from "@/components/state/use-app-toast"
@@ -36,6 +37,7 @@ import type { SurfaceAction } from "@/lib/chat/a2ui/protocol"
 import { ANSWER_MARKDOWN, citationAt, citeAnswer } from "@/lib/chat/cite"
 import { citationNumber, isAggregateCitation, type AssistantTurn, type CitationItem } from "@/lib/chat/events"
 import { exportAnswer, formatThrough } from "@/lib/chat/export"
+import type { AgentProgress, PageProposal } from "@/lib/chat/page-state"
 import { describeContext, type ContextChip } from "@/lib/chat/screen-context"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import type { AnswerRating } from "@/lib/data/evals"
@@ -58,6 +60,12 @@ export interface ChatThreadValue {
   lastTurnKey: string | null
   /** The screen context chips above the composer; `null` where the chat has none (the full page). */
   chips: { items: ContextChip[]; remove: (kind: ContextChip["kind"]) => void } | null
+  /** The agent's live progress (shared state, docs/adr/0019); only the newest turn can still be running. */
+  progress: AgentProgress | null
+  /** The agent's suggestion for the page's filters, and what the person did with it. */
+  proposal: PageProposal | null
+  applyProposal: (proposal: PageProposal) => void
+  dismissProposal: (proposal: PageProposal) => void
 }
 
 export const ChatThreadContext = React.createContext<ChatThreadValue | null>(null)
@@ -103,9 +111,12 @@ function TurnGroup({ messages, children }: MessageGroupWrapperProps) {
     const status: TurnStatus = turn.tail ? turn.tail.status : running && turn.key === thread?.lastTurnKey ? "running" : "error"
     return { turn, evidence: answer ? evidenceOf({ ...answer, status, error: turn.tail?.error ?? null }) : null, status }
   }, [messages, running, thread?.lastTurnKey])
+  const proposal = info.turn.runId && thread?.proposal?.id.startsWith(info.turn.runId) ? thread.proposal : null
   return (
     <div data-testid="chat-turn" data-status={info.status} className="flex min-w-0 flex-col gap-3">
       <TurnContext.Provider value={info}>{children}</TurnContext.Provider>
+      <TurnProgress running={info.status === "running"} live={info.turn.key === thread?.lastTurnKey ? (thread?.progress ?? null) : null} finished={info.turn.tail?.steps} />
+      {proposal && thread && <ProposalCard proposal={proposal} onApply={thread.applyProposal} onDismiss={thread.dismissProposal} />}
     </div>
   )
 }
@@ -414,6 +425,10 @@ const CHIP_ICONS: Record<ContextChip["kind"], React.ComponentType<{ className?: 
   territory: MapPin,
   product: Pill,
   question: CircleHelp,
+  landscape: Microscope,
+  study: FlaskConical,
+  survey: ListChecks,
+  theme: Tag,
 }
 
 /** The context sent with the next question, each item removable. Rendered in the input's disclaimer slot, above it. */

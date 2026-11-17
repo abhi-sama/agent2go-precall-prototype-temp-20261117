@@ -11,6 +11,7 @@ import type {
   ActivityTrends,
   ChatEventPage,
   ChatMessageInput,
+  ChatPageInput,
   ChatSurfaceActionInput,
   ChatRowsExport,
   ChatRowsPage,
@@ -74,6 +75,8 @@ export interface ChatRunInput {
   history: ChatMessageInput[]
   context?: ChatContext
   action?: ChatSurfaceActionInput
+  /** What the person sees on the page: its name, filters and headline figures (docs/adr/0019). */
+  page?: ChatPageInput
 }
 
 export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter, EvalsAdapter, ExecutiveThemesAdapter, ExecutiveTrendsAdapter {

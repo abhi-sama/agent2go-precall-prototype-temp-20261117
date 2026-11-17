@@ -258,3 +258,76 @@ def test_the_worker_forwards_the_action_to_the_agent(monkeypatch) -> None:
     assert runtime.payload["a2ui_action"] == action
     chat_worker.run_chat(PAYLOAD, settings(), runtime)
     assert "a2ui_action" not in runtime.payload
+
+
+PAGE = {
+    "label": "My territory",
+    "filters": {"from": "2026-10-01", "to": "2026-10-31", "territoryId": "T01-01", "molecule": "Osimertinib (Tagrisso)", "questionId": "Q-001"},
+    "figures": [
+        {"id": "calls", "label": "Distinct calls", "value": "1,070", "definition": "Each call counted once."},
+        {"id": "hcps", "label": "Engaged HCPs", "value": "212"},
+    ],
+}
+
+
+def test_the_page_is_validated_and_forwarded_as_snake_case() -> None:
+    sent: list[tuple[str, dict]] = []
+    start(Cursor(), lambda fn, payload: sent.append((fn, payload)), page=PAGE)
+    assert sent[0][1]["page"] == {
+        "label": "My territory",
+        "filters": {"from_date": "2026-10-01", "to_date": "2026-10-31", "territory_id": "T01-01", "molecule": "Osimertinib (Tagrisso)", "question_id": "Q-001"},
+        "figures": [
+            {"id": "calls", "label": "Distinct calls", "value": "1,070", "definition": "Each call counted once."},
+            {"id": "hcps", "label": "Engaged HCPs", "value": "212"},
+        ],
+    }
+
+
+@pytest.mark.parametrize("empty", [None, "", {}, {"filters": {}, "figures": []}])
+def test_an_empty_page_is_not_forwarded(empty) -> None:
+    sent: list[tuple[str, dict]] = []
+    start(Cursor(), lambda fn, payload: sent.append((fn, payload)), page=empty)
+    assert "page" not in sent[0][1]
+
+
+def _page(**changes: Any) -> dict[str, Any]:
+    return {**PAGE, **changes}
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "My territory",
+        {**PAGE, "extra": 1},
+        _page(label="x" * 81),
+        _page(label="line\nbreak"),
+        _page(filters={"territoryId": "../etc"}),
+        _page(filters={"molecule": "<script>"}),
+        _page(filters={"from": "2026-10-31", "to": "2026-10-01"}),
+        _page(filters={"from": "yesterday", "to": "today"}),
+        _page(filters={"hcpId": "HCP-1"}),
+        _page(figures=[{"id": f"f{i}", "label": "x", "value": "1"} for i in range(13)]),
+        _page(figures=[{"id": "bad id", "label": "x", "value": "1"}]),
+        _page(figures=[{"id": "a", "label": "", "value": "1"}]),
+        _page(figures=[{"id": "a", "label": "x", "value": "9" * 41}]),
+        _page(figures=[{"id": "a", "label": "x", "value": "1", "definition": "d" * 161}]),
+        _page(figures=[{"id": "a", "label": "x", "value": "1", "unit": "calls"}]),
+        _page(figures=[{"id": "a", "label": "x\x00", "value": "1"}]),
+        _page(figures="many"),
+    ],
+)
+def test_a_malformed_page_is_refused_before_anything_starts(bad) -> None:
+    sent: list = []
+    with pytest.raises(BadRequest):
+        start(Cursor(), lambda *a: sent.append(a), page=bad)
+    assert not sent
+
+
+def test_the_worker_forwards_the_page_to_the_agent(monkeypatch) -> None:
+    monkeypatch.setattr(chat_worker, "_append", lambda *a: None)
+    runtime = FakeRuntime([{"type": "RUN_FINISHED"}])
+    page = {"label": "My territory", "figures": [{"id": "calls", "label": "Distinct calls", "value": "2"}]}
+    chat_worker.run_chat({**PAYLOAD, "page": page}, settings(), runtime)
+    assert runtime.payload["page"] == page
+    chat_worker.run_chat(PAYLOAD, settings(), runtime)
+    assert "page" not in runtime.payload

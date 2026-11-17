@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Identity(BaseModel):
@@ -86,6 +86,62 @@ class AgentContext(BaseModel):
     intent: Literal["FREE", "TERRITORY_SUMMARY"] = "FREE"
 
 
+def _no_controls(value: str) -> str:
+    if any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise ValueError("control characters are not allowed")
+    return value.strip()
+
+
+class PageFigure(BaseModel):
+    """One headline figure as the page printed it. Shown text copied by the browser: never a fact (docs/adr/0019)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(pattern=r"^[A-Za-z0-9_.:-]{1,64}$")
+    label: str = Field(min_length=1, max_length=80)
+    value: str = Field(min_length=1, max_length=40)
+    definition: str | None = Field(default=None, max_length=160)
+
+    @field_validator("label", "value", "definition")
+    @classmethod
+    def _clean(cls, value: str | None) -> str | None:
+        return _no_controls(value) if isinstance(value, str) else value
+
+
+class PageFilters(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    from_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    to_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    territory_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_.:-]{1,64}$")
+    question_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_.:-]{1,64}$")
+    molecule: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9 _.:()/+-]{0,63}$")
+    landscape: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9 _.:()/+-]{0,63}$")
+    study: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9 _.:()/+-]{0,63}$")
+    survey: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9 _.:()/+-]{0,63}$")
+    theme: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9 _.:()/+-]{0,63}$")
+
+
+class PageContext(BaseModel):
+    """What the person sees on the page the chat was opened from: its name, filters and headline figures.
+
+    Set by the BE Lambda after validation. Readable context only: it tells the agent which number a question is
+    about. It is never authority (every tool still reads under the caller's row-level security), the persona is the
+    verified identity's, and the figures are unverified display text the agent must never repeat as facts.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str | None = Field(default=None, max_length=80)
+    filters: PageFilters | None = None
+    figures: list[PageFigure] = Field(default_factory=list, max_length=12)
+
+    @field_validator("label")
+    @classmethod
+    def _clean(cls, value: str | None) -> str | None:
+        return _no_controls(value) if isinstance(value, str) else value
+
+
 class A2uiAction(BaseModel):
     """An A2UI v1.0 ``action`` from a surface the agent sent earlier (docs/adr/0017), relayed by the BE Lambda.
 
@@ -112,6 +168,8 @@ class Invocation(BaseModel):
     context: AgentContext | None = None
     #: Present when the question is a user action on an A2UI surface (the Adjust this answer form).
     a2ui_action: A2uiAction | None = None
+    #: What the person sees on the page the chat was opened from (docs/adr/0019): readable context, never authority.
+    page: PageContext | None = None
 
     @field_validator("messages")
     @classmethod

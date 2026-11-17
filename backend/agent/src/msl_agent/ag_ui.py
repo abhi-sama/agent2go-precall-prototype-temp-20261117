@@ -60,6 +60,11 @@ def custom(name: str, value: Any) -> Event:
     return _event("CUSTOM", name=name, value=value)
 
 
+def state_snapshot(snapshot: dict[str, Any]) -> Event:
+    """AG-UI shared state. This runtime owns only ``progress`` and ``proposal`` (docs/adr/0019); the page owns the rest."""
+    return _event("STATE_SNAPSHOT", snapshot=snapshot)
+
+
 def activity_snapshot(message_id: str, activity_type: str, content: dict[str, Any], *, replace: bool = True) -> Event:
     """AG-UI activity event; A2UI surfaces ride it as ``activityType: a2ui-surface`` (docs/adr/0017)."""
     return _event("ACTIVITY_SNAPSHOT", messageId=message_id, activityType=activity_type, content=content, replace=replace)

@@ -119,4 +119,17 @@ describe("graphql adapter", () => {
     expect(seen[0].variables?.action).toEqual({ ...action, context: '{"measure":["calls"]}' })
     expect(seen[0].variables).not.toHaveProperty("context")
   })
+
+  it("sends the page the chat was opened from, and omits it when there is none", async () => {
+    const seen: { variables?: Record<string, unknown> }[] = []
+    const adapter = createGraphQLAdapter(async (req) => {
+      seen.push(req as never)
+      return { data: { startChatRun: { runId: "run-live-3", status: "RUNNING" } } as never }
+    })
+    const page = { label: "My territory", filters: { territoryId: "NE-01" }, figures: [{ id: "kpi-calls", label: "Distinct calls", value: "132" }] }
+    await adapter.startChatRun(ctx, { threadId: "thread-live-1", runId: "run-live-3", message: "What does this mean?", history: [], page })
+    expect(seen[0].variables?.page).toEqual(page)
+    await adapter.startChatRun(ctx, { threadId: "thread-live-1", runId: "run-live-4", message: "Hello", history: [], page: {} })
+    expect(seen[1].variables).not.toHaveProperty("page")
+  })
 })

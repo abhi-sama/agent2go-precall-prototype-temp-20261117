@@ -26,6 +26,8 @@ import { MessageSquarePlus, Maximize2, Sparkles } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { useChatSession } from "@/components/chat/chat-session"
+import { useVisibleFigures } from "@/components/chat/page-figures"
+import { useSharedFilters } from "@/components/filters/filter-context"
 import {
   AnswerMessage,
   ChatThreadContext,
@@ -41,6 +43,7 @@ import { CitationSheet } from "@/components/chat/citation-sheet"
 import { evidenceOf } from "@/lib/chat/agent/answer"
 import { ASK_THE_AGENT, SCREEN_CONTEXT, SURFACE_ACTION_PROP } from "@/lib/chat/agent/appsync-agent"
 import { turnsOf } from "@/lib/chat/agent/turns"
+import { applyProposal as applyProposalTo, PAGE_FIGURES_CONTEXT, sharedStateOf, type PageProposal, type PageState } from "@/lib/chat/page-state"
 import type { SurfaceAction } from "@/lib/chat/a2ui/protocol"
 import type { CitationItem } from "@/lib/chat/events"
 import type { ChatContext } from "@/lib/data/director-insights"
@@ -88,18 +91,26 @@ const toSuggestion = (text: string) => ({ title: text, message: text })
 interface FrameProps {
   /** Sent with each question as the agent's context: the screen (panel) or the link that opened the page. */
   context: ChatContext | undefined
+  /** The page's own state for the agent (`state.page`, docs/adr/0019): its name and the filters whose chips are still on. */
+  page: PageState
   starters: string[]
   chips?: ChatThreadValue["chips"]
   children: React.ReactNode
 }
 
-export function AskTheAgentFrame({ context, starters, chips = null, children }: FrameProps) {
+export function AskTheAgentFrame({ context, page, starters, chips = null, children }: FrameProps) {
   const adapter = useDataAdapter()
   const { userId, ready } = useSession()
   const me = useQuery("me", userId, (ctx) => adapter.me(ctx), ready)
   const { agent, threadId } = useChatSession()
   const { copilotkit } = useCopilotKit()
-  const { agent: live } = useAgent({ agentId: ASK_THE_AGENT, updates: [UseAgentUpdate.OnMessagesChanged, UseAgentUpdate.OnRunStatusChanged], throttleMs: 150 })
+  const { agent: live } = useAgent({
+    agentId: ASK_THE_AGENT,
+    updates: [UseAgentUpdate.OnMessagesChanged, UseAgentUpdate.OnRunStatusChanged, UseAgentUpdate.OnStateChanged],
+    throttleMs: 150,
+  })
+  const { setFilters } = useSharedFilters()
+  const figures = useVisibleFigures()
   const [citation, setCitation] = React.useState<CitationItem | null>(null)
 
   const turns = React.useMemo(() => turnsOf(live.messages), [live.messages])
@@ -109,6 +120,33 @@ export function AskTheAgentFrame({ context, starters, chips = null, children }: 
 
   // The context travels as CopilotKit agent context; the client agent reads and checks it (lib/chat/agent).
   useAgentContext({ description: SCREEN_CONTEXT, value: (context ?? {}) as Record<string, string> })
+  // What the page prints, to know which number a question means. Context to read, never evidence (docs/adr/0019).
+  useAgentContext({ description: PAGE_FIGURES_CONTEXT, value: figures })
+
+  // Shared state, page to agent: the page's name and filters, kept current for the agent's next question. It is the
+  // agent's to read; the agent writes only its own keys (`progress`, `proposal`), through the run stream's allow-list.
+  const pageKey = JSON.stringify(page)
+  React.useEffect(() => {
+    live.setState({ ...(live.state as Record<string, unknown>), page: JSON.parse(pageKey) })
+  }, [live, pageKey])
+  const shared = sharedStateOf(live.state)
+  const progress = shared.progress ?? null
+  const proposal = shared.proposal ?? null
+
+  // Shared state, agent to page: a proposal changes the page's filters only when the person applies it. The change goes
+  // through the same filter state the filter bar writes, so the scope chip follows and every read stays RLS-scoped.
+  const settleProposal = React.useCallback(
+    (next: PageProposal) => live.setState({ ...(live.state as Record<string, unknown>), proposal: next }),
+    [live],
+  )
+  const applyProposal = React.useCallback(
+    (item: PageProposal) => {
+      setFilters((current) => applyProposalTo(item, current))
+      settleProposal({ ...item, status: "applied" })
+    },
+    [setFilters, settleProposal],
+  )
+  const dismissProposal = React.useCallback((item: PageProposal) => settleProposal({ ...item, status: "dismissed" }), [settleProposal])
   useConfigureSuggestions({ suggestions: starters.map(toSuggestion), available: "before-first-message", consumerAgentId: ASK_THE_AGENT }, [starters.join("\n")])
   useConfigureSuggestions(
     followUps.length ? { suggestions: followUps.map(toSuggestion), available: "after-first-message", consumerAgentId: ASK_THE_AGENT } : null,
@@ -129,8 +167,8 @@ export function AskTheAgentFrame({ context, starters, chips = null, children }: 
   const hasMessages = turns.length > 0
   const lastTurnKey = latest?.key ?? null
   const value = React.useMemo<ChatThreadValue>(
-    () => ({ openCitation: setCitation, aggregateOnly, sendSurfaceAction, hasMessages, lastTurnKey, chips }),
-    [aggregateOnly, sendSurfaceAction, hasMessages, lastTurnKey, chips],
+    () => ({ openCitation: setCitation, aggregateOnly, sendSurfaceAction, hasMessages, lastTurnKey, chips, progress, proposal, applyProposal, dismissProposal }),
+    [aggregateOnly, sendSurfaceAction, hasMessages, lastTurnKey, chips, progress, proposal, applyProposal, dismissProposal],
   )
 
   return (

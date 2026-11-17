@@ -13,6 +13,7 @@
 
 import { z } from "zod"
 import { applyEvent, newTurn, type AssistantTurn } from "@/lib/chat/events"
+import { MAX_STEPS, type ProgressStep } from "@/lib/chat/page-state"
 import type { ChatContext } from "@/lib/data/director-insights"
 
 export const ANSWER_ACTIVITY = "a2g-answer"
@@ -52,6 +53,8 @@ export interface AnswerActivity {
   error: string | null
   /** The run's evidence events in arrival order (`CUSTOM` evidence and `TOOL_CALL_END`). */
   events: EvidenceEvent[]
+  /** The tail only: the steps the agent reported, as they ended (docs/adr/0019). Plain labels from a closed list. */
+  steps?: ProgressStep[]
 }
 
 const optionalString = z.string().max(64).optional()
@@ -68,6 +71,10 @@ export const answerActivitySchema = z.object({
   status: z.enum(["running", "done", "error"]),
   error: z.string().max(300).nullable(),
   events: z.array(z.object({ type: z.string() }).passthrough()).max(400),
+  steps: z
+    .array(z.object({ id: z.string().min(1).max(64), label: z.string().min(1).max(80), status: z.enum(["running", "done", "error"]) }))
+    .max(MAX_STEPS)
+    .optional(),
 }) satisfies z.ZodType<AnswerActivity>
 
 /** Message ids the client agent gives a run's messages, so a message can be traced to its run. */

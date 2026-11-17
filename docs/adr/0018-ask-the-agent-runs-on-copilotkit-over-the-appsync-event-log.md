@@ -14,7 +14,7 @@ The agent is registered with the provider's `agents__unsafe_dev_only` prop. Copi
 
 - **Passed through:** text messages (renamed `<runId>~text~<n>` so a message can be traced to its run), tool calls (grouped under `<runId>~tools`), and the evidence `CUSTOM` events (`source_facts`, `citations`, `visual`, `row_sets`, `rows_unavailable`, `sample_limitations`, `suggestions`, `number_check`, `conversation_saved`, `model_mode`).
 - **Screened:** A2UI `ACTIVITY_SNAPSHOT`s pass only through the answer-catalog gate of ADR 0017, at most four per run, renamed `<runId>~surface~<surfaceId>` so a surface can never replace another answer's.
-- **Dropped:** state snapshots and deltas, message snapshots, raw, step and reasoning events, any other activity type, and any other custom name (so the agent cannot start CopilotKit's interrupts, frontend tools or MCP apps).
+- **Dropped:** state deltas, message snapshots, raw, step and reasoning events, any other activity type, and any other custom name (so the agent cannot start CopilotKit's interrupts, frontend tools or MCP apps). State snapshots pass only for the agent's own `progress` and `proposal` keys, checked (ADR 0019).
 - **Repaired:** `RUN_STARTED` is always first and carries this run's ids; text messages and tool calls left open are closed, every finished tool call gets a `TOOL_CALL_RESULT`, and nothing follows the terminal event. The AG-UI client's verifier rejects a run that breaks these rules, and a stored log can (the worker appends a bare `RUN_ERROR` when the agent is unavailable).
 
 CopilotKit keeps messages, not custom events, so the evidence travels as two `ACTIVITY_SNAPSHOT` messages of type `a2g-answer` per run: the **head**, created when the first figure arrives (after the tool row, before the text), and the **tail**, created when the run ends, carrying the outcome (`done` or `error` with fixed text). Both hold the run's raw evidence events; every render folds them through the same parsers as before (`lib/chat/events.ts`), so a restored conversation is checked like a live one.
@@ -45,9 +45,9 @@ The Director territory summaries and the Executive organisation analysis are not
 These are left for the features built on this ticket; none is wired to the agent yet:
 
 - **Frontend tools and human-in-the-loop** (`useFrontendTool`, `useHumanInTheLoop`): CopilotKit already passes the registered tools to `AppSyncChatAgent.run` as `input.tools`, and would send their results back as tool messages. Both need a field on `startChatRun` and agent support, and `RunStream` must then let those tool calls through.
-- **Shared and agent state** (`useAgent` state, `useCoAgent`-style rendering): `input.state` reaches `run`; the agent emits no `STATE_*` events yet, and `RunStream` drops them until it does.
+- **Shared and agent state**: built in ADR 0019 (`useAgent` state, page context and the agent's progress and proposals).
 - **Generative UI**: per-tool renderers (`useRenderTool({ name: "show_chart" })`) and more activity renderers can be registered beside `ANSWER_RENDERERS`; the evidence head and tail are the place to move chart drawing into tool renders.
-- **Context**: further `useAgentContext` entries arrive in `input.context`; the agent reads only the screen context today.
+- **Context**: further `useAgentContext` entries arrive in `input.context`; the agent reads the screen context and the page's figures (ADR 0019).
 
 ## Consequences
 

@@ -717,6 +717,17 @@ export interface ChatSurfaceActionInput {
   context: Record<string, unknown>
 }
 
+/**
+ * What the person sees on the page the chat was opened from (docs/adr/0019): the page's name, the filters they left on
+ * and the headline figures as printed. Readable context for the agent, never authority: the BE validates it, the persona
+ * is the verified caller's, and every figure in an answer is still counted by RLS-scoped SQL.
+ */
+export interface ChatPageInput {
+  label?: string
+  filters?: Partial<Record<"from" | "to" | "territoryId" | "molecule" | "landscape" | "study" | "survey" | "questionId" | "theme", string>>
+  figures?: { id: string; label: string; value: string; definition?: string }[]
+}
+
 /** One page of the run's AG-UI events. `data` is the event, JSON-encoded. */
 export interface ChatEventPage {
   events: { seq: number; data: string }[]

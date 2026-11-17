@@ -285,10 +285,11 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     },
     async startChatRun(ctx, input): Promise<ChatRun> {
       // The dashboard context is optional and omitted (never null) when absent: floci's executor rejects explicit nulls.
-      const { context, action, ...rest } = input
+      const { context, action, page, ...rest } = input
       const variables = {
         ...rest,
         ...(context && Object.keys(context).length ? { context } : {}),
+        ...(page && Object.keys(page).length ? { page } : {}),
         // AWSJSON travels as JSON text.
         ...(action ? { action: { ...action, context: JSON.stringify(action.context) } } : {}),
       }

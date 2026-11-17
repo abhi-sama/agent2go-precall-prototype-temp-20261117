@@ -103,6 +103,100 @@ def _clean_context(raw: Any) -> dict[str, str] | None:
     return out
 
 
+#: The page the chat was opened from (docs/adr/0019): its name, filters and headline figures, as the browser printed them.
+_PAGE_KEYS = frozenset({"label", "filters", "figures"})
+_PAGE_FILTER_KEYS = frozenset({"from", "to", "territoryId", "molecule", "landscape", "study", "survey", "questionId", "theme"})
+_PAGE_FILTER_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+_PAGE_FILTER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.:()/+-]{0,63}$")
+_FIGURE_KEYS = frozenset({"id", "label", "value", "definition"})
+MAX_FIGURES = 12
+
+
+def _text(value: Any, limit: int, *, required: bool = False) -> str | None:
+    """Shown text: a trimmed string within ``limit`` characters with no control characters."""
+    if value in (None, ""):
+        if required:
+            raise BadRequest("invalid_page")
+        return None
+    if not isinstance(value, str):
+        raise BadRequest("invalid_page")
+    text = value.strip()
+    if (required and not text) or len(text) > limit or any(ord(c) < 32 or ord(c) == 127 for c in text):
+        raise BadRequest("invalid_page")
+    return text or None
+
+
+def _clean_page(raw: Any) -> dict[str, Any] | None:
+    """What the person sees on the page: a name, the filters on it and its headline figures.
+
+    Shown text only. It tells the agent which number a question is about; it is never authority and never a figure
+    the agent may repeat. Everything is bounded and pattern-checked here, and the agent checks again.
+    """
+    if raw in (None, ""):
+        return None
+    if not isinstance(raw, Mapping) or not set(raw) <= _PAGE_KEYS:
+        raise BadRequest("invalid_page")
+    out: dict[str, Any] = {}
+    label = _text(raw.get("label"), 80)
+    if label:
+        out["label"] = label
+    filters_raw = raw.get("filters")
+    if filters_raw not in (None, ""):
+        if not isinstance(filters_raw, Mapping) or not set(filters_raw) <= _PAGE_FILTER_KEYS:
+            raise BadRequest("invalid_page")
+        filters: dict[str, str] = {}
+        for key, name, pattern in (
+            ("territoryId", "territory_id", _PAGE_FILTER_ID),
+            ("questionId", "question_id", _PAGE_FILTER_ID),
+            ("molecule", "molecule", _PAGE_FILTER_NAME),
+            ("landscape", "landscape", _PAGE_FILTER_NAME),
+            ("study", "study", _PAGE_FILTER_NAME),
+            ("survey", "survey", _PAGE_FILTER_NAME),
+            ("theme", "theme", _PAGE_FILTER_NAME),
+        ):
+            value = filters_raw.get(key)
+            if value in (None, ""):
+                continue
+            if not isinstance(value, str) or not pattern.match(value):
+                raise BadRequest("invalid_page")
+            filters[name] = value
+        for key, name in (("from", "from_date"), ("to", "to_date")):
+            value = filters_raw.get(key)
+            if value in (None, ""):
+                continue
+            try:
+                filters[name] = dt.date.fromisoformat(str(value)).isoformat()
+            except ValueError as exc:
+                raise BadRequest("invalid_page") from exc
+        if "from_date" in filters and "to_date" in filters and filters["from_date"] > filters["to_date"]:
+            raise BadRequest("invalid_page")
+        if filters:
+            out["filters"] = filters
+    figures_raw = raw.get("figures")
+    if figures_raw not in (None, ""):
+        if not isinstance(figures_raw, list) or len(figures_raw) > MAX_FIGURES:
+            raise BadRequest("invalid_page")
+        figures: list[dict[str, str]] = []
+        for item in figures_raw:
+            if not isinstance(item, Mapping) or not set(item) <= _FIGURE_KEYS:
+                raise BadRequest("invalid_page")
+            figure_id = item.get("id")
+            if not isinstance(figure_id, str) or not _PAGE_FILTER_ID.match(figure_id):
+                raise BadRequest("invalid_page")
+            figure = {
+                "id": figure_id,
+                "label": _text(item.get("label"), 80, required=True),
+                "value": _text(item.get("value"), 40, required=True),
+            }
+            definition = _text(item.get("definition"), 160)
+            if definition:
+                figure["definition"] = definition
+            figures.append({k: v for k, v in figure.items() if v is not None})
+        if figures:
+            out["figures"] = figures
+    return out or None
+
+
 def _action_value(value: Any) -> bool:
     """An action context value: a short string, a list of a few short strings, a boolean or a whole number."""
     if isinstance(value, bool | int) or (isinstance(value, str) and len(value) <= 64):
@@ -170,6 +264,7 @@ def start_chat_run(
     history = _clean_history(args.get("history"))
     context = _clean_context(args.get("context"))
     action = _clean_action(args.get("action"))
+    page = _clean_page(args.get("page"))
     if context and context["intent"] == "TERRITORY_SUMMARY":
         # Territory summaries are a Director task; the agent would read the same rows either way, but who may
         # ask for one is decided here, in code, not by the prompt.
@@ -201,6 +296,7 @@ def start_chat_run(
         "messages": [*history, {"role": "user", "content": message.strip()}],
         **({"context": context} if context else {}),
         **({"a2ui_action": action} if action else {}),
+        **({"page": page} if page else {}),
     }
     try:
         invoker(worker_function, payload)

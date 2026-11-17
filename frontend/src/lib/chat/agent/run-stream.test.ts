@@ -101,14 +101,15 @@ describe("RunStream", () => {
       { type: "ACTIVITY_SNAPSHOT", messageId: "m", activityType: "mcp-apps", content: {} },
       { type: "RAW", event: {} },
     ])
-    expect(out.map((e) => e.type)).toEqual(["RUN_STARTED"])
+    // Only the start-of-run state reset gets through: the agent's `evil` key and its message snapshot are dropped.
+    expect(out.map((e) => e.type)).toEqual(["RUN_STARTED", "STATE_DELTA"])
   })
 
   it("drops an A2UI surface that fails the answer-catalog gate, and scopes a good one to the run", () => {
     const create = { version: "1.0", createSurface: { surfaceId: "s1", catalogId: "urn:agent2go:a2ui:answer-catalog:v1", components: [{ id: "root", component: "Text", text: "Hello" }] } }
     const good = { type: "ACTIVITY_SNAPSHOT", messageId: "a2ui-surface-s1", activityType: "a2ui-surface", content: { a2ui_operations: [create] }, replace: true }
     const bad = { ...good, content: { a2ui_operations: [{ ...create, createSurface: { ...create.createSurface, components: [{ id: "root", component: "Image", url: "https://x" }] } }] } }
-    expect(run([bad]).out.map((e) => e.type)).toEqual(["RUN_STARTED"])
+    expect(run([bad]).out.map((e) => e.type)).toEqual(["RUN_STARTED", "STATE_DELTA"])
     const surfaces = run([good]).out.filter((e) => e.type === "ACTIVITY_SNAPSHOT")
     expect(surfaces).toEqual([expect.objectContaining({ messageId: ids.surface("run-1", "s1"), activityType: "a2ui-surface", content: { a2ui_operations: [create] } })])
   })
@@ -118,7 +119,80 @@ describe("RunStream", () => {
     stream.start()
     stream.push({ type: "TEXT_MESSAGE_CONTENT", messageId: "m", delta: "Half an answer" })
     const out = stream.finish({ status: "error", message: "Answer stopped." })
-    expect(out.map((e) => e.type)).toEqual(["TEXT_MESSAGE_END", "ACTIVITY_SNAPSHOT", "RUN_ERROR"])
+    expect(out.map((e) => e.type)).toEqual(["TEXT_MESSAGE_END", "STATE_DELTA", "ACTIVITY_SNAPSHOT", "RUN_ERROR"])
     expect(tail(out).content).toMatchObject({ status: "error", error: "Answer stopped." })
+  })
+
+  describe("shared state (docs/adr/0019)", () => {
+    const progress = (steps: { id: string; label: string; status: string }[], status = "running") => ({ type: "STATE_SNAPSHOT", snapshot: { progress: { status, steps } } })
+    const deltas = (out: BaseEvent[]) => out.filter((e) => e.type === "STATE_DELTA") as unknown as { delta: { op: string; path: string; value: unknown }[] }[]
+
+    it("starts each run by clearing the last run's progress and proposal", () => {
+      const [, reset] = new RunStream(IDS, META).start()
+      expect(reset).toMatchObject({ type: "STATE_DELTA", delta: [{ op: "add", path: "/progress", value: { status: "running", steps: [] } }, { op: "add", path: "/proposal", value: null }] })
+    })
+
+    it("passes the agent's progress through as a delta on its own key, and the AG-UI verifier accepts the stream", async () => {
+      const { out } = run([progress([{ id: "scope", label: "Checking what you can see", status: "done" }]), ...ANSWER])
+      const last = deltas(out).at(0 + 1)!
+      expect(last.delta).toEqual([{ op: "add", path: "/progress", value: { status: "running", steps: [{ id: "scope", label: "Checking what you can see", status: "done" }] } }])
+      await expect(verified(out)).resolves.toHaveLength(out.length)
+    })
+
+    it("drops progress with an unknown status, and drops a step with an unsafe id or a control character", () => {
+      expect(deltas(run([progress([], "exploded")]).out)).toHaveLength(1) // only the start-of-run reset
+      const steps = [
+        { id: "../x", label: "ok", status: "done" },
+        { id: "x", label: "bad\u0000label", status: "done" },
+        { id: "good", label: "Counting your activity", status: "done" },
+      ]
+      const { out } = run([progress(steps)])
+      expect(deltas(out)[1].delta[0].value).toEqual({ status: "running", steps: [{ id: "good", label: "Counting your activity", status: "done" }] })
+    })
+
+    it("lets the agent propose page filters, checked, as a pending proposal", () => {
+      const proposal = { id: "run-1-proposal", status: "applied", reason: "Set the page to territory NE-01.", filters: { territoryId: "NE-01", preset: "30d" } }
+      const { out } = run([{ type: "STATE_SNAPSHOT", snapshot: { proposal } }])
+      // The agent cannot mark its own proposal as applied: the status is always "proposed" until the person acts.
+      expect(deltas(out)[1].delta).toEqual([{ op: "add", path: "/proposal", value: { ...proposal, status: "proposed" } }])
+    })
+
+    it("drops a malformed proposal: both a preset and a range, a backwards range, or nothing to change", () => {
+      const base = { id: "run-1-proposal", status: "proposed", reason: "x" }
+      for (const filters of [{ preset: "30d", from: "2026-01-01", to: "2026-02-01" }, { from: "2026-03-01", to: "2026-01-01" }, {}, { preset: "forever" }, { territoryId: "NE 01; drop" }]) {
+        const { out } = run([{ type: "STATE_SNAPSHOT", snapshot: { proposal: { ...base, filters } } }])
+        expect(deltas(out)).toHaveLength(1)
+      }
+    })
+
+    it("ignores the page's own key and anything else the agent puts in state", () => {
+      const { out } = run([{ type: "STATE_SNAPSHOT", snapshot: { page: { label: "forged", filters: { territoryId: "XX-99" } }, filters: {}, messages: [] } }])
+      expect(deltas(out)).toHaveLength(1)
+    })
+
+    it("ignores state deltas from the agent", () => {
+      const { out } = run([{ type: "STATE_DELTA", delta: [{ op: "replace", path: "/page", value: {} }] }])
+      expect(deltas(out)).toHaveLength(1)
+    })
+
+    it("settles progress when the run ends and keeps the final steps on the answer", () => {
+      const steps = [
+        { id: "scope", label: "Checking what you can see", status: "done" },
+        { id: "write", label: "Writing the answer", status: "running" },
+      ]
+      const { out } = run([progress(steps), ...ANSWER])
+      const final = deltas(out).at(-1)!.delta[0].value as { status: string; steps: { status: string }[] }
+      expect(final.status).toBe("done")
+      expect(final.steps.map((step) => step.status)).toEqual(["done", "done"])
+      expect(tail(out).content.steps).toEqual(final.steps)
+      const stopped = run([progress(steps)], { status: "error", message: "Answer stopped." })
+      expect((deltas(stopped.out).at(-1)!.delta[0].value as { steps: { status: string }[] }).steps.map((step) => step.status)).toEqual(["done", "error"])
+    })
+
+    it("caps the state events one run can send", () => {
+      const many = Array.from({ length: 200 }, (_, i) => progress([{ id: `s${i}`, label: "Step", status: "running" }]))
+      const { out } = run(many)
+      expect(deltas(out).length).toBeLessThanOrEqual(81)
+    })
   })
 })
