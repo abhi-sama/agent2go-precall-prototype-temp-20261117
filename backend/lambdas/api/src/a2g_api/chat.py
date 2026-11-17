@@ -42,6 +42,7 @@ _ACTION_KEYS = frozenset({"name", "surfaceId", "sourceComponentId", "timestamp",
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 _SURFACE = re.compile(r"^[A-Za-z0-9_-]{1,96}$")
 MAX_ACTION_CHARS = 2_000
+_WRITE_KINDS = frozenset({"pre_call_brief", "post_call_output", "feedback_flag"})
 
 
 def _id(args: Mapping[str, Any], name: str) -> str:
@@ -305,6 +306,71 @@ def start_chat_run(
         cur.execute("UPDATE chat_runs SET status = 'failed', finished_at = now() WHERE run_id = %s", (run_id,))
         raise Unavailable("worker_start") from exc
     log.info("chat run started", run_id=run_id, thread_id=thread_id, outcome="accepted")
+    return {"runId": run_id, "status": "RUNNING"}
+
+
+def _write_approval_event(raw: Any) -> dict[str, Any]:
+    """Return the immutable action embedded in a persisted interrupt, never client metadata."""
+    if not isinstance(raw, Mapping) or raw.get("type") != "RUN_FINISHED":
+        raise BadRequest("invalid_interrupted_run")
+    outcome = raw.get("outcome")
+    interrupts = outcome.get("interrupts") if isinstance(outcome, Mapping) and outcome.get("type") == "interrupt" else None
+    interrupt = interrupts[0] if isinstance(interrupts, list) and len(interrupts) == 1 else None
+    metadata = interrupt.get("metadata") if isinstance(interrupt, Mapping) else None
+    values = metadata.get("values") if isinstance(metadata, Mapping) else None
+    if not isinstance(metadata, Mapping) or interrupt.get("reason") != "approval" or metadata.get("kind") not in _WRITE_KINDS or not isinstance(values, Mapping):
+        raise BadRequest("invalid_interrupted_run")
+    return {"kind": metadata["kind"], "title": str(metadata.get("title") or "Approved change")[:80], "values": dict(values)}
+
+
+def _clean_write_values(raw: Any, allowed: Mapping[str, Any]) -> dict[str, str]:
+    if raw in (None, ""):
+        return {}
+    if isinstance(raw, str):
+        if len(raw) > MAX_ACTION_CHARS:
+            raise BadRequest("invalid_write_values")
+        try:
+            raw = json.loads(raw)
+        except ValueError as exc:
+            raise BadRequest("invalid_write_values") from exc
+    if not isinstance(raw, Mapping) or len(raw) > len(allowed):
+        raise BadRequest("invalid_write_values")
+    if not all(key in allowed and isinstance(value, str) and len(value) <= MAX_MESSAGE_CHARS for key, value in raw.items()):
+        raise BadRequest("invalid_write_values")
+    return dict(raw)
+
+
+def resume_chat_run(
+    cur: psycopg.Cursor, identity: Identity, user_id: str, args: Mapping[str, Any], *, worker_function: str | None,
+    correlation_id: str, invoker: Invoker = invoke_worker,
+) -> dict[str, Any]:
+    """Resume exactly one owner-visible interrupt; approval metadata is always read under RLS."""
+    thread_id, run_id, interrupted_run_id = _id(args, "threadId"), _id(args, "runId"), _id(args, "interruptedRunId")
+    approved = args.get("approved")
+    if not isinstance(approved, bool) or not worker_function:
+        raise BadRequest("invalid_write_approval") if isinstance(approved, bool) else BadRequest("invalid_approved")
+    cur.execute("SELECT thread_id, status FROM chat_runs WHERE run_id = %s", (interrupted_run_id,))
+    previous = cur.fetchone()
+    if previous is None or previous[0] != thread_id or previous[1] != "interrupted":
+        raise NotFound("unknown_interrupted_run")
+    cur.execute("SELECT event FROM chat_run_events WHERE run_id = %s ORDER BY seq DESC LIMIT 1", (interrupted_run_id,))
+    event = cur.fetchone()
+    metadata = _write_approval_event(event[0] if event else None)
+    values = _clean_write_values(args.get("values"), metadata["values"])
+    cur.execute("INSERT INTO chat_runs(run_id, owner_user_id, thread_id, resumes_run_id) VALUES (%s, app.request_user_id(), %s, %s) ON CONFLICT DO NOTHING RETURNING run_id", (run_id, thread_id, interrupted_run_id))
+    if cur.fetchone() is None:
+        raise BadRequest("run_id_taken")
+    payload = {
+        "user_id": user_id, "persona": identity.db_persona, "full_name": identity.full_name, "email": identity.email,
+        "correlation_id": correlation_id, "thread_id": thread_id, "run_id": run_id,
+        "messages": [{"role": "user", "content": "Complete the approved change."}],
+        "write_approval": {"interrupted_run_id": interrupted_run_id, "approved": approved, "metadata": metadata, "values": values},
+    }
+    try:
+        invoker(worker_function, payload)
+    except Exception as exc:
+        cur.execute("UPDATE chat_runs SET status = 'failed', finished_at = now() WHERE run_id = %s", (run_id,))
+        raise Unavailable("worker_start") from exc
     return {"runId": run_id, "status": "RUNNING"}
 
 

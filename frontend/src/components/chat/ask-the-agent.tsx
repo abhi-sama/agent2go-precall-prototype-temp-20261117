@@ -39,6 +39,7 @@ import {
   type ChatThreadValue,
 } from "@/components/chat/chat-thread"
 import { CitationSheet } from "@/components/chat/citation-sheet"
+import { ChatCapabilities } from "@/components/chat/chat-capabilities"
 import { evidenceOf } from "@/lib/chat/agent/answer"
 import { ASK_THE_AGENT, SCREEN_CONTEXT, SURFACE_ACTION_PROP } from "@/lib/chat/agent/appsync-agent"
 import { turnsOf } from "@/lib/chat/agent/turns"
@@ -175,6 +176,7 @@ export function AskTheAgentFrame({ context, page, starters, chips = null, childr
     <CopilotChatConfigurationProvider agentId={ASK_THE_AGENT} threadId={threadId} hasExplicitThreadId={false} labels={CHAT_LABELS}>
       <ChatThreadContext.Provider value={value}>
         <ChatToolRenderers />
+        <ChatCapabilities />
         <RatingProvider>{children}</RatingProvider>
         <CitationSheet citation={citation} onClose={() => setCitation(null)} />
       </ChatThreadContext.Provider>

@@ -537,6 +537,12 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       scriptRun(input.runId, findUser(options.getUserId()), input.message, now().getTime(), input.context, input.action)
       return { runId: input.runId, status: "RUNNING" }
     },
+    async resumeChatRun(ctx, input) {
+      const s = await gate(ctx, "resumeChatRun")
+      if (s === "forbidden") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
+      scriptRun(input.runId, findUser(options.getUserId()), input.approved ? "The approved change is being saved." : "No changes were saved.", now().getTime())
+      return { runId: input.runId, status: "RUNNING" }
+    },
 
     async myChatHistory(ctx) {
       await gate(ctx, "myChatHistory")

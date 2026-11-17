@@ -127,3 +127,21 @@ test("the full page: CopilotKit's chat, the same conversation after a reload, an
   await expect(page.getByTestId("chat-turn")).toHaveCount(0)
   await expect(page.getByTestId("chat-empty")).toBeVisible()
 })
+
+test("the full page: a proposed write can be edited, approved, or rejected", async ({ page }) => {
+  await page.goto("/chat")
+  await page.getByTestId("chat-input").fill("save post-call output: Original note")
+  await page.getByTestId("chat-send").click()
+  await expect(page.getByRole("button", { name: "Approve and save" })).toBeVisible({ timeout: 20_000 })
+  const editor = page.getByLabel("Edit notes")
+  await editor.fill("Edited note")
+  await page.getByRole("button", { name: "Approve and save" }).click()
+  await expect(page.getByTestId("chat-turn").last()).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+
+  await page.getByTestId("chat-new").click()
+  await page.getByTestId("chat-input").fill("save post-call output: Do not save")
+  await page.getByTestId("chat-send").click()
+  await expect(page.getByRole("button", { name: "Reject" })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole("button", { name: "Reject" }).click()
+  await expect(page.getByText("No changes were saved.")).toBeVisible({ timeout: 20_000 })
+})

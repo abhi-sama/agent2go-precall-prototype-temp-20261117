@@ -22,7 +22,16 @@ def run_started(thread_id: str, run_id: str) -> Event:
 
 
 def run_finished(thread_id: str, run_id: str) -> Event:
-    return _event("RUN_FINISHED", threadId=thread_id, runId=run_id)
+    return _event("RUN_FINISHED", threadId=thread_id, runId=run_id, outcome={"type": "success"})
+
+
+def run_interrupted(thread_id: str, run_id: str, interrupt: dict[str, Any]) -> Event:
+    """Finish a run at an approval boundary.
+
+    The interrupt is part of the persisted AG-UI event log.  The browser can render it, but it
+    cannot manufacture a write: the resume mutation reads this exact event again under RLS.
+    """
+    return _event("RUN_FINISHED", threadId=thread_id, runId=run_id, outcome={"type": "interrupt", "interrupts": [interrupt]})
 
 
 def run_error(message: str, code: str) -> Event:
@@ -44,6 +53,11 @@ def text_end(message_id: str) -> Event:
 
 def tool_call_start(tool_call_id: str, name: str) -> Event:
     return _event("TOOL_CALL_START", toolCallId=tool_call_id, toolCallName=name)
+
+
+def tool_call_args(tool_call_id: str, args: dict[str, Any]) -> Event:
+    """One complete, bounded argument object for a browser-side tool."""
+    return _event("TOOL_CALL_ARGS", toolCallId=tool_call_id, delta=json.dumps(args, separators=(",", ":")))
 
 
 def tool_call_end(tool_call_id: str) -> Event:

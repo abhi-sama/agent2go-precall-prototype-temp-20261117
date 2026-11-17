@@ -126,6 +126,9 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "startChatRun": partial(
             chat.start_chat_run, worker_function=settings.chat_worker_function, correlation_id=correlation_id
         ),
+        "resumeChatRun": partial(
+            chat.resume_chat_run, worker_function=settings.chat_worker_function, correlation_id=correlation_id
+        ),
         "chatEvents": chat.chat_events,
         "myChatHistory": lambda *a: chat_history.my_chat_history(*a, store=_chat_history_store(settings)),
         "chatCitation": chat.chat_citation,

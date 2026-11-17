@@ -80,6 +80,15 @@ export interface ChatRunInput {
   page?: ChatPageInput
 }
 
+/** A decision for the persisted write interrupt; the client never resends its metadata. */
+export interface ChatResumeInput {
+  threadId: string
+  runId: string
+  interruptedRunId: string
+  approved: boolean
+  values?: Record<string, string>
+}
+
 export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter, EvalsAdapter, ExecutiveThemesAdapter, ExecutiveTrendsAdapter {
   readonly kind: "mock" | "appsync"
   me(ctx: RequestContext): Promise<Me>
@@ -114,6 +123,8 @@ export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter,
   startChatRun(ctx: RequestContext, input: ChatRunInput): Promise<ChatRun>
   /** Completed turns the agent saved for this caller. The BE queries only their FE DynamoDB partition. */
   myChatHistory(ctx: RequestContext, limit?: number): Promise<SavedChatTurn[]>
+  /** Resume an owner-visible approval through the same AppSync chat path. */
+  resumeChatRun(ctx: RequestContext, input: ChatResumeInput): Promise<ChatRun>
   /**
    * Start a streamed chat answer. The caller picks `runId` so it can poll straight away. The mutation
    * returns once the BE accepted the run; the answer arrives through `chatEvents`.

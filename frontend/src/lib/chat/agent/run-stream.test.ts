@@ -105,6 +105,13 @@ describe("RunStream", () => {
     expect(out.map((e) => e.type)).toEqual(["RUN_STARTED", "STATE_DELTA"])
   })
 
+  it("passes only the persisted bounded write interrupt to CopilotKit", async () => {
+    const { out } = run([{ type: "RUN_FINISHED", outcome: { type: "interrupt", interrupts: [{ id: "write-run-12345678", reason: "approval", message: "Save it?", metadata: { kind: "pre_call_brief", values: { hcpId: "HCP-1", objective: "Discuss" } } }] } }])
+    await expect(verified(out)).resolves.toHaveLength(out.length)
+    expect(out.at(-1)).toMatchObject({ type: "RUN_FINISHED", outcome: { type: "interrupt" } })
+    expect(run([{ type: "RUN_FINISHED", outcome: { type: "interrupt", interrupts: [{ id: "unknown", metadata: {} }] } }]).out.at(-1)).toMatchObject({ type: "RUN_FINISHED" })
+  })
+
   it("drops an A2UI surface that fails the answer-catalog gate, and scopes a good one to the run", () => {
     const create = { version: "1.0", createSurface: { surfaceId: "s1", catalogId: "urn:agent2go:a2ui:answer-catalog:v1", components: [{ id: "root", component: "Text", text: "Hello" }] } }
     const good = { type: "ACTIVITY_SNAPSHOT", messageId: "a2ui-surface-s1", activityType: "a2ui-surface", content: { a2ui_operations: [create] }, replace: true }

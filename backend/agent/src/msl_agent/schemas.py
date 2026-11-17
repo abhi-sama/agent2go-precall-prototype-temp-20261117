@@ -156,6 +156,15 @@ class A2uiAction(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict, max_length=12)
 
 
+class WriteApproval(BaseModel):
+    """A decision for the interrupt recorded by a preceding chat run."""
+
+    interrupted_run_id: str = Field(min_length=8, max_length=64)
+    approved: bool
+    metadata: dict[str, Any] = Field(default_factory=dict, max_length=8)
+    values: dict[str, Any] = Field(default_factory=dict, max_length=8)
+
+
 class Invocation(BaseModel):
     """AgentCore Runtime input (foundation-contract.md) plus the run id the BE streams events under."""
 
@@ -170,6 +179,8 @@ class Invocation(BaseModel):
     a2ui_action: A2uiAction | None = None
     #: What the person sees on the page the chat was opened from (docs/adr/0019): readable context, never authority.
     page: PageContext | None = None
+    #: Present only for a verified, owner-scoped AppSync resume of a write interrupt.
+    write_approval: WriteApproval | None = None
 
     @field_validator("messages")
     @classmethod

@@ -1865,6 +1865,8 @@ type Mutation {
   createGovernanceRequest(input: CreateGovernanceRequestInput!): GovernanceRequest!
   decideGovernanceRequest(input: DecideGovernanceRequestInput!): GovernanceRequest!
   startChatRun(threadId: ID!, runId: ID!, message: String!, history: [ChatMessageInput!], context: ChatContextInput, action: ChatSurfaceActionInput, page: ChatPageInput): ChatRun!
+  "Resume one owner-visible write approval. Values can edit only fields of the persisted proposal."
+  resumeChatRun(threadId: ID!, runId: ID!, interruptedRunId: ID!, approved: Boolean!, values: AWSJSON): ChatRun!
   saveView(input: SaveViewInput!): SavedView!
   "Save the caller's style, mode and density. Always the caller's own; there is no way to name another user."
   setAppearance(input: AppearanceInput!): AppearancePreference!

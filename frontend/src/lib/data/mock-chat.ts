@@ -56,9 +56,22 @@ export function scriptRun(runId: string, user: FixtureUser, typed: string, now =
   const question = refine ? refineQuestion(refine) : typed
   const asked = question.match(/\b([A-Z]{2}-\d{2})\b/)?.[1]
   const events: string[] = [ev("RUN_STARTED", { threadId: "mock", runId }), custom("model_mode", { mode: "claude" })]
+  const postCall = question.match(/^save post-?call(?: workflow)? output\s*[:|-]\s*(.+)$/i)
+  if (postCall) {
+    events.push(
+      ev("TEXT_MESSAGE_START", { messageId: "m1", role: "assistant" }),
+      ev("TEXT_MESSAGE_CONTENT", { messageId: "m1", delta: "I need your approval before I save that change." }),
+      ev("TEXT_MESSAGE_END", { messageId: "m1" }),
+      ev("RUN_FINISHED", { threadId: "mock", runId, outcome: { type: "interrupt", interrupts: [{ id: `write-${runId}`, reason: "approval", message: "Save this post-call workflow output as a draft?", metadata: { kind: "post_call_output", title: "Save post-call workflow output", values: { notes: postCall[1].slice(0, 8000) } } }] } }),
+    )
+    runs.set(runId, { startedAt: now, events: events.map((data, i) => ({ seq: i + 1, at: 150 + i * TOKEN_MS, data })) })
+    return
+  }
   let answer: string
   const suggestions = ["Which territories can I see?", "What have HCPs recorded about osimertinib?"]
-  const directReply = action && !refine ? REFINE_REFUSAL : action ? null : smallTalkReply(question)
+  const directReply = question === "No changes were saved."
+    ? question
+    : action && !refine ? REFINE_REFUSAL : action ? null : smallTalkReply(question)
   const through = new Date(now - 86_400_000).toISOString()
   let surfaceCount = 0
   const nextSurface = (kind: string) => surfaceId(kind, runId, ++surfaceCount)

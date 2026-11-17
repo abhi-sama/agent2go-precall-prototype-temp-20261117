@@ -55,6 +55,15 @@ describe("AppSyncChatAgent", () => {
     expect(agent.messages.map((m) => m.id)).toEqual(["q-1", ids.tools("run-1"), ids.toolResult("run-1", "tc-1"), ids.head("run-1"), ids.text("run-1", 0), ids.tail("run-1")])
   })
 
+  it("resumes an approval only through the AppSync resume mutation", async () => {
+    const { adapter, started } = fakeAdapter()
+    const resume = vi.fn(async () => ({ runId: "run-2", status: "running" }))
+    Object.assign(adapter, { resumeChatRun: resume })
+    await agentWith(adapter).runAgent({ runId: "run-2", resume: [{ interruptId: "write-run-12345678", status: "resolved", payload: { approved: true, values: { notes: "Edited" } } }] })
+    expect(started).toHaveLength(0)
+    expect(resume).toHaveBeenCalledWith(expect.anything(), { threadId: "thread-1", runId: "run-2", interruptedRunId: "run-12345678", approved: true, values: { notes: "Edited" } })
+  })
+
   it("sends the checked screen context and a short history of finished answers", async () => {
     const { adapter, started } = fakeAdapter()
     const agent = agentWith(adapter)

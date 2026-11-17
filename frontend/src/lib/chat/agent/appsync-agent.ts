@@ -93,6 +93,16 @@ function lastQuestion(messages: readonly Message[]): Message | undefined {
   return undefined
 }
 
+function resumeOf(input: RunAgentInput): { interruptedRunId: string; approved: boolean; values?: Record<string, string> } | null {
+  const entry = input.resume?.[0]
+  if (!entry || !/^write-[A-Za-z0-9_-]{8,64}$/.test(entry.interruptId)) return null
+  const payload = entry.payload
+  const values: Record<string, string> | undefined = payload && typeof payload === "object" && !Array.isArray(payload) && payload.values && typeof payload.values === "object"
+    ? Object.fromEntries(Object.entries(payload.values as Record<string, unknown>).filter((entry): entry is [string, string] => typeof entry[1] === "string"))
+    : undefined
+  return { interruptedRunId: entry.interruptId.slice("write-".length), approved: entry.status === "resolved" && payload?.approved === true, ...(values ? { values } : {}) }
+}
+
 export class AppSyncChatAgent extends AbstractAgent {
   private readonly adapter: DataAdapter
   private readonly pollMs: number
@@ -173,22 +183,27 @@ export class AppSyncChatAgent extends AbstractAgent {
     const correlationId = newCorrelationId()
     const ctx = { correlationId }
     const message = question ? textOf(question).trim().slice(0, MAX_QUESTION_CHARS) : ""
-    if (!message) return end({ status: "error", message: MESSAGES.empty })
+    const resume = resumeOf(input)
+    if (!message && !resume) return end({ status: "error", message: MESSAGES.empty })
     const action = surfaceActionOf(input)
     const page = pageOf(input)
     // From the agent's own list: the AG-UI client leaves activity messages (the answers' outcomes) out of `input`.
     const asked = this.messages.findIndex((m) => m.id === question!.id)
     const history = historyOf(asked >= 0 ? this.messages.slice(0, asked) : this.messages)
     try {
-      await this.adapter.startChatRun(ctx, {
-        threadId: input.threadId,
-        runId: input.runId,
-        message,
-        history,
-        ...(context ? { context } : {}),
-        ...(action ? { action } : {}),
-        ...(page ? { page } : {}),
-      })
+      if (resume) {
+        await this.adapter.resumeChatRun(ctx, { threadId: input.threadId, runId: input.runId, ...resume })
+      } else {
+        await this.adapter.startChatRun(ctx, {
+          threadId: input.threadId,
+          runId: input.runId,
+          message,
+          history,
+          ...(context ? { context } : {}),
+          ...(action ? { action } : {}),
+          ...(page ? { page } : {}),
+        })
+      }
       let after = 0
       let failures = 0
       const deadline = Date.now() + this.maxRunMs

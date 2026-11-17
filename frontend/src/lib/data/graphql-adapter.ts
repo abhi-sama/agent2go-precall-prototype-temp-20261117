@@ -48,6 +48,7 @@ import {
   CREATE_TOPIC_ALERT_RULE_MUTATION,
   TOPIC_ALERTS_QUERY,
   START_CHAT_RUN_MUTATION,
+  RESUME_CHAT_RUN_MUTATION,
   CHAT_ANSWER_ROWS_QUERY,
   EXPORT_CHAT_ROWS_MUTATION,
 } from "./operations"
@@ -298,6 +299,11 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     },
     async myChatHistory(ctx, limit = 50): Promise<SavedChatTurn[]> {
       return (await run<{ myChatHistory: SavedChatTurn[] }>(transport, `query MyChatHistory($limit: Int) { myChatHistory(limit: $limit) { threadId runId userMessage assistantText generatedAt payload } }`, { limit }, ctx)).myChatHistory
+    },
+    async resumeChatRun(ctx, input): Promise<ChatRun> {
+      const { values, ...rest } = input
+      const variables = { ...rest, ...(values ? { values: JSON.stringify(values) } : {}) }
+      return (await run<{ resumeChatRun: ChatRun }>(transport, RESUME_CHAT_RUN_MUTATION, variables, ctx)).resumeChatRun
     },
     async chatEvents(ctx, runId, after): Promise<ChatEventPage> { return (await run<{ chatEvents: ChatEventPage }>(transport, `query ChatEvents($runId: ID!, $after: Int) { chatEvents(runId: $runId, after: $after) { done status events { seq data } } }`, { runId, after }, ctx)).chatEvents },
     async chatCitation(ctx, dataset, recordId, auditExport = false): Promise<SourceRecord> { return (await run<{ chatCitation: SourceRecord }>(transport, `query ChatCitation($dataset: String!, $recordId: ID!, $auditExport: Boolean) { chatCitation(dataset: $dataset, recordId: $recordId, auditExport: $auditExport) { dataset recordId title dataThrough fields { label value } } }`, { dataset, recordId, auditExport }, ctx)).chatCitation },

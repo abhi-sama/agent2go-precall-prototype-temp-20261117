@@ -24,6 +24,12 @@ configure(service="a2g-be-chat")
 log = get_logger(__name__)
 
 TERMINAL = {"RUN_FINISHED": "finished", "RUN_ERROR": "failed"}
+
+
+def _terminal_status(event: Mapping[str, Any]) -> str | None:
+    if event.get("type") == "RUN_FINISHED" and isinstance(event.get("outcome"), Mapping) and event["outcome"].get("type") == "interrupt":
+        return "interrupted"
+    return TERMINAL.get(str(event.get("type")))
 _PUBLISH_MUTATION = """mutation PublishChatEvent($input: PublishChatEventInput!) {
   publishChatEvent(input: $input) { runId seq data }
 }"""
@@ -35,7 +41,7 @@ def _append(settings: Settings, event: Mapping[str, Any], payload: Mapping[str, 
             "INSERT INTO chat_run_events(run_id, seq, owner_user_id, event) VALUES (%s, %s, app.request_user_id(), %s)",
             (payload["run_id"], seq, json.dumps(event)),
         )
-        status = TERMINAL.get(str(event.get("type")))
+        status = _terminal_status(event)
         if status:
             cur.execute(
                 "UPDATE chat_runs SET status = %s, finished_at = now() WHERE run_id = %s", (status, payload["run_id"])
@@ -98,6 +104,7 @@ def run_chat(payload: Mapping[str, Any], settings: Settings, runtime: AgentRunti
         **({"context": payload["context"]} if payload.get("context") else {}),
         **({"a2ui_action": payload["a2ui_action"]} if payload.get("a2ui_action") else {}),
         **({"page": payload["page"]} if payload.get("page") else {}),
+        **({"write_approval": payload["write_approval"]} if payload.get("write_approval") else {}),
     }
     try:
         for event in (runtime or runtime_for(settings)).invoke(request):
@@ -108,8 +115,8 @@ def run_chat(payload: Mapping[str, Any], settings: Settings, runtime: AgentRunti
             except Exception as exc:
                 # Polling remains authoritative; a live-delivery miss must not replay or lose the run.
                 log.error("live chat publish failed", run_id=payload["run_id"], error_type=type(exc).__name__)
-            if event.get("type") in TERMINAL:
-                outcome = TERMINAL[event["type"]]
+            if _terminal_status(event):
+                outcome = _terminal_status(event) or "failed"
                 break
         else:
             raise RuntimeError("agent stream ended without a terminal event")

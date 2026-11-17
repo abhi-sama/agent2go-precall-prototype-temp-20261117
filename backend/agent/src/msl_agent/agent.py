@@ -32,6 +32,7 @@ from strands import Agent
 from strands.models import BedrockModel
 
 from . import a2ui, ag_ui, visuals
+from .chat_writes import approved_write, parse_pending_write
 from .config import Settings
 from .intent import infer_chart_request, infer_executive_facet, wants_region_matrix
 from .numbers import allowed_numbers, unverified_numbers
@@ -735,6 +736,39 @@ class MslAgent:
         yield ag_ui.run_started(invocation.thread_id, run_id)
         yield ag_ui.custom("model_mode", {"mode": self.mode})
         yield step_start(SCOPE)
+        # These writes are deliberately represented as a standard AG-UI interrupt.  The worker
+        # persists it before the browser sees it and a later AppSync resume re-reads that event.
+        # No model-generated prose or browser argument can turn an unapproved request into a write.
+        if invocation.write_approval is None:
+            pending_write = parse_pending_write(invocation.question)
+            if pending_write is not None:
+                yield ag_ui.text_start(message_id)
+                yield ag_ui.text_content(message_id, "I need your approval before I save that change.")
+                yield ag_ui.text_end(message_id)
+                yield ag_ui.run_interrupted(invocation.thread_id, run_id, pending_write.interrupt(run_id))
+                return
+        else:
+            approval = invocation.write_approval
+            pending_write = approved_write(
+                approval.metadata,
+                {"approved": approval.approved, "values": approval.values},
+            )
+            if pending_write is None:
+                yield ag_ui.text_start(message_id)
+                yield ag_ui.text_content(message_id, "No changes were saved.")
+                yield ag_ui.text_end(message_id)
+                yield ag_ui.run_finished(invocation.thread_id, run_id)
+                return
+            tool_call_id = f"write-{run_id}"
+            yield ag_ui.tool_call_start(tool_call_id, "a2g_execute_write")
+            yield ag_ui.tool_call_args(tool_call_id, {"kind": pending_write.kind, "values": pending_write.values})
+            yield ag_ui.tool_call_end(tool_call_id)
+            yield ag_ui.tool_call_result(tool_call_id, "approved")
+            yield ag_ui.text_start(message_id)
+            yield ag_ui.text_content(message_id, "The approved change is being saved.")
+            yield ag_ui.text_end(message_id)
+            yield ag_ui.run_finished(invocation.thread_id, run_id)
+            return
         if invocation.a2ui_action is not None and refine is None:
             for event in self._refusal(invocation, run_id, message_id, REFINE_REFUSAL, "invalid_action", progress):
                 yield event

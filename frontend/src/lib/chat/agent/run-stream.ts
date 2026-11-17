@@ -35,7 +35,7 @@ export interface RunMeta {
   context?: ChatContext
 }
 
-export type RunOutcome = { status: "done" } | { status: "error"; message: string }
+export type RunOutcome = { status: "done" } | { status: "interrupted"; interrupts: unknown[] } | { status: "error"; message: string }
 
 const str = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null)
 
@@ -155,7 +155,7 @@ export class RunStream {
         out.push(...this.agentState(event.snapshot))
         return out
       case "RUN_FINISHED":
-        out.push(...this.finish({ status: "done" }))
+        out.push(...this.finish(interruptOutcome(event) ?? { status: "done" }))
         return out
       case "RUN_ERROR":
         out.push(...this.finish({ status: "error", message: str(event.message)?.slice(0, MAX_ERROR_CHARS) ?? DEFAULT_ERROR }))
@@ -175,18 +175,20 @@ export class RunStream {
     for (const id of [...this.openTools]) out.push(...this.endTool(id))
     for (const id of [...this.awaitingResult]) out.push(this.toolResult(id, outcome.status === "done" ? "complete" : "stopped"))
     this.awaitingResult.clear()
-    const status: AnswerStatus = outcome.status
+    const status: AnswerStatus = outcome.status === "interrupted" ? "done" : outcome.status
     const error = outcome.status === "error" ? outcome.message : null
     // Nothing is left "running" once the run is over, whatever the agent last said.
-    this.progress = settleProgress(this.progress, outcome.status)
+    this.progress = settleProgress(this.progress, status)
     out.push(this.stateDelta([{ op: "add", path: "/progress", value: this.progress }]))
     if (this.headShown) out.push(this.snapshot("head", status, error))
     out.push(this.snapshot("tail", status, error))
     this.ended = true
     out.push(
-      outcome.status === "done"
-        ? ({ type: EventType.RUN_FINISHED, threadId: this.ids.threadId, runId: this.ids.runId } as BaseEvent)
-        : ({ type: EventType.RUN_ERROR, message: outcome.message, code: "ANSWER_FAILED" } as BaseEvent),
+      outcome.status === "error"
+        ? ({ type: EventType.RUN_ERROR, message: outcome.message, code: "ANSWER_FAILED" } as BaseEvent)
+        : outcome.status === "interrupted"
+          ? ({ type: EventType.RUN_FINISHED, threadId: this.ids.threadId, runId: this.ids.runId, outcome: { type: "interrupt", interrupts: outcome.interrupts } } as BaseEvent)
+          : ({ type: EventType.RUN_FINISHED, threadId: this.ids.threadId, runId: this.ids.runId } as BaseEvent),
     )
     return out
   }
@@ -280,4 +282,20 @@ export class RunStream {
       } as BaseEvent,
     ]
   }
+}
+
+/** Accept only the bounded write interrupt shape produced by our agent. */
+function interruptOutcome(event: Json): Extract<RunOutcome, { status: "interrupted" }> | null {
+  const outcome = event.outcome
+  if (!outcome || typeof outcome !== "object" || (outcome as Json).type !== "interrupt") return null
+  const interrupts = (outcome as Json).interrupts
+  if (!Array.isArray(interrupts) || interrupts.length !== 1) return null
+  const interrupt = interrupts[0]
+  if (!interrupt || typeof interrupt !== "object") return null
+  const record = interrupt as Json
+  const metadata = record.metadata
+  if (typeof record.id !== "string" || !record.id.startsWith("write-") || record.reason !== "approval" || typeof record.message !== "string" || !metadata || typeof metadata !== "object") return null
+  const details = metadata as Json
+  if (!(["pre_call_brief", "post_call_output", "feedback_flag"] as string[]).includes(String(details.kind)) || !details.values || typeof details.values !== "object") return null
+  return { status: "interrupted", interrupts: [interrupt] }
 }
