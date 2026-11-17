@@ -156,6 +156,13 @@ class A2uiAction(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict, max_length=12)
 
 
+class MemoryItem(BaseModel):
+    """One remembered preference (docs/adr/0022): how the person likes to work, never a data fact."""
+
+    text: str = Field(min_length=1, max_length=160)
+    category: Literal["FORMAT", "LENGTH", "DATE_RANGE", "FOCUS", "OTHER"]
+
+
 class WriteApproval(BaseModel):
     """A decision for the interrupt recorded by a preceding chat run."""
 
@@ -181,6 +188,8 @@ class Invocation(BaseModel):
     page: PageContext | None = None
     #: Present only for a verified, owner-scoped AppSync resume of a write interrupt.
     write_approval: WriteApproval | None = None
+    #: The person's remembered preferences, read by the BE for this run (docs/adr/0022). The agent checks them again.
+    memory: list[MemoryItem] = Field(default_factory=list, max_length=30)
 
     @field_validator("messages")
     @classmethod

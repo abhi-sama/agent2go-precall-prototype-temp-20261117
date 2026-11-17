@@ -13,6 +13,7 @@ import { rememberRowSets, rowSetsEvent, type MockRowSet } from "./mock-chat-rows
 import { mockResponseRecord, mockTerritorySummary } from "./mock-director-insights"
 import { inferMockProposal, proposalSummary, withProgress, type MockProposal } from "./mock-page-state"
 import { parseRefineAction, refineQuestion, refineSurface, surfaceEvent, surfaceId, tableSurface, type RefineRequest } from "./mock-surfaces"
+import { checkPreference, MEMORY_CATEGORIES, parseMemoryRequest } from "./memory-guard"
 import type { ChatEventPage, ChatSurfaceActionInput, ChatThreadSummary, SavedChatTurn, SourceRecord } from "./types"
 
 interface ScheduledEvent {
@@ -56,6 +57,19 @@ export function scriptRun(runId: string, user: FixtureUser, typed: string, now =
   const question = refine ? refineQuestion(refine) : typed
   const asked = question.match(/\b([A-Z]{2}-\d{2})\b/)?.[1]
   const events: string[] = [ev("RUN_STARTED", { threadId: "mock", runId }), custom("model_mode", { mode: "claude" })]
+  // "Remember I prefer tables": a preference ends at the approval card; a record fact is refused here, before any answer
+  // (docs/adr/0022). Only a typed message can ask: a form action never does.
+  const remember = action ? null : parseMemoryRequest(question)
+  if (remember?.kind === "propose") {
+    events.push(
+      ev("TEXT_MESSAGE_START", { messageId: "m1", role: "assistant" }),
+      ev("TEXT_MESSAGE_CONTENT", { messageId: "m1", delta: "I need your approval before I save that change." }),
+      ev("TEXT_MESSAGE_END", { messageId: "m1" }),
+      ev("RUN_FINISHED", { threadId: "mock", runId, outcome: { type: "interrupt", interrupts: [{ id: `write-${runId}`, reason: "approval", message: `Remember this about how you like to work: \u201c${remember.values.text}\u201d?`, metadata: { kind: "save_preference", title: "Remember this preference", values: remember.values } }] } }),
+    )
+    runs.set(runId, { startedAt: now, events: events.map((data, i) => ({ seq: i + 1, at: 150 + i * TOKEN_MS, data })) })
+    return
+  }
   const postCall = question.match(/^save post-?call(?: workflow)? output\s*[:|-]\s*(.+)$/i)
   if (postCall) {
     events.push(
@@ -69,8 +83,8 @@ export function scriptRun(runId: string, user: FixtureUser, typed: string, now =
   }
   let answer: string
   const suggestions = ["Which territories can I see?", "What have HCPs recorded about osimertinib?"]
-  const directReply = question === "No changes were saved."
-    ? question
+  const directReply = question === "No changes were saved." || remember?.kind === "refuse"
+    ? (remember?.kind === "refuse" ? remember.reply : question)
     : action && !refine ? REFINE_REFUSAL : action ? null : smallTalkReply(question)
   const through = new Date(now - 86_400_000).toISOString()
   let surfaceCount = 0
@@ -382,6 +396,38 @@ export function scriptRun(runId: string, user: FixtureUser, typed: string, now =
   // The proposal rides the run's last progress snapshot, ahead of the answer's closing events.
   const woven = withProgress(events, proposalState)
   runs.set(runId, { startedAt: now, events: woven.map((data, i) => ({ seq: i + 1, at: 150 + i * TOKEN_MS, data })) })
+}
+
+/**
+ * Resume a remembered-preference approval the way the agent does: the approved values are rebuilt from the interrupted
+ * run's own event (plus bounded edits to its text), checked again, and handed to the browser as one `a2g_execute_write`
+ * tool call. Anything else (a rejection, another kind of write) returns false and takes the ordinary resume path.
+ */
+export function scriptResume(input: { runId: string; interruptedRunId: string; approved: boolean; values?: Record<string, string> }, now = Date.now()): boolean {
+  const interrupted = runs.get(input.interruptedRunId)
+  const last = interrupted?.events[interrupted.events.length - 1]
+  const metadata = last ? (JSON.parse(last.data) as { outcome?: { interrupts?: { metadata?: { kind?: string; values?: Record<string, string> } }[] } }).outcome?.interrupts?.[0]?.metadata : undefined
+  if (metadata?.kind !== "save_preference" || !metadata.values) return false
+  const values = { ...metadata.values, ...Object.fromEntries(Object.entries(input.values ?? {}).filter(([key, value]) => key in (metadata.values ?? {}) && typeof value === "string")) }
+  const valid = input.approved && checkPreference(values.text) === null && (MEMORY_CATEGORIES as readonly string[]).includes(values.category)
+  const events = [ev("RUN_STARTED", { threadId: "mock", runId: input.runId })]
+  if (valid) {
+    const toolCallId = `write-${input.runId}`
+    events.push(
+      ev("TOOL_CALL_START", { toolCallId, toolCallName: "a2g_execute_write" }),
+      ev("TOOL_CALL_ARGS", { toolCallId, delta: JSON.stringify({ kind: "save_preference", values: { text: values.text.trim(), category: values.category } }) }),
+      ev("TOOL_CALL_END", { toolCallId }),
+      ev("TOOL_CALL_RESULT", { messageId: `${toolCallId}~result`, toolCallId, content: "approved", role: "tool" }),
+    )
+  }
+  events.push(
+    ev("TEXT_MESSAGE_START", { messageId: "m1", role: "assistant" }),
+    ev("TEXT_MESSAGE_CONTENT", { messageId: "m1", delta: valid ? "The approved change is being saved." : "No changes were saved." }),
+    ev("TEXT_MESSAGE_END", { messageId: "m1" }),
+    ev("RUN_FINISHED", { threadId: "mock", runId: input.runId, outcome: { type: "success" } }),
+  )
+  runs.set(input.runId, { startedAt: now, events: events.map((data, i) => ({ seq: i + 1, at: 150 + i * TOKEN_MS, data })) })
+  return true
 }
 
 export function readRun(runId: string, after: number, now = Date.now()): ChatEventPage | null {

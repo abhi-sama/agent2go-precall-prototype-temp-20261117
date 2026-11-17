@@ -5,6 +5,8 @@ import type { ExecutiveTrendsAdapter } from "./executive-trends"
 import type { GovernanceAdapter } from "./governance"
 import type {
   ActivityEvidence,
+  AgentMemoryInput,
+  AgentMemoryItem,
   AppearanceChoice,
   SavedAppearance,
   ActivityMetric,
@@ -157,6 +159,14 @@ export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter,
   myAppearance(ctx: RequestContext): Promise<SavedAppearance | null>
   /** Saves the caller's own choice (there is no way to name another user). The latest save wins. */
   setAppearance(ctx: RequestContext, input: AppearanceChoice): Promise<SavedAppearance>
+  /** What the caller asked the agent to remember, oldest first. Always their own; loaded for every question (docs/adr/0022). */
+  myAgentMemory(ctx: RequestContext): Promise<AgentMemoryItem[]>
+  /** Saves one preference for the caller. The agent proposes it and the person approves it first; the BE refuses names, ids and figures. */
+  saveAgentMemory(ctx: RequestContext, input: AgentMemoryInput): Promise<AgentMemoryItem>
+  /** Deletes one item; it stops applying with the next question. */
+  deleteAgentMemory(ctx: RequestContext, memoryId: string): Promise<void>
+  /** Deletes every item of the caller; returns how many were removed. */
+  clearAgentMemory(ctx: RequestContext): Promise<number>
   createPostCallDraft(ctx: RequestContext, input: { notes: string }): Promise<PostCallDraft>
   confirmPostCallDraft(ctx: RequestContext, draftId: string): Promise<PostCallDraft>
   postCallDrafts(ctx: RequestContext): Promise<PostCallDraft[]>

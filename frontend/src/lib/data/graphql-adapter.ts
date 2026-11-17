@@ -36,7 +36,11 @@ import {
   MSL_INSIGHT_RESPONSES_QUERY,
   SAVED_VIEWS_QUERY,
   SAVE_VIEW_MUTATION,
+  CLEAR_AGENT_MEMORY_MUTATION,
+  DELETE_AGENT_MEMORY_MUTATION,
+  MY_AGENT_MEMORY_QUERY,
   MY_APPEARANCE_QUERY,
+  SAVE_AGENT_MEMORY_MUTATION,
   SET_APPEARANCE_MUTATION,
   SEMANTIC_INSIGHT_SEARCH_QUERY,
   POST_CALL_DRAFTS_QUERY,
@@ -99,6 +103,7 @@ import {
   type TopicAlert,
   type ExecutiveDrilldown,
   type ExecutiveOverview,
+  type AgentMemoryItem,
   SavedAppearance,
 } from "./types"
 
@@ -343,6 +348,18 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     },
     async setAppearance(ctx, input) {
       return (await run<{ setAppearance: SavedAppearance }>(transport, SET_APPEARANCE_MUTATION, { input }, ctx)).setAppearance
+    },
+    async myAgentMemory(ctx) {
+      return (await run<{ myAgentMemory: AgentMemoryItem[] }>(transport, MY_AGENT_MEMORY_QUERY, undefined, ctx)).myAgentMemory
+    },
+    async saveAgentMemory(ctx, input) {
+      return (await run<{ saveAgentMemory: AgentMemoryItem }>(transport, SAVE_AGENT_MEMORY_MUTATION, { input }, ctx)).saveAgentMemory
+    },
+    async deleteAgentMemory(ctx, memoryId) {
+      await run<{ deleteAgentMemory: boolean }>(transport, DELETE_AGENT_MEMORY_MUTATION, { memoryId }, ctx)
+    },
+    async clearAgentMemory(ctx) {
+      return (await run<{ clearAgentMemory: number }>(transport, CLEAR_AGENT_MEMORY_MUTATION, undefined, ctx)).clearAgentMemory
     },
     async createPostCallDraft(ctx, input) {
       return (await run<{ createPostCallDraft: PostCallDraft }>(transport, CREATE_POST_CALL_DRAFT_MUTATION, { input }, ctx)).createPostCallDraft

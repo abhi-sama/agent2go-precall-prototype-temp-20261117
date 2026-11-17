@@ -39,6 +39,7 @@ import {
   type ChatThreadValue,
 } from "@/components/chat/chat-thread"
 import { CitationSheet } from "@/components/chat/citation-sheet"
+import { AgentMemoryControl } from "@/components/chat/agent-memory"
 import { ChatCapabilities } from "@/components/chat/chat-capabilities"
 import { ConversationHistoryView, HistoryToggle } from "@/components/chat/conversation-history"
 import { evidenceOf } from "@/lib/chat/agent/answer"
@@ -219,6 +220,7 @@ export function PanelHeader(props: CopilotModalHeaderProps) {
             </h2>
             <div className="flex items-center gap-1">
               <HistoryToggle className={HEADER_ACTION} />
+              <AgentMemoryControl variant="icon" />
               <HeaderAction label="Open full chat" href="/chat" testId="chat-full">
                 <Maximize2 aria-hidden className="size-4" />
               </HeaderAction>

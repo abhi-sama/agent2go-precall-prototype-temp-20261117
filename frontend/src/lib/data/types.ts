@@ -150,6 +150,20 @@ export interface SavedAppearance extends AppearanceChoice {
   updatedAt: IsoDateTime
 }
 
+/** What a remembered preference is about (docs/adr/0022). Chosen by rule when the agent proposes it. */
+export type AgentMemoryCategory = "FORMAT" | "LENGTH" | "DATE_RANGE" | "FOCUS" | "OTHER"
+/** One thing the person asked the agent to remember about how they like to work. Never a data fact about HCPs, calls or figures. */
+export interface AgentMemoryItem {
+  memoryId: string
+  text: string
+  category: AgentMemoryCategory
+  createdAt: IsoDateTime
+}
+export interface AgentMemoryInput {
+  text: string
+  category: AgentMemoryCategory
+}
+
 /** Optional post-call draft. Lines are a lossless rendering of entered notes, never generated observations. */
 export interface PostCallDraft {
   draftId: string

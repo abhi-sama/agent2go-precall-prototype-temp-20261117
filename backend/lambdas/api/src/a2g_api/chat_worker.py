@@ -105,6 +105,7 @@ def run_chat(payload: Mapping[str, Any], settings: Settings, runtime: AgentRunti
         **({"a2ui_action": payload["a2ui_action"]} if payload.get("a2ui_action") else {}),
         **({"page": payload["page"]} if payload.get("page") else {}),
         **({"write_approval": payload["write_approval"]} if payload.get("write_approval") else {}),
+        **({"memory": payload["memory"]} if payload.get("memory") else {}),
     }
     try:
         for event in (runtime or runtime_for(settings)).invoke(request):

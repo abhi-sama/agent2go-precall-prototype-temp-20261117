@@ -4,6 +4,7 @@ import { History, MessageSquarePlus, Sparkles } from "lucide-react"
 import dynamic from "next/dynamic"
 import { useSearchParams } from "next/navigation"
 import * as React from "react"
+import { AgentMemoryControl } from "@/components/chat/agent-memory"
 import { ConversationHistoryView, ConversationList } from "@/components/chat/conversation-history"
 import { useChatSession } from "@/components/chat/chat-session"
 import { useMediaQuery } from "@/hooks/use-media-query"
@@ -61,6 +62,7 @@ export function ChatPanel() {
           >
             <History aria-hidden className="size-4" /> Conversations
           </button>
+          <AgentMemoryControl variant="pill" />
           {hasMessages && (
             <button
               type="button"

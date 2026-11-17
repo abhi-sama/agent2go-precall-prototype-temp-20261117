@@ -61,6 +61,22 @@ describe("RunStream", () => {
     expect(out.filter((e) => e.type === "TOOL_CALL_RESULT")).toHaveLength(1)
   })
 
+  it("answers a browser tool call with CopilotKit's placeholder, so its handler runs once and an agent result cannot skip it", () => {
+    const write = [
+      { type: "RUN_STARTED", threadId: "t", runId: "run-1" },
+      { type: "TOOL_CALL_START", toolCallId: "w-1", toolCallName: "a2g_execute_write" },
+      { type: "TOOL_CALL_ARGS", toolCallId: "w-1", delta: JSON.stringify({ kind: "save_preference", values: { text: "I prefer tables", category: "FORMAT" } }) },
+      { type: "TOOL_CALL_END", toolCallId: "w-1" },
+      { type: "TOOL_CALL_RESULT", toolCallId: "w-1", messageId: "x", content: "approved" },
+      { type: "RUN_FINISHED", threadId: "t", runId: "run-1" },
+    ]
+    for (const events of [write, write.filter((e) => e.type !== "TOOL_CALL_RESULT")]) {
+      const results = run(events).out.filter((e) => e.type === "TOOL_CALL_RESULT")
+      expect(results).toHaveLength(1)
+      expect(results[0]).toMatchObject({ toolCallId: "w-1", content: "Forwarded to client" })
+    }
+  })
+
   it("puts the evidence in a head (when the first figure arrives) and a tail (when the run ends)", () => {
     const { out } = run(ANSWER)
     const heads = out.filter((e) => e.type === "ACTIVITY_SNAPSHOT" && (e as unknown as { messageId: string }).messageId === ids.head("run-1"))
@@ -110,6 +126,10 @@ describe("RunStream", () => {
     await expect(verified(out)).resolves.toHaveLength(out.length)
     expect(out.at(-1)).toMatchObject({ type: "RUN_FINISHED", outcome: { type: "interrupt" } })
     expect(run([{ type: "RUN_FINISHED", outcome: { type: "interrupt", interrupts: [{ id: "unknown", metadata: {} }] } }]).out.at(-1)).toMatchObject({ type: "RUN_FINISHED" })
+    // A remembered preference (docs/adr/0022) is one of the closed write kinds; an unknown kind is still dropped.
+    const remember = (kind: string) => run([{ type: "RUN_FINISHED", outcome: { type: "interrupt", interrupts: [{ id: "write-run-12345678", reason: "approval", message: "Remember it?", metadata: { kind, values: { text: "I prefer tables", category: "FORMAT" } } }] } }]).out.at(-1)
+    expect(remember("save_preference")).toMatchObject({ outcome: { type: "interrupt" } })
+    expect(remember("save_secret")).not.toHaveProperty("outcome.type", "interrupt")
   })
 
   it("drops an A2UI surface that fails the answer-catalog gate, and scopes a good one to the run", () => {

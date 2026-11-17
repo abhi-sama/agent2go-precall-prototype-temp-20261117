@@ -42,7 +42,7 @@ _ACTION_KEYS = frozenset({"name", "surfaceId", "sourceComponentId", "timestamp",
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 _SURFACE = re.compile(r"^[A-Za-z0-9_-]{1,96}$")
 MAX_ACTION_CHARS = 2_000
-_WRITE_KINDS = frozenset({"pre_call_brief", "post_call_output", "feedback_flag"})
+_WRITE_KINDS = frozenset({"pre_call_brief", "post_call_output", "feedback_flag", "save_preference"})
 
 
 def _id(args: Mapping[str, Any], name: str) -> str:
@@ -257,6 +257,7 @@ def start_chat_run(
     worker_function: str | None,
     correlation_id: str,
     invoker: Invoker = invoke_worker,
+    memory: Callable[[str], list[dict[str, str]]] | None = None,
 ) -> dict[str, Any]:
     thread_id, run_id = _id(args, "threadId"), _id(args, "runId")
     message = args.get("message")
@@ -298,6 +299,9 @@ def start_chat_run(
         **({"context": context} if context else {}),
         **({"a2ui_action": action} if action else {}),
         **({"page": page} if page else {}),
+        # What this person asked the agent to remember, read fresh for every question, so a deletion applies to the next
+        # one (docs/adr/0022). The loader is keyed by the verified user id; the question names no owner.
+        **({"memory": remembered} if memory and (remembered := memory(user_id)) else {}),
     }
     try:
         invoker(worker_function, payload)

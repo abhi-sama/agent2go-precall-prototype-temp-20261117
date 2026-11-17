@@ -22,6 +22,8 @@ _FILTER_KEYS = ("from", "to", "territoryId", "molecule", "landscape", "study", "
 # The per-user appearance choice lives in the same owner-keyed table under a fixed sort key. The prefix keeps it out of
 # the saved-view list; the verified user id is the partition key, so nobody can read or write another person's choice.
 PREFERENCE_PREFIX = "PREF#"
+# What Ask the agent remembers about the person (docs/adr/0022) shares the table under its own prefix, for the same reason.
+NON_VIEW_PREFIXES = (PREFERENCE_PREFIX, "MEM#")
 APPEARANCE_KEY = f"{PREFERENCE_PREFIX}appearance"
 APPEARANCE_CHOICES: dict[str, tuple[str, ...]] = {
     "style": ("auto", "warm", "clinical"),
@@ -61,8 +63,8 @@ class SavedViews:
         try:
             result = self.client.query(TableName=self.table, KeyConditionExpression="ownerUserId = :owner", ExpressionAttributeValues={":owner": _serializer.serialize(owner_user_id)}, ScanIndexForward=False)
             items = [self._decode(item) for item in result.get("Items", [])]
-            # The person's preference items share the table; they are not saved views.
-            return [self._view(item) for item in items if not str(item["savedViewId"]).startswith(PREFERENCE_PREFIX)]
+            # The person's preference and memory items share the table; they are not saved views.
+            return [self._view(item) for item in items if not str(item["savedViewId"]).startswith(NON_VIEW_PREFIXES)]
         except Exception as exc:
             raise Unavailable("saved_views_read_failed") from exc
 

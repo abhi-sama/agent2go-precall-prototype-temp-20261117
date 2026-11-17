@@ -32,9 +32,10 @@ from strands import Agent
 from strands.models import BedrockModel
 
 from . import a2ui, ag_ui, visuals
-from .chat_writes import approved_write, parse_pending_write
+from .chat_writes import approved_write, memory_refusal, parse_pending_write
 from .config import Settings
 from .intent import infer_chart_request, infer_executive_facet, wants_region_matrix
+from .memory import memory_note
 from .numbers import allowed_numbers, unverified_numbers
 from .page_proposals import PageProposal, infer_page_proposal
 from .progress import CHECK, SCOPE, WRITE, Progress, tool_label
@@ -376,6 +377,7 @@ class MslAgent:
             )
             + (EXECUTIVE_ADDENDUM if invocation.identity.persona == "Executive" else "")
             + context_note(invocation)
+            + memory_note([item.model_dump() for item in invocation.memory])
             + refine_note,
             messages=_history(invocation),
             callback_handler=None,  # events are consumed from stream_async, never printed
@@ -746,6 +748,13 @@ class MslAgent:
                 yield ag_ui.text_content(message_id, "I need your approval before I save that change.")
                 yield ag_ui.text_end(message_id)
                 yield ag_ui.run_interrupted(invocation.thread_id, run_id, pending_write.interrupt(run_id))
+                return
+            if (refusal := memory_refusal(invocation.question)) is not None:
+                # Memory holds preferences only. A name, record id or figure is refused in code, before any model call.
+                yield ag_ui.text_start(message_id)
+                yield ag_ui.text_content(message_id, refusal)
+                yield ag_ui.text_end(message_id)
+                yield ag_ui.run_finished(invocation.thread_id, run_id)
                 return
         else:
             approval = invocation.write_approval

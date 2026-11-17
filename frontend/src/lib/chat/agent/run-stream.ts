@@ -19,6 +19,14 @@ import { ANSWER_ACTIVITY, EVIDENCE_EVENTS, HEAD_EVENTS, ids, type AnswerActivity
 
 type Json = Record<string, unknown>
 
+/**
+ * The browser's own tools (`a2g_execute_write`, ADR 0020) are named with this prefix. CopilotKit runs a frontend tool's
+ * handler only when the call has no completed result, and counts this exact placeholder as "not answered yet". So the
+ * result of a browser tool call is always the placeholder, whatever the agent sent: the handler then runs once, here.
+ */
+const CLIENT_TOOL_PREFIX = "a2g_"
+const FORWARDED_TO_CLIENT = "Forwarded to client"
+
 const MAX_SURFACES = 4
 const MAX_EVIDENCE_EVENTS = 400
 const MAX_STATE_EVENTS = 80
@@ -49,6 +57,7 @@ export class RunStream {
   private readonly openTools = new Set<string>()
   private readonly awaitingResult = new Set<string>()
   private readonly knownTools = new Set<string>()
+  private readonly toolNames = new Map<string, string>()
   private readonly surfaces = new Map<string, string>()
   private readonly evidence: EvidenceEvent[] = []
   /** The agent's latest progress, kept so the answer can carry its final steps and the run can settle it. */
@@ -112,6 +121,7 @@ export class RunStream {
         if (!id || this.knownTools.has(id)) return out
         this.knownTools.add(id)
         this.openTools.add(id)
+        this.toolNames.set(id, str(event.toolCallName) ?? "tool")
         out.push({
           type: EventType.TOOL_CALL_START,
           toolCallId: id,
@@ -208,7 +218,8 @@ export class RunStream {
 
   private toolResult(id: string, content: string): BaseEvent {
     // The tool's output stays on the server; the chat only learns that the call finished.
-    return { type: EventType.TOOL_CALL_RESULT, messageId: ids.toolResult(this.ids.runId, id), toolCallId: id, content: content.slice(0, 40), role: "tool" } as BaseEvent
+    const forwarded = this.toolNames.get(id)?.startsWith(CLIENT_TOOL_PREFIX) ?? false
+    return { type: EventType.TOOL_CALL_RESULT, messageId: ids.toolResult(this.ids.runId, id), toolCallId: id, content: forwarded ? FORWARDED_TO_CLIENT : content.slice(0, 40), role: "tool" } as BaseEvent
   }
 
   private keepEvidence(event: EvidenceEvent, headWorthy = false): BaseEvent[] {
@@ -296,6 +307,6 @@ function interruptOutcome(event: Json): Extract<RunOutcome, { status: "interrupt
   const metadata = record.metadata
   if (typeof record.id !== "string" || !record.id.startsWith("write-") || record.reason !== "approval" || typeof record.message !== "string" || !metadata || typeof metadata !== "object") return null
   const details = metadata as Json
-  if (!(["pre_call_brief", "post_call_output", "feedback_flag"] as string[]).includes(String(details.kind)) || !details.values || typeof details.values !== "object") return null
+  if (!(["pre_call_brief", "post_call_output", "feedback_flag", "save_preference"] as string[]).includes(String(details.kind)) || !details.values || typeof details.values !== "object") return null
   return { status: "interrupted", interrupts: [interrupt] }
 }

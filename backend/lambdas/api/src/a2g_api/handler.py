@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, briefs, chat, chat_history, chat_rows, director, director_insights, eval_panel, eval_store, executive, executive_themes, executive_trends, flags, hierarchy, leadership, post_call, resolvers
+from . import activity, agent_memory, briefs, chat, chat_history, chat_rows, director, director_insights, eval_panel, eval_store, executive, executive_themes, executive_trends, flags, hierarchy, leadership, post_call, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .embeddings import provider_from_config
@@ -120,11 +120,34 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
 
     def set_appearance(cur, identity, user_id, args):
         return resolvers.set_appearance(cur, identity, user_id, args, store=SavedViews(settings))
+
+    def memory_store() -> agent_memory.AgentMemory:
+        return agent_memory.AgentMemory(SavedViews(settings))
+
+    def my_agent_memory(cur, identity, user_id, args):
+        return agent_memory.my_agent_memory(cur, identity, user_id, args, store=memory_store())
+
+    def save_agent_memory(cur, identity, user_id, args):
+        return agent_memory.save_agent_memory(cur, identity, user_id, args, store=memory_store())
+
+    def delete_agent_memory(cur, identity, user_id, args):
+        return agent_memory.delete_agent_memory(cur, identity, user_id, args, store=memory_store())
+
+    def clear_agent_memory(cur, identity, user_id, args):
+        return agent_memory.clear_agent_memory(cur, identity, user_id, args, store=memory_store())
+
+    def remembered(user_id: str) -> list[dict[str, str]]:
+        # Preferences make an answer better but never make it possible: a store that is down means no preferences this run.
+        try:
+            return agent_memory.load_for_prompt(memory_store(), user_id)
+        except Exception as exc:
+            log.error("agent memory unavailable for a run", error_type=type(exc).__name__)
+            return []
     embeddings = provider_from_config(settings.embedding_provider, endpoint_url=settings.embedding_endpoint, region_name=settings.saved_views_region)
 
     return {
         "startChatRun": partial(
-            chat.start_chat_run, worker_function=settings.chat_worker_function, correlation_id=correlation_id
+            chat.start_chat_run, worker_function=settings.chat_worker_function, correlation_id=correlation_id, memory=remembered
         ),
         "resumeChatRun": partial(
             chat.resume_chat_run, worker_function=settings.chat_worker_function, correlation_id=correlation_id
@@ -177,6 +200,10 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "saveView": save_view,
         "myAppearance": my_appearance,
         "setAppearance": set_appearance,
+        "myAgentMemory": my_agent_memory,
+        "saveAgentMemory": save_agent_memory,
+        "deleteAgentMemory": delete_agent_memory,
+        "clearAgentMemory": clear_agent_memory,
         "adminHierarchy": hierarchy.admin_hierarchy,
         "adminAccessTimeline": hierarchy.admin_access_timeline,
         "requestScopeChange": hierarchy.request_scope_change,

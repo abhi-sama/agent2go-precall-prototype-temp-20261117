@@ -253,6 +253,13 @@ _Avoid_: Ask AI, assistant, chat drawer
 The list in Ask the agent of a person's own saved conversations, newest first, each titled by its first question; choosing one reopens it with its saved answers and the next question continues it. Listed and read by the BE from the caller's own saved turns, and only while their scope still covers each answer.
 _Avoid_: chat history panel, threads (the code's `threadId` is the conversation's identifier)
 
+**Remembered preference**:
+A short note about how a person likes to work (tables over charts, a default 90-day range, briefs kept to 5 bullets), saved only when they ask the agent to remember it and approve it, and loaded into every question. Never a data fact about HCPs, calls or figures, which always come fresh from the data.
+_Avoid_: agent memory (a memory of facts), profile, learned behaviour
+
+**What the agent remembers**:
+The panel, reachable from Ask the agent, that lists a person's remembered preferences with a delete for each and a clear-all.
+
 ## Governance
 
 **Ingestion run**:

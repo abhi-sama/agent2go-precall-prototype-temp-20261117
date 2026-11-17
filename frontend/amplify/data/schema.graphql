@@ -675,6 +675,26 @@ input AppearanceInput {
   density: String!
 }
 
+"""What the preference is about, so the list can be read at a glance. Chosen by rule when the agent proposes it."""
+enum AgentMemoryCategory { FORMAT LENGTH DATE_RANGE FOCUS OTHER }
+
+"""
+One thing the person asked the agent to remember about how they like to work ("I prefer tables", "default to the last 90
+days"). Never a data fact: counts, calls, HCPs and responses always come fresh from RLS-scoped SQL.
+"""
+type AgentMemoryItem {
+  memoryId: ID!
+  text: String!
+  category: AgentMemoryCategory!
+  createdAt: AWSDateTime!
+}
+
+"""A short preference (at most 160 characters). The BE refuses names, record ids, figures and instructions."""
+input AgentMemoryInput {
+  text: String!
+  category: AgentMemoryCategory!
+}
+
 """An editable, optional post-call draft. Its lines are copied verbatim from entered notes."""
 type PostCallDraft {
   draftId: ID!
@@ -1788,6 +1808,8 @@ type Query {
   savedViews: [SavedView!]!
   "The caller's saved style, mode and density, or null when they never chose (use persona defaults)."
   myAppearance: AppearancePreference
+  "What the caller asked the agent to remember, oldest first. Always the caller's own."
+  myAgentMemory: [AgentMemoryItem!]!
   "Territory graph with cycles, orphans, missing links, overlaps and inheritance validated. Administrators only."
   adminHierarchy: HierarchyValidation!
   "Effective-dated assignments with computed status, the approval trail, and overlaps. Administrators only."
@@ -1874,6 +1896,12 @@ type Mutation {
   saveView(input: SaveViewInput!): SavedView!
   "Save the caller's style, mode and density. Always the caller's own; there is no way to name another user."
   setAppearance(input: AppearanceInput!): AppearancePreference!
+  "Save one remembered preference for the caller. The agent proposes it and the person approves it first; the BE checks it again."
+  saveAgentMemory(input: AgentMemoryInput!): AgentMemoryItem!
+  "Delete one of the caller's remembered preferences. It stops applying with the next question."
+  deleteAgentMemory(memoryId: ID!): Boolean!
+  "Delete every remembered preference of the caller. Returns how many were removed."
+  clearAgentMemory: Int!
   createPostCallDraft(input: PostCallDraftInput!): PostCallDraft!
   confirmPostCallDraft(draftId: ID!): PostCallDraft!
   """Creates commitments only after this explicit confirmation mutation."""

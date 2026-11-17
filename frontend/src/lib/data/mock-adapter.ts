@@ -8,9 +8,10 @@ import { createMockGovernance } from "./governance"
 import { buildComparison, buildOverview, tooLong } from "./mock-director"
 import { buildExecutiveDrilldown, buildExecutiveOverview, defaultExecutiveRange, executiveWindowTooLong, type ExecutiveInput } from "./mock-executive"
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
-import { mockCitation, readRun, savedThread, savedThreads, scriptRun, type MockAskedTurn } from "./mock-chat"
+import { mockCitation, readRun, savedThread, savedThreads, scriptResume, scriptRun, type MockAskedTurn } from "./mock-chat"
 import { findRowSet, mockRowsExport, mockRowsPage } from "./mock-chat-rows"
 import { createMockAppearance } from "./mock-appearance"
+import { createMockAgentMemory } from "./mock-memory"
 import { createMockBriefs } from "./mock-briefs"
 import { createMockExecutiveThemes, type ThemesInput } from "./mock-executive-themes"
 import { createMockExecutiveTrends } from "./mock-executive-trends"
@@ -261,6 +262,7 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     ...createMockGovernance({ getUser: () => findUser(options.getUserId()), gate, now }),
     ...createMockEvals({ getUser: () => findUser(options.getUserId()), gate, now }),
     ...createMockAppearance({ getUserId: options.getUserId, gate, now }),
+    ...createMockAgentMemory({ getUserId: options.getUserId, gate, now }),
     ...createMockBriefs({ user: () => findUser(options.getUserId()), scenario, gate, now }),
     ...createMockDirectorInsights({ getUser: () => findUser(options.getUserId()), gate, now }),
     ...createMockExecutiveThemes({ user: () => findUser(options.getUserId()), scenario, gate, input: themesInput, now }),
@@ -550,7 +552,9 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
     async resumeChatRun(ctx, input) {
       const s = await gate(ctx, "resumeChatRun")
       if (s === "forbidden") throw new DataError("FORBIDDEN", "You do not have access to this data.", ctx.correlationId)
-      scriptRun(input.runId, findUser(options.getUserId()), input.approved ? "The approved change is being saved." : "No changes were saved.", now().getTime())
+      if (!scriptResume(input, now().getTime())) {
+        scriptRun(input.runId, findUser(options.getUserId()), input.approved ? "The approved change is being saved." : "No changes were saved.", now().getTime())
+      }
       return { runId: input.runId, status: "RUNNING" }
     },
 
