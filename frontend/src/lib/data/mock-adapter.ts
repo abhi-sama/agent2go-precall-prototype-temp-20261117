@@ -8,10 +8,10 @@ import { createMockGovernance } from "./governance"
 import { buildComparison, buildOverview, tooLong } from "./mock-director"
 import { buildExecutiveDrilldown, buildExecutiveOverview, defaultExecutiveRange, executiveWindowTooLong, type ExecutiveInput } from "./mock-executive"
 import { findUser, fixtureHash, TERRITORIES, REGIONS, type FixtureTerritory } from "./fixtures"
-import { mockCitation, readRun, savedThread, savedThreads, scriptResume, scriptRun, type MockAskedTurn } from "./mock-chat"
+import { mockCitation, readRun, resetMockChatOffers, savedThread, savedThreads, scriptResume, scriptRun, type MockAskedTurn } from "./mock-chat"
 import { findRowSet, mockRowsExport, mockRowsPage } from "./mock-chat-rows"
 import { createMockAppearance } from "./mock-appearance"
-import { createMockAgentMemory } from "./mock-memory"
+import { createMockAgentMemory, mockMemoryOf } from "./mock-memory"
 import { createMockBriefs } from "./mock-briefs"
 import { createMockExecutiveThemes, type ThemesInput } from "./mock-executive-themes"
 import { createMockExecutiveTrends } from "./mock-executive-trends"
@@ -112,6 +112,7 @@ const MOCK_CHAT_TURNS = new Map<string, MockAskedTurn[]>()
 export function resetMockFlags() {
   MOCK_FLAGS.clear()
   MOCK_CHAT_TURNS.clear()
+  resetMockChatOffers()
 }
 
 export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
@@ -546,7 +547,14 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       const asked = MOCK_CHAT_TURNS.get(options.getUserId()) ?? []
       asked.push({ threadId: input.threadId, runId: input.runId, question: input.message, generatedAt: now().toISOString() })
       MOCK_CHAT_TURNS.set(options.getUserId(), asked)
-      scriptRun(input.runId, findUser(options.getUserId()), input.message, now().getTime(), input.context, input.action)
+      // The BE reads these for every question: this conversation's own messages, what is remembered, what was dismissed.
+      const remembered = mockMemoryOf(options.getUserId())
+      scriptRun(input.runId, findUser(options.getUserId()), input.message, now().getTime(), input.context, input.action, {
+        threadId: input.threadId,
+        userMessages: asked.filter((turn) => turn.threadId === input.threadId).map((turn) => turn.question),
+        remembered: remembered.items,
+        dismissed: remembered.dismissed,
+      })
       return { runId: input.runId, status: "RUNNING" }
     },
     async resumeChatRun(ctx, input) {

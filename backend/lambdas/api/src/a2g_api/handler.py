@@ -136,6 +136,17 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
     def clear_agent_memory(cur, identity, user_id, args):
         return agent_memory.clear_agent_memory(cur, identity, user_id, args, store=memory_store())
 
+    def dismiss_agent_memory_suggestion(cur, identity, user_id, args):
+        return agent_memory.dismiss_agent_memory_suggestion(cur, identity, user_id, args, store=memory_store())
+
+    def dismissed_suggestions(user_id: str) -> list[str]:
+        # Like the preferences, a store that is down only means no filtering this run; nothing is offered without a click.
+        try:
+            return agent_memory.load_dismissed(memory_store(), user_id)
+        except Exception as exc:
+            log.error("agent memory dismissals unavailable for a run", error_type=type(exc).__name__)
+            return []
+
     def remembered(user_id: str) -> list[dict[str, str]]:
         # Preferences make an answer better but never make it possible: a store that is down means no preferences this run.
         try:
@@ -147,7 +158,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
 
     return {
         "startChatRun": partial(
-            chat.start_chat_run, worker_function=settings.chat_worker_function, correlation_id=correlation_id, memory=remembered
+            chat.start_chat_run, worker_function=settings.chat_worker_function, correlation_id=correlation_id, memory=remembered, dismissed=dismissed_suggestions
         ),
         "resumeChatRun": partial(
             chat.resume_chat_run, worker_function=settings.chat_worker_function, correlation_id=correlation_id
@@ -204,6 +215,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
         "saveAgentMemory": save_agent_memory,
         "deleteAgentMemory": delete_agent_memory,
         "clearAgentMemory": clear_agent_memory,
+        "dismissAgentMemorySuggestion": dismiss_agent_memory_suggestion,
         "adminHierarchy": hierarchy.admin_hierarchy,
         "adminAccessTimeline": hierarchy.admin_access_timeline,
         "requestScopeChange": hierarchy.request_scope_change,

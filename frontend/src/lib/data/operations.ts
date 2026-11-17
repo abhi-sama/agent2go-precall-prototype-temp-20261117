@@ -167,6 +167,7 @@ export const MY_AGENT_MEMORY_QUERY = /* GraphQL */ `query MyAgentMemory { myAgen
 export const SAVE_AGENT_MEMORY_MUTATION = /* GraphQL */ `mutation SaveAgentMemory($input: AgentMemoryInput!) { saveAgentMemory(input: $input) { ${AGENT_MEMORY_FIELDS} } }`
 export const DELETE_AGENT_MEMORY_MUTATION = /* GraphQL */ `mutation DeleteAgentMemory($memoryId: ID!) { deleteAgentMemory(memoryId: $memoryId) }`
 export const CLEAR_AGENT_MEMORY_MUTATION = /* GraphQL */ `mutation ClearAgentMemory { clearAgentMemory }`
+export const DISMISS_AGENT_MEMORY_SUGGESTION_MUTATION = /* GraphQL */ `mutation DismissAgentMemorySuggestion($text: String!) { dismissAgentMemorySuggestion(text: $text) }`
 const POST_CALL_DRAFT_FIELDS = `draftId notes structuredLines status createdAt`
 const FOLLOW_UP_TASK_FIELDS = `taskId description ownerUserId dueDate status sourceDraftId createdAt`
 const TOPIC_ALERT_RULE_FIELDS = `ruleId topic threshold periodDays createdAt`

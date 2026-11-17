@@ -22,8 +22,8 @@ _FILTER_KEYS = ("from", "to", "territoryId", "molecule", "landscape", "study", "
 # The per-user appearance choice lives in the same owner-keyed table under a fixed sort key. The prefix keeps it out of
 # the saved-view list; the verified user id is the partition key, so nobody can read or write another person's choice.
 PREFERENCE_PREFIX = "PREF#"
-# What Ask the agent remembers about the person (docs/adr/0022) shares the table under its own prefix, for the same reason.
-NON_VIEW_PREFIXES = (PREFERENCE_PREFIX, "MEM#")
+# What Ask the agent remembers about the person (docs/adr/0022), and the suggestions they dismissed (0023), share the table under its own prefix, for the same reason.
+NON_VIEW_PREFIXES = (PREFERENCE_PREFIX, "MEM#", "MEMX#")
 APPEARANCE_KEY = f"{PREFERENCE_PREFIX}appearance"
 APPEARANCE_CHOICES: dict[str, tuple[str, ...]] = {
     "style": ("auto", "warm", "clinical"),

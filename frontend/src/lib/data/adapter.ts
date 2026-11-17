@@ -165,8 +165,10 @@ export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter,
   saveAgentMemory(ctx: RequestContext, input: AgentMemoryInput): Promise<AgentMemoryItem>
   /** Deletes one item; it stops applying with the next question. */
   deleteAgentMemory(ctx: RequestContext, memoryId: string): Promise<void>
-  /** Deletes every item of the caller; returns how many were removed. */
+  /** Deletes every item of the caller and forgets the suggestions they dismissed; returns how many items were removed. */
   clearAgentMemory(ctx: RequestContext): Promise<number>
+  /** Records that the caller declined a suggested preference, so it is not offered again (docs/adr/0023). Stored as a hash. */
+  dismissAgentMemorySuggestion(ctx: RequestContext, text: string): Promise<void>
   createPostCallDraft(ctx: RequestContext, input: { notes: string }): Promise<PostCallDraft>
   confirmPostCallDraft(ctx: RequestContext, draftId: string): Promise<PostCallDraft>
   postCallDrafts(ctx: RequestContext): Promise<PostCallDraft[]>

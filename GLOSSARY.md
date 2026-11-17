@@ -257,6 +257,10 @@ _Avoid_: chat history panel, threads (the code's `threadId` is the conversation'
 A short note about how a person likes to work (tables over charts, a default 90-day range, briefs kept to 5 bullets), saved only when they ask the agent to remember it and approve it, and loaded into every question. Never a data fact about HCPs, calls or figures, which always come fresh from the data.
 _Avoid_: agent memory (a memory of facts), profile, learned behaviour
 
+**Suggested preference**:
+A remembered preference the agent offers after it noticed the person asking for the same thing a few times in one conversation ("You asked for the last 90 days 3 times"), shown on a card with Remember and Dismiss. At most one per conversation unless the person asks what it noticed; saved only when they choose Remember, and a dismissed one is not offered again.
+_Avoid_: automatic memory, learned preference
+
 **What the agent remembers**:
 The panel, reachable from Ask the agent, that lists a person's remembered preferences with a delete for each and a clear-all.
 

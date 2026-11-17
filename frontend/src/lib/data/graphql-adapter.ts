@@ -38,6 +38,7 @@ import {
   SAVE_VIEW_MUTATION,
   CLEAR_AGENT_MEMORY_MUTATION,
   DELETE_AGENT_MEMORY_MUTATION,
+  DISMISS_AGENT_MEMORY_SUGGESTION_MUTATION,
   MY_AGENT_MEMORY_QUERY,
   MY_APPEARANCE_QUERY,
   SAVE_AGENT_MEMORY_MUTATION,
@@ -360,6 +361,9 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
     },
     async clearAgentMemory(ctx) {
       return (await run<{ clearAgentMemory: number }>(transport, CLEAR_AGENT_MEMORY_MUTATION, undefined, ctx)).clearAgentMemory
+    },
+    async dismissAgentMemorySuggestion(ctx, text) {
+      await run<{ dismissAgentMemorySuggestion: boolean }>(transport, DISMISS_AGENT_MEMORY_SUGGESTION_MUTATION, { text }, ctx)
     },
     async createPostCallDraft(ctx, input) {
       return (await run<{ createPostCallDraft: PostCallDraft }>(transport, CREATE_POST_CALL_DRAFT_MUTATION, { input }, ctx)).createPostCallDraft

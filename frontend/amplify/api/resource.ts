@@ -62,6 +62,7 @@ export const BE_FIELDS = [
   { typeName: 'Mutation', fieldName: 'saveAgentMemory' },
   { typeName: 'Mutation', fieldName: 'deleteAgentMemory' },
   { typeName: 'Mutation', fieldName: 'clearAgentMemory' },
+  { typeName: 'Mutation', fieldName: 'dismissAgentMemorySuggestion' },
   { typeName: 'Query', fieldName: 'adminHierarchy' },
   { typeName: 'Query', fieldName: 'adminAccessTimeline' },
   { typeName: 'Mutation', fieldName: 'requestScopeChange' },

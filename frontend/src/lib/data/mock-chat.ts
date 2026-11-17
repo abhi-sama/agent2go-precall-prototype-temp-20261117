@@ -14,6 +14,7 @@ import { mockResponseRecord, mockTerritorySummary } from "./mock-director-insigh
 import { inferMockProposal, proposalSummary, withProgress, type MockProposal } from "./mock-page-state"
 import { parseRefineAction, refineQuestion, refineSurface, surfaceEvent, surfaceId, tableSurface, type RefineRequest } from "./mock-surfaces"
 import { checkPreference, MEMORY_CATEGORIES, parseMemoryRequest } from "./memory-guard"
+import { isSuggestionRequest, SUGGEST_ASK_NONE, SUGGEST_ASK_REPLY, SUGGEST_MAX_ASKED, suggestPreferences } from "./memory-suggest"
 import type { ChatEventPage, ChatSurfaceActionInput, ChatThreadSummary, SavedChatTurn, SourceRecord } from "./types"
 
 interface ScheduledEvent {
@@ -23,6 +24,20 @@ interface ScheduledEvent {
 }
 
 const runs = new Map<string, { startedAt: number; events: ScheduledEvent[] }>()
+
+/**
+ * What the BE reads for a run so the agent can suggest a preference (docs/adr/0023): what the person typed in this
+ * conversation, what is already remembered, and which suggestions they dismissed. A conversation is offered at most one.
+ */
+export interface MockMemoryRun {
+  threadId: string
+  userMessages: string[]
+  remembered: { text: string }[]
+  dismissed: ReadonlySet<string>
+}
+const offeredThreads = new Set<string>()
+export const resetMockChatOffers = () => offeredThreads.clear()
+const suggestionEvent = (s: { text: string; category: string; reason: string }) => custom("memory_suggestion", { text: s.text, category: s.category, reason: s.reason })
 
 const TOKEN_MS = 90
 const ev = (type: string, extra: Record<string, unknown> = {}) => JSON.stringify({ type, timestamp: Date.now(), ...extra })
@@ -51,7 +66,7 @@ const weekdaysBetween = (from: string, to: string) => {
 
 const AGGREGATE_ONLY_PAGE = "An aggregate-only role can change the page's date range, but not filter it to a territory or a question."
 
-export function scriptRun(runId: string, user: FixtureUser, typed: string, now = Date.now(), context?: ChatContext, action?: ChatSurfaceActionInput): void {
+export function scriptRun(runId: string, user: FixtureUser, typed: string, now = Date.now(), context?: ChatContext, action?: ChatSurfaceActionInput, memory?: MockMemoryRun): void {
   // An Adjust-form action is validated against closed lists, then asked as the question it stands for (docs/adr/0017).
   const refine: RefineRequest | null = action ? parseRefineAction(action.name, action.context, user.persona === "executive") : null
   const question = refine ? refineQuestion(refine) : typed
@@ -67,6 +82,20 @@ export function scriptRun(runId: string, user: FixtureUser, typed: string, now =
       ev("TEXT_MESSAGE_END", { messageId: "m1" }),
       ev("RUN_FINISHED", { threadId: "mock", runId, outcome: { type: "interrupt", interrupts: [{ id: `write-${runId}`, reason: "approval", message: `Remember this about how you like to work: \u201c${remember.values.text}\u201d?`, metadata: { kind: "save_preference", title: "Remember this preference", values: remember.values } }] } }),
     )
+    runs.set(runId, { startedAt: now, events: events.map((data, i) => ({ seq: i + 1, at: 150 + i * TOKEN_MS, data })) })
+    return
+  }
+  if (!action && memory && isSuggestionRequest(question)) {
+    // Asked outright: no one-per-conversation limit, no model. The cards save nothing until they are clicked.
+    const asked = suggestPreferences(memory.userMessages, memory.remembered, memory.dismissed).slice(0, SUGGEST_MAX_ASKED)
+    events.push(
+      ev("TEXT_MESSAGE_START", { messageId: "m1", role: "assistant" }),
+      ev("TEXT_MESSAGE_CONTENT", { messageId: "m1", delta: asked.length ? SUGGEST_ASK_REPLY : SUGGEST_ASK_NONE }),
+      ev("TEXT_MESSAGE_END", { messageId: "m1" }),
+      ...asked.map(suggestionEvent),
+      ev("RUN_FINISHED", { threadId: "mock", runId, outcome: { type: "success" } }),
+    )
+    if (asked.length) offeredThreads.add(memory.threadId)
     runs.set(runId, { startedAt: now, events: events.map((data, i) => ({ seq: i + 1, at: 150 + i * TOKEN_MS, data })) })
     return
   }
@@ -391,8 +420,16 @@ export function scriptRun(runId: string, user: FixtureUser, typed: string, now =
     custom("number_check", { status: "verified", count: 0, checked: true }),
     custom("suggestions", suggestions),
     custom("conversation_saved", { saved: true }),
-    ev("RUN_FINISHED", { threadId: "mock", runId }),
   )
+  // After an ordinary answer, at most one preference noticed in this conversation is offered (docs/adr/0023).
+  if (!directReply && !action && memory && !offeredThreads.has(memory.threadId)) {
+    const [offer] = suggestPreferences(memory.userMessages, memory.remembered, memory.dismissed)
+    if (offer) {
+      offeredThreads.add(memory.threadId)
+      events.push(suggestionEvent(offer))
+    }
+  }
+  events.push(ev("RUN_FINISHED", { threadId: "mock", runId }))
   // The proposal rides the run's last progress snapshot, ahead of the answer's closing events.
   const woven = withProgress(events, proposalState)
   runs.set(runId, { startedAt: now, events: woven.map((data, i) => ({ seq: i + 1, at: 150 + i * TOKEN_MS, data })) })

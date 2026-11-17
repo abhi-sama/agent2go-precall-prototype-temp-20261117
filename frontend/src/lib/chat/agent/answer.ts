@@ -31,6 +31,7 @@ export const EVIDENCE_EVENTS: ReadonlySet<string> = new Set([
   "rows_unavailable",
   "sample_limitations",
   "suggestions",
+  "memory_suggestion",
   "number_check",
   "conversation_saved",
 ])

@@ -7,7 +7,7 @@
  *
  *  - `a2g-answer`, head: the figures counted by the database and the charts drawn from SQL (ADR 0007, 0009).
  *  - `a2g-answer`, tail: the exact rows behind a figure (ADR 0015), the sample limitations, the number check, the
- *    run's outcome, the aggregate-only note, and the sources of an answer that has no text.
+ *    run's outcome, a preference the agent suggests remembering (ADR 0023), the aggregate-only note, and the sources of an answer that has no text.
  *  - `a2ui-surface`: an A2UI surface from the allow-listed answer catalog (ADR 0017).
  */
 
@@ -18,6 +18,7 @@ import * as React from "react"
 import { z } from "zod"
 import { AnswerRows } from "@/components/chat/answer-rows"
 import { KindLabel, ProvenanceBlock } from "@/components/chat/chat-provenance"
+import { MemorySuggestionCard } from "@/components/chat/memory-suggestion"
 import { useChatSession } from "@/components/chat/chat-session"
 import { SourcesRow, useChatThread, useTurn } from "@/components/chat/chat-thread"
 import { VisualCard } from "@/components/chat/visual-card"
@@ -202,6 +203,8 @@ function AnswerTail({ turn, activity }: { turn: AssistantTurn; activity: AnswerA
           </button>
         </div>
       )}
+
+      {done && turn.memorySuggestions.map((suggestion) => <MemorySuggestionCard key={suggestion.text} runId={turn.runId} suggestion={suggestion} />)}
 
       {done && turn.saved !== null && (
         <p data-testid="saved-note" className="text-xs text-muted-foreground">

@@ -24,7 +24,7 @@ CopilotKit runs a frontend tool's handler only when its call has no completed re
 
 ## Not in this change
 
-Automatic suggestions (option B: "You asked for 90 days 4 times. Remember that?") build on this storage, panel and approval card as a separate follow-up. Editing an item in place and sharing items between people are out of scope. The deployed IAM for the saved-views table is part of the AWS infrastructure work (ticket #24): the BE Lambda's role on it also needs `dynamodb:DeleteItem` (it already writes and queries it for saved views and the appearance choice).
+Automatic suggestions (option B: "You asked for 90 days 4 times. Remember that?") build on this storage and panel: see ADR 0023. Editing an item in place and sharing items between people are out of scope. The deployed IAM for the saved-views table is part of the AWS infrastructure work (ticket #24): the BE Lambda's role on it also needs `dynamodb:DeleteItem` (it already writes and queries it for saved views and the appearance choice).
 
 ## Testing
 

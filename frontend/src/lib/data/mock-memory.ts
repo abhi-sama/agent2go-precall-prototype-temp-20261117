@@ -1,4 +1,5 @@
 import { checkPreference, cleanMemoryText, MEMORY_CATEGORIES, MEMORY_MAX_ITEMS } from "./memory-guard"
+import { normalizedPreference } from "./memory-suggest"
 import { DataError, type AgentMemoryInput, type AgentMemoryItem, type RequestContext } from "./types"
 
 /**
@@ -9,6 +10,38 @@ import { DataError, type AgentMemoryInput, type AgentMemoryItem, type RequestCon
 const STORE_KEY = "a2g.mock.agentMemory"
 const memory = new Map<string, AgentMemoryItem[]>()
 let counter = 0
+
+/**
+ * The suggestions the person dismissed (docs/adr/0023), per user, as normalised texts; the BE keeps hashes of the same.
+ * Kept in the same way as the items: localStorage in a browser, a map under test and during server render.
+ */
+const DISMISSED_KEY = "a2g.mock.agentMemoryDismissed"
+const MAX_DISMISSED = 50
+const dismissed = new Map<string, string[]>()
+
+function readDismissed(): Record<string, string[]> {
+  if (typeof window === "undefined") return Object.fromEntries(dismissed)
+  try {
+    return JSON.parse(window.localStorage.getItem(DISMISSED_KEY) ?? "{}") as Record<string, string[]>
+  } catch {
+    return Object.fromEntries(dismissed)
+  }
+}
+
+function writeDismissed(userId: string, keys: string[]) {
+  dismissed.set(userId, keys)
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(DISMISSED_KEY, JSON.stringify({ ...readDismissed(), [userId]: keys }))
+  } catch {
+    /* private mode: the in-memory copy still holds for this visit */
+  }
+}
+
+/** What the mock agent reads for a person's next question: their preferences and the suggestions they dismissed. */
+export function mockMemoryOf(userId: string): { items: AgentMemoryItem[]; dismissed: Set<string> } {
+  return { items: structuredClone(readAll()[userId] ?? []), dismissed: new Set(readDismissed()[userId] ?? []) }
+}
 
 function readAll(): Record<string, AgentMemoryItem[]> {
   if (typeof window === "undefined") return Object.fromEntries(memory)
@@ -31,8 +64,10 @@ function writeOne(userId: string, items: AgentMemoryItem[]) {
 
 export function resetMockAgentMemory() {
   memory.clear()
+  dismissed.clear()
   if (typeof window === "undefined") return
   try {
+    window.localStorage.removeItem(DISMISSED_KEY)
     window.localStorage.removeItem(STORE_KEY)
   } catch {
     /* nothing to clear */
@@ -76,7 +111,16 @@ export function createMockAgentMemory({ getUserId, gate, now }: Deps) {
       await gate(ctx, "clearAgentMemory")
       const removed = mine().length
       writeOne(getUserId(), [])
+      writeDismissed(getUserId(), [])
       return removed
+    },
+    async dismissAgentMemorySuggestion(ctx: RequestContext, text: string): Promise<void> {
+      await gate(ctx, "dismissAgentMemorySuggestion")
+      const cleaned = cleanMemoryText(String(text ?? ""))
+      if (checkPreference(cleaned) !== null) throw new DataError("BAD_REQUEST", "That cannot be dismissed. Only a suggested preference can.", ctx.correlationId)
+      const key = normalizedPreference(cleaned)
+      const kept = readDismissed()[getUserId()] ?? []
+      if (!kept.includes(key)) writeDismissed(getUserId(), [...kept, key].slice(-MAX_DISMISSED))
     },
   }
 }

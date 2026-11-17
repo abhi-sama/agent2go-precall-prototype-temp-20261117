@@ -14,6 +14,8 @@
  * answer-catalog gate in `a2ui/protocol.ts` are kept.
  */
 
+import { checkPreference, MEMORY_CATEGORIES } from "@/lib/data/memory-guard"
+import type { AgentMemoryCategory } from "@/lib/data/types"
 import { surfaceFromActivity, type SurfaceItem } from "./a2ui/protocol"
 
 export interface FactItem {
@@ -121,6 +123,20 @@ export interface RowSetItem {
   sourceId: string
 }
 
+/**
+ * A preference the agent noticed and offers to remember (docs/adr/0023). Its text is checked by the same guard as every
+ * saved preference before it can be shown, and nothing is saved until the person chooses Remember.
+ */
+export interface MemorySuggestionItem {
+  text: string
+  category: AgentMemoryCategory
+  /** Why it is offered, in the agent's fixed words ("You asked for the last 90 days 3 times."). */
+  reason: string
+}
+
+export const MAX_MEMORY_SUGGESTIONS = 3
+const MAX_SUGGESTION_REASON = 120
+
 export type TurnStatus = "running" | "done" | "error"
 
 export interface NumberCheck {
@@ -146,6 +162,8 @@ export interface AssistantTurn {
   /** A2UI surfaces, screened, in arrival order. Absent on turns stored before surfaces existed. */
   surfaces?: SurfaceItem[]
   suggestions: string[]
+  /** Preferences the agent offers to remember: at most one after an ordinary answer, a few when the person asks. */
+  memorySuggestions: MemorySuggestionItem[]
   tools: { id: string; name: string; done: boolean }[]
   mode: "claude" | "stub" | null
   numberCheck: NumberCheck | null
@@ -168,6 +186,7 @@ export function newTurn(runId: string): AssistantTurn {
     rowsUnavailable: false,
     surfaces: [],
     suggestions: [],
+    memorySuggestions: [],
     tools: [],
     mode: null,
     numberCheck: null,
@@ -341,6 +360,16 @@ function applySurface(turn: AssistantTurn, event: Json): AssistantTurn {
   return { ...turn, surfaces: [...surfaces, item] }
 }
 
+/** One suggested preference, or null: the guard, the category list and the reason's length are enforced here, not trusted. */
+function parseMemorySuggestion(value: unknown): MemorySuggestionItem | null {
+  if (!isObject(value) || typeof value.text !== "string" || typeof value.reason !== "string") return null
+  const text = value.text.split(/\s+/).filter(Boolean).join(" ")
+  const reason = value.reason.trim()
+  if (!(MEMORY_CATEGORIES as readonly unknown[]).includes(value.category) || checkPreference(text) !== null) return null
+  if (!reason || reason.length > MAX_SUGGESTION_REASON || /[\u0000-\u001f]/.test(reason)) return null
+  return { text, category: value.category as AgentMemoryCategory, reason }
+}
+
 function applyCustom(turn: AssistantTurn, name: string, value: unknown): AssistantTurn {
   switch (name) {
     case "model_mode":
@@ -372,6 +401,11 @@ function applyCustom(turn: AssistantTurn, name: string, value: unknown): Assista
     }
     case "suggestions":
       return { ...turn, suggestions: Array.isArray(value) ? value.filter((s): s is string => typeof s === "string").slice(0, 3) : [] }
+    case "memory_suggestion": {
+      const item = parseMemorySuggestion(value)
+      if (!item || turn.memorySuggestions.length >= MAX_MEMORY_SUGGESTIONS || turn.memorySuggestions.some((m) => m.text.toLowerCase() === item.text.toLowerCase())) return turn
+      return { ...turn, memorySuggestions: [...turn.memorySuggestions, item] }
+    }
     case "number_check": {
       if (!isObject(value)) return turn
       return {

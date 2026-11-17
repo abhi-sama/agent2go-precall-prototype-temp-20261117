@@ -82,7 +82,7 @@ function MemoryBody({ onClose }: { onClose: () => void }) {
           <VStack gap={4}>
             <div ref={introRef} tabIndex={-1} className="outline-none" data-testid="memory-intro">
             <Text as="p" type="supporting" data-testid="memory-explainer">
-              Say “remember I prefer tables” and the agent asks you first. It remembers preferences, such as formats, lengths and date ranges, never data about HCPs, calls or figures: those are always read fresh from your data. Delete one and it stops applying with your next question.
+              Say “remember I prefer tables” and the agent asks you first. It remembers preferences, such as formats, lengths and date ranges, never data about HCPs, calls or figures: those are always read fresh from your data. Delete one and it stops applying with your next question. After you ask for the same thing a few times the agent may suggest one; nothing is saved unless you choose Remember.
             </Text>
             </div>
             {items.status === "loading" && <Skeleton data-testid="memory-loading" height="6rem" width="100%" radius={4} />}
@@ -126,7 +126,7 @@ function MemoryBody({ onClose }: { onClose: () => void }) {
             isOpen={confirmClear}
             onOpenChange={(next) => !next && setConfirmClear(false)}
             title="Clear everything the agent remembers?"
-            description="All saved preferences are deleted. The agent stops applying them with your next question. This cannot be undone."
+            description="All saved preferences are deleted and the suggestions you dismissed are forgotten. The agent stops applying them with your next question. This cannot be undone."
             actionLabel="Clear all"
             cancelLabel="Keep them"
             isActionLoading={busy === "all"}

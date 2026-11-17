@@ -1900,8 +1900,10 @@ type Mutation {
   saveAgentMemory(input: AgentMemoryInput!): AgentMemoryItem!
   "Delete one of the caller's remembered preferences. It stops applying with the next question."
   deleteAgentMemory(memoryId: ID!): Boolean!
-  "Delete every remembered preference of the caller. Returns how many were removed."
+  "Delete every remembered preference of the caller, and forget the suggestions they dismissed. Returns how many preferences were removed."
   clearAgentMemory: Int!
+  "Record that the caller declined a suggested preference, so the agent does not offer it again. Stored as a hash, never the text."
+  dismissAgentMemorySuggestion(text: String!): Boolean!
   createPostCallDraft(input: PostCallDraftInput!): PostCallDraft!
   confirmPostCallDraft(draftId: ID!): PostCallDraft!
   """Creates commitments only after this explicit confirmation mutation."""

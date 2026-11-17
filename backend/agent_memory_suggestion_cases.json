@@ -1,0 +1,28 @@
+{
+  "_comment": "Shared by backend/agent/tests/test_memory_suggest.py and frontend/src/lib/data/memory-suggest.test.ts so the agent's preference detectors and the mock adapter's mirror cannot drift. docs/adr/0023. 'noticed' is the list of [text, category, reason] the person's own messages show, before anything already remembered or dismissed is filtered out.",
+  "noticed": [
+    {"name": "the same date range three times", "messages": ["How many calls in the last 90 days?", "And HCPs over the last 90 days?", "Responses for the last 90 days"], "expect": [["Default to the last 90 days", "DATE_RANGE", "You asked for the last 90 days 3 times."]]},
+    {"name": "a hyphenated range counts, a message counts once", "messages": ["a 30-day view of calls, the last 30 days", "show the last 30 days of responses", "30-day HCPs please"], "expect": [["Default to the last 30 days", "DATE_RANGE", "You asked for the last 30 days 3 times."]]},
+    {"name": "two asks are not yet a habit", "messages": ["calls in the last 90 days", "HCPs in the last 90 days", "calls in the last 30 days"], "expect": []},
+    {"name": "the most common range wins", "messages": ["last 30 days", "last 90 days", "last 90 days", "last 30 days", "last 90 days"], "expect": [["Default to the last 90 days", "DATE_RANGE", "You asked for the last 90 days 3 times."]]},
+    {"name": "one day or an absurd range is not a preference", "messages": ["last 1 day", "last 1 day", "last 1 day", "last 9000 days", "last 9000 days", "last 9000 days"], "expect": []},
+    {"name": "tables", "messages": ["Show calls as a table", "a table of HCPs please", "table of responses by month"], "expect": [["I prefer tables over charts", "FORMAT", "You asked for a table 3 times."]]},
+    {"name": "charts", "messages": ["chart my calls", "plot HCPs by month", "a graph of responses"], "expect": [["I prefer charts over tables", "FORMAT", "You asked for a chart 3 times."]]},
+    {"name": "tables and charts equally often is no preference", "messages": ["a table", "a table", "a table", "a chart", "a chart", "a chart"], "expect": []},
+    {"name": "bullets", "messages": ["summarise in 5 bullets", "give me 5 bullet points on responses", "5 bullets for HCPs"], "expect": [["Keep answers to 5 bullets", "LENGTH", "You asked for 5 bullets 3 times."]]},
+    {"name": "short answers", "messages": ["keep it short", "be concise", "shorter answers please"], "expect": [["Keep answers short", "LENGTH", "You asked for shorter answers 3 times."]]},
+    {"name": "a therapeutic area from the closed list", "messages": ["oncology calls", "what did HCPs say about Oncology?", "oncology responses this month"], "expect": [["Focus on oncology", "FOCUS", "You asked about oncology 3 times."]]},
+    {"name": "a name or record id is never a preference", "messages": ["Dr. Smith last week", "Dr. Smith last week", "Dr. Smith last week", "HCP-0001 calls", "HCP-0001 calls", "HCP-0001 calls"], "expect": []},
+    {"name": "a remember command and a request to suggest are not evidence", "messages": ["remember last 90 days", "Remember the last 90 days", "suggest preferences", "last 90 days"], "expect": []},
+    {"name": "several habits come out most useful first", "messages": ["last 90 days as a table", "last 90 days table", "last 90 days, a table, in 5 bullets", "5 bullets", "5 bullets"], "expect": [["Default to the last 90 days", "DATE_RANGE", "You asked for the last 90 days 3 times."], ["I prefer tables over charts", "FORMAT", "You asked for a table 3 times."], ["Keep answers to 5 bullets", "LENGTH", "You asked for 5 bullets 3 times."]]}
+  ],
+  "keys": [
+    {"text": "Default to the last 90 days", "key": "dc09f21b9439a342"},
+    {"text": "  default TO the   last 90 days ", "key": "dc09f21b9439a342"},
+    {"text": "I prefer tables over charts", "key": "da5e19143e2d1fd7"}
+  ],
+  "asks": {
+    "yes": ["suggest preferences", "Suggest some preferences", "please suggest any preferences?", "What have you noticed about how I work?", "what should you remember about me", "Any preferences you've noticed?"],
+    "no": ["remember I prefer tables", "do you remember my preferences from last week", "what is my call count", "suggest a chart of calls", "tell me what to remember about HCP-0001"]
+  }
+}

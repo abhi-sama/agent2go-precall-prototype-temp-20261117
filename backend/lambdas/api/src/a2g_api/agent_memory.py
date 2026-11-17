@@ -11,6 +11,7 @@ puts the items in its prompt (``msl_agent.memory``); both are tested against ``b
 
 from __future__ import annotations
 
+import hashlib
 import re
 import uuid
 from datetime import datetime, timezone
@@ -24,6 +25,11 @@ from .saved_views import SavedViews
 log = get_logger(__name__)
 
 MEMORY_PREFIX = "MEM#"
+#: A dismissed suggestion (docs/adr/0023) is stored as ``MEMX#<key>``: the key is a hash of the text, so the store keeps
+#: no preference words for something the person declined. At most MAX_DISMISSED are kept; the oldest give way.
+DISMISSED_PREFIX = "MEMX#"
+MAX_DISMISSED = 50
+_KEY = re.compile(r"^[0-9a-f]{16}$")
 CATEGORIES = ("FORMAT", "LENGTH", "DATE_RANGE", "FOCUS", "OTHER")
 MAX_TEXT = 160
 MAX_ITEMS = 30
@@ -78,6 +84,11 @@ def check_preference(text: Any) -> str | None:
         if pattern.search(stripped):
             return reason
     return None
+
+
+def suggestion_key(text: str) -> str:
+    """The key a dismissal is stored under. Same text ignoring case and spacing, same key; ``msl_agent.memory_suggest`` agrees."""
+    return hashlib.sha256(" ".join(text.split()).casefold().encode()).hexdigest()[:16]
 
 
 def clean_item(raw: Any) -> dict[str, str]:
@@ -165,7 +176,49 @@ class AgentMemory:
             raise NotFound("unknown_memory")
         return True
 
+    def _dismissals(self, owner_user_id: str) -> list[dict[str, Any]]:
+        views = self._views
+        try:
+            result = views.client.query(
+                TableName=views.table,
+                KeyConditionExpression="ownerUserId = :owner AND begins_with(savedViewId, :p)",
+                ExpressionAttributeValues={":owner": views._encode({"v": owner_user_id})["v"], ":p": views._encode({"v": DISMISSED_PREFIX})["v"]},
+                ConsistentRead=True,
+            )
+        except Exception as exc:
+            raise Unavailable("agent_memory_read_failed") from exc
+        items = [views._decode(item) for item in result.get("Items", [])]
+        return sorted((i for i in items if str(i.get("savedViewId", "")).startswith(DISMISSED_PREFIX)), key=lambda i: (str(i.get("createdAt", "")), i["savedViewId"]))
+
+    def dismissed_keys(self, owner_user_id: str) -> list[str]:
+        """The keys of the suggestions this person dismissed, oldest first."""
+        return [k for i in self._dismissals(owner_user_id) if _KEY.match(k := str(i["savedViewId"])[len(DISMISSED_PREFIX):])]
+
+    def dismiss(self, owner_user_id: str, text: Any) -> bool:
+        """Record that a suggestion was declined so it is not offered again. Only a preference can be dismissed."""
+        cleaned = " ".join(str(text or "").split())
+        reason = check_preference(cleaned)
+        if reason:
+            raise BadRequest(f"memory_rejected_{reason}")
+        key = suggestion_key(cleaned)
+        views = self._views
+        existing = self._dismissals(owner_user_id)
+        if any(str(i["savedViewId"]) == f"{DISMISSED_PREFIX}{key}" for i in existing):
+            return True  # dismissing twice is the same as once
+        try:
+            views.client.put_item(
+                TableName=views.table,
+                Item=views._encode({"ownerUserId": owner_user_id, "savedViewId": f"{DISMISSED_PREFIX}{key}", "createdAt": datetime.now(timezone.utc).isoformat()}),
+            )
+            # Past the cap the oldest give way, so the list cannot grow without bound.
+            for old in existing[: max(0, len(existing) + 1 - MAX_DISMISSED)]:
+                views.client.delete_item(TableName=views.table, Key=views._encode({"ownerUserId": owner_user_id, "savedViewId": old["savedViewId"]}))
+        except Exception as exc:
+            raise Unavailable("agent_memory_write_failed") from exc
+        return True
+
     def clear(self, owner_user_id: str) -> int:
+        """Forget everything: the preferences (counted) and the dismissed suggestions (so they may be offered afresh)."""
         removed = 0
         for item in self._items(owner_user_id):
             try:
@@ -176,6 +229,14 @@ class AgentMemory:
             except Exception as exc:
                 raise Unavailable("agent_memory_write_failed") from exc
             removed += 1
+        for dismissal in self._dismissals(owner_user_id):
+            try:
+                self._views.client.delete_item(
+                    TableName=self._views.table,
+                    Key=self._views._encode({"ownerUserId": owner_user_id, "savedViewId": dismissal["savedViewId"]}),
+                )
+            except Exception as exc:
+                raise Unavailable("agent_memory_write_failed") from exc
         return removed
 
 
@@ -186,6 +247,11 @@ def load_for_prompt(store: AgentMemory, owner_user_id: str) -> list[dict[str, st
         if check_preference(item["text"]) is None:
             out.append({"text": item["text"], "category": item["category"]})
     return out
+
+
+def load_dismissed(store: AgentMemory, owner_user_id: str) -> list[str]:
+    """The dismissed-suggestion keys sent to the agent with each run (never the text of anything)."""
+    return store.dismissed_keys(owner_user_id)[-MAX_DISMISSED:]
 
 
 # AppSync field resolvers. The owner is always the verified user id; no argument names another person.
@@ -209,3 +275,9 @@ def clear_agent_memory(cur: Any, identity: Any, user_id: str, args: Any, *, stor
     removed = store.clear(user_id)
     log.info("agent memory cleared", user_id=user_id, removed=removed)
     return removed
+
+
+def dismiss_agent_memory_suggestion(cur: Any, identity: Any, user_id: str, args: Any, *, store: AgentMemory) -> bool:
+    store.dismiss(user_id, args.get("text"))
+    log.info("agent memory suggestion dismissed", user_id=user_id)
+    return True

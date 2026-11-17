@@ -36,6 +36,7 @@ from .chat_writes import approved_write, memory_refusal, parse_pending_write
 from .config import Settings
 from .intent import infer_chart_request, infer_executive_facet, wants_region_matrix
 from .memory import memory_note
+from .memory_suggest import ASK_NONE, ASK_REPLY, MAX_ASKED, is_suggestion_request, suggest_preferences
 from .numbers import allowed_numbers, unverified_numbers
 from .page_proposals import PageProposal, infer_page_proposal
 from .progress import CHECK, SCOPE, WRITE, Progress, tool_label
@@ -309,6 +310,15 @@ class StreamingAgent(Protocol):
 
 
 AgentFactory = Callable[[RunContext, Invocation], StreamingAgent]
+
+
+def _user_messages(invocation: Invocation) -> list[str]:
+    """What the person typed in this conversation, oldest first (the preference detectors read only these)."""
+    return [message.content for message in invocation.messages if message.role == "user"]
+
+
+def _remembered(invocation: Invocation) -> list[dict[str, str]]:
+    return [item.model_dump() for item in invocation.memory]
 
 
 def _history(invocation: Invocation) -> list[dict[str, Any]]:
@@ -756,6 +766,16 @@ class MslAgent:
                 yield ag_ui.text_end(message_id)
                 yield ag_ui.run_finished(invocation.thread_id, run_id)
                 return
+            if is_suggestion_request(invocation.question):
+                # Asked outright, so the one-per-conversation limit does not apply; the cards still save nothing until clicked.
+                asked = suggest_preferences(_user_messages(invocation), _remembered(invocation), invocation.memory_dismissed)[:MAX_ASKED]
+                yield ag_ui.text_start(message_id)
+                yield ag_ui.text_content(message_id, ASK_REPLY if asked else ASK_NONE)
+                yield ag_ui.text_end(message_id)
+                for suggestion in asked:
+                    yield ag_ui.custom("memory_suggestion", suggestion.event())
+                yield ag_ui.run_finished(invocation.thread_id, run_id)
+                return
         else:
             approval = invocation.write_approval
             pending_write = approved_write(
@@ -1096,6 +1116,12 @@ class MslAgent:
         # person's conversation history, so they are not saved.
         saved = False if invocation.thread_id.startswith("eval-") else await asyncio.to_thread(self._writer.save_turn, turn)
         yield ag_ui.custom("conversation_saved", {"saved": saved})
+
+        # Option B of the memory feature (docs/adr/0023): after an ordinary answer, at most one preference noticed in this
+        # conversation is offered, only when none was offered before, and never in an evaluation run or a form action.
+        if direct_reply is None and refine is None and invocation.a2ui_action is None and not invocation.memory_offered and not invocation.thread_id.startswith("eval-"):
+            for suggestion in suggest_preferences(_user_messages(invocation), _remembered(invocation), invocation.memory_dismissed)[:1]:
+                yield ag_ui.custom("memory_suggestion", suggestion.event())
 
         log.info(
             "run finished",

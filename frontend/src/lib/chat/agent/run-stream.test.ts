@@ -89,6 +89,15 @@ describe("RunStream", () => {
     expect(out.filter((e) => e.type === "ACTIVITY_SNAPSHOT").every((e) => (e as unknown as { activityType: string }).activityType === ANSWER_ACTIVITY)).toBe(true)
   })
 
+  it("passes a suggested preference through as answer evidence, and nothing else can start a write", async () => {
+    const suggestion = { text: "Default to the last 90 days", category: "DATE_RANGE", reason: "You asked for the last 90 days 3 times." }
+    const events = [...ANSWER.slice(0, -1), { type: "CUSTOM", name: "memory_suggestion", value: suggestion }, ANSWER.at(-1)!]
+    const { out } = run(events)
+    await verified(out)
+    expect(tail(out).content.events.at(-1)).toEqual({ type: "CUSTOM", name: "memory_suggestion", value: suggestion })
+    expect(out.some((e) => e.type === "TOOL_CALL_START" && String((e as unknown as { toolCallName: string }).toolCallName).startsWith("a2g_"))).toBe(false)
+  })
+
   it("closes what an event log left open and ends with the error (the worker's bare RUN_ERROR)", async () => {
     const { out } = run([
       { type: "TOOL_CALL_START", toolCallId: "tc-1", toolCallName: "show_chart" },

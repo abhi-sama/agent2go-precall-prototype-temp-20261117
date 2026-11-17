@@ -106,6 +106,8 @@ def run_chat(payload: Mapping[str, Any], settings: Settings, runtime: AgentRunti
         **({"page": payload["page"]} if payload.get("page") else {}),
         **({"write_approval": payload["write_approval"]} if payload.get("write_approval") else {}),
         **({"memory": payload["memory"]} if payload.get("memory") else {}),
+        **({"memory_dismissed": payload["memory_dismissed"]} if payload.get("memory_dismissed") else {}),
+        **({"memory_offered": True} if payload.get("memory_offered") else {}),
     }
     try:
         for event in (runtime or runtime_for(settings)).invoke(request):

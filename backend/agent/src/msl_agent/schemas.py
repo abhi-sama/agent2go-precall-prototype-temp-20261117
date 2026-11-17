@@ -190,6 +190,10 @@ class Invocation(BaseModel):
     write_approval: WriteApproval | None = None
     #: The person's remembered preferences, read by the BE for this run (docs/adr/0022). The agent checks them again.
     memory: list[MemoryItem] = Field(default_factory=list, max_length=30)
+    #: Keys of the preference suggestions the person dismissed (a hash, never the text) and whether this conversation was
+    #: already offered one: both read by the BE, so the agent offers at most one new suggestion per conversation (ADR 0023).
+    memory_dismissed: list[Annotated[str, Field(pattern=r"^[0-9a-f]{16}$")]] = Field(default_factory=list, max_length=50)
+    memory_offered: bool = False
 
     @field_validator("messages")
     @classmethod

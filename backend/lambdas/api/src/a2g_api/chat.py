@@ -258,6 +258,7 @@ def start_chat_run(
     correlation_id: str,
     invoker: Invoker = invoke_worker,
     memory: Callable[[str], list[dict[str, str]]] | None = None,
+    dismissed: Callable[[str], list[str]] | None = None,
 ) -> dict[str, Any]:
     thread_id, run_id = _id(args, "threadId"), _id(args, "runId")
     message = args.get("message")
@@ -287,6 +288,24 @@ def start_chat_run(
         # Run ids are caller-chosen so the client can poll straight away; reuse is refused.
         raise BadRequest("run_id_taken")
 
+    suggestion = {}
+    if dismissed:
+        # Preference suggestions (docs/adr/0023): the agent offers at most one per conversation, so say whether this one
+        # already had one (read from the persisted event log under RLS, which only ever shows this person's own runs),
+        # and which suggestions this person dismissed, as keys. The agent chooses nothing from the question's owner.
+        cur.execute(
+            """
+            SELECT EXISTS (
+              SELECT 1 FROM chat_run_events e JOIN chat_runs r ON r.run_id = e.run_id
+              WHERE r.thread_id = %s AND e.event->>'type' = 'CUSTOM' AND e.event->>'name' = 'memory_suggestion'
+            )
+            """,
+            (thread_id,),
+        )
+        row = cur.fetchone()
+        keys = dismissed(user_id)
+        suggestion = {**({"memory_offered": True} if row and row[0] is True else {}), **({"memory_dismissed": keys} if keys else {})}
+
     payload = {
         "user_id": user_id,
         "persona": identity.db_persona,
@@ -302,6 +321,7 @@ def start_chat_run(
         # What this person asked the agent to remember, read fresh for every question, so a deletion applies to the next
         # one (docs/adr/0022). The loader is keyed by the verified user id; the question names no owner.
         **({"memory": remembered} if memory and (remembered := memory(user_id)) else {}),
+        **suggestion,
     }
     try:
         invoker(worker_function, payload)
