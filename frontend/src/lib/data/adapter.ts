@@ -17,6 +17,7 @@ import type {
   ChatRowsPage,
   ChatRowsQuery,
   ChatRun,
+  SavedChatTurn,
   AccessAuditEvent,
   AccessAuditFilter,
   AdminAccessOverview,
@@ -111,6 +112,8 @@ export interface DataAdapter extends GovernanceAdapter, DirectorInsightsAdapter,
   setRolePermissions(ctx: RequestContext, input: { roleId: string; permissionCodes: string[] }): Promise<RolePermissionMatrix>
   approveIdentityMapping(ctx: RequestContext, input: { userId: string; rosterSourceRowId: string }): Promise<IdentityMatch>
   startChatRun(ctx: RequestContext, input: ChatRunInput): Promise<ChatRun>
+  /** Completed turns the agent saved for this caller. The BE queries only their FE DynamoDB partition. */
+  myChatHistory(ctx: RequestContext, limit?: number): Promise<SavedChatTurn[]>
   /**
    * Start a streamed chat answer. The caller picks `runId` so it can poll straight away. The mutation
    * returns once the BE accepted the run; the answer arrives through `chatEvents`.

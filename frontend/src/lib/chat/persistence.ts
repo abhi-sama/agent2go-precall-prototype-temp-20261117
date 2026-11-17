@@ -1,7 +1,8 @@
 import type { Message } from "@ag-ui/core"
 import { A2UI_ACTIVITY_TYPE } from "./a2ui/protocol"
-import { ANSWER_ACTIVITY } from "./agent/answer"
+import { ANSWER_ACTIVITY, ids, type AnswerActivity } from "./agent/answer"
 import { settle, turnsOf } from "./agent/turns"
+import type { SavedChatTurn } from "@/lib/data"
 
 /**
  * The conversation survives close, reopen and reload: CopilotKit's message list for the thread is kept in
@@ -95,6 +96,62 @@ export function clearChat(userId: string, storage: Pick<Storage, "removeItem"> |
   } catch {
     /* storage unavailable */
   }
+}
+
+type HistoryPayload = {
+  facts?: unknown[]
+  citations?: unknown[]
+  visuals?: unknown[]
+  surfaces?: unknown[]
+  suggestions?: unknown[]
+  dataThrough?: unknown
+  modelMode?: unknown
+  unverifiedNumbers?: unknown[]
+  sampleLimitations?: unknown[]
+}
+
+const object = (value: unknown): Record<string, unknown> | null => (typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null)
+const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [])
+
+/**
+ * Rebuild CopilotKit messages from agent-owned DynamoDB turns. The payload is treated exactly like a restored browser
+ * session: it becomes evidence activities, and every renderer validates it again before drawing anything.
+ */
+export function messagesFromHistory(turns: readonly SavedChatTurn[]): Message[] {
+  const ordered = [...turns].sort((a, b) => a.generatedAt.localeCompare(b.generatedAt))
+  const messages: Message[] = []
+  for (const turn of ordered) {
+    let payload: HistoryPayload = {}
+    try {
+      payload = (object(JSON.parse(turn.payload)) ?? {}) as HistoryPayload
+    } catch {
+      continue
+    }
+    if (!turn.threadId || !turn.runId || !turn.userMessage || typeof turn.assistantText !== "string") continue
+    const events: AnswerActivity["events"] = []
+    if (Array.isArray(payload.facts)) events.push({ type: "CUSTOM", name: "source_facts", value: { facts: payload.facts, ...(typeof payload.dataThrough === "string" ? { data_through: payload.dataThrough } : {}) } })
+    if (Array.isArray(payload.citations)) events.push({ type: "CUSTOM", name: "citations", value: payload.citations })
+    for (const visual of payload.visuals ?? []) {
+      const visualObject = object(visual)
+      if (visualObject) events.push({ type: "CUSTOM", name: "visual", value: { ...visualObject, phase: "ready" } })
+    }
+    if (typeof payload.modelMode === "string") events.push({ type: "CUSTOM", name: "model_mode", value: { mode: payload.modelMode } })
+    events.push({ type: "CUSTOM", name: "number_check", value: { status: strings(payload.unverifiedNumbers).length ? "unverified" : "verified", count: strings(payload.unverifiedNumbers).length, checked: payload.modelMode !== "stub" } })
+    if (Array.isArray(payload.sampleLimitations)) events.push({ type: "CUSTOM", name: "sample_limitations", value: strings(payload.sampleLimitations) })
+    if (Array.isArray(payload.suggestions)) events.push({ type: "CUSTOM", name: "suggestions", value: strings(payload.suggestions) })
+    events.push({ type: "CUSTOM", name: "conversation_saved", value: { saved: true } })
+    const questionId = `history~${turn.runId}~question`
+    messages.push({ id: questionId, role: "user", content: turn.userMessage } as Message)
+    messages.push({ id: ids.text(turn.runId, 0), role: "assistant", content: turn.assistantText } as Message)
+    if (Array.isArray(payload.surfaces)) {
+      for (const [index, operations] of payload.surfaces.entries()) {
+        if (!Array.isArray(operations)) continue
+        messages.push({ id: `history~${turn.runId}~surface~${index}`, role: "activity", activityType: A2UI_ACTIVITY_TYPE, content: { a2ui_operations: operations } } as Message)
+      }
+    }
+    messages.push({ id: ids.tail(turn.runId), role: "activity", activityType: ANSWER_ACTIVITY, content: { v: 1, runId: turn.runId, part: "tail", userMessageId: questionId, status: "done", error: null, events } } as Message)
+  }
+  return messages
 }
 
 function safeStorage(): Storage | null {

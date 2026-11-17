@@ -6,7 +6,8 @@ import { useSharedFilters } from "@/components/filters/filter-context"
 import { PageFiguresProvider } from "@/components/chat/page-figures"
 import { ChatSessionContext, type ChatSession } from "@/components/chat/chat-session"
 import { AppSyncChatAgent } from "@/lib/chat/agent/appsync-agent"
-import { clearChat, loadChat, saveChat } from "@/lib/chat/persistence"
+import { clearChat, loadChat, messagesFromHistory, saveChat } from "@/lib/chat/persistence"
+import { newCorrelationId } from "@/lib/log/logger"
 import { screenContextFor } from "@/lib/chat/screen-context"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useSession } from "@/lib/session/session-provider"
@@ -51,9 +52,28 @@ function ChatSessionProvider({ userId, children }: { userId: string; children: R
       agent.setMessages(stored.messages)
       // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is read after hydration, never during it
       setThreadId(stored.threadId)
+      setHydrated(true)
+      return
     }
-    setHydrated(true)
-  }, [agent, userId])
+    let cancelled = false
+    void adapter
+      .myChatHistory({ correlationId: newCorrelationId() })
+      .then((history) => {
+        if (cancelled || history.length === 0) return
+        const newest = [...history].sort((a, b) => b.generatedAt.localeCompare(a.generatedAt))[0]
+        const messages = messagesFromHistory(history.filter((turn) => turn.threadId === newest.threadId))
+        if (!messages.length) return
+        agent.setMessages(messages)
+        setThreadId(newest.threadId)
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setHydrated(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [adapter, agent, userId])
 
   React.useEffect(() => {
     if (!hydrated) return

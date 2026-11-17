@@ -44,6 +44,7 @@ async function expectAnswer(page: Page) {
   expect(calls).toBeGreaterThan(0)
   await expect(turn.getByTestId("ai-summary")).toContainText(String(calls))
   await expect(turn.getByTestId("inline-citation").first()).toBeVisible()
+  await expect(turn.getByRole("button", { name: "Copy answer" })).toBeVisible()
   for (const kind of ["fact", "ai"]) await expect(turn.locator(`[data-provenance="${kind}"]`).first()).toBeVisible()
   await expect(page.getByRole("region", { name: "You could ask next" })).toBeVisible()
   return turn
@@ -105,6 +106,18 @@ test("the full page: CopilotKit's chat, the same conversation after a reload, an
   await expect(page.getByTestId("user-message")).toContainText("How many calls")
   await expectAnswer(page)
   await noSidewaysScroll(page)
+
+  // The OSS message toolbar regenerates in place through the existing AppSync agent; it never opens a CopilotKit runtime.
+  await page.getByRole("button", { name: "Regenerate" }).click()
+  await expectAnswer(page)
+  await expect(page.getByTestId("chat-turn")).toHaveCount(1)
+
+  // Editing replaces this turn and starts the edited question through the same AppSync path.
+  await page.getByRole("button", { name: "Edit" }).click()
+  await page.getByLabel("Edit question").fill("How many calls did I have in the last 30 days?")
+  await page.getByTestId("chat-edit-send").click()
+  await expect(page.getByTestId("user-message")).toContainText("How many calls did I have in the last 30 days?")
+  await expectAnswer(page)
 
   await page.reload()
   await expect(page.getByTestId("chat-turn")).toHaveCount(1)

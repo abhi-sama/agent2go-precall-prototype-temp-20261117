@@ -29,7 +29,11 @@ Aggregate-only personas (Executive) read no source rows here; their path is tick
 
 When a run finishes the agent saves the turn to FE DynamoDB with its write tool (ADR 0005): it assumes a cross-account role that can only `PutItem` / `UpdateItem` on one table, and the item is keyed `USER#<user_id>` with scope, data-through date, generation time and evidence links.
 The runtime calls the tool after the answer; the model cannot call it or choose what is written.
-Reading history back is not built yet.
+On a later reload, the browser asks AppSync for the caller's saved turns. The BE Lambda uses a separate query-only
+cross-account role and an exact `USER#<verified_user_id>` DynamoDB query; before returning a turn it compares the
+turn's saved territory snapshot with the current RLS-scoped territories. A turn from scope the caller no longer has
+is not returned; an Executive without record-level permission does not restore old turns at all, so aggregate-only
+access cannot revive a source record.
 
 ## Without an API key
 

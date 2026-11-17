@@ -700,6 +700,17 @@ export interface ChatRun {
   status: string
 }
 
+/** A completed, caller-owned turn read from the FE DynamoDB chat table through the existing AppSync → BE route. */
+export interface SavedChatTurn {
+  threadId: string
+  runId: string
+  userMessage: string
+  assistantText: string
+  generatedAt: IsoDateTime
+  /** JSON evidence persisted by the agent; it is screened again before it becomes an activity message. */
+  payload: string
+}
+
 export interface ChatMessageInput {
   role: "user" | "assistant"
   content: string

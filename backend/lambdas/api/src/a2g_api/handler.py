@@ -20,7 +20,7 @@ from typing import Any
 
 from a2g_logging import configure, correlation, get_logger
 
-from . import activity, briefs, chat, chat_rows, director, director_insights, eval_panel, eval_store, executive, executive_themes, executive_trends, flags, hierarchy, leadership, post_call, resolvers
+from . import activity, briefs, chat, chat_history, chat_rows, director, director_insights, eval_panel, eval_store, executive, executive_themes, executive_trends, flags, hierarchy, leadership, post_call, resolvers
 from .db import scoped_cursor
 from .errors import ApiError, BadRequest, Unavailable
 from .embeddings import provider_from_config
@@ -69,6 +69,18 @@ def _brief_store(settings: Settings) -> briefs.DynamoBriefStore:
     return _brief_store_cache
 
 
+_chat_history_store_cache: chat_history.DynamoChatHistoryStore | None = None
+
+
+def _chat_history_store(settings: Settings) -> chat_history.DynamoChatHistoryStore:
+    global _chat_history_store_cache
+    if _chat_history_store_cache is None:
+        if not (settings.chat_history_table and settings.chat_history_role_arn):
+            raise Unavailable("chat_history_unconfigured")
+        _chat_history_store_cache = chat_history.DynamoChatHistoryStore(settings.chat_history_table, settings.chat_history_role_arn)
+    return _chat_history_store_cache
+
+
 _eval_store_cache: eval_store.DynamoEvalStore | None = None
 
 
@@ -115,6 +127,7 @@ def _resolvers(settings: Settings, correlation_id: str) -> dict[str, Callable[..
             chat.start_chat_run, worker_function=settings.chat_worker_function, correlation_id=correlation_id
         ),
         "chatEvents": chat.chat_events,
+        "myChatHistory": lambda *a: chat_history.my_chat_history(*a, store=_chat_history_store(settings)),
         "chatCitation": chat.chat_citation,
         "chatAnswerRows": chat_rows.chat_answer_rows,
         "exportChatRows": chat_rows.export_chat_rows,

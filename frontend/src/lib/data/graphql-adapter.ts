@@ -61,6 +61,7 @@ import {
   type BriefSummary,
   type BriefExport,
   type ChatRun,
+  type SavedChatTurn,
   type PreCallBrief,
   type AccessAuditEvent,
   type AccessAuditFilter,
@@ -294,6 +295,9 @@ export function createGraphQLAdapter(transport: GraphQLTransport): DataAdapter {
         ...(action ? { action: { ...action, context: JSON.stringify(action.context) } } : {}),
       }
       return (await run<{ startChatRun: ChatRun }>(transport, START_CHAT_RUN_MUTATION, variables, ctx)).startChatRun
+    },
+    async myChatHistory(ctx, limit = 50): Promise<SavedChatTurn[]> {
+      return (await run<{ myChatHistory: SavedChatTurn[] }>(transport, `query MyChatHistory($limit: Int) { myChatHistory(limit: $limit) { threadId runId userMessage assistantText generatedAt payload } }`, { limit }, ctx)).myChatHistory
     },
     async chatEvents(ctx, runId, after): Promise<ChatEventPage> { return (await run<{ chatEvents: ChatEventPage }>(transport, `query ChatEvents($runId: ID!, $after: Int) { chatEvents(runId: $runId, after: $after) { done status events { seq data } } }`, { runId, after }, ctx)).chatEvents },
     async chatCitation(ctx, dataset, recordId, auditExport = false): Promise<SourceRecord> { return (await run<{ chatCitation: SourceRecord }>(transport, `query ChatCitation($dataset: String!, $recordId: ID!, $auditExport: Boolean) { chatCitation(dataset: $dataset, recordId: $recordId, auditExport: $auditExport) { dataset recordId title dataThrough fields { label value } } }`, { dataset, recordId, auditExport }, ctx)).chatCitation },

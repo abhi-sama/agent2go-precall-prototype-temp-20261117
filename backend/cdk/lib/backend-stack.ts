@@ -132,13 +132,16 @@ export class BackendStack extends Stack {
     const chatWriterRoleArn = Stack.of(this).formatArn({
       service: 'iam', account: feAccountId.valueAsString, region: '', resource: 'role/a2g-agent-chat-writer',
     });
+    const chatReaderRoleArn = Stack.of(this).formatArn({
+      service: 'iam', account: feAccountId.valueAsString, region: '', resource: 'role/a2g-be-chat-history',
+    });
     const briefsReaderRoleArn = Stack.of(this).formatArn({
       service: 'iam', account: feAccountId.valueAsString, region: '', resource: 'role/a2g-be-briefs',
     });
     const briefWriterRoleArn = Stack.of(this).formatArn({
       service: 'iam', account: feAccountId.valueAsString, region: '', resource: 'role/a2g-agent-brief-writer',
     });
-    apiRole.addToPolicy(new iam.PolicyStatement({ actions: ['sts:AssumeRole'], resources: [flagsRoleArn, briefsReaderRoleArn] }));
+    apiRole.addToPolicy(new iam.PolicyStatement({ actions: ['sts:AssumeRole'], resources: [flagsRoleArn, briefsReaderRoleArn, chatReaderRoleArn] }));
     agentRole.addToPolicy(new iam.PolicyStatement({ actions: ['sts:AssumeRole'], resources: [chatWriterRoleArn, briefWriterRoleArn] }));
 
     const apiCode = lambda.Code.fromAsset(backendRoot, {
@@ -179,6 +182,8 @@ export class BackendStack extends Stack {
         A2G_AGENT_RUNTIME_ARN: cdk.Fn.getAtt('AgentRuntime', 'AgentRuntimeArn').toString(),
         A2G_BRIEFS_TABLE: 'a2g-precall-briefs',
         A2G_BRIEFS_ROLE_ARN: briefsReaderRoleArn,
+        A2G_CHAT_HISTORY_TABLE: 'a2g-chat-turns',
+        A2G_CHAT_HISTORY_ROLE_ARN: chatReaderRoleArn,
       },
     });
     const worker = new lambda.Function(this, 'ChatWorkerFunction', {

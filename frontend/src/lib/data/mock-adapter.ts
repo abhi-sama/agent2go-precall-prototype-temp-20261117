@@ -538,6 +538,11 @@ export function createMockAdapter(options: MockAdapterOptions): DataAdapter {
       return { runId: input.runId, status: "RUNNING" }
     },
 
+    async myChatHistory(ctx) {
+      await gate(ctx, "myChatHistory")
+      return []
+    },
+
     async chatEvents(ctx, runId, after) {
       const page = readRun(runId, after, now().getTime())
       if (!page) throw new DataError("NOT_FOUND", "That run is not available.", ctx.correlationId)

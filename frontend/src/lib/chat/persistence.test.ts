@@ -2,7 +2,7 @@ import type { Message } from "@ag-ui/core"
 import { describe, expect, it } from "vitest"
 import { ANSWER_ACTIVITY, ids } from "./agent/answer"
 import { INTERRUPTED, turnsOf } from "./agent/turns"
-import { isStoredMessage, loadChat, saveChat } from "./persistence"
+import { isStoredMessage, loadChat, messagesFromHistory, saveChat } from "./persistence"
 
 class MemoryStorage {
   data = new Map<string, string>()
@@ -79,5 +79,26 @@ describe("chat persistence", () => {
     expect(kept.at(-1)?.id).toBe(ids.tail("7"))
     s.limit = 10
     expect(() => saveChat("u1", { threadId: "t", messages }, s)).not.toThrow()
+  })
+
+  it("rebuilds only the allow-listed activities from a server-restored turn", () => {
+    const messages = messagesFromHistory([
+      {
+        threadId: "t1",
+        runId: "r1",
+        userMessage: "Show activity",
+        assistantText: "Here is the trend.",
+        generatedAt: "2026-11-04T09:30:00Z",
+        payload: JSON.stringify({
+          facts: [{ statement: "2 calls", evidence_ids: [] }],
+          visuals: [{ kind: "bar", title: "Calls", labels: ["Nov"], values: [2] }],
+          surfaces: [[{ type: "beginRendering", surfaceId: "s1", root: "root" }]],
+          suggestions: ["Show the monthly split"],
+        }),
+      },
+      { threadId: "t1", runId: "bad", userMessage: "Ignored", assistantText: "Ignored", generatedAt: "2026-11-04T10:00:00Z", payload: "not JSON" },
+    ])
+    expect(messages.map((message) => message.id)).toEqual(["history~r1~question", ids.text("r1", 0), "history~r1~surface~0", ids.tail("r1")])
+    expect(turnsOf(messages)[0].tail?.events.map((event) => event.name)).toEqual(["source_facts", "visual", "number_check", "suggestions", "conversation_saved"])
   })
 })

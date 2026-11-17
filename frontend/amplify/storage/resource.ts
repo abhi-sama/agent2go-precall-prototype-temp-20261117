@@ -49,6 +49,7 @@ export function defineFlagsStore(stack: Stack, options: FlagsStoreOptions) {
 /** Fixed names: the agent container is configured with them (A2G_FE_CHAT_TABLE / A2G_FE_WRITE_ROLE_ARN). */
 export const CHAT_TABLE_NAME = 'a2g-chat-turns';
 export const CHAT_WRITER_ROLE_NAME = 'a2g-agent-chat-writer';
+export const CHAT_READER_ROLE_NAME = 'a2g-be-chat-history';
 /** Execution role of the AgentCore agent (created by the BE CDK, ticket #24). */
 export const AGENT_ROLE_NAME = 'a2g-agent-runtime';
 
@@ -83,7 +84,13 @@ export function defineChatStore(stack: Stack, options: ChatStoreOptions) {
       resources: [table.tableArn],
     }),
   );
-  return { table, role };
+  const reader = new iam.Role(stack, 'BeChatHistoryRole', {
+    roleName: CHAT_READER_ROLE_NAME,
+    assumedBy: new iam.ArnPrincipal(`arn:aws:iam::${options.beAccountId}:role/${BE_API_ROLE_NAME}`),
+    description: 'Assumed by the BE API Lambda to read only the caller\'s saved chat turns.',
+  });
+  reader.addToPolicy(new iam.PolicyStatement({ actions: ['dynamodb:Query'], resources: [table.tableArn] }));
+  return { table, role, reader };
 }
 
 /** Fixed names: the BE API Lambda and the agent container are configured with them (A2G_BRIEFS_* / A2G_FE_BRIEF_*). */

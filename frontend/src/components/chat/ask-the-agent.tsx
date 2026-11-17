@@ -19,7 +19,6 @@ import {
   useAgentContext,
   useConfigureSuggestions,
   useCopilotKit,
-  useDefaultRenderTool,
   type CopilotModalHeaderProps,
 } from "@copilotkit/react-core/v2"
 import { MessageSquarePlus, Maximize2, Sparkles } from "lucide-react"
@@ -28,6 +27,7 @@ import * as React from "react"
 import { useChatSession } from "@/components/chat/chat-session"
 import { useVisibleFigures } from "@/components/chat/page-figures"
 import { useSharedFilters } from "@/components/filters/filter-context"
+import { ChatToolRenderers } from "@/components/chat/tool-renderers"
 import {
   AnswerMessage,
   ChatThreadContext,
@@ -36,7 +36,6 @@ import {
   RatingProvider,
   ScopedInput,
   SuggestionsView,
-  ToolActivity,
   type ChatThreadValue,
 } from "@/components/chat/chat-thread"
 import { CitationSheet } from "@/components/chat/citation-sheet"
@@ -63,6 +62,8 @@ export const CHAT_LABELS = {
   modalHeaderCloseButtonLabel: "Close",
   chatDisclaimerText: "Numbers are counted from your data; the AI only explains them.",
   assistantMessageToolbarCopyMessageLabel: "Copy answer",
+  assistantMessageToolbarRegenerateLabel: "Regenerate",
+  userMessageToolbarEditMessageLabel: "Edit",
 }
 
 /** Slots shared by every placement. Module-level, so CopilotKit sees the same components on every render. */
@@ -152,7 +153,6 @@ export function AskTheAgentFrame({ context, page, starters, chips = null, childr
     followUps.length ? { suggestions: followUps.map(toSuggestion), available: "after-first-message", consumerAgentId: ASK_THE_AGENT } : null,
     [followUps.join("\n")],
   )
-  useDefaultRenderTool({ render: (props) => <ToolActivity name={props.name} status={props.status} /> }, [])
 
   const sendSurfaceAction = React.useCallback(
     (action: SurfaceAction, question: string) => {
@@ -174,6 +174,7 @@ export function AskTheAgentFrame({ context, page, starters, chips = null, childr
   return (
     <CopilotChatConfigurationProvider agentId={ASK_THE_AGENT} threadId={threadId} hasExplicitThreadId={false} labels={CHAT_LABELS}>
       <ChatThreadContext.Provider value={value}>
+        <ChatToolRenderers />
         <RatingProvider>{children}</RatingProvider>
         <CitationSheet citation={citation} onClose={() => setCitation(null)} />
       </ChatThreadContext.Provider>

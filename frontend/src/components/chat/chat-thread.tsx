@@ -31,8 +31,8 @@ import { KindLabel } from "@/components/chat/chat-provenance"
 import { useChatSession } from "@/components/chat/chat-session"
 import { useAppToast } from "@/components/state/use-app-toast"
 import { evidenceOf } from "@/lib/chat/agent/answer"
-import { MAX_QUESTION_CHARS } from "@/lib/chat/agent/appsync-agent"
-import { turnsOf, type Turn } from "@/lib/chat/agent/turns"
+import { MAX_QUESTION_CHARS, SCREEN_CONTEXT } from "@/lib/chat/agent/appsync-agent"
+import { textOf, turnsOf, type Turn } from "@/lib/chat/agent/turns"
 import type { SurfaceAction } from "@/lib/chat/a2ui/protocol"
 import { ANSWER_MARKDOWN, citationAt, citeAnswer } from "@/lib/chat/cite"
 import { citationNumber, isAggregateCitation, type AssistantTurn, type CitationItem } from "@/lib/chat/events"
@@ -127,10 +127,53 @@ function TurnGroup({ messages, children }: MessageGroupWrapperProps) {
 
 export function QuestionMessage(props: React.ComponentProps<typeof CopilotChatUserMessage>) {
   const info = useTurn()
+  const { agent, running } = useChatSession()
+  const [editing, setEditing] = React.useState(false)
+  const [draft, setDraft] = React.useState(() => textOf(props.message))
   const asked = describeContext((info?.turn.head ?? info?.turn.tail)?.context)
+  const revise = React.useCallback(() => {
+    const message = draft.trim().slice(0, MAX_QUESTION_CHARS)
+    if (!message || running || agent.isRunning) return
+    const at = agent.messages.findIndex((item) => item.id === props.message.id)
+    if (at < 0) return
+    const context = (info?.turn.head ?? info?.turn.tail)?.context
+    agent.abortRun()
+    agent.setMessages([...agent.messages.slice(0, at), { ...props.message, content: message }])
+    setEditing(false)
+    void agent.runAgent({
+      runId: crypto.randomUUID(),
+      ...(context ? { context: [{ description: SCREEN_CONTEXT, value: JSON.stringify(context) }] } : {}),
+    })
+  }, [agent, draft, info?.turn.head, info?.turn.tail, props.message, running])
   return (
     <div className="flex min-w-0 flex-col">
-      <CopilotChatUserMessage {...props} data-testid="user-message" />
+      <CopilotChatUserMessage {...props} data-testid="user-message" toolbar={VisibleUserToolbar} onEditMessage={() => setEditing(true)} />
+      {editing && (
+        <form
+          className="mt-2 flex min-w-0 flex-col gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            revise()
+          }}
+        >
+          <label htmlFor={`edit-question-${props.message.id}`} className="sr-only">Edit question</label>
+          <textarea
+            id={`edit-question-${props.message.id}`}
+            value={draft}
+            maxLength={MAX_QUESTION_CHARS}
+            onChange={(event) => setDraft(event.target.value)}
+            className="min-h-20 w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+          <div className="flex gap-2">
+            <button type="submit" data-testid="chat-edit-send" disabled={!draft.trim() || running || agent.isRunning} className="min-h-9 rounded-full border border-border px-3 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50 pointer-coarse:min-h-11">
+              Send revised question
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="min-h-9 rounded-full border border-border px-3 text-sm text-foreground hover:bg-accent pointer-coarse:min-h-11">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
       {asked && (
         <p data-testid="turn-context" className="-mt-1 px-1 text-right text-xs text-muted-foreground">
           Asked from {asked}
@@ -138,6 +181,11 @@ export function QuestionMessage(props: React.ComponentProps<typeof CopilotChatUs
       )}
     </div>
   )
+}
+
+/** CopilotKit hides a user-message toolbar until hover by default, which makes edit unavailable to touch users. */
+function VisibleUserToolbar(props: React.ComponentProps<typeof CopilotChatUserMessage.Toolbar>) {
+  return <CopilotChatUserMessage.Toolbar {...props} className={cn(props.className, "cpk:visible")} />
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -328,8 +376,22 @@ function RateDownButton(props: React.ComponentProps<typeof CopilotChatAssistantM
  */
 export function AnswerMessage(props: CopilotChatAssistantMessageProps) {
   const info = useTurn()
+  const { agent, running } = useChatSession()
   const runId = info?.turn.runId ?? null
   const { rating, rate, saved } = useRate(runId)
+  const regenerate = () => {
+    if (!info?.turn.questionId || running || agent.isRunning) return
+    const at = agent.messages.findIndex((message) => message.id === info.turn.questionId)
+    if (at < 0) return
+    const context = (info.turn.head ?? info.turn.tail)?.context
+    agent.abortRun()
+    // Keep the question and every earlier turn. The old response is not used as history for the retry.
+    agent.setMessages(agent.messages.slice(0, at + 1))
+    void agent.runAgent({
+      runId: crypto.randomUUID(),
+      ...(context ? { context: [{ description: SCREEN_CONTEXT, value: JSON.stringify(context) }] } : {}),
+    })
+  }
   if (!props.message.content?.trim()) return <CopilotChatAssistantMessage {...props} toolbarVisible={false} />
   const evidence = info?.evidence ?? null
   const done = info?.status === "done"
@@ -368,6 +430,7 @@ export function AnswerMessage(props: CopilotChatAssistantMessageProps) {
             onThumbsDown={() => void rate("DOWN")}
             thumbsUpButton={RateUpButton}
             thumbsDownButton={RateDownButton}
+            onRegenerate={regenerate}
             additionalToolbarItems={download}
           />
         </RateContext.Provider>
