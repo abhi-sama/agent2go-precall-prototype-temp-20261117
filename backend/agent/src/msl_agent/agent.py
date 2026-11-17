@@ -4,7 +4,7 @@ Order of events for a normal run::
 
     RUN_STARTED, CUSTOM model_mode,
     [TOOL_CALL_START, (CUSTOM visual pending), CUSTOM source_facts, CUSTOM citations, CUSTOM visual ready,
-     TOOL_CALL_END]*,
+     TOOL_CALL_END, TOOL_CALL_RESULT]*,
     TEXT_MESSAGE_START, TEXT_MESSAGE_CONTENT*, TEXT_MESSAGE_END,
     CUSTOM number_check, CUSTOM suggestions, CUSTOM conversation_saved, RUN_FINISHED
 
@@ -668,6 +668,16 @@ class MslAgent:
                 out.append(ctx.pending.popleft())
             return out
 
+        def close_tool_calls(outcome: str) -> list[ag_ui.Event]:
+            # An AG-UI client rejects a run that ends with a tool call still open (docs/adr/0018), so a call the
+            # model never returned from is closed with its outcome before the run ends.
+            out: list[ag_ui.Event] = []
+            for tool_call_id, still_open in open_tool_calls.items():
+                if still_open:
+                    open_tool_calls[tool_call_id] = False
+                    out += [ag_ui.tool_call_end(tool_call_id), ag_ui.tool_call_result(tool_call_id, outcome)]
+            return out
+
         log.info("run started", thread_id=invocation.thread_id, run_id=run_id, outcome=self.mode)
         yield ag_ui.run_started(invocation.thread_id, run_id)
         yield ag_ui.custom("model_mode", {"mode": self.mode})
@@ -764,6 +774,7 @@ class MslAgent:
                                 for event in drain():
                                     yield event
                                 yield ag_ui.tool_call_end(result["toolUseId"])
+                                yield ag_ui.tool_call_result(result["toolUseId"])
                     delta = raw.get("data")
                     if isinstance(delta, str) and delta:
                         if paragraph_break:
@@ -855,6 +866,8 @@ class MslAgent:
                                 text_parts.append(correction)
                                 ctx.answer_chars += len(correction)
                                 yield ag_ui.text_content(message_id, correction)
+            for event in close_tool_calls("complete"):
+                yield event
             if text_open:
                 yield ag_ui.text_end(message_id)
             for event in drain():
@@ -870,6 +883,8 @@ class MslAgent:
                 root = root.__cause__
             error_type = type(exc).__name__ if root is exc else f"{type(exc).__name__}:{type(root).__name__}"
             log.error("run failed", run_id=run_id, error_type=error_type, outcome="error")
+            for event in close_tool_calls("failed"):
+                yield event
             if text_open:
                 yield ag_ui.text_end(message_id)
             yield ag_ui.run_error(

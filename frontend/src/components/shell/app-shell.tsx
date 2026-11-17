@@ -5,7 +5,7 @@ import { Badge } from "@astryxdesign/core/Badge"
 import { HStack } from "@astryxdesign/core/HStack"
 import { Icon } from "@astryxdesign/core/Icon"
 import { IconButton } from "@astryxdesign/core/IconButton"
-import { Layout, LayoutContent, LayoutPanel } from "@astryxdesign/core/Layout"
+import { Layout, LayoutContent } from "@astryxdesign/core/Layout"
 import { MobileNavToggle } from "@astryxdesign/core/MobileNav"
 import { SideNav, SideNavCollapseButton, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav"
 import { TopNav, TopNavHeading, useTopNavRenderMode } from "@astryxdesign/core/TopNav"
@@ -13,7 +13,7 @@ import { LogOut } from "lucide-react"
 import dynamic from "next/dynamic"
 import { usePathname } from "next/navigation"
 import * as React from "react"
-import { ChatDock, ChatDrawer, ChatTrigger } from "@/components/chat/chat-drawer"
+import { ChatPanels, ChatTrigger } from "@/components/chat/chat-drawer"
 import { ChatProvider, useChatSession } from "@/components/chat/chat-provider"
 import { PageFrame } from "@/components/layout/page-frame"
 import { PERSONA_CONFIG } from "@/components/shell/persona-config"
@@ -184,7 +184,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** Owns the main/supporting-pane split once the chat session context is available. */
+/**
+ * Owns the shell once the chat session context is available. At docking width the chat is CopilotKit's sidebar, which
+ * narrows the page while it is open (docs/adr/0018); navigation then becomes an icon rail so the workspace keeps the
+ * width dashboard pairs need.
+ */
 function WorkspaceShell({ topNav, renderSideNav, children }: { topNav: React.ReactNode; renderSideNav: (docked: boolean) => React.ReactNode; children: React.ReactNode }) {
   const { open } = useChatSession()
   const presentation = useChatPresentation()
@@ -193,7 +197,7 @@ function WorkspaceShell({ topNav, renderSideNav, children }: { topNav: React.Rea
   return (
     <>
       <AstryxAppShell
-        height={docked ? "fill" : "auto"}
+        height="auto"
         variant="section"
         topNav={topNav}
         sideNav={renderSideNav(docked)}
@@ -201,24 +205,17 @@ function WorkspaceShell({ topNav, renderSideNav, children }: { topNav: React.Rea
       >
         <CloseDrawerOnNavigate />
         <Layout
-          height={docked ? "fill" : "auto"}
+          height="auto"
           content={
-            <LayoutContent padding={0} isScrollable={docked}>
+            <LayoutContent padding={0}>
               <PageFrame>
                 {children}
               </PageFrame>
             </LayoutContent>
           }
-          end={
-            docked ? (
-              <LayoutPanel data-testid="chat-dock" width={420} padding={0} hasDivider isScrollable={false} role="complementary" label="Ask the agent">
-                <ChatDock />
-              </LayoutPanel>
-            ) : undefined
-          }
         />
       </AstryxAppShell>
-      <ChatDrawer />
+      <ChatPanels />
     </>
   )
 }

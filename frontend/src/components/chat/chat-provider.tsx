@@ -3,38 +3,20 @@
 import { usePathname } from "next/navigation"
 import * as React from "react"
 import { useSharedFilters } from "@/components/filters/filter-context"
-import type { SurfaceAction } from "@/lib/chat/a2ui/protocol"
-import { loadChat, saveChat } from "@/lib/chat/persistence"
-import { screenContextFor, type ScreenContext } from "@/lib/chat/screen-context"
-import { useChat, type ChatTurn } from "@/lib/chat/use-chat"
-import type { ChatContext } from "@/lib/data/director-insights"
+import { ChatSessionContext, type ChatSession } from "@/components/chat/chat-session"
+import { AppSyncChatAgent } from "@/lib/chat/agent/appsync-agent"
+import { clearChat, loadChat, saveChat } from "@/lib/chat/persistence"
+import { screenContextFor } from "@/lib/chat/screen-context"
 import { useDataAdapter } from "@/lib/data/data-provider"
 import { useSession } from "@/lib/session/session-provider"
-
-export interface ChatSession {
-  /** The slide-in panel is open. */
-  open: boolean
-  setOpen: (open: boolean) => void
-  turns: ChatTurn[]
-  running: boolean
-  send: (question: string, context?: ChatContext) => Promise<void>
-  /** Send a user action on an A2UI surface as the next question (docs/adr/0017). */
-  sendAction: (action: SurfaceAction, question: string, context?: ChatContext) => Promise<void>
-  stop: () => void
-  reset: () => void
-  /** False until a stored conversation has been put back (it is read after hydration, never during it). */
-  hydrated: boolean
-  /** The screen the person is on and the filters on it: what the panel sends and shows as chips. */
-  screen: ScreenContext
-}
-
-const ChatSessionContext = React.createContext<ChatSession | null>(null)
 
 const SAVE_DELAY_MS = 300
 
 /**
- * One conversation for the whole app shell. The slide-in panel and the full `/chat` page both read it, so the
- * thread survives the panel closing, navigating between screens and a reload. A different person gets a fresh one.
+ * One conversation for the whole app shell, held by the client-side AG-UI agent CopilotKit's chat drives (ADR 0018).
+ * The panel and the full `/chat` page both read it, so the thread survives the panel closing, navigating between
+ * screens and a reload. A different person gets a fresh agent and conversation. CopilotKit itself is not loaded here:
+ * `CopilotRoot` brings it in with the chat, the first time it is opened.
  */
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { userId } = useSession()
@@ -49,47 +31,64 @@ function ChatSessionProvider({ userId, children }: { userId: string; children: R
   const adapter = useDataAdapter()
   const pathname = usePathname()
   const { filters } = useSharedFilters()
-  const { turns, running, send, sendAction, stop, reset, restore, hydrated, threadId } = useChat(adapter)
+  const [agent] = React.useState(() => new AppSyncChatAgent({ adapter }))
+  const [threadId, setThreadId] = React.useState(() => crypto.randomUUID())
+  const [hydrated, setHydrated] = React.useState(false)
+  const [running, setRunning] = React.useState(false)
   // Open for one screen: a route change (or the full page, which is the same conversation) closes the panel.
   const [openPath, setOpenPath] = React.useState<string | null>(null)
   const open = openPath === pathname && pathname !== "/chat"
   const setOpen = React.useCallback((next: boolean) => setOpenPath(next ? pathname : null), [pathname])
 
+  // Put a stored conversation back, then save shortly after each change (tokens stream in many times a second) and
+  // once more when the page goes away.
   React.useEffect(() => {
-    restore(loadChat(userId))
-  }, [userId, restore])
+    const stored = loadChat(userId)
+    if (stored) {
+      agent.setMessages(stored.messages)
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is read after hydration, never during it
+      setThreadId(stored.threadId)
+    }
+    setHydrated(true)
+  }, [agent, userId])
 
-  // Save shortly after the last change (tokens stream in many times a second), and once more when the page goes away.
-  const latest = React.useRef({ threadId, turns, hydrated })
-  React.useEffect(() => {
-    latest.current = { threadId, turns, hydrated }
-  })
   React.useEffect(() => {
     if (!hydrated) return
-    const timer = setTimeout(() => saveChat(userId, { threadId, turns }), SAVE_DELAY_MS)
-    return () => clearTimeout(timer)
-  }, [hydrated, userId, threadId, turns])
-  React.useEffect(() => {
-    const flush = () => {
-      if (latest.current.hydrated) saveChat(userId, latest.current)
-    }
-    window.addEventListener("pagehide", flush)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const save = () => saveChat(userId, { threadId, messages: agent.messages })
+    const subscription = agent.subscribe({
+      onMessagesChanged: () => {
+        clearTimeout(timer)
+        timer = setTimeout(save, SAVE_DELAY_MS)
+      },
+      onRunInitialized: () => setRunning(true),
+      onRunFinalized: () => setRunning(false),
+      onRunFailed: () => setRunning(false),
+    })
+    window.addEventListener("pagehide", save)
     return () => {
-      window.removeEventListener("pagehide", flush)
-      flush()
+      subscription.unsubscribe()
+      window.removeEventListener("pagehide", save)
+      clearTimeout(timer)
+      save()
     }
-  }, [userId])
+  }, [agent, hydrated, threadId, userId])
+
+  // CopilotKit's chat moves the agent to the new thread and clears it when the thread id changes.
+  const reset = React.useCallback(() => {
+    agent.abortRun()
+    agent.setMessages([])
+    setThreadId(crypto.randomUUID())
+    clearChat(userId)
+  }, [agent, userId])
 
   const screen = React.useMemo(() => screenContextFor(pathname, filters), [pathname, filters])
   const value = React.useMemo<ChatSession>(
-    () => ({ open, setOpen, turns, running, send, sendAction, stop, reset, hydrated, screen }),
-    [open, setOpen, turns, running, send, sendAction, stop, reset, hydrated, screen],
+    () => ({ open, setOpen, agent, threadId, running, hydrated, reset, screen }),
+    [open, setOpen, agent, threadId, running, hydrated, reset, screen],
   )
+
   return <ChatSessionContext.Provider value={value}>{children}</ChatSessionContext.Provider>
 }
 
-export function useChatSession(): ChatSession {
-  const value = React.useContext(ChatSessionContext)
-  if (!value) throw new Error("useChatSession must be used inside ChatProvider")
-  return value
-}
+export { useChatSession } from "@/components/chat/chat-session"

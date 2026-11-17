@@ -1,0 +1,46 @@
+/*
+ * Ask the agent runs on CopilotKit's components and default design (docs/adr/0018). These are the only places this app
+ * adjusts that design, each for a reason CopilotKit cannot know about. Scoped to the chat (`[data-a2g-chat]`).
+ */
+
+/* The composer's context chips ride in its disclaimer slot, laid out first; the input itself keeps its full width. */
+.a2g-chat-input > :first-child {
+  width: 100%;
+}
+
+/*
+ * The panel opens from the top bar's "Ask the agent", not from CopilotKit's floating toggle (which is not shown), so it
+ * does not keep the toggle's room at the bottom and it stays clear of the top bar.
+ */
+@media (min-width: 768px) {
+  :is([data-a2g-chat="drawer"], [data-a2g-chat="sheet"]) [data-copilotkit]:has(> [data-copilot-popup]) {
+    bottom: 1.5rem;
+  }
+}
+
+/* iPads: every control in the chat is at least 44pt (the app's touch-target rule). */
+@media (pointer: coarse) {
+  [data-a2g-chat] :is([data-testid="chat-send"], [data-testid="copilot-close-button"], .copilotKitAssistantMessage button, .copilotKitUserMessage button) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  [data-a2g-chat] :is([data-testid="starter"], [data-testid="suggestion"]) {
+    min-height: 44px;
+  }
+}
+
+/*
+ * WCAG 1.4.11: the composer's edge is what shows where to type, so it needs 3:1 against what is around it. CopilotKit
+ * draws it with a soft shadow only (and, in dark mode, a fill close to the background). One 1px edge, #868686, clears
+ * 3:1 against the white chat and pill (3.6:1) and against the dark chat (5.4:1) and its pill (3.6:1).
+ */
+[data-a2g-chat] .copilotKitInput {
+  border: 1px solid oklch(62% 0 0);
+  box-shadow: none;
+}
+
+/* WCAG 1.4.3: CopilotKit's placeholder is #888 on white (3.5:1); its own muted text colour clears 4.5:1 in both modes. */
+[data-a2g-chat] .copilotKitInput textarea::placeholder {
+  color: var(--muted-foreground);
+  opacity: 1;
+}

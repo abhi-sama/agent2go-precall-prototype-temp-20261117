@@ -446,3 +446,70 @@ def test_conversation_window_resolves_references_to_earlier_turns(question, wind
 
     assert tool == "get_activity_summary"
     assert (arguments["from_date"], arguments["to_date"]) == window
+
+
+def assert_valid_ag_ui(events: list[dict[str, Any]]) -> None:
+    """The rules the AG-UI client verifier applies before CopilotKit sees a run (docs/adr/0018)."""
+    assert events[0]["type"] == "RUN_STARTED"
+    assert events[-1]["type"] in ("RUN_FINISHED", "RUN_ERROR")
+    assert all(e["type"] not in ("RUN_FINISHED", "RUN_ERROR") for e in events[:-1])
+    texts: set[str] = set()
+    tools: set[str] = set()
+    ended: set[str] = set()
+    for e in events:
+        kind = e["type"]
+        if kind == "TEXT_MESSAGE_START":
+            assert e["messageId"] not in texts
+            texts.add(e["messageId"])
+        elif kind in ("TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END"):
+            assert e["messageId"] in texts
+            if kind == "TEXT_MESSAGE_END":
+                texts.discard(e["messageId"])
+        elif kind == "TOOL_CALL_START":
+            assert e["toolCallId"] not in tools and e["toolCallId"] not in ended
+            tools.add(e["toolCallId"])
+        elif kind == "TOOL_CALL_END":
+            assert e["toolCallId"] in tools
+            tools.discard(e["toolCallId"])
+            ended.add(e["toolCallId"])
+        elif kind == "TOOL_CALL_RESULT":
+            assert e["toolCallId"] in ended and e["role"] == "tool" and isinstance(e["content"], str)
+    assert not texts and not tools, "the run ended with a text message or a tool call still open"
+
+
+@pytest.mark.asyncio
+async def test_every_tool_call_ends_with_a_result_that_carries_no_tool_output(settings, repository) -> None:
+    steps = [("tool", "get_activity_summary", {}), "You had 2 calls.", ("tool", "suggest_follow_ups", {"questions": ["Which territories can I see?"]})]
+    agent, _ = runtime(settings, repository, steps)
+    events = await collect(agent, make_invocation())
+    assert_valid_ag_ui(events)
+    results = [e for e in events if e["type"] == "TOOL_CALL_RESULT"]
+    assert [r["toolCallId"] for r in results] == ["t-get_activity_summary", "t-suggest_follow_ups"]
+    assert {r["content"] for r in results} == {"complete"}
+    order = [e["type"] for e in events]
+    assert order.index("TOOL_CALL_RESULT") == order.index("TOOL_CALL_END") + 1
+
+
+class _Abandoned:
+    """A model that starts a tool call and never returns from it, then ends normally or fails."""
+
+    def __init__(self, fail: bool) -> None:
+        self.fail = fail
+
+    async def stream_async(self, prompt: str):
+        yield {"current_tool_use": {"toolUseId": "t-left-open", "name": "show_chart", "input": ""}}
+        yield {"data": "Partial answer."}
+        if self.fail:
+            raise RuntimeError("secret row value 123")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("fail", "outcome"), [(False, "complete"), (True, "failed")])
+async def test_a_tool_call_left_open_is_closed_before_the_run_ends(settings, repository, fail, outcome) -> None:
+    agent = MslAgent(settings, repository, RecordingWriter(), agent_factory=lambda c, i: _Abandoned(fail))
+    events = await collect(agent, make_invocation())
+    assert_valid_ag_ui(events)
+    assert events[-1]["type"] == ("RUN_ERROR" if fail else "RUN_FINISHED")
+    [result] = [e for e in events if e["type"] == "TOOL_CALL_RESULT"]
+    assert result["toolCallId"] == "t-left-open" and result["content"] == outcome
+    assert "secret" not in json.dumps(events)

@@ -36,3 +36,13 @@ describe("startersFor", () => {
     expect(startersFor({ territoryId: "T01-02" }, defaults).join(" ")).toContain("T01-02")
   })
 })
+
+describe("sanitizeChatContext", () => {
+  it("keeps only well-formed values and never an intent", async () => {
+    const { sanitizeChatContext } = await import("./context")
+    expect(sanitizeChatContext({ view: "msl", territoryId: "NE-01", intent: "TERRITORY_SUMMARY", from: "2026-01-01", to: "2026-02-01" })).toEqual({ view: "msl", territoryId: "NE-01", from: "2026-01-01", to: "2026-02-01" })
+    expect(sanitizeChatContext({ territoryId: "x;DROP", view: 3 })).toBeUndefined()
+    expect(sanitizeChatContext("msl")).toBeUndefined()
+    expect(sanitizeChatContext(null)).toBeUndefined()
+  })
+})

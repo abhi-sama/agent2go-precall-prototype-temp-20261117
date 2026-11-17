@@ -99,15 +99,16 @@ New AI surface? Use `AiSummary` with `citations`; do not hand-roll a tinted card
 ## Navigation and chat
 
 A collapsible left sidebar: icons only when collapsed, a slide-over sheet in iPad portrait.
-The AI chat is a slide-in right panel that keeps the current filters as context, and a full-screen sheet in iPad portrait.
+The AI chat, Ask the agent, is CopilotKit's (docs/adr/0018): its components and default design, while the rest of the app stays Astryx. It keeps the current filters as context.
 
-### Chat panel (ticket #53)
+### Chat panel (ticket #53, moved to CopilotKit in ADR 0018)
 
-- **Open:** the "Ask AI" button in the header, on every screen except `/chat` (the full page, which shows the same conversation). Opening never navigates; a route change closes the panel.
-- **Presentation:** a right panel, `--chat-panel-w` wide (`clamp(26rem, 32vw, 36rem)`), on laptops and landscape iPads. A full-screen sheet from the bottom when `(max-width: 639px), (orientation: portrait) and (pointer: coarse)` matches, which covers all four iPad portrait sizes (`hooks/use-chat-presentation.ts`). It reuses `ui/sheet.tsx`, so the slide is the one in `motion-plan.md` (300ms in, 200ms out, `--ease-drawer`).
-- **Context:** the route becomes `view` (`/director/insights` is `director-insights`); on screens that show the shared filter bar (`/msl`, `/director`, `/director/insights`, `/executive`) the date range, territory and question go with it. Each one is a chip under the header, so what the agent is told is what the person sees. The path is unchanged: `startChatRun` through AppSync to the BE Lambda, which validates `ChatContextInput` again. Product, landscape, study and survey filters are not in that contract and are not sent (and so not shown). Each question also keeps a line saying which screen it was asked from.
-- **Conversation:** one per person, in `ChatProvider` (`components/chat/chat-provider.tsx`), saved to `sessionStorage` (`lib/chat/persistence.ts`): it survives close, reopen, navigation and reload, ends with the tab, and is never shown to another person. An answer that was still streaming at reload is shown as interrupted.
-- **Touch:** the composer is 16px text, the cursor goes to it on open only with a mouse or keyboard (a touch open keeps the keyboard down), every control is 44pt or more.
+- **Open:** the "Ask the agent" button in the top bar, on every screen except `/chat` (the full page, `CopilotChat`, which shows the same conversation). Opening never navigates; a route change closes the panel.
+- **Presentation** (`hooks/use-chat-presentation.ts`): from 1366px, CopilotKit's sidebar docked beside the page, which narrows the page so the workspace reflows (navigation becomes an icon rail). Below that, CopilotKit's popup, anchored bottom right and clear of the top bar: a 440px side panel on laptops and landscape iPads, and a tall panel across the screen when `(max-width: 639px), (orientation: portrait)` matches, which covers all four iPad portrait sizes. CopilotKit's floating toggle is not shown; the top bar button opens the panel.
+- **Context:** the route becomes `view` (`/director/insights` is `director-insights`); on screens that show the shared filter bar (`/msl`, `/director`, `/director/insights`, `/executive`) the date range, territory and question go with it, as CopilotKit agent context. Each one is a removable chip above the composer, so what the agent is told is what the person sees. The path is unchanged: `startChatRun` through AppSync to the BE Lambda, which validates `ChatContextInput` again. Product, landscape, study and survey filters are not in that contract and are not sent. Each question keeps a line saying which screen it was asked from.
+- **Answers:** CopilotKit's messages, with the app's provenance kept: figures counted by the database and charts above the text, the text labelled as AI with numbered citations, suggestions as CopilotKit's pills labelled "You could ask next". The few adjustments to CopilotKit's design are in `components/chat/copilot-chat.css`.
+- **Conversation:** one per person, held by the CopilotKit agent and saved to `sessionStorage` (`lib/chat/persistence.ts`): it survives close, reopen, navigation and reload, ends with the tab, and is never shown to another person. An answer that was still streaming at reload is shown as interrupted.
+- **Touch:** every control in the chat is 44pt or more on touch screens.
 
 ## Icons, empty states, brand
 

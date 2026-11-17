@@ -1,10 +1,11 @@
 import { expect, test, type Page } from "@playwright/test"
 
 /**
- * The slide-in chat (docs/design/direction.md, "Navigation and chat"): opens over any screen without navigation,
- * shows the filters it will use as chips, is a full-screen sheet in iPad portrait, and keeps its conversation across
- * close, reopen and reload. Runs on the two functional projects (iPad Air 11 portrait and landscape); the layout of the
- * open panel at every size is the `chat-drawer-*` screens in the responsive matrix.
+ * The Ask the agent panel (docs/design/direction.md, "Navigation and chat"; docs/adr/0018): CopilotKit's popup opens over
+ * any screen without navigation, shows the filters it will use as removable chips, is a tall panel in iPad portrait,
+ * docks as CopilotKit's sidebar from 1366px, and keeps its conversation across close, reopen and reload. Runs on the
+ * two functional projects (iPad Air 11 portrait and landscape); `copilot-chat.spec.ts` and the `chat-drawer-*` screens
+ * of the responsive matrix cover every size.
  */
 
 test.beforeEach(async ({ page }) => {
@@ -24,7 +25,7 @@ const portrait = (page: Page) => {
 async function ask(page: Page, question: string) {
   await page.getByTestId("chat-input").fill(question)
   await page.getByTestId("chat-send").click()
-  await expect(page.getByTestId("assistant-turn").last()).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+  await expect(page.getByTestId("chat-turn").last()).toHaveAttribute("data-status", "done", { timeout: 20_000 })
 }
 
 /** Escape is proven after the transition below; use the visible close action in stateful flows. */
@@ -34,7 +35,7 @@ async function closeChat(page: Page) {
   await expect(drawer).toBeHidden()
 }
 
-test("opens over the screen without navigating, as a right drawer or (iPad portrait) a tall sheet", async ({ page }) => {
+test("opens over the screen without navigating: CopilotKit's popup, a side panel or (iPad portrait) a tall panel", async ({ page }) => {
   await page.goto("/msl")
   await expect(page.getByTestId("kpi-calls").first()).toBeVisible()
   const url = page.url()
@@ -42,28 +43,26 @@ test("opens over the screen without navigating, as a right drawer or (iPad portr
   await page.getByTestId("chat-open").click()
   const drawer = page.getByTestId("chat-drawer")
   const panel = page.getByRole("dialog", { name: "Ask the agent" })
-  await expect(drawer).toBeVisible()
   await expect(panel).toBeVisible()
   expect(page.url()).toBe(url)
   await expect(drawer).toHaveAttribute("data-presentation", portrait(page) ? "sheet" : "drawer")
-  // Let the slide finish before measuring.
-  await page.waitForTimeout(500)
+  // Let the entrance finish before measuring.
+  await page.waitForTimeout(400)
 
   const size = page.viewportSize()!
   const box = (await panel.boundingBox())!
+  const topBar = (await page.getByTestId("chat-open").boundingBox())!
+  // Anchored bottom right, clear of the top bar (the "Ask the agent" button stays reachable), inside the viewport.
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(Math.round(box.x + box.width)).toBe(size.width - 24)
+  expect(Math.round(box.y + box.height)).toBe(size.height - 24)
+  expect(box.y).toBeGreaterThan(topBar.y + topBar.height)
+  expect(box.height).toBeGreaterThan(size.height * 0.75)
   if (portrait(page)) {
-    expect(box.width).toBeLessThanOrEqual(size.width)
     expect(box.width).toBeGreaterThanOrEqual(600)
-    expect(box.height).toBeGreaterThan(size.height * 0.8)
-    expect(box.x).toBeGreaterThanOrEqual(0)
-    expect(box.x + box.width).toBeLessThanOrEqual(size.width)
-    expect(Math.round(box.y + box.height)).toBe(size.height)
   } else {
-    expect(Math.round(box.x + box.width)).toBe(size.width)
-    expect(Math.round(box.y)).toBe(0)
-    expect(Math.round(box.height)).toBe(size.height)
-    expect(box.width).toBeLessThan(size.width / 2)
     expect(box.width).toBeGreaterThanOrEqual(400)
+    expect(box.width).toBeLessThan(size.width / 2)
   }
 
   // Touch targets stay 44pt or larger.
@@ -71,41 +70,50 @@ test("opens over the screen without navigating, as a right drawer or (iPad portr
     ["close", panel.getByRole("button", { name: "Close" })],
     ["send", page.getByTestId("chat-send")],
     ["starter", page.getByTestId("starter")],
+    ["remove chip", panel.getByRole("button", { name: /^Remove / })],
   ] as const) {
     const box = (await target.first().boundingBox())!
     expect(box.height, name).toBeGreaterThanOrEqual(44)
-    expect(box.width, name).toBeGreaterThanOrEqual(44)
+    if (name !== "starter") expect(box.width, name).toBeGreaterThanOrEqual(44)
   }
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   expect(overflow).toBeLessThanOrEqual(0)
 
   // Escape closes it; the screen underneath is untouched.
   await page.keyboard.press("Escape")
-  await expect(drawer).toBeHidden()
+  await expect(panel).toBeHidden()
   await page.getByTestId("chat-open").click()
   await closeChat(page)
   expect(page.url()).toBe(url)
 })
 
-test("docks as a supporting pane and reflows content at desktop width", async ({ page }) => {
+test("docks as CopilotKit's sidebar beside the page and reflows content at desktop width", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto("/msl")
   await expect(page.getByTestId("kpi-calls")).toBeVisible()
 
   await page.getByTestId("chat-open").click()
-  const dock = page.getByTestId("chat-dock")
+  const dock = page.getByRole("complementary", { name: "Ask the agent" })
   await expect(dock).toBeVisible()
+  await expect(page.getByTestId("chat-dock")).toHaveCount(1)
   await expect(page.getByTestId("chat-drawer")).toHaveCount(0)
-  const dockBox = await dock.boundingBox()
-  expect(dockBox).not.toBeNull()
-  expect(dockBox!.width).toBeGreaterThanOrEqual(400)
-  expect(dockBox!.x + dockBox!.width).toBeLessThanOrEqual(1440)
+  await page.waitForTimeout(400)
+  const dockBox = (await dock.boundingBox())!
+  expect(dockBox.width).toBeGreaterThanOrEqual(400)
+  expect(Math.round(dockBox.x + dockBox.width)).toBe(1440)
+  // The page is narrowed by the sidebar instead of covered by it.
+  const kpi = (await page.getByTestId("kpi-calls").first().boundingBox())!
+  expect(kpi.x + kpi.width).toBeLessThanOrEqual(dockBox.x)
+  await expect(page.getByTestId("chat-open")).toBeInViewport()
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(0)
   await expect(page.getByTestId("sidebar-rail")).toHaveAttribute("data-collapsed", "true")
   const columns = await page.getByTestId("dashboard-grid").first().evaluate((element) => getComputedStyle(element).gridTemplateColumns)
   expect(columns.trim().split(/\s+/)).toHaveLength(12)
   await dock.getByRole("button", { name: "Close" }).click()
-  await expect(dock).toHaveCount(0)
+  await expect(page.getByTestId("chat-dock")).toHaveCount(0)
   await expect(page.getByTestId("sidebar-rail")).toHaveAttribute("data-collapsed", "false")
+  expect(await page.evaluate(() => getComputedStyle(document.body).marginInlineEnd)).toBe("0px")
 })
 
 test("opens from every persona's screens", async ({ page }) => {
@@ -201,7 +209,7 @@ test("keeps the conversation across close, reopen, navigation and reload", async
   await expect(page.getByTestId("chat-turn")).toHaveCount(1)
   await expect(page.getByTestId("user-message")).toContainText("How many calls")
   await expect(page.getByTestId("fact-f1")).toHaveAttribute("data-value", calls!)
-  await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done")
+  await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done")
 
   // The full page is the same conversation, and has no panel button of its own.
   await closeChat(page)
@@ -233,10 +241,10 @@ test("an answer that was still streaming at reload is shown as interrupted, not 
   await page.getByTestId("chat-open").click()
   await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
   await page.getByTestId("chat-send").click()
-  await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "running")
+  await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "running")
   await page.reload()
   await page.getByTestId("chat-open").click()
-  await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "error")
+  await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "error")
   await expect(page.getByTestId("chat-send")).toBeDisabled()
   await page.getByTestId("chat-input").fill("Which territories can I see?")
   await expect(page.getByTestId("chat-send")).toBeEnabled()

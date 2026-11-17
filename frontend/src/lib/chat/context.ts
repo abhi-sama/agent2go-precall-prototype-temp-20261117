@@ -26,6 +26,24 @@ export function parseChatContext(params: URLSearchParams): ChatContext | undefin
   return Object.keys(context).length ? context : undefined
 }
 
+/**
+ * The same checks for a context that arrives as a value (the chat's AG-UI context entry, or a stored message): only
+ * well-formed ids and dates survive, and never an intent. The BE validates again.
+ */
+export function sanitizeChatContext(value: unknown): ChatContext | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined
+  const v = value as Record<string, unknown>
+  const params = new URLSearchParams()
+  if (typeof v.view === "string") params.set("view", v.view)
+  if (typeof v.territoryId === "string") params.set("territory", v.territoryId)
+  if (typeof v.questionId === "string") params.set("question", v.questionId)
+  if (typeof v.from === "string" && typeof v.to === "string") {
+    params.set("from", v.from)
+    params.set("to", v.to)
+  }
+  return parseChatContext(params)
+}
+
 /** `/chat` link that carries a screen's context. Pass only values the screen already shows. */
 export function chatLink(context: Pick<ChatContext, "view" | "territoryId" | "questionId" | "from" | "to">): string {
   const params = new URLSearchParams()

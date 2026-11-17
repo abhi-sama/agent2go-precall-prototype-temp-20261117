@@ -27,7 +27,7 @@ async function ask(page: Page, question: string): Promise<Locator> {
   await page.getByTestId("chat-input").fill(question)
   await page.getByTestId("chat-send").click()
   const turn = page.getByTestId("chat-turn").last()
-  await expect(turn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+  await expect(turn).toHaveAttribute("data-status", "done", { timeout: 20_000 })
   return turn
 }
 
@@ -66,7 +66,7 @@ test("a count answer offers the Adjust form; submitting it asks the agent again 
   // The action becomes the next question in the same conversation, worded by the labels the form showed.
   const second = page.getByTestId("chat-turn").last()
   await expect(second.getByTestId("user-message")).toContainText("Update this answer: Engaged HCPs · By month · All of my scope")
-  await expect(second.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+  await expect(second).toHaveAttribute("data-status", "done", { timeout: 20_000 })
   await expect(page.getByTestId("chat-turn")).toHaveCount(2)
   // The agent ran exactly that query: a chart of engaged HCPs by month, and a new form that keeps the choices.
   await expect(second.getByTestId("visuals")).toContainText("Engaged HCPs by month")

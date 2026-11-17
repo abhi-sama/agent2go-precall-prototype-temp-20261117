@@ -29,7 +29,7 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
       await openAs(page, userId)
       await ask(page, message)
       const turn = page.getByTestId("chat-turn").last()
-      await expect(turn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      await expect(turn).toHaveAttribute("data-status", "done", { timeout: 15_000 })
       await expect(turn.getByTestId("ai-summary")).toContainText(/help with activity counts/i)
       await expect(turn.getByTestId("ai-summary")).not.toContainText("facts above")
       await expect(turn.getByTestId("source-facts")).toHaveCount(0)
@@ -39,21 +39,28 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     }
   })
 
+  // Follow-ups are CopilotKit's suggestion pills for the latest answer, above the composer (docs/adr/0018).
+  const followUps = (page: import("@playwright/test").Page) => page.getByRole("region", { name: "You could ask next" }).getByTestId("suggestion")
+
   test("each persona can follow every suggested next question in the rendered chat", async ({ page }) => {
-    test.setTimeout(90_000)
+    test.setTimeout(120_000)
     for (const userId of ["u-msl-ne-01", "u-dir-ne", "u-exec-all", "u-admin-sec"]) {
       await openAs(page, userId)
       await ask(page, "How can you help me?")
-      const introduction = page.getByTestId("assistant-turn").last()
-      await expect(introduction).toHaveAttribute("data-status", "done", { timeout: 15_000 })
-      const suggestions = await introduction.getByTestId("suggestion").allInnerTexts()
+      await expect(page.getByTestId("chat-turn").last()).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      const suggestions = await followUps(page).allInnerTexts()
       expect(suggestions.length).toBeGreaterThan(0)
 
       for (const label of suggestions) {
-        await introduction.getByTestId("suggestion").filter({ hasText: label }).click()
+        // Back to the introduction's suggestions, then follow this one.
+        if (!(await followUps(page).filter({ hasText: label }).count())) {
+          await ask(page, "How can you help me?")
+          await expect(page.getByTestId("chat-turn").last()).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+        }
+        await followUps(page).filter({ hasText: label }).click()
         const turn = page.getByTestId("chat-turn").last()
-        await expect(turn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
         await expect(page.getByTestId("user-message").last()).toHaveText(label)
+        await expect(turn).toHaveAttribute("data-status", "done", { timeout: 15_000 })
         await expect(turn.getByTestId("ai-summary")).not.toBeEmpty()
       }
     }
@@ -66,11 +73,10 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     ] as const) {
       await openAs(page, userId)
       await ask(page, "How can you help me?")
-      const introduction = page.getByTestId("assistant-turn").last()
-      await expect(introduction).toHaveAttribute("data-status", "done", { timeout: 15_000 })
-      await introduction.getByTestId("suggestion").filter({ hasText: "What have HCPs recorded about osimertinib?" }).click()
+      await expect(page.getByTestId("chat-turn").last()).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      await followUps(page).filter({ hasText: "What have HCPs recorded about osimertinib?" }).click()
       const turn = page.getByTestId("chat-turn").last()
-      await expect(turn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      await expect(turn).toHaveAttribute("data-status", "done", { timeout: 15_000 })
       await expect(turn.getByTestId("ai-summary")).toContainText(expected)
       await expect(turn.getByTestId("source-facts")).toHaveCount(0)
       await expect(turn.getByTestId("citation")).toHaveCount(0)
@@ -82,17 +88,17 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
   test("follow-up chips preserve their requested scope and topic", async ({ page }) => {
     await page.goto("/chat")
     await ask(page, "How many calls did I have in the last 90 days?")
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
 
-    await page.getByTestId("suggestion").filter({ hasText: "Which territories can I see?" }).last().click()
+    await followUps(page).filter({ hasText: "Which territories can I see?" }).click()
     const scopeTurn = page.getByTestId("chat-turn").last()
-    await expect(scopeTurn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(scopeTurn).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     await expect(scopeTurn.getByTestId("source-facts")).toContainText("Territories in your scope")
     await expect(scopeTurn.getByTestId("show-rows")).toHaveCount(0)
 
-    await scopeTurn.getByTestId("suggestion").filter({ hasText: "What have HCPs recorded about osimertinib?" }).click()
+    await followUps(page).filter({ hasText: "What have HCPs recorded about osimertinib?" }).click()
     const topicTurn = page.getByTestId("chat-turn").last()
-    await expect(topicTurn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(topicTurn).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     await expect(topicTurn.getByTestId("source-facts")).toContainText("Recorded responses mentioning osimertinib")
     await expect(topicTurn.getByTestId("citation")).toHaveCount(1)
   })
@@ -106,8 +112,8 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await expect(page.getByTestId("user-message")).toContainText("How many calls")
 
     // The answer streams: the turn is running before it is done.
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "running")
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "running")
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
 
     const calls = Number(await page.getByTestId("fact-f1").getAttribute("data-value"))
     expect(calls).toBeGreaterThan(0)
@@ -129,10 +135,22 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     expect(await page.getByTestId("chat-row").count()).toBeGreaterThan(0)
   })
 
+  test("CopilotKit's stop button ends the answer and keeps what arrived, marked as stopped", async ({ page }) => {
+    await page.goto("/chat")
+    await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
+    await page.getByTestId("chat-send").click()
+    const turn = page.getByTestId("chat-turn").last()
+    await expect(turn).toHaveAttribute("data-status", "running")
+    await page.getByRole("button", { name: "Stop the answer" }).click()
+    await expect(turn).toHaveAttribute("data-status", "error")
+    await expect(turn.getByTestId("chat-error")).toHaveText("Answer stopped.")
+    await expect(page.getByRole("button", { name: "Send question" })).toBeVisible()
+  })
+
   test("an out-of-scope territory returns no data", async ({ page }) => {
     await page.goto("/chat")
     await ask(page, "How many calls did SE-03 have?")
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     await expect(page.getByTestId("ai-summary")).toContainText("outside your scope")
     await expect(page.getByTestId("source-facts")).toHaveCount(0)
     await expect(page.getByTestId("citation")).toHaveCount(0)
@@ -146,7 +164,7 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
       expect(box!.width).toBeGreaterThanOrEqual(44)
     }
     await page.getByTestId("starter").first().click()
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     for (const target of await page.getByTestId("suggestion").all()) {
       expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44)
     }
@@ -162,7 +180,7 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await page.goto("/chat")
     await ask(page, "Which topics are rising across regions?")
     // The scripted organisational answer streams for about 14.5 seconds (it now also carries its A2UI theme table).
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
     await expect(page.getByTestId("sample-limitations")).toBeVisible()
     await expect(page.getByTestId("ai-summary")).not.toContainText("Sample limitations")
     await expect(page.getByTestId("aggregate-only-note")).toContainText("does not grant source-row access")
@@ -175,7 +193,7 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await page.addInitScript(() => window.localStorage.setItem("a2g.local.userId", "u-exec-all"))
     await page.goto("/chat")
     await ask(page, "Show calls by month")
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     await expect(page.getByTestId("visual")).toHaveAttribute("data-kind", "line")
     await expect(page.getByTestId("visual-title")).toContainText("shown aggregates")
     await expect(page.getByTestId("sample-limitations")).toContainText("withheld")
@@ -191,7 +209,7 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
   test("a trend question draws a line whose values add up to the key figure; a plain count stays text and key figures", async ({ page }) => {
     await page.goto("/chat")
     await ask(page, "How many calls did I have in the last 90 days?")
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     await expect(page.getByTestId("visual")).toHaveCount(0)
     await expect(page.getByTestId("source-facts")).toBeVisible()
     await expect(page.getByTestId("chat-fact-chart")).toHaveCount(0)
@@ -199,7 +217,7 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await page.getByTestId("chat-new").click()
     await ask(page, "Show my calls by month")
     await expect(page.getByTestId("visual")).toHaveAttribute("data-kind", "line", { timeout: 15_000 })
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     const calls = Number(await page.getByTestId("fact-f1").getAttribute("data-value"))
     const points = await page.getByTestId("line-point").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-value"))))
     expect(points.length).toBeGreaterThanOrEqual(3)
@@ -211,7 +229,7 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     await page.goto("/chat")
     await ask(page, "Compare my calls by product")
     await expect(page.getByTestId("visual")).toHaveAttribute("data-kind", "bar", { timeout: 15_000 })
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     const calls = Number(await page.getByTestId("fact-f1").getAttribute("data-value"))
     const bars = await page.getByTestId("bar-row").evaluateAll((els) => els.map((e) => [e.getAttribute("data-key"), Number(e.getAttribute("data-value"))] as const))
     expect(bars.reduce((a, [, v]) => a + v, 0)).toBe(calls)
@@ -248,7 +266,7 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
     for (const [question, kind, mark] of kinds) {
       await ask(page, question)
       const turn = page.getByTestId("chat-turn").last()
-      await expect(turn.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      await expect(turn).toHaveAttribute("data-status", "done", { timeout: 15_000 })
       await expect(turn.getByTestId("visual")).toHaveAttribute("data-kind", kind)
       expect(await turn.getByTestId(mark).count()).toBeGreaterThan(0)
     }
@@ -262,13 +280,13 @@ test.describe("chat panel (mock adapter, iPad viewports)", () => {
   test("a visual never appears for an out-of-scope territory, and an aggregate-only role only gets the suppressed aggregate chart", async ({ page }) => {
     await page.goto("/chat")
     await ask(page, "Show calls by month for SE-03")
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     await expect(page.getByTestId("visual")).toHaveCount(0)
     await expect(page.getByTestId("visual-pending")).toHaveCount(0)
     await page.addInitScript(() => window.localStorage.setItem("a2g.local.userId", "u-exec-all"))
     await page.goto("/chat")
     await ask(page, "Show calls by month")
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
     // Executive activity is a deliberate product contract (#92): the one chart it gets plots only the monthly
     // aggregates that survive small-group suppression. No record-level visual (heatmap, table) and no rows.
     await expect(page.getByTestId("visual")).toHaveCount(1)
@@ -284,7 +302,7 @@ test.describe("Show rows (mock adapter, iPad viewports)", () => {
   const COUNT_QUESTION = "How many calls did I have in the last 90 days?"
   const done = async (page: import("@playwright/test").Page) => {
     // 20 seconds: the Executive's scripted organisational answer alone streams for about 14.5.
-    await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
   }
   const numbers = (page: import("@playwright/test").Page, column: string) =>
     page.locator(`[data-testid="answer-row"] [data-column="${column}"]`).evaluateAll((els) => els.map((e) => Number(e.textContent)))

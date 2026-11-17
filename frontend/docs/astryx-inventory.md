@@ -451,6 +451,10 @@ the element it replaced. Each is fixed in place and recorded here so the excepti
 
 ## Chat
 
+Historical: Ask the agent has since moved to CopilotKit's components (docs/adr/0018). `chat-conversation.tsx` is gone, and
+`chat-drawer.tsx` and `chat-panel.tsx` no longer use the Astryx chat parts listed below; `assistant-turn.tsx`,
+`answer-feedback.tsx`, `answer-rows.tsx`, `citation-sheet.tsx` and `visual-card.tsx` remain as listed.
+
 Paths are relative to `frontend/src`. One row per old element / old wrapper / lucide icon that existed before the change.
 Astryx imports are always from the component's own entry (`@astryxdesign/core/<Name>`).
 

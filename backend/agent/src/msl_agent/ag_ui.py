@@ -50,6 +50,12 @@ def tool_call_end(tool_call_id: str) -> Event:
     return _event("TOOL_CALL_END", toolCallId=tool_call_id)
 
 
+def tool_call_result(tool_call_id: str, outcome: str = "complete") -> Event:
+    """AG-UI's result for a finished tool call. It says only that the call ended: the tool's output (rows and figures)
+    stays on the server and reaches the interface as the ``CUSTOM`` evidence events (docs/adr/0018)."""
+    return _event("TOOL_CALL_RESULT", messageId=f"tool-result-{tool_call_id}", toolCallId=tool_call_id, content=outcome, role="tool")
+
+
 def custom(name: str, value: Any) -> Event:
     return _event("CUSTOM", name=name, value=value)
 

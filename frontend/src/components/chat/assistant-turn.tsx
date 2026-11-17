@@ -23,7 +23,7 @@ import { AiSummary, CitationChip, ExportButton, SourceFact, Suggestion, type Pro
 import { useCountUp } from "@/hooks/use-count-up"
 import type { SurfaceAction, SurfaceItem } from "@/lib/chat/a2ui/protocol"
 import { citationNumber, citationsForFact, factsAreComparable, isAggregateCitation, type AssistantTurn, type CitationItem, type FactItem } from "@/lib/chat/events"
-import { buildProvenanceExport, downloadText, type ExportBlock } from "@/lib/provenance"
+import { exportAnswer, formatThrough } from "@/lib/chat/export"
 
 /**
  * The A2UI renderer and catalog load with the first answer that has a surface (docs/adr/0017), in their own chunk and
@@ -74,12 +74,6 @@ function KpiTile({ f, turn, onOpenCitation }: { f: FactItem; turn: AssistantTurn
   )
 }
 
-function formatThrough(iso: string | null): string | null {
-  if (!iso) return null
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
-}
-
 function CitationLink({ citation, citations, onOpen }: { citation: CitationItem; citations: CitationItem[]; onOpen: (citation: CitationItem) => void }) {
   const number = citationNumber(citations, citation)
   if (number < 1) return null
@@ -110,26 +104,6 @@ function CitedParagraph({ text, turn, onOpenCitation }: { text: string; turn: As
     const unique = evidence.filter((citation, itemIndex) => evidence.findIndex((item) => item.dataset === citation.dataset && item.recordId === citation.recordId) === itemIndex)
     return <React.Fragment key={`${sentence}-${index}`}>{index > 0 && " "}<Markdown display="inline" isStreaming={turn.status === "running"} className="contents">{sentence}</Markdown>{unique.map((citation) => <CitationLink key={`${citation.dataset}:${citation.recordId}`} citation={citation} citations={turn.citations} onOpen={onOpenCitation} />)}</React.Fragment>
   })}</>
-}
-
-/** The answer as a file. Facts, the AI summary and suggestions stay in separate, labelled blocks. */
-function exportTurn(turn: AssistantTurn, through: string | null) {
-  const blocks: ExportBlock[] = [
-    {
-      kind: "fact",
-      title: "Computed from your data",
-      lines: turn.facts.map((f) => `${f.label}: ${f.value.toLocaleString("en-US")} (${f.scope}, ${f.period})`),
-    },
-    {
-      kind: "ai",
-      title: "Answer",
-      lines: turn.text.split(/\n{2,}/).filter(Boolean),
-      citations: turn.citations.map((c, i) => ({ number: i + 1, recordId: c.recordId, label: c.label })),
-    },
-    { kind: "suggestion", title: "You could ask next", lines: turn.suggestions },
-  ]
-  const text = buildProvenanceExport({ title: "MSL Agent answer", exportedAt: new Date().toISOString(), dataThrough: through, blocks })
-  downloadText(`msl-agent-answer-${turn.runId}.md`, text)
 }
 
 /**
@@ -356,7 +330,7 @@ export function AssistantTurnView({
 
       {turn.status === "done" && (turn.text || turn.facts.length > 0) && (
         <HStack hAlign="end">
-          <ExportButton onExport={() => exportTurn(turn, through)} label="Download answer" />
+          <ExportButton onExport={() => exportAnswer(turn, turn.text, through)} label="Download answer" />
         </HStack>
       )}
 

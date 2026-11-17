@@ -185,7 +185,7 @@ test("anyone can rate a finished chat answer, and the rating is saved", async ({
   await page.goto("/chat")
   await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
   await page.getByTestId("chat-send").click()
-  await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+  await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
 
   await page.getByTestId("rate-up").click()
   await expect(page.getByTestId("rate-up")).toHaveAttribute("aria-pressed", "true")

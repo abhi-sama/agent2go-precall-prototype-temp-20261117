@@ -24,8 +24,11 @@ const heading = (name: string, level = 1) => (page: Page) =>
 /** A toast is a transient overlay (a confirmation, not part of the screen), so measure once it has gone. */
 const toastsGone = (page: Page) => expect(page.locator(".astryx-toast")).toHaveCount(0, { timeout: 12_000 })
 const testId = (id: string) => (page: Page) => expect(page.getByTestId(id).first()).toBeVisible()
-/** Wide workspaces reserve a supporting pane; smaller screens use the overlay with identical chat content. */
-const chatSurface = (page: Page) => page.getByTestId(page.viewportSize()!.width >= 1366 ? "chat-dock" : "chat-drawer")
+/**
+ * Ask the agent is CopilotKit's: its sidebar beside the page at docking width (1366px and wider), its popup below that,
+ * with identical chat content (docs/adr/0018).
+ */
+const chatSurface = (page: Page) => page.getByRole(page.viewportSize()!.width >= 1366 ? "complementary" : "dialog", { name: "Ask the agent" })
 
 /** The state family is checked in the default theme both ways and in the dark-only theme. */
 const STATE_LOOKS: Look[] = [
@@ -421,7 +424,7 @@ export const SCREENS: ScreenSpec[] = [
     ready: testId("org-suggestion"),
     prepare: async (page) => {
       await page.getByTestId("org-suggestion").first().click()
-      await expect(page.getByTestId("assistant-turn").first()).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn").first()).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await expect(page.getByTestId("sample-limitations").last()).toBeVisible()
     },
   },
@@ -532,7 +535,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("chat-input").fill("Show calls by month")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 15_000 })
       await expect(page.getByTestId("visual")).toHaveAttribute("data-kind", "line")
       await expect(page.getByTestId("sample-limitations")).toBeVisible()
     },
@@ -544,7 +547,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
     },
   },
   {
@@ -554,7 +557,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await page.getByTestId("rate-down").click()
       await expect(page.getByTestId("rating-saved")).toBeVisible()
       await expect(page.getByTestId("rating-note-input")).toBeVisible()
@@ -567,7 +570,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await page.getByTestId("citation").first().click()
       await expect(page.getByTestId("citation-sheet")).toBeVisible()
     },
@@ -579,7 +582,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await page.getByTestId("citation").first().click()
       await page.getByTestId("show-rows").click()
       await expect(page.getByTestId("chat-rows")).toBeVisible()
@@ -592,7 +595,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       // Collapsed by default; one tap opens the exact rows behind the count.
       await expect(page.getByTestId("answer-rows-toggle")).toHaveAttribute("aria-expanded", "false")
       await page.getByTestId("answer-rows-toggle").click()
@@ -607,7 +610,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await page.getByTestId("answer-rows-toggle").click()
       await expect(page.getByTestId("answer-rows-table")).toBeVisible()
       // Another set, sorted by a numeric column, on the second page.
@@ -625,7 +628,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await page.getByTestId("answer-rows-toggle").click()
       await expect(page.getByTestId("answer-rows-export-denied")).toBeVisible()
     },
@@ -638,7 +641,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("chat-input").fill("Which topics are rising across regions?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await expect(page.getByTestId("aggregate-only-note")).toBeVisible()
     },
   },
@@ -656,7 +659,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("chat-input").fill(question)
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await expect(page.getByTestId(chart).first()).toBeVisible()
     },
   })),
@@ -667,7 +670,7 @@ export const SCREENS: ScreenSpec[] = [
     prepare: async (page) => {
       await page.getByTestId("chat-input").fill("Heatmap of calls by product")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await page.getByTestId("visual-expand").click()
       await expect(page.getByTestId("visual-sheet")).toBeVisible()
     },
@@ -702,7 +705,7 @@ export const SCREENS: ScreenSpec[] = [
       await page.getByTestId("chat-open").click()
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
     },
   },
   // A2UI answer surfaces (docs/adr/0017) in the panel: the Adjust this answer form opened, and the recorded-themes table.
@@ -714,7 +717,7 @@ export const SCREENS: ScreenSpec[] = [
       await page.getByTestId("chat-open").click()
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await page.getByTestId("answer-follow-up-surfaces").getByRole("button", { name: /Adjust this answer/ }).click()
       await expect(page.getByRole("form", { name: "Adjust this answer" })).toBeVisible()
     },
@@ -727,7 +730,7 @@ export const SCREENS: ScreenSpec[] = [
       await page.getByTestId("chat-open").click()
       await page.getByTestId("chat-input").fill("What themes are emerging?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await expect(page.getByTestId("a2ui-table")).toBeVisible()
     },
   },
@@ -743,7 +746,7 @@ export const SCREENS: ScreenSpec[] = [
       await page.getByTestId("chat-open").click()
       await page.getByTestId("chat-input").fill(question)
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await expect(page.getByTestId(chart).first()).toBeVisible()
     },
   })),
@@ -755,7 +758,7 @@ export const SCREENS: ScreenSpec[] = [
       await page.getByTestId("chat-open").click()
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       // Scoped to the panel: /msl has AI-content cards of its own with citations underneath it.
       await chatSurface(page).getByTestId("citation").first().click()
       await expect(page.getByTestId("citation-sheet")).toBeVisible()
@@ -789,7 +792,7 @@ export const SCREENS: ScreenSpec[] = [
       await applyLook(page, { theme: "neutral", scheme: "dark" })
       await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
       await expect(page.locator('[data-provenance="ai"]').getByTestId("citation").first()).toBeVisible()
     },
   },
@@ -819,7 +822,7 @@ export const SCREENS: ScreenSpec[] = [
       await page.getByTestId("chat-open").click()
       await page.getByTestId("chat-input").fill("Compare my calls by product")
       await page.getByTestId("chat-send").click()
-      await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+      await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
     },
   },
   {

@@ -142,9 +142,10 @@ export async function collectContrastReport(page: Page): Promise<ContrastReport>
       const edgeOf = (c: CSSStyleDeclaration) => parse(c.borderTopWidth !== "0px" && c.borderTopStyle !== "none" ? c.borderTopColor : "rgba(0,0,0,0)")
       let edge = edgeOf(cs)
       let fill = parse(cs.backgroundColor)
-      // An Astryx field draws its border and fill on the control box around the native input, so read the box.
+      // An Astryx field, and CopilotKit's chat composer (docs/adr/0018), draw the border and fill on the control box
+      // around the native input, so read the box.
       if (edge[3] === 0 && fill[3] === 0) {
-        const box = el.closest<HTMLElement>("[class*='astryx-'][class*='-input'], [class*='astryx-'][class*='-segment']")
+        const box = el.closest<HTMLElement>("[class*='astryx-'][class*='-input'], [class*='astryx-'][class*='-segment'], [data-testid='copilot-chat-input']")
         if (box) {
           const bcs = getComputedStyle(box)
           edge = edgeOf(bcs)

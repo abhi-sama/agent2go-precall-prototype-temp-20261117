@@ -50,7 +50,7 @@ test("citations on an AI summary are visible and open the source record (44pt on
   await page.goto("/chat")
   await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
   await page.getByTestId("chat-send").click()
-  await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+  await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
   const summary = page.locator('[data-provenance="ai"]')
   const chip = summary.getByTestId("citation").first()
   await expect(chip).toBeVisible()
@@ -65,7 +65,7 @@ test("an exported answer keeps facts, the AI summary and suggestions in separate
   await page.goto("/chat")
   await page.getByTestId("chat-input").fill("How many calls did I have in the last 90 days?")
   await page.getByTestId("chat-send").click()
-  await expect(page.getByTestId("assistant-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
+  await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done", { timeout: 20_000 })
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("export-answer").click()])
   const stream = await download.createReadStream()
   let text = ""

@@ -9,6 +9,7 @@ The one chat experience is named **Ask the agent**.
 It has one persistent entry in the global header and no persona-sidebar duplicate.
 On a wide workspace it is an inspector-style supporting pane beside the current task.
 On narrower workspaces it is an overlay, and its full route remains `/chat` for focused, long-form work.
+Since ADR 0018 the chat itself is CopilotKit's components (popup, sidebar and full-page chat); the shell around it stays Astryx.
 This keeps role-gated navigation intact while avoiding three competing ways to ask the same question.
 When the inspector docks, the persistent sidebar becomes its existing icon rail so the three-pane workspace retains a useful main region.
 
@@ -20,7 +21,7 @@ Material 3 defines [feed, list-detail, and supporting-pane](https://m3.material.
 The supporting pane is approximately a two-thirds primary task area with a one-third secondary area, which is the model used for dashboard detail and Ask the agent.
 
 The Astryx research used the project CLI rather than re-creating layout primitives: `pnpm exec astryx docs layout`, `pnpm exec astryx build "dense responsive healthcare dashboard with persistent AI side panel"`, and `pnpm exec astryx template`.
-The resulting implementation uses `AppShell`, `Layout`, `LayoutPanel`, `Grid`, `GridSpan`, `Drawer`, `BottomSheet`, `ChatComposerDrawer`, and `Token` rather than bespoke layout containers.
+The resulting implementation uses `AppShell`, `Layout`, `LayoutPanel`, `Grid`, `GridSpan`, `Drawer`, `BottomSheet`, `ChatComposerDrawer`, and `Token` rather than bespoke layout containers. (The chat's `Drawer`, `BottomSheet`, `ChatComposerDrawer` and docked `LayoutPanel` were later replaced by CopilotKit's popup and sidebar, ADR 0018.)
 The [Astryx design system](https://astryx.atmeta.com/) provides the accessible primitives, templates, spacing scale, and theme behavior that this system keeps consistent.
 
 Modern Web Guidance research used `npx modern-web-guidance@latest search` for responsive container queries, drawers, and layout stability before implementation.
@@ -75,10 +76,10 @@ Do not turn an evidence selection into a second full-page scroll if there is a v
 
 | Window class | Arrangement | Ask the agent |
 | --- | --- | --- |
-| iPad portrait, including 1024x1366 | Compact header, navigation drawer, 12-track dashboard where its content container qualifies, and KPI row first | Tall bottom sheet so the current page remains intact below it. |
-| iPad landscape, 1366x1024 | Icon navigation rail, 12-track dashboard, and primary/supporting regions side by side | Docked supporting pane, which reflows the main task instead of covering it. |
-| Desktop 1280 to 1365 | Inline navigation where available, dense dashboard grid when the container qualifies | Right overlay Drawer so the main analysis remains usable. |
-| Desktop 1366 to 1920 | Inline navigation when chat is closed; icon rail and 12-track grid when it docks | 420px docked inspector beside reflowed content. |
+| iPad portrait, including 1024x1366 | Compact header, navigation drawer, 12-track dashboard where its content container qualifies, and KPI row first | CopilotKit's popup as a tall panel across the screen, so the current page remains intact below it. |
+| iPad landscape, 1366x1024 | Icon navigation rail, 12-track dashboard, and primary/supporting regions side by side | CopilotKit's sidebar docked beside the page, which reflows the main task instead of covering it. |
+| Desktop 1280 to 1365 | Inline navigation where available, dense dashboard grid when the container qualifies | CopilotKit's popup as a 440px side panel over the page, so the main analysis remains usable. |
+| Desktop 1366 to 1920 | Inline navigation when chat is closed; icon rail and 12-track grid when it docks | CopilotKit's 420px sidebar beside reflowed content. |
 
 The 1366px Ask the agent threshold is deliberately separate from the 896px dashboard-container threshold.
 The first protects the workspace when a chat pane opens, while the second lets a component use the room it has.
